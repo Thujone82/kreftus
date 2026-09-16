@@ -581,13 +581,30 @@ def device_needs_sparkline_bootstrap(history: DeviceHistory, mac: str) -> bool:
 
 
 def append_poll_results_to_log(
-    config: AppConfig, results: list[PollResult]
+    config: AppConfig, results: list[PollResult], *, durable: bool = True
 ) -> str | None:
-    """Append successful poll rows after a fetch cycle (Phase 2).
+    """Append successful poll rows to the CSV log.
 
-    Returns an error message on failure; readings are still committed in memory.
+    Call after each device (not only at cycle end) so a mid-cycle freeze loses
+    at most one unit's samples. When ``durable`` is true, flush and fsync so the
+    OS commits bytes before returning.
     """
     if not config.settings.logging_enabled:
+        return None
+
+    rows: list[list[object]] = []
+    for result in results:
+        for reading in result.all_readings():
+            rows.append(
+                [
+                    reading.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    result.device_name,
+                    f"{reading.temp_f:.1f}",
+                    reading.humidity_pct,
+                    result.mac,
+                ]
+            )
+    if not rows:
         return None
 
     log_path = resolved_log_path(config)
@@ -604,17 +621,10 @@ def append_poll_results_to_log(
             writer = csv.writer(handle, lineterminator="\n")
             if write_header:
                 writer.writerow(CSV_HEADER)
-            for result in results:
-                for reading in result.all_readings():
-                    writer.writerow(
-                        [
-                            reading.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                            result.device_name,
-                            f"{reading.temp_f:.1f}",
-                            reading.humidity_pct,
-                            result.mac,
-                        ]
-                    )
+            writer.writerows(rows)
+            if durable:
+                handle.flush()
+                os.fsync(handle.fileno())
     except OSError as exc:
         return f"Cannot write to {log_path}: {exc}"
     return None

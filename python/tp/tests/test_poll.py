@@ -168,6 +168,25 @@ class MultiRowLogAppendTests(unittest.TestCase):
         self.assertIn("70.0", lines[1])
         self.assertIn("72.0", lines[3])
 
+    def test_per_device_appends_accumulate_without_duplicating_header(self) -> None:
+        first = PollResult(
+            mac="AA",
+            device_name="Office",
+            reading=Reading(self.now, 70.0, 40),
+        )
+        second = PollResult(
+            mac="BB",
+            device_name="Basement",
+            reading=Reading(self.now, 66.0, 55),
+        )
+        self.assertIsNone(append_poll_results_to_log(self.config, [first]))
+        self.assertIsNone(append_poll_results_to_log(self.config, [second]))
+        lines = (self.root / "tp_log.csv").read_text(encoding="utf-8").strip().splitlines()
+        self.assertEqual(lines[0].split(",")[0], "timestamp")
+        self.assertEqual(len(lines), 3)
+        self.assertIn("Office", lines[1])
+        self.assertIn("Basement", lines[2])
+
 
 class ConfigRoundTripTests(unittest.TestCase):
     def test_save_and_load_poll_mode(self) -> None:

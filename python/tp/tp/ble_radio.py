@@ -73,15 +73,21 @@ def windows_uac_elevation_prompts() -> bool:
 
     Matches the common "Never notify" posture (ConsentPromptBehaviorAdmin=0)
     and fully disabled UAC (EnableLUA=0), where RunAs elevates silently.
+    Always reads the native 64-bit policy view (KEY_WOW64_64KEY).
     """
     if sys.platform != "win32":
         return True
     try:
         import winreg
 
+        access = winreg.KEY_READ
+        if hasattr(winreg, "KEY_WOW64_64KEY"):
+            access |= winreg.KEY_WOW64_64KEY
         with winreg.OpenKey(
             winreg.HKEY_LOCAL_MACHINE,
             r"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
+            0,
+            access,
         ) as key:
             try:
                 enable_lua, _ = winreg.QueryValueEx(key, "EnableLUA")
@@ -562,9 +568,9 @@ async def reset_windows_bluetooth_stack() -> bool:
 async def maybe_reset_bluetooth_stack_after_radio_failure() -> bool:
     """Run the Windows PnP Bluetooth reset after stuck-device radio recovery fails.
 
-    Asks in-app permission only when elevation would show a UAC prompt. When UAC
-    is set to Never notify (or the process is already elevated), proceeds without
-    interrupting monitoring.
+    No in-app Y/N: Windows UAC is the consent UI when the OS is set to notify.
+    With UAC Never notify (or an already-elevated process), elevation is silent
+    and monitoring recovers without interruption.
     """
     global _last_stack_reset_at, _last_radio_restart_at
 
@@ -579,13 +585,16 @@ async def maybe_reset_bluetooth_stack_after_radio_failure() -> bool:
         debug_write("ble: stack reset skipped (cooldown)")
         return False
 
-    if windows_stack_reset_needs_user_consent():
-        if not await _request_bluetooth_permission(BT_STACK_RESET_REQUEST):
-            return False
+    # Log posture for diagnostics; never block on an in-app prompt.
+    if windows_process_is_elevated():
+        debug_write("ble: stack reset starting (process already elevated)")
+    elif windows_uac_elevation_prompts():
+        debug_write(
+            "ble: stack reset starting (Windows may show a UAC prompt)"
+        )
     else:
         debug_write(
-            "ble: stack reset auto-approved "
-            "(already elevated or UAC will not prompt)"
+            "ble: stack reset starting (UAC will not prompt; auto-elevating)"
         )
 
     lock = _get_radio_restart_lock()

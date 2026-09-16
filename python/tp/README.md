@@ -193,7 +193,7 @@ timestamp,device,temp_f,humidity_pct,mac
 2026-06-15 14:05:00,Living Room,72.4,48,AA:BB:CC:DD:EE:FF
 ```
 
-In incremental poll mode, rows are minute-aligned (`:00` seconds). Multiple rows per device may be appended after each 5-minute cycle. On startup, readings from the last 72 hours are preloaded into memory for sparklines and freshness checks.
+In incremental poll mode, rows are minute-aligned (`:00` seconds). Each successful device is appended and flushed to the CSV immediately (not held until the whole cycle finishes), so a freeze mid-poll loses at most that unit’s latest samples. On startup, readings from the last 72 hours are preloaded into memory for sparklines and freshness checks.
 
 ## Log export to web
 
@@ -238,7 +238,7 @@ Temperature and humidity sparklines and cur/min/max values use indoor comfort ba
 - Consecutive **32.0 °F / 10%** readings (a known sensor error pattern) are discarded and not logged when two or more arrive in a row
 - Sparkline height reflects trend within the window; glyph color reflects the band at each bin average
 - Distant sensors may miss scheduled polls; minute retries and manual **G** fetch help recover them
-- If Bluetooth is off at the OS level, TemPy prompts **Y/N** before enabling it (e.g. after sleep). Stale bleak errors after you already turned Bluetooth back on do not re-prompt. When a previously working sensor fails twice in a row (or the whole fleet fails), TemPy power-cycles the Bluetooth radio and retries. If that unit is still stuck, TemPy runs `reset_bluetooth.ps1` (admin / UAC) — the same PnP adapter reset you would run manually. When Windows UAC is set to **Never notify** (or TemPy is already elevated), that reset runs automatically without an in-app prompt so monitoring can recover on its own.
+- If Bluetooth is off at the OS level, TemPy prompts **Y/N** before enabling it (e.g. after sleep). Stale bleak errors after you already turned Bluetooth back on do not re-prompt. When a previously working sensor fails twice in a row (or the whole fleet fails), TemPy power-cycles the Bluetooth radio and retries. If that unit is still stuck, TemPy runs `reset_bluetooth.ps1` automatically (admin elevation). Windows UAC is the only approval UI when configured to notify; with **Never notify**, elevation is silent and monitoring recovers on its own.
 - Last-updated time is on the device status screen (**I**), not on the dashboard label row
 - Technical reference for AI assistants: [cursor.md](cursor.md)
 

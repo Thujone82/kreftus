@@ -496,6 +496,13 @@ async def _run_fetch_cycle_once(
         batch.append(result)
         if result.error:
             errors.append(f"{name}: {result.error}")
+        # Persist as soon as each device succeeds so a freeze mid-cycle (or
+        # during later radio/stack recovery) does not discard prior units.
+        if result.all_readings():
+            log_error = append_poll_results_to_log(config, [result])
+            if log_error:
+                errors.append(log_error)
+                debug_write(f"fetch: log append error: {log_error}", config=config)
         if on_result:
             maybe = on_result(result)
             if asyncio.iscoroutine(maybe):
@@ -517,16 +524,6 @@ async def _run_fetch_cycle_once(
                 config=config,
             )
             await asyncio.sleep(delay)
-
-    if progress:
-        maybe = progress(total, total, "Saving results", "")
-        if asyncio.iscoroutine(maybe):
-            await maybe
-
-    log_error = append_poll_results_to_log(config, batch)
-    if log_error:
-        errors.append(log_error)
-        debug_write(f"fetch: log append error: {log_error}", config=config)
 
     ok = sum(1 for result in batch if result.reading is not None)
     debug_write(
