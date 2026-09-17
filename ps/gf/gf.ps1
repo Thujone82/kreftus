@@ -3021,25 +3021,62 @@ function Read-GfConfigHexPrompt {
     return $formatted
 }
 
+function Test-GfConfigLatLonPairText {
+    # Detect "lat, lon" (comma with optional spaces), e.g. "39.107, -77.190"
+    param([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+    if ($Text -notmatch '^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$') { return $null }
+    $lat = 0.0
+    $lon = 0.0
+    if (-not [double]::TryParse($Matches[1], [ref]$lat)) { return $null }
+    if (-not [double]::TryParse($Matches[2], [ref]$lon)) { return $null }
+    if ($lat -lt -90 -or $lat -gt 90 -or $lon -lt -180 -or $lon -gt 180) { return $null }
+    return [pscustomobject]@{ Lat = $lat; Lon = $lon }
+}
+
 function Read-GfConfigCoordinatePrompt {
     param(
         [string]$Prompt,
         [string]$Current = $null,
         [double]$Min,
-        [double]$Max
+        [double]$Max,
+        # When set on Latitude: accept "lat, lon" and return @{ Lat; Lon } (Lon may be $null)
+        [switch]$AllowLatLonPair
     )
     $hint = if ($null -ne $Current -and $Current -ne '') { " [$Current]" } else { '' }
-    $raw = Read-Host "$Prompt$hint"
+    $pairHint = if ($AllowLatLonPair) { ' (or lat, lon)' } else { '' }
+    $raw = Read-Host "$Prompt$hint$pairHint"
     if ([string]::IsNullOrWhiteSpace($raw)) {
+        if ($AllowLatLonPair) {
+            if ($null -eq $Current -or $Current -eq '') { return $null }
+            $keep = 0.0
+            if ([double]::TryParse([string]$Current, [ref]$keep)) {
+                return [pscustomobject]@{ Lat = $keep; Lon = $null }
+            }
+            return $null
+        }
         if ($null -eq $Current -or $Current -eq '') { return $null }
         $keep = 0.0
         if ([double]::TryParse([string]$Current, [ref]$keep)) { return $keep }
         return $null
     }
+    if ($AllowLatLonPair) {
+        $pair = Test-GfConfigLatLonPairText -Text $raw
+        if ($null -ne $pair) {
+            return [pscustomobject]@{ Lat = [double]$pair.Lat; Lon = [double]$pair.Lon }
+        }
+    }
     $val = 0.0
     if (-not [double]::TryParse($raw.Trim(), [ref]$val) -or $val -lt $Min -or $val -gt $Max) {
+        if ($AllowLatLonPair) {
+            Write-Host "Enter latitude ($Min..$Max), or a lat, lon pair." -ForegroundColor Yellow
+            return $null
+        }
         Write-Host "Enter a number between $Min and $Max." -ForegroundColor Yellow
         return $null
+    }
+    if ($AllowLatLonPair) {
+        return [pscustomobject]@{ Lat = $val; Lon = $null }
     }
     return $val
 }
@@ -3124,18 +3161,31 @@ function Invoke-GfConfigEditLocation {
             continue
         }
         if ($choice -eq '4') {
-            $newLat = Read-GfConfigCoordinatePrompt -Prompt "Latitude" -Current $latStr -Min -90 -Max 90
-            if ($null -eq $newLat) { continue }
+            $latResult = Read-GfConfigCoordinatePrompt -Prompt "Latitude" -Current $latStr -Min -90 -Max 90 -AllowLatLonPair
+            if ($null -eq $latResult) { continue }
+            $newLat = [double]$latResult.Lat
+            $newLonFromPair = $latResult.Lon
             if (-not $fav.location) { $fav['location'] = [ordered]@{} }
             elseif ($fav.location -isnot [hashtable] -and $fav.location -isnot [System.Collections.Specialized.OrderedDictionary]) {
                 $fav['location'] = ConvertTo-GfHashtable -InputObject $fav.location
             }
             $fav.location['lat'] = $newLat
-            $rev = Get-GfReverseGeocodeCityState -Lat $newLat -Lon $(if ($lonStr) { [double]$lonStr } else { 0 })
-            if ($lonStr -and $rev.City) { $fav.location['city'] = $rev.City }
-            if ($lonStr -and $rev.State) { $fav.location['state'] = $rev.State }
-            if ($lonStr -and $rev.City -and $rev.State -and (-not $fav.name -or [string]$fav.name -match '^-?\d')) {
-                $fav['name'] = "$($rev.City), $($rev.State)"
+            $lonForRev = if ($null -ne $newLonFromPair) {
+                $fav.location['lon'] = [double]$newLonFromPair
+                Write-Host "Longitude: $newLonFromPair (from lat, lon pair)" -ForegroundColor Cyan
+                [double]$newLonFromPair
+            } elseif ($lonStr) {
+                [double]$lonStr
+            } else {
+                $null
+            }
+            if ($null -ne $lonForRev) {
+                $rev = Get-GfReverseGeocodeCityState -Lat $newLat -Lon $lonForRev
+                if ($rev.City) { $fav.location['city'] = $rev.City }
+                if ($rev.State) { $fav.location['state'] = $rev.State }
+                if ($rev.City -and $rev.State -and (-not $fav.name -or [string]$fav.name -match '^-?\d')) {
+                    $fav['name'] = "$($rev.City), $($rev.State)"
+                }
             }
             Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
             continue
@@ -3188,17 +3238,24 @@ function Invoke-GfConfigCreateLocation {
         Show-GfConfigColorSample -PrimaryHex $primary -SecondaryHex $secondary
     }
 
-    $lat = Read-GfConfigCoordinatePrompt -Prompt "Latitude" -Min -90 -Max 90
-    if ($null -eq $lat) {
+    $latResult = Read-GfConfigCoordinatePrompt -Prompt "Latitude" -Min -90 -Max 90 -AllowLatLonPair
+    if ($null -eq $latResult -or $null -eq $latResult.Lat) {
         Write-Host "Latitude is required." -ForegroundColor Yellow
         Start-Sleep -Milliseconds 800
         return
     }
-    $lon = Read-GfConfigCoordinatePrompt -Prompt "Longitude" -Min -180 -Max 180
-    if ($null -eq $lon) {
-        Write-Host "Longitude is required." -ForegroundColor Yellow
-        Start-Sleep -Milliseconds 800
-        return
+    $lat = [double]$latResult.Lat
+    $lon = $null
+    if ($null -ne $latResult.Lon) {
+        $lon = [double]$latResult.Lon
+        Write-Host "Longitude: $lon (from lat, lon pair)" -ForegroundColor Cyan
+    } else {
+        $lon = Read-GfConfigCoordinatePrompt -Prompt "Longitude" -Min -180 -Max 180
+        if ($null -eq $lon) {
+            Write-Host "Longitude is required." -ForegroundColor Yellow
+            Start-Sleep -Milliseconds 800
+            return
+        }
     }
 
     Write-Host "Looking up city/state..." -ForegroundColor Yellow
