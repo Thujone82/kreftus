@@ -10,3 +10,4 @@ When the user asks to commit and/or push TemPy (`python/tp`) changes:
 - Always stage and commit rebuilt executables if they are modified: `python/tp/tp.exe` and `python/tp/tp.pyz`.
 - Do not exclude them as "unrelated" or "binary rebuilds" when committing TemPy work.
 - Prefer including them in the same commit as the source/docs/tests that produced them when possible; if they were left out of a prior commit, commit and push them promptly with the related TemPy change.
+- Do **not** run `build.ps1` to refresh binaries for a commit — the user owns TemPy builds (see `tempy-user-owns-builds`).
