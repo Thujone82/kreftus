@@ -303,6 +303,9 @@ $script:gfFavoriteInputLocked = $false
 $script:gfDeferredKeyInfo = $null
 $script:gfLocationsDrawerOpen = $false
 $script:gfPerLocationColors = $true
+$script:gfDefaultTextColorHex = '#00ced1'
+$script:gfDefaultPrimaryColorHex = '#00ff00'
+$script:gfDefaultSecondaryColorHex = '#00ced1'
 $script:use24hTime = $true
 $script:showIrradiance = $true
 $script:gfRestartRequested = $false
@@ -492,7 +495,9 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
 }
 
 # Advanced: show status ASAP so the long helper-registration / profile parse is not a blank screen
-if ($gfAdvancedCanSupplyLocation -and -not $DisableAdvanced.IsPresent -and $VerbosePreference -ne 'Continue') {
+# -config / AQI setup / -eadv (no import file) never need weather boot UX
+$skipAdvancedBootStatus = $Config.IsPresent -or $AqiSetup.IsPresent -or ($EnableAdvanced.IsPresent -and -not $EnableAdvancedFile)
+if ($gfAdvancedCanSupplyLocation -and -not $DisableAdvanced.IsPresent -and -not $skipAdvancedBootStatus -and $VerbosePreference -ne 'Continue') {
     try { Clear-Host } catch {}
     Write-Host "Loading GetForecast Advanced Mode..." -ForegroundColor Yellow
     $script:gfAdvancedBootStatusActive = $true
@@ -1251,6 +1256,10 @@ function New-GfAdvancedProfileDefaults {
             controlBarOpen       = $true
             currentMode          = "full"
             perLocationColors    = $true
+            # Match Forecast ACCENT_DEFAULTS + --color-default
+            defaultPrimaryColor  = "#00ff00"
+            defaultSecondaryColor = "#00ced1"
+            defaultTextColor     = "#00ced1"
         }
         favorites         = @()
         lastActiveFavorite = $null
@@ -1382,6 +1391,17 @@ function ConvertFrom-ForecastBackupToGfProfile {
         if ($null -ne $settings.forecastLocationsDrawerOpen) { $profile.settings.locationsDrawerOpen = [bool]$settings.forecastLocationsDrawerOpen }
         if ($settings.forecastCurrentMode) { $profile.settings.currentMode = [string]$settings.forecastCurrentMode }
         if ($null -ne $settings.forecastPerLocationColors) { $profile.settings.perLocationColors = [bool]$settings.forecastPerLocationColors }
+        if ($settings.forecastAccentPrimary) {
+            $pri = Format-GfConfigHex -Hex ([string]$settings.forecastAccentPrimary)
+            if ($pri) { $profile.settings.defaultPrimaryColor = $pri }
+        }
+        if ($settings.forecastAccentSecondary) {
+            $sec = Format-GfConfigHex -Hex ([string]$settings.forecastAccentSecondary)
+            if ($sec) {
+                $profile.settings.defaultSecondaryColor = $sec
+                $profile.settings.defaultTextColor = $sec
+            }
+        }
 
         if ($profile.settings.enableAqi -and $settings.forecastAirNowApiKey -and -not [string]::IsNullOrWhiteSpace([string]$settings.forecastAirNowApiKey)) {
             $profile['airNowApiKey'] = ([string]$settings.forecastAirNowApiKey).Trim()
@@ -1551,6 +1571,17 @@ function Initialize-GfAdvancedProfileShape {
     if (-not $Profile) { return $null }
     if ($null -eq $Profile['advancedEnabled']) { $Profile['advancedEnabled'] = $true }
     if (-not $Profile['settings']) { $Profile['settings'] = (New-GfAdvancedProfileDefaults).settings }
+    else {
+        if ($null -eq $Profile.settings['defaultPrimaryColor'] -or [string]::IsNullOrWhiteSpace([string]$Profile.settings.defaultPrimaryColor)) {
+            $Profile.settings['defaultPrimaryColor'] = '#00ff00'
+        }
+        if ($null -eq $Profile.settings['defaultSecondaryColor'] -or [string]::IsNullOrWhiteSpace([string]$Profile.settings.defaultSecondaryColor)) {
+            $Profile.settings['defaultSecondaryColor'] = '#00ced1'
+        }
+        if ($null -eq $Profile.settings['defaultTextColor'] -or [string]::IsNullOrWhiteSpace([string]$Profile.settings.defaultTextColor)) {
+            $Profile.settings['defaultTextColor'] = '#00ced1'
+        }
+    }
     if ($null -eq $Profile['favorites']) { $Profile['favorites'] = @() }
     elseif ($Profile.favorites -isnot [System.Array]) { $Profile['favorites'] = @($Profile.favorites) }
     if ($null -eq $Profile['schemaVersion'] -or [int]$Profile.schemaVersion -lt 2) {
@@ -2591,9 +2622,35 @@ function Write-GfTrueColorText {
     $fgName = if ($fg) { Get-GfNearestConsoleColor -R $fg.R -G $fg.G -B $fg.B } else { 'White' }
     $bgName = if ($bg) { Get-GfNearestConsoleColor -R $bg.R -G $bg.G -B $bg.B } else { $null }
     if ($bgName) {
-        Write-Host $Text -ForegroundColor $fgName -BackgroundColor $bgName -NoNewline:$NoNewline
+        Microsoft.PowerShell.Utility\Write-Host $Text -ForegroundColor $fgName -BackgroundColor $bgName -NoNewline:$NoNewline
     } else {
-        Write-Host $Text -ForegroundColor $fgName -NoNewline:$NoNewline
+        Microsoft.PowerShell.Utility\Write-Host $Text -ForegroundColor $fgName -NoNewline:$NoNewline
+    }
+}
+
+# Sentinel for profile Default Text Color — Write-GfHost renders it as truecolor hex
+$script:GF_DEFAULT_TEXT_COLOR = 'GfDefault'
+
+function Write-GfHost {
+    param(
+        [Parameter(Position = 0, ValueFromPipeline = $true)]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [object]$Object = '',
+        [string]$ForegroundColor,
+        [string]$BackgroundColor,
+        [switch]$NoNewline
+    )
+    process {
+        $text = if ($null -eq $Object) { '' } else { [string]$Object }
+        if ($ForegroundColor -eq $script:GF_DEFAULT_TEXT_COLOR) {
+            Write-GfTrueColorText -Text $text -ForegroundHex (Get-GfDefaultTextColorHex) -NoNewline:$NoNewline
+            return
+        }
+        $splat = @{ Object = $text; NoNewline = [bool]$NoNewline }
+        if ($ForegroundColor) { $splat['ForegroundColor'] = $ForegroundColor }
+        if ($BackgroundColor) { $splat['BackgroundColor'] = $BackgroundColor }
+        Microsoft.PowerShell.Utility\Write-Host @splat
     }
 }
 
@@ -2716,9 +2773,17 @@ function Show-GfFavoriteChip {
         [switch]$ForceFullColors
     )
     $label = Get-GfFavoriteDisplayLabel -Favorite $Favorite
-    $useColors = $ForceFullColors -or [bool]$script:gfPerLocationColors
-    $primary = if ($useColors -and $Favorite.primaryColor) { [string]$Favorite.primaryColor } else { $null }
-    $secondary = if ($useColors -and $Favorite.secondaryColor) { [string]$Favorite.secondaryColor } else { $null }
+    $primary = Get-GfDefaultPrimaryColorHex
+    $secondary = Get-GfDefaultSecondaryColorHex
+    $usePerLocation = $ForceFullColors -or [bool]$script:gfPerLocationColors
+    if ($usePerLocation) {
+        if ($Favorite.primaryColor -and -not [string]::IsNullOrWhiteSpace([string]$Favorite.primaryColor)) {
+            $primary = [string]$Favorite.primaryColor
+        }
+        if ($Favorite.secondaryColor -and -not [string]::IsNullOrWhiteSpace([string]$Favorite.secondaryColor)) {
+            $secondary = [string]$Favorite.secondaryColor
+        }
+    }
 
     if ($IsActive) {
         # Active: invert primary/secondary fill; trailing space matches padding after ▀
@@ -2764,12 +2829,16 @@ function Write-GfThemedSectionTitle {
         [string]$FallbackTitleColor = "Green"
     )
     $inner = if ($null -eq $Title) { '' } else { [string]$Title }
-    $useColors = $script:gfAdvancedMode -and $script:gfPerLocationColors -and $script:gfActiveFavorite
-    $primary = $null
-    $secondary = $null
-    if ($useColors) {
-        $primary = [string]$script:gfActiveFavorite.primaryColor
-        $secondary = [string]$script:gfActiveFavorite.secondaryColor
+    $primary = Get-GfDefaultPrimaryColorHex
+    $secondary = Get-GfDefaultSecondaryColorHex
+    # Per-location favorite accents override profile defaults when present
+    if ($script:gfAdvancedMode -and $script:gfPerLocationColors -and $script:gfActiveFavorite) {
+        if ($script:gfActiveFavorite.primaryColor -and -not [string]::IsNullOrWhiteSpace([string]$script:gfActiveFavorite.primaryColor)) {
+            $primary = [string]$script:gfActiveFavorite.primaryColor
+        }
+        if ($script:gfActiveFavorite.secondaryColor -and -not [string]::IsNullOrWhiteSpace([string]$script:gfActiveFavorite.secondaryColor)) {
+            $secondary = [string]$script:gfActiveFavorite.secondaryColor
+        }
     }
     if ($primary -or $secondary) {
         $star = if ($secondary) { $secondary } else { $primary }
@@ -2848,6 +2917,14 @@ function Show-GfAdvancedImportReport {
     Write-Host "  Control bar:          $(if ($null -eq $settings.controlBarOpen -or $settings.controlBarOpen) { 'open' } else { 'closed' })" -ForegroundColor Cyan
     Write-Host "  Current mode:         $($settings.currentMode)" -ForegroundColor Cyan
     Write-Host "  Per-location colors:  $(if ($settings.perLocationColors) { 'on' } else { 'off' })" -ForegroundColor Cyan
+    $defPri = Get-GfDefaultPrimaryColorHex -Profile $Profile
+    $defSec = Get-GfDefaultSecondaryColorHex -Profile $Profile
+    $defText = Get-GfDefaultTextColorHex -Profile $Profile
+    Write-Host "  Default colors:       " -ForegroundColor Cyan -NoNewline
+    Write-GfTrueColorText -Text "█" -ForegroundHex $defPri -NoNewline
+    Write-GfTrueColorText -Text "█" -ForegroundHex $defSec -NoNewline
+    Write-GfTrueColorText -Text "█" -ForegroundHex $defText -NoNewline
+    Write-Host (" {0} / {1} / {2}" -f $defPri, $defSec, $defText) -ForegroundColor Cyan
     if ($Profile.lastActiveFavorite) {
         Write-Host "  Last active:          $($Profile.lastActiveFavorite.locationQuery) (slot $([int]$Profile.lastActiveFavorite.index + 1))" -ForegroundColor Cyan
     }
@@ -2867,6 +2944,218 @@ function Format-GfConfigHex {
     $parsed = ConvertFrom-GfHexColor -Hex $Hex
     if (-not $parsed) { return $null }
     return $parsed.Hex
+}
+
+function Get-GfDefaultPrimaryColorHex {
+    param([object]$Profile = $null)
+    $raw = $null
+    if ($Profile -and $Profile.settings -and $Profile.settings.defaultPrimaryColor) {
+        $raw = [string]$Profile.settings.defaultPrimaryColor
+    } elseif ($script:gfDefaultPrimaryColorHex) {
+        $raw = [string]$script:gfDefaultPrimaryColorHex
+    }
+    $hex = Format-GfConfigHex -Hex $raw
+    if ($hex) { return $hex }
+    return '#00ff00'
+}
+
+function Get-GfDefaultSecondaryColorHex {
+    param([object]$Profile = $null)
+    $raw = $null
+    if ($Profile -and $Profile.settings -and $Profile.settings.defaultSecondaryColor) {
+        $raw = [string]$Profile.settings.defaultSecondaryColor
+    } elseif ($script:gfDefaultSecondaryColorHex) {
+        $raw = [string]$script:gfDefaultSecondaryColorHex
+    }
+    $hex = Format-GfConfigHex -Hex $raw
+    if ($hex) { return $hex }
+    return '#00ced1'
+}
+
+function Get-GfDefaultTextColorHex {
+    param([object]$Profile = $null)
+    $raw = $null
+    if ($Profile -and $Profile.settings -and $Profile.settings.defaultTextColor) {
+        $raw = [string]$Profile.settings.defaultTextColor
+    } elseif ($script:gfDefaultTextColorHex) {
+        $raw = [string]$script:gfDefaultTextColorHex
+    }
+    $hex = Format-GfConfigHex -Hex $raw
+    if ($hex) { return $hex }
+    return '#00ced1'
+}
+
+function Get-GfDefaultTextConsoleColorName {
+    param([string]$Hex = $null)
+    $useHex = if ($Hex) { Format-GfConfigHex -Hex $Hex } else { Get-GfDefaultTextColorHex }
+    if (-not $useHex) { return 'DarkCyan' }
+    # Keep legacy DarkCyan for the Forecast teal default (palette Cyan is much brighter)
+    if ($useHex -eq '#00ced1') { return 'DarkCyan' }
+    $parsed = ConvertFrom-GfHexColor -Hex $useHex
+    if (-not $parsed) { return 'DarkCyan' }
+    return (Get-GfNearestConsoleColor -R $parsed.R -G $parsed.G -B $parsed.B)
+}
+
+function Show-GfConfigDefaultColorsLine {
+    param(
+        [object]$Profile = $null,
+        [int]$Number = 1
+    )
+    $pri = Get-GfDefaultPrimaryColorHex -Profile $Profile
+    $sec = Get-GfDefaultSecondaryColorHex -Profile $Profile
+    $text = Get-GfDefaultTextColorHex -Profile $Profile
+    Write-Host (" {0,2}. " -f $Number) -ForegroundColor Cyan -NoNewline
+    Write-GfTrueColorText -Text "█" -ForegroundHex $pri -NoNewline
+    Write-GfTrueColorText -Text "█" -ForegroundHex $sec -NoNewline
+    Write-GfTrueColorText -Text "█" -ForegroundHex $text -NoNewline
+    Write-Host (" Default Colors:  {0} / {1} / {2}" -f $pri, $sec, $text) -ForegroundColor Cyan
+}
+
+function Save-GfConfigDefaultColors {
+    param(
+        [object]$Profile,
+        [string]$PrimaryHex,
+        [string]$SecondaryHex,
+        [string]$TextHex
+    )
+    $Profile.settings['defaultPrimaryColor'] = $PrimaryHex
+    $Profile.settings['defaultSecondaryColor'] = $SecondaryHex
+    $Profile.settings['defaultTextColor'] = $TextHex
+    $script:gfDefaultPrimaryColorHex = $PrimaryHex
+    $script:gfDefaultSecondaryColorHex = $SecondaryHex
+    $script:gfDefaultTextColorHex = $TextHex
+    Save-GfAdvancedProfile -Profile $Profile | Out-Null
+    $script:gfAdvancedProfile = $Profile
+}
+
+function Show-GfConfigDefaultColorsSample {
+    param(
+        [string]$PrimaryHex,
+        [string]$SecondaryHex,
+        [string]$TextHex
+    )
+    Write-Host "Sample:  " -ForegroundColor White -NoNewline
+    Write-GfTrueColorText -Text "***" -ForegroundHex $SecondaryHex -NoNewline
+    Write-Host " " -NoNewline
+    Write-GfTrueColorText -Text "Title" -ForegroundHex $PrimaryHex -NoNewline
+    Write-Host " " -NoNewline
+    Write-GfTrueColorText -Text "***" -ForegroundHex $SecondaryHex -NoNewline
+    Write-Host "  " -NoNewline
+    Write-GfTrueColorText -Text "Temperature: 72°F" -ForegroundHex $TextHex
+}
+
+function Edit-GfConfigDefaultColorsSequential {
+    param([object]$Profile)
+    $defaultPrimary = '#00ff00'
+    $defaultSecondary = '#00ced1'
+    $defaultText = '#00ced1'
+    $pri = Get-GfDefaultPrimaryColorHex -Profile $Profile
+    $sec = Get-GfDefaultSecondaryColorHex -Profile $Profile
+    $text = Get-GfDefaultTextColorHex -Profile $Profile
+
+    Write-Host ""
+    Write-Host "Primary:" -ForegroundColor White
+    $newPri = Read-GfConfigHexPrompt -Prompt "Primary color" -Current $pri
+    if ($null -eq $newPri) {
+        $newPri = $defaultPrimary
+        Write-Host "Cleared; using default primary $defaultPrimary." -ForegroundColor Yellow
+    }
+
+    Write-Host "Secondary:" -ForegroundColor White
+    $newSec = Read-GfConfigHexPrompt -Prompt "Secondary color" -Current $sec
+    if ($null -eq $newSec) {
+        $newSec = $defaultSecondary
+        Write-Host "Cleared; using default secondary $defaultSecondary." -ForegroundColor Yellow
+    }
+
+    Write-Host "Text:" -ForegroundColor White
+    $newText = Read-GfConfigHexPrompt -Prompt "Text color" -Current $text
+    if ($null -eq $newText) {
+        $newText = $defaultText
+        Write-Host "Cleared; using default text $defaultText." -ForegroundColor Yellow
+    }
+
+    Save-GfConfigDefaultColors -Profile $Profile -PrimaryHex $newPri -SecondaryHex $newSec -TextHex $newText
+    Show-GfConfigDefaultColorsSample -PrimaryHex $newPri -SecondaryHex $newSec -TextHex $newText
+    Start-Sleep -Milliseconds 700
+}
+
+function Invoke-GfConfigDefaultColors {
+    param([object]$Profile)
+    $defaultPrimary = '#00ff00'
+    $defaultSecondary = '#00ced1'
+    $defaultText = '#00ced1'
+    while ($true) {
+        Clear-GfConfigScreen
+        $pri = Get-GfDefaultPrimaryColorHex -Profile $Profile
+        $sec = Get-GfDefaultSecondaryColorHex -Profile $Profile
+        $text = Get-GfDefaultTextColorHex -Profile $Profile
+        Write-Host "=== Default Colors ===" -ForegroundColor Green
+        Write-Host "App defaults for titles (primary/secondary) and weather field text. Per-location favorite colors still override when enabled." -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host "Primary:   " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "█" -ForegroundHex $pri -NoNewline
+        Write-Host "  $pri" -ForegroundColor White
+        Write-Host "Secondary: " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "█" -ForegroundHex $sec -NoNewline
+        Write-Host "  $sec" -ForegroundColor White
+        Write-Host "Text:      " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "█" -ForegroundHex $text -NoNewline
+        Write-Host "  $text" -ForegroundColor White
+        Show-GfConfigDefaultColorsSample -PrimaryHex $pri -SecondaryHex $sec -TextHex $text
+        Write-Host ""
+        Write-Host "Option: " -ForegroundColor Green -NoNewline
+        Write-Host "1" -ForegroundColor Cyan -NoNewline; Write-Host "=Primary  " -ForegroundColor White -NoNewline
+        Write-Host "2" -ForegroundColor Cyan -NoNewline; Write-Host "=Secondary  " -ForegroundColor White -NoNewline
+        Write-Host "3" -ForegroundColor Cyan -NoNewline; Write-Host "=Text  " -ForegroundColor White -NoNewline
+        Write-Host "A" -ForegroundColor Cyan -NoNewline; Write-Host "ll  " -ForegroundColor White -NoNewline
+        Write-Host "R" -ForegroundColor Cyan -NoNewline; Write-Host "eset  " -ForegroundColor White -NoNewline
+        Write-Host "B" -ForegroundColor Cyan -NoNewline; Write-Host "ack" -ForegroundColor White
+        $choice = (Read-Host "Choice").Trim()
+        if ($choice -match '^[Bb]$') { return }
+        if ($choice -match '^[Rr]$') {
+            Save-GfConfigDefaultColors -Profile $Profile -PrimaryHex $defaultPrimary -SecondaryHex $defaultSecondary -TextHex $defaultText
+            Write-Host "Reset to Forecast defaults ($defaultPrimary / $defaultSecondary / $defaultText)" -ForegroundColor Cyan
+            Start-Sleep -Milliseconds 600
+            continue
+        }
+        if ($choice -match '^[Aa]$') {
+            Edit-GfConfigDefaultColorsSequential -Profile $Profile
+            continue
+        }
+        if ($choice -match '^1$') {
+            Write-Host "Primary:" -ForegroundColor White
+            $newHex = Read-GfConfigHexPrompt -Prompt "Primary color" -Current $pri
+            if ($null -eq $newHex) {
+                $newHex = $defaultPrimary
+                Write-Host "Cleared; using default primary $defaultPrimary." -ForegroundColor Yellow
+            }
+            Save-GfConfigDefaultColors -Profile $Profile -PrimaryHex $newHex -SecondaryHex $sec -TextHex $text
+            continue
+        }
+        if ($choice -match '^2$') {
+            Write-Host "Secondary:" -ForegroundColor White
+            $newHex = Read-GfConfigHexPrompt -Prompt "Secondary color" -Current $sec
+            if ($null -eq $newHex) {
+                $newHex = $defaultSecondary
+                Write-Host "Cleared; using default secondary $defaultSecondary." -ForegroundColor Yellow
+            }
+            Save-GfConfigDefaultColors -Profile $Profile -PrimaryHex $pri -SecondaryHex $newHex -TextHex $text
+            continue
+        }
+        if ($choice -match '^3$') {
+            Write-Host "Text:" -ForegroundColor White
+            $newHex = Read-GfConfigHexPrompt -Prompt "Text color" -Current $text
+            if ($null -eq $newHex) {
+                $newHex = $defaultText
+                Write-Host "Cleared; using default text $defaultText." -ForegroundColor Yellow
+            }
+            Save-GfConfigDefaultColors -Profile $Profile -PrimaryHex $pri -SecondaryHex $sec -TextHex $newHex
+            continue
+        }
+        Write-Host "Unknown choice." -ForegroundColor Gray
+        Start-Sleep -Milliseconds 500
+    }
 }
 
 function Show-GfConfigColorSample {
@@ -3290,18 +3579,22 @@ function Invoke-GfConfigChangeSetting {
     $s = $Profile.settings
     switch ($SettingNumber) {
         1 {
+            Invoke-GfConfigDefaultColors -Profile $Profile
+            return
+        }
+        2 {
             $s.showMagicHours = -not [bool]$s.showMagicHours
             Write-Host "Magic Hours: $(if ($s.showMagicHours) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        2 {
+        3 {
             $s.showIrradiance = -not [bool]$s.showIrradiance
             Write-Host "Irradiance: $(if ($s.showIrradiance) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        3 {
+        4 {
             $s.enableWildfire = -not [bool]$s.enableWildfire
             Write-Host "Wildfire: $(if ($s.enableWildfire) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        4 {
+        5 {
             $cur = [int]$s.wildfireRadiusMiles
             $raw = Read-Host "Wildfire radius miles [$cur]"
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
@@ -3316,34 +3609,34 @@ function Invoke-GfConfigChangeSetting {
                 }
             }
         }
-        5 {
+        6 {
             $s.filterSmallWildfires = -not [bool]$s.filterSmallWildfires
             Write-Host "Filter small fires: $(if ($s.filterSmallWildfires) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        6 {
+        7 {
             $s.enableAqi = -not [bool]$s.enableAqi
             Write-Host "AQI: $(if ($s.enableAqi) { 'on' } else { 'off' })" -ForegroundColor Cyan
             if ($s.enableAqi) {
                 $keyNow = Get-AirNowApiKeyFromEnvironment
                 if (-not $keyNow) {
-                    Write-Host "No AirNowAPI key set. Use setting 12 to add one." -ForegroundColor Yellow
+                    Write-Host "No AirNowAPI key set. Use setting 13 to add one." -ForegroundColor Yellow
                 }
             }
         }
-        7 {
+        8 {
             $s.use24h = -not [bool]$s.use24h
             Write-Host "24-hour times: $(if ($s.use24h) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        8 {
+        9 {
             $s.locationsDrawerOpen = -not [bool]$s.locationsDrawerOpen
             Write-Host "Locations drawer: $(if ($s.locationsDrawerOpen) { 'open' } else { 'closed' })" -ForegroundColor Cyan
         }
-        9 {
+        10 {
             $cur = if ($null -eq $s.controlBarOpen) { $true } else { [bool]$s.controlBarOpen }
             $s.controlBarOpen = -not $cur
             Write-Host "Control bar: $(if ($s.controlBarOpen) { 'open' } else { 'closed' })" -ForegroundColor Cyan
         }
-        10 {
+        11 {
             Write-Host "Modes: full, terse, tersealert, hourly, daily, rain, wind, history" -ForegroundColor DarkGray
             $raw = Read-Host "Current mode [$($s.currentMode)]"
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
@@ -3358,12 +3651,12 @@ function Invoke-GfConfigChangeSetting {
                 }
             }
         }
-        11 {
+        12 {
             $s.perLocationColors = -not [bool]$s.perLocationColors
             $script:gfPerLocationColors = [bool]$s.perLocationColors
             Write-Host "Per-location colors: $(if ($s.perLocationColors) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        12 {
+        13 {
             Invoke-GfConfigAirNowKey
             return
         }
@@ -3473,19 +3766,20 @@ function Show-GfAdvancedConfigModal {
         Write-Host "Profile: $(Get-GfAdvancedProfilePath)" -ForegroundColor DarkGray
         Write-Host ""
         Write-Host "Settings (enter number to change):" -ForegroundColor Green
-        Write-Host ("  1. Magic Hours:          {0}" -f $(if ($settings.showMagicHours) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  2. Irradiance:           {0}" -f $(if ($settings.showIrradiance) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  3. Wildfire:             {0}" -f $(if ($settings.enableWildfire) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  4. Wildfire radius:      {0} mi" -f [int]$settings.wildfireRadiusMiles) -ForegroundColor Cyan
-        Write-Host ("  5. Filter small fires:   {0}" -f $(if ($settings.filterSmallWildfires) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  6. AQI:                  {0}" -f $(if ($settings.enableAqi) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Show-GfConfigDefaultColorsLine -Profile $profile -Number 1
+        Write-Host ("  2. Magic Hours:          {0}" -f $(if ($settings.showMagicHours) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  3. Irradiance:           {0}" -f $(if ($settings.showIrradiance) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  4. Wildfire:             {0}" -f $(if ($settings.enableWildfire) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  5. Wildfire radius:      {0} mi" -f [int]$settings.wildfireRadiusMiles) -ForegroundColor Cyan
+        Write-Host ("  6. Filter small fires:   {0}" -f $(if ($settings.filterSmallWildfires) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  7. AQI:                  {0}" -f $(if ($settings.enableAqi) { 'on' } else { 'off' })) -ForegroundColor Cyan
         $airNowMasked = Mask-AirNowKeyDisplay -Key (Get-AirNowApiKeyFromEnvironment)
-        Write-Host ("  7. 24-hour times:        {0}" -f $(if ($settings.use24h) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  8. Locations drawer:     {0}" -f $(if ($settings.locationsDrawerOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
-        Write-Host ("  9. Control bar:          {0}" -f $(if ($null -eq $settings.controlBarOpen -or $settings.controlBarOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
-        Write-Host (" 10. Current mode:         {0}" -f $settings.currentMode) -ForegroundColor Cyan
-        Write-Host (" 11. Per-location colors:  {0}" -f $(if ($settings.perLocationColors) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host (" 12. AirNow API key:       {0}" -f $airNowMasked) -ForegroundColor Cyan
+        Write-Host ("  8. 24-hour times:        {0}" -f $(if ($settings.use24h) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  9. Locations drawer:     {0}" -f $(if ($settings.locationsDrawerOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
+        Write-Host (" 10. Control bar:          {0}" -f $(if ($null -eq $settings.controlBarOpen -or $settings.controlBarOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
+        Write-Host (" 11. Current mode:         {0}" -f $settings.currentMode) -ForegroundColor Cyan
+        Write-Host (" 12. Per-location colors:  {0}" -f $(if ($settings.perLocationColors) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host (" 13. AirNow API key:       {0}" -f $airNowMasked) -ForegroundColor Cyan
         Write-Host ""
         Write-Host "Locations ($($favList.Count)):" -ForegroundColor Green
         if ($favList.Count -eq 0) {
@@ -3498,7 +3792,10 @@ function Show-GfAdvancedConfigModal {
         }
         Write-Host ""
         Write-Host "Option: " -ForegroundColor Green -NoNewline
-        Write-Host "1" -ForegroundColor Cyan -NoNewline; Write-Host "-12 settings  " -ForegroundColor White -NoNewline
+        Write-Host "1" -ForegroundColor Cyan -NoNewline
+        Write-Host "-" -ForegroundColor White -NoNewline
+        Write-Host "13" -ForegroundColor Cyan -NoNewline
+        Write-Host " settings  " -ForegroundColor White -NoNewline
         Write-Host "L" -ForegroundColor Cyan -NoNewline; Write-Host " <n> edit  " -ForegroundColor White -NoNewline
         Write-Host "U" -ForegroundColor Cyan -NoNewline; Write-Host " <n> up  " -ForegroundColor White -NoNewline
         Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host " <n> down  " -ForegroundColor White -NoNewline
@@ -3545,12 +3842,12 @@ function Show-GfAdvancedConfigModal {
             continue
         }
         $settingNum = 0
-        if ([int]::TryParse($choice, [ref]$settingNum) -and $settingNum -ge 1 -and $settingNum -le 12) {
+        if ([int]::TryParse($choice, [ref]$settingNum) -and $settingNum -ge 1 -and $settingNum -le 13) {
             Invoke-GfConfigChangeSetting -Profile $profile -SettingNumber $settingNum
             Start-Sleep -Milliseconds 400
             continue
         }
-        Write-Host "Unknown choice. Examples: 3  |  12  |  L 2  |  U 3  |  D 1  |  N  |  Q" -ForegroundColor Gray
+        Write-Host "Unknown choice. Examples: 3  |  13  |  L 2  |  U 3  |  D 1  |  N  |  Q" -ForegroundColor Gray
         Start-Sleep -Milliseconds 900
     }
 }
@@ -4009,9 +4306,12 @@ function Initialize-GfAdvancedMode {
         }
     }
 
+    # -config / post -eadv config: load profile settings only — no favorite bind, geocode, or weather boot
+    $configOnlyLaunch = $Config.IsPresent -or $script:gfOpenConfigAfterInit
+
     # Show status before the expensive gf.json parse (can take seconds with weatherCache)
     $profilePath = Get-GfAdvancedProfilePath
-    if ((Test-Path -LiteralPath $profilePath) -and -not $DisableAdvanced.IsPresent) {
+    if ((Test-Path -LiteralPath $profilePath) -and -not $DisableAdvanced.IsPresent -and -not $configOnlyLaunch) {
         Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode..."
     }
 
@@ -4027,10 +4327,15 @@ function Initialize-GfAdvancedMode {
     }
 
     $script:gfAdvancedMode = $true
-    Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode..."
+    if (-not $configOnlyLaunch) {
+        Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode..."
+    }
     $script:gfAdvancedProfile = $profile
     $script:gfFavorites = @($profile.favorites)
     $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
+    $script:gfDefaultTextColorHex = Get-GfDefaultTextColorHex -Profile $profile
+    $script:gfDefaultPrimaryColorHex = Get-GfDefaultPrimaryColorHex -Profile $profile
+    $script:gfDefaultSecondaryColorHex = Get-GfDefaultSecondaryColorHex -Profile $profile
     $script:gfLocationsDrawerOpen = [bool]$profile.settings.locationsDrawerOpen
     if (-not $script:cliNoBarSpecified) {
         if ($null -ne $profile.settings.controlBarOpen) {
@@ -4066,6 +4371,11 @@ function Initialize-GfAdvancedMode {
         } elseif ([string]::IsNullOrWhiteSpace($env:AirNowAPI)) {
             $env:AirNowAPI = $existingKey
         }
+    }
+
+    if ($configOnlyLaunch) {
+        Write-Verbose "Config-only launch: skipping favorite/location weather bind"
+        return
     }
 
     $script:advRestoreTerse = $false
@@ -8122,8 +8432,8 @@ function Show-CurrentConditions {
     $alertHeaderPrefix = Get-NwsCurrentConditionsHeaderAlertPrefix -AlertsData $alertsForHeader -Now $headerNow
     
     Write-GfCurrentConditionsTitle -City $city -State $state -AlertHeaderPrefix $alertHeaderPrefix -FallbackTitleColor $TitleColor
-    Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $DefaultColor
-    Write-Host "Temperature: $currentTemp°F" -ForegroundColor $TempColor -NoNewline
+    Write-GfHost "Currently: $weatherIcon $currentConditions" -ForegroundColor $DefaultColor
+    Write-GfHost "Temperature: $currentTemp°F" -ForegroundColor $TempColor -NoNewline
 
     # Calculate and display wind chill, heat index, or estimated WBGT (-wbgt)
     $tempNum = [double]$currentTemp
@@ -8147,7 +8457,7 @@ function Show-CurrentConditions {
         if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
             $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
             $wbgtColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
-            Write-Host " [${wbgtDisp}°F]" -ForegroundColor $wbgtColor -NoNewline
+            Write-GfHost " [${wbgtDisp}°F]" -ForegroundColor $wbgtColor -NoNewline
         }
     }
     elseif ($tempNum -ge 80) {
@@ -8155,7 +8465,7 @@ function Show-CurrentConditions {
         $heatIndex = Get-HeatIndex $tempNum $humidityNum
         if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
             $hiColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
-            Write-Host " [$heatIndex°F]" -ForegroundColor $hiColor -NoNewline
+            Write-GfHost " [$heatIndex°F]" -ForegroundColor $hiColor -NoNewline
         }
     }
 
@@ -8166,7 +8476,7 @@ function Show-CurrentConditions {
              "steady" { "→" }
              default { "" }
          }
-        Write-Host " $trendIcon " -ForegroundColor $DefaultColor -NoNewline
+        Write-GfHost " $trendIcon " -ForegroundColor $DefaultColor -NoNewline
     }
     Write-Host ""
 
@@ -8243,7 +8553,7 @@ function Show-CurrentConditions {
     if ($currentPrecipProb -gt 0) {
         # Color code precipitation probability
         $precipColor = if ($currentPrecipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($currentPrecipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
-        Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $precipColor
+        Write-GfHost "Precipitation: $currentPrecipProb% chance" -ForegroundColor $precipColor
     }
 
     # Display sunrise and sunset times
@@ -8258,18 +8568,18 @@ function Show-CurrentConditions {
         }
     }
     if ($SolarIrradiance -and $script:showIrradiance) {
-        Write-Host "Irradiance: $SolarIrradiance" -ForegroundColor White
+        Write-GfHost "Irradiance: $SolarIrradiance" -ForegroundColor $DefaultColor
     }
     
     # Display moon phase information
     if ($MoonPhase -and $MoonEmoji) {
-        Write-Host "Moon Phase: $MoonEmoji $MoonPhase" -ForegroundColor Gray
+        Write-GfHost "Moon Phase: $MoonEmoji $MoonPhase" -ForegroundColor $DefaultColor
     }
     if ($ShowNextFullMoon -and $NextFullMoonDate) {
-        Write-Host "Next Full Moon: $NextFullMoonDate" -ForegroundColor Gray
+        Write-GfHost "Next Full Moon: $NextFullMoonDate" -ForegroundColor $DefaultColor
     }
     if ($ShowNextNewMoon -and $NextNewMoonDate) {
-        Write-Host "Next New Moon: $NextNewMoonDate" -ForegroundColor Gray
+        Write-GfHost "Next New Moon: $NextNewMoonDate" -ForegroundColor $DefaultColor
     }
 
     if ($ShowMagicHours -and $Latitude -ne 0 -and $Longitude -ne 0 -and $TimeZoneId) {
@@ -8289,8 +8599,8 @@ function Show-CurrentConditions {
             $blueActive = ($magicHours.Blue.IsActive -and $null -ne $magicHours.Blue.ActiveUntil)
             $goldenLabel = if ($goldenActive) { "Golden Hour" } else { "Next Golden Hour" }
             $blueLabel = if ($blueActive) { "Blue Hour" } else { "Next Blue Hour" }
-            Write-Host "${goldenLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Golden -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor White
-            Write-Host "${blueLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Blue -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor White
+            Write-GfHost "${goldenLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Golden -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor $DefaultColor
+            Write-GfHost "${blueLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Blue -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor $DefaultColor
         }
     }
 
@@ -8317,7 +8627,7 @@ function Show-ForecastText {
     $wrappedForecast = Format-TextWrap -Text $bodyText -Width $wrapW
     Write-Host ""
     Write-GfThemedSectionTitle -Title $Title -FallbackTitleColor $TitleColor
-    $wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $detailedForecastColor }
+    $wrappedForecast | ForEach-Object { Write-GfHost $_ -ForegroundColor $detailedForecastColor }
 }
 
 # Function to display hourly forecast with scrolling capability
@@ -8511,21 +8821,21 @@ function Show-HourlyForecast {
         $padding = " " * [Math]::Max(0, $spacesNeeded)
 
         Write-Host $timePart -ForegroundColor $hourLabelColor -NoNewline
-        Write-Host $iconPart -ForegroundColor $DefaultColor -NoNewline
-        Write-Host $padding -ForegroundColor $DefaultColor -NoNewline
-        Write-Host $tempPart -ForegroundColor $tempColor -NoNewline
+        Write-GfHost $iconPart -ForegroundColor $DefaultColor -NoNewline
+        Write-GfHost $padding -ForegroundColor $DefaultColor -NoNewline
+        Write-GfHost $tempPart -ForegroundColor $tempColor -NoNewline
         if ($windchillHeatIndex) {
-            Write-Host $windchillHeatIndex -ForegroundColor $windchillHeatIndexColor -NoNewline
+            Write-GfHost $windchillHeatIndex -ForegroundColor $windchillHeatIndexColor -NoNewline
         }
-        Write-Host " " -ForegroundColor $DefaultColor -NoNewline
+        Write-GfHost " " -ForegroundColor $DefaultColor -NoNewline
         # Trim trailing spaces from windPart to ensure exactly one space before the dash
         $windPartTrimmed = $windPart.TrimEnd()
         Write-Host $windPartTrimmed -ForegroundColor $windDisplayColor -NoNewline
         if ($precipPart) { 
-            Write-Host $precipPart -ForegroundColor $precipColor -NoNewline 
+            Write-GfHost $precipPart -ForegroundColor $precipColor -NoNewline 
         }
         # Ensure exactly one space before the dash in forecastPart
-        Write-Host $forecastPart -ForegroundColor $DefaultColor
+        Write-GfHost $forecastPart -ForegroundColor $DefaultColor
         
         $hourCount++
     }
@@ -8617,12 +8927,12 @@ function Write-SevenDayHighLowTemps {
     if ($DaytimePeriod) {
         $high = $DaytimePeriod.temperature
         $highColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$high) -DefaultColor $DefaultColor -AlertColor $AlertColor
-        Write-Host " H:${high}°F" -ForegroundColor $highColor -NoNewline
+        Write-GfHost " H:${high}°F" -ForegroundColor $highColor -NoNewline
     }
     if ($NighttimePeriod) {
         $low = $NighttimePeriod.temperature
         $lowColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$low) -DefaultColor $DefaultColor -AlertColor $AlertColor
-        Write-Host " L:${low}°F" -ForegroundColor $lowColor -NoNewline
+        Write-GfHost " L:${low}°F" -ForegroundColor $lowColor -NoNewline
     }
 }
 
@@ -8780,13 +9090,13 @@ function Show-SevenDayForecast {
             
             # Display sunrise/sunset/day length if available (on same line, no blank line after)
             if ($sunriseStr) {
-                Write-Host "Sunrise: " -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost "Sunrise: " -ForegroundColor $DefaultColor -NoNewline
                 Write-Host "$sunriseStr" -ForegroundColor Gray -NoNewline
                 if ($sunsetStr) {
-                    Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
+                    Write-GfHost " Sunset: " -ForegroundColor $DefaultColor -NoNewline
                     Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
                     if ($dayLengthStr) {
-                        Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
+                        Write-GfHost " Day Length: " -ForegroundColor $DefaultColor -NoNewline
                         Write-Host "$dayLengthStr" -ForegroundColor Gray
                     } else {
                         Write-Host ""  # Newline if no day length (polar night/day)
@@ -8808,11 +9118,11 @@ function Show-SevenDayForecast {
             Write-Host $datePadding -ForegroundColor White -NoNewline
             Write-SevenDayHighLowTemps -DaytimePeriod $daytimePeriod -NighttimePeriod $nighttimePeriod -DefaultColor $DefaultColor -AlertColor $AlertColor
             if ($windChillHeatIndex) {
-                Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
+                Write-GfHost $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
-            Write-Host " $windDisplay $($displayPeriod.windDirection)" -ForegroundColor $windColor -NoNewline
+            Write-GfHost " $windDisplay $($displayPeriod.windDirection)" -ForegroundColor $windColor -NoNewline
             if ($precipProb -gt 0) {
-                Write-Host " ($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
+                Write-GfHost " ($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
             }
             Write-Host ""
             
@@ -8843,10 +9153,10 @@ function Show-SevenDayForecast {
                 $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $dayLabel)))
                 
                 Write-Host $dayLabel -ForegroundColor White -NoNewline
-                Write-Host $wrappedDayForecast[0] -ForegroundColor $detailedForecastColor
+                Write-GfHost $wrappedDayForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 for ($i = 1; $i -lt $wrappedDayForecast.Count; $i++) {
-                    Write-Host ("          " + $wrappedDayForecast[$i]) -ForegroundColor $detailedForecastColor
+                    Write-GfHost ("          " + $wrappedDayForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
                 
                 # Night detailed forecast with wrapping
@@ -8855,10 +9165,10 @@ function Show-SevenDayForecast {
                 $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $nightLabel)))
                 
                 Write-Host $nightLabel -ForegroundColor White -NoNewline
-                Write-Host $wrappedNightForecast[0] -ForegroundColor $detailedForecastColor
+                Write-GfHost $wrappedNightForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 for ($i = 1; $i -lt $wrappedNightForecast.Count; $i++) {
-                    Write-Host ("          " + $wrappedNightForecast[$i]) -ForegroundColor $detailedForecastColor
+                    Write-GfHost ("          " + $wrappedNightForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
             } else {
                 # Only one period available - determine if it's day or night
@@ -8868,11 +9178,11 @@ function Show-SevenDayForecast {
                 $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $singlePeriodLabel)))
                 
                 Write-Host $singlePeriodLabel -ForegroundColor White -NoNewline
-                Write-Host $wrappedSingleForecast[0] -ForegroundColor $detailedForecastColor
+                Write-GfHost $wrappedSingleForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 $indentSpaces = if ($isCurrentPeriodNight) { "          " } else { "          " }
                 for ($i = 1; $i -lt $wrappedSingleForecast.Count; $i++) {
-                    Write-Host ($indentSpaces + $wrappedSingleForecast[$i]) -ForegroundColor $detailedForecastColor
+                    Write-GfHost ($indentSpaces + $wrappedSingleForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
             }
         } else {
@@ -8894,9 +9204,9 @@ function Show-SevenDayForecast {
             $dayNameEnd = $formattedLine.IndexOf(": ")
             if ($dayNameEnd -ge 0) {
                 Write-Host $formattedLine.Substring(0, $dayNameEnd + 2) -ForegroundColor Yellow -NoNewline
-                Write-Host $formattedLine.Substring($dayNameEnd + 2, $tempStart - $dayNameEnd - 2) -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost $formattedLine.Substring($dayNameEnd + 2, $tempStart - $dayNameEnd - 2) -ForegroundColor $DefaultColor -NoNewline
             } else {
-                Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
             }
             
             Write-SevenDayHighLowTemps -DaytimePeriod $daytimePeriod -NighttimePeriod $nighttimePeriod -DefaultColor $DefaultColor -AlertColor $AlertColor
@@ -8911,28 +9221,28 @@ function Show-SevenDayForecast {
                 $precipStart = $afterTemp.IndexOf("($precipProb%☔️)")
                 if ($precipStart -ge 0) {
                     # Write everything before precipitation
-                    Write-Host $afterTemp.Substring(0, $precipStart) -ForegroundColor $DefaultColor -NoNewline
+                    Write-GfHost $afterTemp.Substring(0, $precipStart) -ForegroundColor $DefaultColor -NoNewline
                     
                     # Write precipitation with proper color
                     $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
-                    Write-Host "($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
+                    Write-GfHost "($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
                     
                     # Write everything after precipitation
                     $precipEnd = "($precipProb%☔️)".Length
                     if ($precipStart + $precipEnd -lt $afterTemp.Length) {
-                        Write-Host $afterTemp.Substring($precipStart + $precipEnd) -ForegroundColor $DefaultColor
+                        Write-GfHost $afterTemp.Substring($precipStart + $precipEnd) -ForegroundColor $DefaultColor
                     } else {
                         Write-Host ""
                     }
                 } else {
-                    Write-Host $afterTemp -ForegroundColor $DefaultColor
+                    Write-GfHost $afterTemp -ForegroundColor $DefaultColor
                 }
             } else {
-                Write-Host $afterTemp -ForegroundColor $DefaultColor
+                Write-GfHost $afterTemp -ForegroundColor $DefaultColor
             }
         } else {
             # Fallback if temperature not found
-            Write-Host $formattedLine -ForegroundColor $DefaultColor
+            Write-GfHost $formattedLine -ForegroundColor $DefaultColor
         }
         }
         
@@ -8964,11 +9274,11 @@ function Show-Observations {
     Write-GfThemedSectionTitle -Title $titleInner -FallbackTitleColor $TitleColor
     
     if (-not $ObservationsData -or $ObservationsData.Count -eq 0) {
-        Write-Host "No historical observations available." -ForegroundColor $DefaultColor
+        Write-GfHost "No historical observations available." -ForegroundColor $DefaultColor
         return
     }
     
-    $detailedForecastColor = "Gray"
+    $detailedForecastColor = $DefaultColor
     
     # Reverse the order so most recent observations appear first
     $reversedObservations = if ($ObservationsData -is [Array]) {
@@ -9120,13 +9430,13 @@ function Show-Observations {
         
         # Display sunrise/sunset/day length if available (on same line, no blank line after)
         if ($sunriseStr) {
-            Write-Host " Sunrise: " -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost " Sunrise: " -ForegroundColor $DefaultColor -NoNewline
             Write-Host "$sunriseStr" -ForegroundColor Gray -NoNewline
             if ($sunsetStr) {
-                Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost " Sunset: " -ForegroundColor $DefaultColor -NoNewline
                 Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
                 if ($dayLengthStr) {
-                    Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
+                    Write-GfHost " Day Length: " -ForegroundColor $DefaultColor -NoNewline
                     Write-Host "$dayLengthStr" -ForegroundColor Gray
                 } else {
                     Write-Host ""  # Newline if no day length (polar night/day)
@@ -9138,19 +9448,19 @@ function Show-Observations {
         
         # Temperature display
         if ($null -ne $highTemp) {
-            Write-Host " H:$highTemp°F" -ForegroundColor $tempColor -NoNewline
+            Write-GfHost " H:$highTemp°F" -ForegroundColor $tempColor -NoNewline
         } else {
-            Write-Host "H:N/A" -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost "H:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
         
         if ($windChillHeatIndex) {
-            Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
+            Write-GfHost $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
         }
         
         if ($null -ne $lowTemp) {
-            Write-Host " L:$lowTemp°F" -ForegroundColor $tempColor -NoNewline
+            Write-GfHost " L:$lowTemp°F" -ForegroundColor $tempColor -NoNewline
         } else {
-            Write-Host " L:N/A" -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost " L:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
         
         # Wind display - color code avg and gust separately
@@ -9159,37 +9469,37 @@ function Show-Observations {
             $avgWindSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
             
             # Show average with separate color
-            Write-Host " avg ${avgWindSpeedStr}mph" -ForegroundColor $avgWindColor -NoNewline
+            Write-GfHost " avg ${avgWindSpeedStr}mph" -ForegroundColor $avgWindColor -NoNewline
             
             # Show gust with separate color if available
             if ($null -ne $maxWindGust) {
                 $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
-                Write-Host " gust ${maxWindGustStr}mph" -ForegroundColor $gustWindColor -NoNewline
+                Write-GfHost " gust ${maxWindGustStr}mph" -ForegroundColor $gustWindColor -NoNewline
             } elseif ($null -ne $maxWindSpeed) {
                 # Show max with separate color if it differs significantly
                 if ([Math]::Abs($maxWindSpeed - $avgWindSpeed) -gt 1) {
                     $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
-                    Write-Host " max ${maxWindSpeedStr}mph" -ForegroundColor $gustWindColor -NoNewline
+                    Write-GfHost " max ${maxWindSpeedStr}mph" -ForegroundColor $gustWindColor -NoNewline
                 }
             }
             
             # Wind direction
             if ($windDirStr) {
-                Write-Host " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
             }
         } elseif ($null -ne $maxWindSpeed) {
             # Fallback to max if avg not available
             $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
-            Write-Host " max ${maxWindSpeedStr}mph" -ForegroundColor $gustWindColor -NoNewline
+            Write-GfHost " max ${maxWindSpeedStr}mph" -ForegroundColor $gustWindColor -NoNewline
             if ($windDirStr) {
-                Write-Host " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
             }
         } elseif ($null -ne $maxWindGust) {
             # Fallback to gust if available
             $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
-            Write-Host " gust ${maxWindGustStr}mph" -ForegroundColor $gustWindColor -NoNewline
+            Write-GfHost " gust ${maxWindGustStr}mph" -ForegroundColor $gustWindColor -NoNewline
             if ($windDirStr) {
-                Write-Host " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
             }
         }
         
@@ -9200,20 +9510,20 @@ function Show-Observations {
                             elseif ($pressureInHg -lt 29.50) { "Cyan" }
                             elseif ($pressureInHg -le 30.20) { $DefaultColor }
                             else { "Yellow" }
-            Write-Host " P:$pressureInHg inHg" -ForegroundColor $pressureColor -NoNewline
+            Write-GfHost " P:$pressureInHg inHg" -ForegroundColor $pressureColor -NoNewline
         } else {
-            Write-Host " P:N/A" -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost " P:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
         
         # Precipitation display
         if ($precipDisplay) {
-            Write-Host $precipDisplay -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost $precipDisplay -ForegroundColor $DefaultColor -NoNewline
         }
         
         # Humidity display
         if ($null -ne $dayData.AvgHumidity) {
             $humidityStr = [Math]::Round($dayData.AvgHumidity, 0).ToString()
-            Write-Host " ($humidityStr% RH)" -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost " ($humidityStr% RH)" -ForegroundColor $DefaultColor -NoNewline
         }
         
         Write-Host ""
@@ -9229,14 +9539,14 @@ function Show-Observations {
         Write-Host $conditionsLabel -ForegroundColor White -NoNewline
         $firstLine = $wrappedConditions[0]
         if ($firstLine -match '^(.+?) Clouds: (.+)$') {
-            Write-Host $Matches[1] -ForegroundColor $detailedForecastColor -NoNewline
+            Write-GfHost $Matches[1] -ForegroundColor $detailedForecastColor -NoNewline
             Write-Host " Clouds: " -ForegroundColor White -NoNewline
-            Write-Host $Matches[2] -ForegroundColor $detailedForecastColor
+            Write-GfHost $Matches[2] -ForegroundColor $detailedForecastColor
         } else {
-            Write-Host $firstLine -ForegroundColor $detailedForecastColor
+            Write-GfHost $firstLine -ForegroundColor $detailedForecastColor
         }
         for ($i = 1; $i -lt $wrappedConditions.Count; $i++) {
-            Write-Host ("          " + $wrappedConditions[$i]) -ForegroundColor $detailedForecastColor
+            Write-GfHost ("          " + $wrappedConditions[$i]) -ForegroundColor $detailedForecastColor
         }
         
         Write-Host ""
@@ -9446,10 +9756,10 @@ function Show-WeatherAlerts {
 
             if ($showDetails) {
                 Write-Host "*** $alertEvent ***" -ForegroundColor $AlertColor
-                Write-Host "$alertHeadline" -ForegroundColor $DefaultColor
+                Write-GfHost "$alertHeadline" -ForegroundColor $DefaultColor
                 if (-not [string]::IsNullOrWhiteSpace($alertDesc)) {
                     $wrappedAlert = Format-TextWrap -Text $alertDesc -Width (Get-SafeConsoleWrapWidth)
-                    $wrappedAlert | ForEach-Object { Write-Host $_ -ForegroundColor $DefaultColor }
+                    $wrappedAlert | ForEach-Object { Write-GfHost $_ -ForegroundColor $DefaultColor }
                 }
                 Write-Host "Effective: $($alertStart.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
                 Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
@@ -10736,10 +11046,10 @@ function Write-WildFireStatsSegments {
             $sep = ''
         }
         if ($sep) {
-            Write-Host $sep -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost $sep -ForegroundColor $DefaultColor -NoNewline
             $col += $sep.Length
         }
-        Write-Host $text -ForegroundColor $color -NoNewline
+        Write-GfHost $text -ForegroundColor $color -NoNewline
         $col += $text.Length
         if ($col -ge $width) {
             # Segment itself longer than the window; terminal wrapped — track remainder.
@@ -10771,7 +11081,7 @@ function Show-WildFireInfo {
     for ($i = 0; $i -lt $list.Count; $i++) {
         $f = $list[$i]
         Write-Host "$($f.Name)" -ForegroundColor Yellow -NoNewline
-        Write-Host "  $($f.DistanceMi)mi $($f.Cardinal)" -ForegroundColor $DefaultColor
+        Write-GfHost "  $($f.DistanceMi)mi $($f.Cardinal)" -ForegroundColor $DefaultColor
 
         $statsSegments = @()
         $acresStr = Format-WildFireAcres -Acres $f.Acres
@@ -10842,7 +11152,7 @@ function Show-WildFireInfo {
             $injuryCount = Get-WildFireLossCount -RawValue $f.Injuries
             if ($null -ne $fatalityCount -and $fatalityCount -gt 0) { $lossesColor = $AlertColor }
             elseif ($null -ne $injuryCount -and $injuryCount -gt 0) { $lossesColor = 'Yellow' }
-            Write-Host "Losses: $lossesStr" -ForegroundColor $lossesColor
+            Write-GfHost "Losses: $lossesStr" -ForegroundColor $lossesColor
         }
         if ($f.Updated) {
             try {
@@ -10850,14 +11160,14 @@ function Show-WildFireInfo {
             } catch {}
         }
 
-        Write-Host "InciWeb: " -ForegroundColor $DefaultColor -NoNewline
+        Write-GfHost "InciWeb: " -ForegroundColor $DefaultColor -NoNewline
         $linkWritten = $false
         if ($f.InciWebUrl) {
             Write-Host "$([char]27)]8;;$($f.InciWebUrl)$([char]27)\$($f.Name)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
             $linkWritten = $true
         }
         if ($f.StateMapUrl) {
-            if ($linkWritten) { Write-Host " | " -ForegroundColor $DefaultColor -NoNewline }
+            if ($linkWritten) { Write-GfHost " | " -ForegroundColor $DefaultColor -NoNewline }
             $stateLabel = if ($stateSlug) { (Get-Culture).TextInfo.ToTitleCase($stateSlug.Replace('-', ' ')) } else { 'State Map' }
             Write-Host "$([char]27)]8;;$($f.StateMapUrl)$([char]27)\State Map: $stateLabel$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
             $linkWritten = $true
@@ -10899,14 +11209,14 @@ function Show-WildFireTerseLine {
     if ($f.InciWebUrl) {
         Write-Host "$([char]27)]8;;$($f.InciWebUrl)$([char]27)\$($f.Name)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
     } else {
-        Write-Host "$($f.Name)" -ForegroundColor $DefaultColor -NoNewline
+        Write-GfHost "$($f.Name)" -ForegroundColor $DefaultColor -NoNewline
     }
     if ($acresStr) {
         Write-Host " " -NoNewline
-        Write-Host "${acresStr}ac" -ForegroundColor $acresColor -NoNewline
+        Write-GfHost "${acresStr}ac" -ForegroundColor $acresColor -NoNewline
     }
     if ($restParts.Count -gt 0) {
-        Write-Host (" " + ($restParts -join ' ')) -ForegroundColor $restColor
+        Write-GfHost (" " + ($restParts -join ' ')) -ForegroundColor $restColor
     } else {
         Write-Host ""
     }
@@ -11163,21 +11473,21 @@ function Show-LocationInfo {
         }
     }
     
-    Write-Host "Time Zone: $TimeZone$utcOffsetStr" -ForegroundColor $DefaultColor
-    Write-Host "Coordinates: $Lat, $Lon" -ForegroundColor $DefaultColor
-    Write-Host "Elevation: ${ElevationFeet}ft" -ForegroundColor $DefaultColor
+    Write-GfHost "Time Zone: $TimeZone$utcOffsetStr" -ForegroundColor $DefaultColor
+    Write-GfHost "Coordinates: $Lat, $Lon" -ForegroundColor $DefaultColor
+    Write-GfHost "Elevation: ${ElevationFeet}ft" -ForegroundColor $DefaultColor
     
     # Display NWS Resources with clickable links
-    Write-Host "NWS Resources: " -ForegroundColor $DefaultColor -NoNewline
+    Write-GfHost "NWS Resources: " -ForegroundColor $DefaultColor -NoNewline
     # Forecast link
     $forecastUrl = "https://forecast.weather.gov/MapClick.php?lat=$Lat&lon=$Lon"
     Write-Host "$([char]27)]8;;$forecastUrl$([char]27)\Forecast$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
-    Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
+    Write-GfHost " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Graph link
     $graphUrl = "https://forecast.weather.gov/MapClick.php?lat=$Lat&lon=$Lon&unit=0&lg=english&FcstType=graphical"
     Write-Host "$([char]27)]8;;$graphUrl$([char]27)\Graph$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
-    Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
+    Write-GfHost " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Radar link
     $radarUrl = "https://radar.weather.gov/ridge/standard/${RadarStation}_loop.gif"
@@ -11235,7 +11545,7 @@ function Show-LocationInfo {
         if ($noaaStation) {
             # Display NOAA Station information first
             # Display NOAA Station information with clickable station ID
-            Write-Host "NOAA Station: " -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost "NOAA Station: " -ForegroundColor $DefaultColor -NoNewline
             Write-Host "$($noaaStation.name) (" -ForegroundColor Gray -NoNewline
             $stationHomeUrl = "https://tidesandcurrents.noaa.gov/stationhome.html?id=$($noaaStation.stationId)"
             Write-Host "$([char]27)]8;;$stationHomeUrl$([char]27)\$($noaaStation.stationId)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
@@ -11251,14 +11561,14 @@ function Show-LocationInfo {
             $distanceStr = "$([Math]::Round($distMi, 2))mi"
             
             Write-Host ") " -ForegroundColor Gray -NoNewline
-            Write-Host "$distanceStr $cardinalDir" -ForegroundColor $DefaultColor
+            Write-GfHost "$distanceStr $cardinalDir" -ForegroundColor $DefaultColor
             
             # Display NOAA Resources
-            Write-Host "NOAA Resources: " -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost "NOAA Resources: " -ForegroundColor $DefaultColor -NoNewline
             # Tide Prediction link
             $tideUrl = "https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=$($noaaStation.stationId)"
             Write-Host "$([char]27)]8;;$tideUrl$([char]27)\Tide Prediction$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
-            Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
+            Write-GfHost " | " -ForegroundColor $DefaultColor -NoNewline
             
             # Datums link
             $datumsUrl = "https://tidesandcurrents.noaa.gov/datums.html?id=$($noaaStation.stationId)"
@@ -11266,7 +11576,7 @@ function Show-LocationInfo {
             
             # Check if water levels are supported (already set in Get-NoaaTideStation via API)
             if ($noaaStation.supportsWaterLevels) {
-                Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
+                Write-GfHost " | " -ForegroundColor $DefaultColor -NoNewline
                 $waterLevelsUrl = "https://tidesandcurrents.noaa.gov/waterlevels.html?id=$($noaaStation.stationId)"
                 Write-Host "$([char]27)]8;;$waterLevelsUrl$([char]27)\Levels$([char]27)]8;;$([char]27)\" -ForegroundColor Blue
             } else {
@@ -11438,7 +11748,7 @@ function Show-LocationInfo {
                 }
                 
                 if ($tideData) {
-                    Write-Host "Tides: " -ForegroundColor $DefaultColor -NoNewline
+                    Write-GfHost "Tides: " -ForegroundColor $DefaultColor -NoNewline
                     
                     # Display last tide if available
                     if ($tideData.LastTide) {
@@ -11900,7 +12210,7 @@ function Show-RainForecast {
                 $sparklineData = Get-RainSparkline $rainPercent
                 Write-Host $sparklineData.Char -ForegroundColor $sparklineData.Color -NoNewline
             } else {
-                Write-Host " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
+                Write-GfHost " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
             }
         }
         Write-Host ""  # New line after each day
@@ -12001,7 +12311,7 @@ function Show-WindForecast {
                     Write-Host $windGlyphData.Char -ForegroundColor $windGlyphData.Color -NoNewline
                 }
             } else {
-                Write-Host " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
+                Write-GfHost " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
             }
         }
         Write-Host ""  # New line after each day
@@ -12083,11 +12393,12 @@ if ($null -ne $sunsetTime -and $sunsetTime -isnot [DateTime]) {
 $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
 
 # Define color scheme for weather display
-$defaultColor = "DarkCyan"
+# GfDefault → Write-GfHost renders profile Default Text Color as truecolor (not nearest 16-color)
+$defaultColor = $script:GF_DEFAULT_TEXT_COLOR
 $alertColor = "Red"
 $titleColor = "Green"
 $infoColor = "Blue"
-$detailedForecastColor = "Gray"
+$detailedForecastColor = $defaultColor
 
 # Apply color coding based on weather conditions
 # Temperature: Blue if too cold (<33°F), Red if too hot (>89°F); wind: Red at/above alert threshold
@@ -12244,7 +12555,7 @@ if ($Alerts.IsPresent) {
     if ($null -ne $script:observationsData) {
         Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
     } else {
-        Write-Host "No historical observations available." -ForegroundColor $defaultColor
+        Write-GfHost "No historical observations available." -ForegroundColor $defaultColor
     }
     # Exit only if -x flag is present, otherwise continue to interactive mode
     if ($NoInteractive.IsPresent) {
@@ -12370,7 +12681,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             if ($null -ne $script:observationsData -and ($script:observationsData -isnot [Array] -or $script:observationsData.Count -gt 0)) {
                 Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
             } else {
-                Write-Host "No historical observations available." -ForegroundColor $defaultColor
+                Write-GfHost "No historical observations available." -ForegroundColor $defaultColor
             }
             Show-GfInteractiveControlsBar
         } else {
@@ -12430,7 +12741,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         if ($null -ne $script:observationsData) {
             Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
         } else {
-            Write-Host "No historical observations available." -ForegroundColor $defaultColor
+            Write-GfHost "No historical observations available." -ForegroundColor $defaultColor
         }
         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode (Get-GfInteractiveIsFullMode)
     } else {
@@ -13237,7 +13548,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     if ($null -ne $script:observationsData -and ($script:observationsData -isnot [Array] -or $script:observationsData.Count -gt 0)) {
                         Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
                     } else {
-                        Write-Host "No historical observations available." -ForegroundColor $defaultColor
+                        Write-GfHost "No historical observations available." -ForegroundColor $defaultColor
                     }
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode (Get-GfInteractiveIsFullMode)
                 }

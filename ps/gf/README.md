@@ -230,7 +230,7 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 - **Shared cache / multi-window:** `gf.json` holds `weatherCache` (per favorite uid or `lat,lon`) and `sessions`. Multiple GF windows on the same location share one API owner — the longest-running viewer of that key. Followers hydrate from cache; **G** and auto-refresh only hit APIs on the leader. Leaving a location (Tab, other favorite, exit) drops you from that key’s candidate set so the next-oldest viewer takes over within one heartbeat (~15s). Dirty exits are pruned by heartbeat timeout (~45s) or dead PID. Deleting favorites prunes orphaned favorite cache keys. The **Updated:** line (and `[NWS: …]` observation age) tracks the shared cache fetch/observation stamps so every client shows the same age as it re-ages in place.
 - Hotkeys `1`–`0` load slots 1–10; `Shift+1`–`Shift+0` load 11–20 (immediate load).
 - Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled.
-- **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (current mode includes `tersealert`; setting **12** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled.
+- **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (setting **1** Default Colors for primary/secondary/text; current mode includes `tersealert`; setting **13** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled.
 ### Parameter details
 
 - `Location` [string] (Positional: 0)
@@ -256,7 +256,7 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 
 - `-Config` [switch]
   - **Advanced mode only.** Opens the GetForecast config modal for `%LOCALAPPDATA%\gf\gf.json`, then exits (no weather fetch).
-  - Toggle/edit imported settings (including AirNow API key via setting **12**); reorder favorites; edit name/colors/coordinates or delete a location (with confirm); create a new location.
+  - Toggle/edit imported settings (including Default Colors via setting **1** and AirNow API key via setting **13**); reorder favorites; edit name/colors/coordinates or delete a location (with confirm); create a new location.
   - Without an Advanced profile, prints guidance to run `-eadv` first and exits with an error.
 
 - `-Terse` or `-t` [switch]
