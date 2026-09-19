@@ -130,7 +130,11 @@ def main(argv: list[str] | None = None) -> None:
         if args.device_filter and not visible:
             print(f"No devices match filter {args.device_filter!r}.")
             return
-        Console().print(_render_snapshot(config, device_filter=args.device_filter))
+        # legacy_windows=False uses WriteConsoleW so sparkline glyphs don't
+        # raise UnicodeEncodeError under cp1252 consoles.
+        Console(legacy_windows=False).print(
+            _render_snapshot(config, device_filter=args.device_filter)
+        )
         return
     run_app(
         config,

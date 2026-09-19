@@ -303,10 +303,11 @@ def _parse_log_row_timestamp(raw_line: bytes) -> datetime | None:
 
 
 def _find_log_load_start_offset(log_path: Path, cutoff: datetime) -> int:
-    """Return the byte offset of the first row with timestamp >= cutoff.
+    """Return a byte offset near the first row with timestamp >= cutoff.
 
-    Assumes the log body is sorted ascending by timestamp (TemPy append/replace
-    writes maintain this). Falls back to reading from the header when uncertain.
+    Prefer a tail-sized window over binary search: per-device CSV flushes make the
+    log only approximately sorted, so binary search can start far too early on
+    large files and turn startup into a multi-minute hang.
     """
     try:
         size = log_path.stat().st_size
@@ -315,45 +316,12 @@ def _find_log_load_start_offset(log_path: Path, cutoff: datetime) -> int:
     if size <= 0:
         return 0
 
-    try:
-        with log_path.open("rb") as handle:
-            header = handle.readline()
-            if not header:
-                return 0
-            header_end = handle.tell()
-
-            first_line = handle.readline()
-            if not first_line:
-                return header_end
-            first_ts = _parse_log_row_timestamp(first_line)
-            if first_ts is not None and first_ts >= cutoff:
-                return header_end
-
-            lo = header_end
-            hi = size
-            answer = size
-            while lo < hi:
-                mid = (lo + hi) // 2
-                handle.seek(mid)
-                if mid > header_end:
-                    handle.readline()
-                line_start = handle.tell()
-                line = handle.readline()
-                if not line:
-                    hi = mid
-                    continue
-                timestamp = _parse_log_row_timestamp(line)
-                if timestamp is None:
-                    lo = line_start + len(line)
-                    continue
-                if timestamp >= cutoff:
-                    answer = line_start
-                    hi = mid
-                else:
-                    lo = line_start + len(line)
-            return answer
-    except OSError:
-        return 0
+    # ~70 bytes/row * devices * minutes, with slack for out-of-order appends.
+    # Cap read-behind so a 70MB log still starts in well under a second of I/O.
+    hours = max(1.0, (datetime.now() - cutoff).total_seconds() / 3600.0)
+    estimate = int(8 * (hours + 24.0) * 60 * 80)  # 8 devices worth of slack
+    tail = min(size, max(2_000_000, estimate))
+    return max(0, size - tail)
 
 
 def _row_dict_from_values(values: list[str]) -> dict[str, str] | None:
@@ -491,9 +459,11 @@ def _collect_recent_log_readings(
 
     start_offset = _find_log_load_start_offset(log_path, cutoff)
     start_offset = max(header_end, min(start_offset, file_size))
+    # Skip a partial first line when we landed mid-row in the tail window.
+    skip_partial = start_offset > header_end
     read_span = max(1, file_size - start_offset)
 
-    pending, _oldest = _read_pending_from_offset(
+    pending, oldest = _read_pending_from_offset(
         log_path,
         start_offset=start_offset,
         header_end=header_end,
@@ -501,7 +471,24 @@ def _collect_recent_log_readings(
         managed=managed,
         progress_cb=progress_cb,
         read_span=read_span,
+        skip_partial_line=skip_partial,
     )
+    # If the window's oldest kept-or-seen stamp is still recent, expand once.
+    if oldest is not None and oldest >= cutoff and start_offset > header_end:
+        expanded = max(header_end, start_offset - (file_size - start_offset))
+        if expanded < start_offset:
+            if progress_cb is not None:
+                progress_cb("Expanding log window…", 0, 100)
+            pending, _ = _read_pending_from_offset(
+                log_path,
+                start_offset=expanded,
+                header_end=header_end,
+                cutoff=cutoff,
+                managed=managed,
+                progress_cb=progress_cb,
+                read_span=max(1, file_size - expanded),
+                skip_partial_line=expanded > header_end,
+            )
     return pending
 
 

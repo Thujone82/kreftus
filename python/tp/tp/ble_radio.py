@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 import time
 from collections.abc import Awaitable, Callable
@@ -20,6 +21,8 @@ BT_RADIO_OP_TIMEOUT = 15.0
 BT_PERMISSION_DENIED_COOLDOWN = 300.0
 BT_STACK_RESET_COOLDOWN = 900.0
 BT_STACK_RESET_SETTLE = 8.0
+# Elevated reset_bluetooth.ps1 can wedge on a stuck PnP/driver call — bound wait.
+BT_STACK_RESET_TIMEOUT = 120.0
 
 _radio_restart_lock: asyncio.Lock | None = None
 _last_radio_restart_at: float | None = None
@@ -513,21 +516,14 @@ async def reset_windows_bluetooth_stack() -> bool:
     if windows_process_is_elevated():
         # Already admin — run the script directly (no RunAs / UAC).
         debug_write(f"ble: launching stack reset in-process elevated ({script.name})")
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "powershell.exe",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                script_text,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.wait()
-        except Exception as exc:  # noqa: BLE001
-            debug_write_exception("ble: stack reset launch failed", exc)
-            return False
+        argv = [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script_text,
+        ]
     else:
         # Nested Start-Process -Verb RunAs elevates; -Wait blocks until finished.
         # With ConsentPromptBehaviorAdmin=0 this elevates silently (no UAC UI).
@@ -539,21 +535,35 @@ async def reset_windows_bluetooth_stack() -> bool:
             f"-ArgumentList '{argument_list}'"
         )
         debug_write(f"ble: launching elevated stack reset ({script.name})")
+        argv = [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            command,
+        ]
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *argv,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
         try:
-            proc = await asyncio.create_subprocess_exec(
-                "powershell.exe",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                command,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
+            await asyncio.wait_for(proc.wait(), timeout=BT_STACK_RESET_TIMEOUT)
+        except asyncio.TimeoutError:
+            debug_write(
+                f"ble: stack reset timed out after {BT_STACK_RESET_TIMEOUT:.0f}s; killing"
             )
-            await proc.wait()
-        except Exception as exc:  # noqa: BLE001
-            debug_write_exception("ble: stack reset launch failed", exc)
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(proc.wait(), timeout=5.0)
             return False
+    except Exception as exc:  # noqa: BLE001
+        debug_write_exception("ble: stack reset launch failed", exc)
+        return False
 
     if proc.returncode not in (0, None):
         debug_write(f"ble: stack reset launcher exited {proc.returncode}")
