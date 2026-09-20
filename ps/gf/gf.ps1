@@ -306,6 +306,7 @@ $script:gfPerLocationColors = $true
 $script:gfDefaultTextColorHex = '#00ced1'
 $script:gfDefaultPrimaryColorHex = '#00ff00'
 $script:gfDefaultSecondaryColorHex = '#00ced1'
+$script:gfUseNerdFontGlyphs = $false
 $script:use24hTime = $true
 $script:showIrradiance = $true
 $script:gfRestartRequested = $false
@@ -1260,6 +1261,7 @@ function New-GfAdvancedProfileDefaults {
             defaultPrimaryColor  = "#00ff00"
             defaultSecondaryColor = "#00ced1"
             defaultTextColor     = "#00ced1"
+            useNerdFontGlyphs    = $false
         }
         favorites         = @()
         lastActiveFavorite = $null
@@ -1580,6 +1582,9 @@ function Initialize-GfAdvancedProfileShape {
         }
         if ($null -eq $Profile.settings['defaultTextColor'] -or [string]::IsNullOrWhiteSpace([string]$Profile.settings.defaultTextColor)) {
             $Profile.settings['defaultTextColor'] = '#00ced1'
+        }
+        if ($null -eq $Profile.settings['useNerdFontGlyphs']) {
+            $Profile.settings['useNerdFontGlyphs'] = $false
         }
     }
     if ($null -eq $Profile['favorites']) { $Profile['favorites'] = @() }
@@ -2654,6 +2659,338 @@ function Write-GfHost {
     }
 }
 
+function ConvertTo-GfUnicodeChar {
+    param([int]$CodePoint)
+    if ($CodePoint -le 0xFFFF) { return [string][char]$CodePoint }
+    return [char]::ConvertFromUtf32($CodePoint)
+}
+
+# Preferred Cascadia / Caskaydia Nerd Font family names (installed-font detection)
+$script:gfNerdFontFamilyCandidates = @(
+    'Cascadia Code NF',
+    'Cascadia Mono NF',
+    'CaskaydiaCove Nerd Font',
+    'CaskaydiaCove NF',
+    'CaskaydiaMono Nerd Font',
+    'CaskaydiaMono NF'
+)
+
+function Get-GfInstalledFontFamilyNames {
+    $names = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    try {
+        Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue | Out-Null
+        $collection = New-Object System.Drawing.Text.InstalledFontCollection
+        foreach ($f in $collection.Families) {
+            [void]$names.Add($f.Name)
+        }
+    } catch {}
+    foreach ($regPath in @(
+            'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts',
+            'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
+        )) {
+        try {
+            if (-not (Test-Path -LiteralPath $regPath)) { continue }
+            $props = Get-ItemProperty -LiteralPath $regPath -ErrorAction SilentlyContinue
+            if (-not $props) { continue }
+            foreach ($p in $props.PSObject.Properties) {
+                if ($p.Name -match '^(PSPath|PSParentPath|PSChildName|PSDrive|PSProvider)$') { continue }
+                $label = [string]$p.Name
+                if ($label -match '^(.+?)\s*\(') { [void]$names.Add($Matches[1].Trim()) }
+                else { [void]$names.Add($label.Trim()) }
+            }
+        } catch {}
+    }
+    return @($names)
+}
+
+function Get-GfNerdFontFamilyName {
+    $installed = Get-GfInstalledFontFamilyNames
+    if (-not $installed -or $installed.Count -eq 0) { return $null }
+    foreach ($want in $script:gfNerdFontFamilyCandidates) {
+        foreach ($have in $installed) {
+            if ($have -eq $want) { return $have }
+            # Accept "Cascadia Code NF ExtraLight" style faces
+            if ($have.StartsWith($want, [StringComparison]::OrdinalIgnoreCase)) { return $have }
+        }
+    }
+    foreach ($have in $installed) {
+        if ($have -match '(?i)cascadia.*(code|mono).*nf' -or $have -match '(?i)caskaydia.*(cove|mono)') {
+            return $have
+        }
+    }
+    return $null
+}
+
+function Test-GfNerdFontInstalled {
+    return -not [string]::IsNullOrWhiteSpace((Get-GfNerdFontFamilyName))
+}
+
+function Initialize-GfGlyphTables {
+    if ($script:gfGlyphTablesReady) { return }
+    $script:gfEmojiGlyphs = [ordered]@{
+        'cond.tsra'        = "⛈️"
+        'cond.rain'        = "🌧️"
+        'cond.snow'        = "❄️"
+        'cond.fzra'        = "🧊"
+        'cond.fog'         = "🌫️"
+        'cond.smoke'       = "💨"
+        'cond.wind'        = "💨"
+        'cond.ovc'         = "☁️"
+        'cond.sct.day'     = "⛅"
+        'cond.sct.night'   = "☁️"
+        'cond.few.day'     = "🌤️"
+        'cond.few.night'   = "🌙"
+        'cond.skc.day'     = "☀️"
+        'cond.skc.night'   = "🌙"
+        'cond.default.day' = "☁️"
+        'cond.default.night' = "🌙"
+        'moon.new'         = "🌑"
+        'moon.waxing_crescent' = "🌒"
+        'moon.first_quarter' = "🌓"
+        'moon.waxing_gibbous' = "🌔"
+        'moon.full'        = "🌕"
+        'moon.waning_gibbous' = "🌖"
+        'moon.last_quarter' = "🌗"
+        'moon.waning_crescent' = "🌘"
+        'alert.warn'       = "⚠️"
+        'alert.heat'       = "🌡"
+        'wildfire.check'   = "✅"
+        'wildfire.fire'    = "Fire:"
+        'precip.drop'      = "☔️"
+        'label.temp'       = "Temperature:"
+        'trend.rising'     = "↗️"
+        'trend.falling'    = "↘️"
+        'trend.steady'     = "→"
+        'wind.N'           = ""
+        'wind.NE'          = ""
+        'wind.E'           = ""
+        'wind.SE'          = ""
+        'wind.S'           = ""
+        'wind.SW'          = ""
+        'wind.W'           = ""
+        'wind.NW'          = ""
+        'prefix.magic'     = ""
+        'prefix.irradiance' = ""
+        'prefix.updated'   = ""
+        'pl.left'          = ""
+        'pl.right'         = ""
+        'pl.title.left'    = ""
+        'pl.title.right'   = ""
+        'chip.banner'      = "▀"
+        'title.frame'      = "***"
+        'cfg.colors'       = ""
+        'cfg.nerd'         = ""
+        'cfg.magic'        = ""
+        'cfg.irradiance'   = ""
+        'cfg.wildfire'     = ""
+        'cfg.radius'       = ""
+        'cfg.filter'       = ""
+        'cfg.aqi'          = ""
+        'cfg.clock'        = ""
+        'cfg.on'           = "on"
+        'cfg.off'          = "off"
+        'unit.f'           = "°F"
+        'unit.c'           = "°C"
+        'cfg.locations'    = ""
+        'cfg.bar'          = ""
+        'cfg.mode'         = ""
+        'cfg.perloc'       = ""
+        'cfg.key'          = ""
+        'cfg.settings'     = ""
+        'cfg.header'       = ""
+    }
+    $script:gfNerdGlyphs = [ordered]@{
+        'cond.tsra'        = (ConvertTo-GfUnicodeChar 0xE31D)
+        'cond.rain'        = (ConvertTo-GfUnicodeChar 0xE318)
+        'cond.snow'        = (ConvertTo-GfUnicodeChar 0xE31A)
+        'cond.fzra'        = (ConvertTo-GfUnicodeChar 0xE316)
+        'cond.fog'         = (ConvertTo-GfUnicodeChar 0xE313)
+        'cond.smoke'       = (ConvertTo-GfUnicodeChar 0xE35C)
+        'cond.wind'        = (ConvertTo-GfUnicodeChar 0xE34B)
+        'cond.ovc'         = (ConvertTo-GfUnicodeChar 0xE312)
+        'cond.sct.day'     = (ConvertTo-GfUnicodeChar 0xE302)
+        'cond.sct.night'   = (ConvertTo-GfUnicodeChar 0xE37E)
+        'cond.few.day'     = (ConvertTo-GfUnicodeChar 0xE30C)
+        'cond.few.night'   = (ConvertTo-GfUnicodeChar 0xE32B)
+        'cond.skc.day'     = (ConvertTo-GfUnicodeChar 0xE30D)
+        'cond.skc.night'   = (ConvertTo-GfUnicodeChar 0xE32B)
+        'cond.default.day' = (ConvertTo-GfUnicodeChar 0xE312)
+        'cond.default.night' = (ConvertTo-GfUnicodeChar 0xE32B)
+        'moon.new'         = (ConvertTo-GfUnicodeChar 0xE38D)
+        'moon.waxing_crescent' = (ConvertTo-GfUnicodeChar 0xE38F)
+        'moon.first_quarter' = (ConvertTo-GfUnicodeChar 0xE394)
+        'moon.waxing_gibbous' = (ConvertTo-GfUnicodeChar 0xE396)
+        'moon.full'        = (ConvertTo-GfUnicodeChar 0xE39B)
+        'moon.waning_gibbous' = (ConvertTo-GfUnicodeChar 0xE39D)
+        'moon.last_quarter' = (ConvertTo-GfUnicodeChar 0xE3A2)
+        'moon.waning_crescent' = (ConvertTo-GfUnicodeChar 0xE3A4)
+        'alert.warn'       = (ConvertTo-GfUnicodeChar 0xF071)
+        'alert.heat'       = (ConvertTo-GfUnicodeChar 0xF2C9)
+        'wildfire.check'   = (ConvertTo-GfUnicodeChar 0xF058)
+        'wildfire.fire'    = (ConvertTo-GfUnicodeChar 0xEAF2)  # cod-flame
+        'precip.drop'      = (ConvertTo-GfUnicodeChar 0xE34A)
+        'label.temp'       = (ConvertTo-GfUnicodeChar 0xE350)  # weather-thermometer
+        'trend.rising'     = (ConvertTo-GfUnicodeChar 0xF062)
+        'trend.falling'    = (ConvertTo-GfUnicodeChar 0xF063)
+        'trend.steady'     = (ConvertTo-GfUnicodeChar 0xF061)
+        # weather-wind_* (E354-E35B) mapped to N..NW compass order
+        'wind.N'           = (ConvertTo-GfUnicodeChar 0xE35A)
+        'wind.NE'          = (ConvertTo-GfUnicodeChar 0xE359)
+        'wind.E'           = (ConvertTo-GfUnicodeChar 0xE35B)
+        'wind.SE'          = (ConvertTo-GfUnicodeChar 0xE356)
+        'wind.S'           = (ConvertTo-GfUnicodeChar 0xE357)
+        'wind.SW'          = (ConvertTo-GfUnicodeChar 0xE355)
+        'wind.W'           = (ConvertTo-GfUnicodeChar 0xE354)
+        'wind.NW'          = (ConvertTo-GfUnicodeChar 0xE358)
+        'prefix.magic'     = ("$(ConvertTo-GfUnicodeChar 0xE30D) ")
+        'prefix.irradiance' = ("$(ConvertTo-GfUnicodeChar 0xF0E4) ")  # fa-tachometer / 
+        'prefix.updated'   = ("$(ConvertTo-GfUnicodeChar 0xF41C) ")  # nf-oct-clock
+        # Light box-drawing header wrappers
+        'pl.title.left'    = ((ConvertTo-GfUnicodeChar 0x2500) + (ConvertTo-GfUnicodeChar 0x2500) + (ConvertTo-GfUnicodeChar 0x2524))  # ──┤
+        'pl.title.right'   = ((ConvertTo-GfUnicodeChar 0x251C) + (ConvertTo-GfUnicodeChar 0x2500) + (ConvertTo-GfUnicodeChar 0x2500))  # ├──
+        # Rounded half-circles for location chips (cooler, less bulky than hard wedges)
+        'pl.left'          = (ConvertTo-GfUnicodeChar 0xE0B6)
+        'pl.right'         = (ConvertTo-GfUnicodeChar 0xE0B4)
+        'chip.banner'      = (ConvertTo-GfUnicodeChar 0xE0B1)
+        'title.frame'      = ""
+        'cfg.colors'       = (ConvertTo-GfUnicodeChar 0xF1FC)
+        'cfg.nerd'         = (ConvertTo-GfUnicodeChar 0xF031)
+        'cfg.magic'        = (ConvertTo-GfUnicodeChar 0xF0D0)
+        'cfg.irradiance'   = (ConvertTo-GfUnicodeChar 0xF185)
+        'cfg.wildfire'     = (ConvertTo-GfUnicodeChar 0xEAF2)
+        'cfg.radius'       = (ConvertTo-GfUnicodeChar 0xF1DE)
+        'cfg.filter'       = (ConvertTo-GfUnicodeChar 0xF0B0)
+        'cfg.aqi'          = (ConvertTo-GfUnicodeChar 0xE77D)
+        'cfg.clock'        = (ConvertTo-GfUnicodeChar 0xE384)  # weather-time_3 — 24h
+        'cfg.on'           = (ConvertTo-GfUnicodeChar 0xF205)  # fa-toggle_on
+        'cfg.off'          = (ConvertTo-GfUnicodeChar 0xF204)  # fa-toggle_off
+        'unit.f'           = (ConvertTo-GfUnicodeChar 0xE341)  # weather-fahrenheit
+        'unit.c'           = (ConvertTo-GfUnicodeChar 0xE339)  # weather-celsius
+        'cfg.locations'    = (ConvertTo-GfUnicodeChar 0xF041)
+        'cfg.bar'          = (ConvertTo-GfUnicodeChar 0xF0C9)
+        'cfg.mode'         = (ConvertTo-GfUnicodeChar 0xF03A)
+        'cfg.perloc'       = (ConvertTo-GfUnicodeChar 0xF041)
+        'cfg.key'          = (ConvertTo-GfUnicodeChar 0xF084)
+        'cfg.settings'     = (ConvertTo-GfUnicodeChar 0xF013)
+        'cfg.header'       = (ConvertTo-GfUnicodeChar 0xE30D)
+    }
+    # 28-step moon cycle (weather-moon_* E38D..E3A8) for NF mode
+    $script:gfNerdMoonCycle = @(
+        (ConvertTo-GfUnicodeChar 0xE38D), (ConvertTo-GfUnicodeChar 0xE38E), (ConvertTo-GfUnicodeChar 0xE38F), (ConvertTo-GfUnicodeChar 0xE390),
+        (ConvertTo-GfUnicodeChar 0xE391), (ConvertTo-GfUnicodeChar 0xE392), (ConvertTo-GfUnicodeChar 0xE393), (ConvertTo-GfUnicodeChar 0xE394),
+        (ConvertTo-GfUnicodeChar 0xE395), (ConvertTo-GfUnicodeChar 0xE396), (ConvertTo-GfUnicodeChar 0xE397), (ConvertTo-GfUnicodeChar 0xE398),
+        (ConvertTo-GfUnicodeChar 0xE399), (ConvertTo-GfUnicodeChar 0xE39A), (ConvertTo-GfUnicodeChar 0xE39B), (ConvertTo-GfUnicodeChar 0xE39C),
+        (ConvertTo-GfUnicodeChar 0xE39D), (ConvertTo-GfUnicodeChar 0xE39E), (ConvertTo-GfUnicodeChar 0xE39F), (ConvertTo-GfUnicodeChar 0xE3A0),
+        (ConvertTo-GfUnicodeChar 0xE3A1), (ConvertTo-GfUnicodeChar 0xE3A2), (ConvertTo-GfUnicodeChar 0xE3A3), (ConvertTo-GfUnicodeChar 0xE3A4),
+        (ConvertTo-GfUnicodeChar 0xE3A5), (ConvertTo-GfUnicodeChar 0xE3A6), (ConvertTo-GfUnicodeChar 0xE3A7), (ConvertTo-GfUnicodeChar 0xE3A8)
+    )
+    $script:gfGlyphTablesReady = $true
+}
+
+function Get-GfGlyph {
+    param([Parameter(Mandatory)][string]$Key)
+    Initialize-GfGlyphTables
+    if ($script:gfUseNerdFontGlyphs -and $script:gfNerdGlyphs.Contains($Key)) {
+        return [string]$script:gfNerdGlyphs[$Key]
+    }
+    if ($script:gfEmojiGlyphs.Contains($Key)) {
+        return [string]$script:gfEmojiGlyphs[$Key]
+    }
+    return ''
+}
+
+function Get-GfPrecipBadgeText {
+    param([int]$PrecipProb)
+    if ($PrecipProb -le 0) { return '' }
+    return " ($PrecipProb%$(Get-GfGlyph 'precip.drop'))"
+}
+
+function Get-GfTempUnitSuffix {
+    param([ValidateSet('F', 'C')][string]$Unit = 'F')
+    if ($Unit -eq 'C') { return (Get-GfGlyph 'unit.c') }
+    return (Get-GfGlyph 'unit.f')
+}
+
+function Get-GfConfigBoolLabel {
+    param(
+        [bool]$On,
+        [string]$OnText = 'on',
+        [string]$OffText = 'off'
+    )
+    if ($script:gfUseNerdFontGlyphs) {
+        return $(if ($On) { Get-GfGlyph 'cfg.on' } else { Get-GfGlyph 'cfg.off' })
+    }
+    return $(if ($On) { $OnText } else { $OffText })
+}
+
+function Write-GfConfigNfIcon {
+    param([string]$IconKey)
+    if (-not $script:gfUseNerdFontGlyphs) { return }
+    $icon = Get-GfGlyph $IconKey
+    if ([string]::IsNullOrEmpty($icon)) {
+        Write-Host "  " -NoNewline
+        return
+    }
+    Write-GfTrueColorText -Text "$icon " -ForegroundHex (Get-GfDefaultTextColorHex) -NoNewline
+}
+
+function Write-GfConfigBanner {
+    param(
+        [string]$Title,
+        [string]$IconKey = 'cfg.header'
+    )
+    $primary = Get-GfDefaultPrimaryColorHex
+    $secondary = Get-GfDefaultSecondaryColorHex
+    if ($script:gfUseNerdFontGlyphs) {
+        $left = Get-GfGlyph 'pl.title.left'
+        $right = Get-GfGlyph 'pl.title.right'
+        $icon = Get-GfGlyph $IconKey
+        if ($left) { Write-GfTrueColorText -Text $left -ForegroundHex $secondary -NoNewline }
+        if ($icon) { Write-GfTrueColorText -Text "$icon " -ForegroundHex $secondary -NoNewline }
+        Write-GfTrueColorText -Text $Title -ForegroundHex $primary -NoNewline
+        if ($right) { Write-GfTrueColorText -Text $right -ForegroundHex $secondary }
+        else { Write-Host "" }
+        return
+    }
+    Write-GfTrueColorText -Text '=== ' -ForegroundHex $secondary -NoNewline
+    Write-GfTrueColorText -Text $Title -ForegroundHex $primary -NoNewline
+    Write-GfTrueColorText -Text ' ===' -ForegroundHex $secondary
+}
+
+function Write-GfConfigSectionHeader {
+    param(
+        [string]$Text,
+        [string]$IconKey = 'cfg.settings'
+    )
+    $primary = Get-GfDefaultPrimaryColorHex
+    if ($script:gfUseNerdFontGlyphs) {
+        $icon = Get-GfGlyph $IconKey
+        if ($icon) { Write-GfTrueColorText -Text "$icon " -ForegroundHex $primary -NoNewline }
+        Write-GfTrueColorText -Text $Text -ForegroundHex $primary
+        return
+    }
+    Write-GfTrueColorText -Text $Text -ForegroundHex $primary
+}
+
+function Write-GfConfigSettingLine {
+    param(
+        [int]$Number,
+        [string]$IconKey,
+        [string]$Label,
+        [string]$Value
+    )
+    $textHex = Get-GfDefaultTextColorHex
+    Write-GfTrueColorText -Text (" {0,2}. " -f $Number) -ForegroundHex $textHex -NoNewline
+    Write-GfConfigNfIcon -IconKey $IconKey
+    Write-GfTrueColorText -Text ("{0}{1}" -f $Label, $Value) -ForegroundHex $textHex
+}
+
+function Test-GfNerdFontPuaChar {
+    param([int]$CodePoint)
+    # BMP Private Use Area used by Nerd Font weather / Powerline / Font Awesome patches
+    return ($CodePoint -ge 0xE000 -and $CodePoint -le 0xF8FF)
+}
+
 function Format-GfClockTime {
     param(
         [object]$DateTime,
@@ -2785,7 +3122,17 @@ function Show-GfFavoriteChip {
         }
     }
 
+    $usePowerline = [bool]$script:gfUseNerdFontGlyphs -and -not $ForceFullColors
+    $plLeft = Get-GfGlyph 'pl.left'
+    $plRight = Get-GfGlyph 'pl.right'
+
     if ($IsActive) {
+        if ($usePowerline -and $plLeft -and $plRight) {
+            Write-GfTrueColorText -Text $plLeft -ForegroundHex $(if ($primary) { $primary } else { '#00ff00' }) -NoNewline
+            Write-GfTrueColorText -Text " $label " -ForegroundHex $(if ($secondary) { $secondary } else { '#000000' }) -BackgroundHex $(if ($primary) { $primary } else { '#00ff00' }) -NoNewline
+            Write-GfTrueColorText -Text $plRight -ForegroundHex $(if ($primary) { $primary } else { '#00ff00' }) -NoNewline
+            return
+        }
         # Active: invert primary/secondary fill; trailing space matches padding after ▀
         Write-GfTrueColorText -Text "▀ $label " -ForegroundHex $(if ($secondary) { $secondary } else { '#000000' }) -BackgroundHex $(if ($primary) { $primary } else { '#00ff00' }) -NoNewline
         return
@@ -2794,6 +3141,12 @@ function Show-GfFavoriteChip {
     if ($ForceFullColors) {
         # Import preview: show each favorite's full color pair
         Write-GfTrueColorText -Text "▀ $label " -ForegroundHex $(if ($primary) { $primary } else { '#00ff00' }) -BackgroundHex $(if ($secondary) { $secondary } else { '#003300' }) -NoNewline
+        return
+    }
+
+    if ($usePowerline -and $plLeft) {
+        Write-GfTrueColorText -Text $plLeft -ForegroundHex $(if ($primary) { $primary } else { '#00ff00' }) -NoNewline
+        Write-Host " $label" -ForegroundColor White -NoNewline
         return
     }
 
@@ -2843,11 +3196,21 @@ function Write-GfThemedSectionTitle {
     if ($primary -or $secondary) {
         $star = if ($secondary) { $secondary } else { $primary }
         $body = if ($primary) { $primary } else { $secondary }
-        Write-GfTrueColorText -Text "***" -ForegroundHex $star -NoNewline
-        Write-Host " " -NoNewline
-        Write-GfTrueColorText -Text $inner -ForegroundHex $body -NoNewline
-        Write-Host " " -NoNewline
-        Write-GfTrueColorText -Text "***" -ForegroundHex $star
+        $plLeft = Get-GfGlyph 'pl.title.left'
+        $plRight = Get-GfGlyph 'pl.title.right'
+        if (-not $plLeft) { $plLeft = Get-GfGlyph 'pl.left' }
+        if (-not $plRight) { $plRight = Get-GfGlyph 'pl.right' }
+        if ($script:gfUseNerdFontGlyphs -and $plLeft -and $plRight) {
+            Write-GfTrueColorText -Text $plLeft -ForegroundHex $star -NoNewline
+            Write-GfTrueColorText -Text $inner -ForegroundHex $body -NoNewline
+            Write-GfTrueColorText -Text $plRight -ForegroundHex $star
+        } else {
+            Write-GfTrueColorText -Text "***" -ForegroundHex $star -NoNewline
+            Write-Host " " -NoNewline
+            Write-GfTrueColorText -Text $inner -ForegroundHex $body -NoNewline
+            Write-Host " " -NoNewline
+            Write-GfTrueColorText -Text "***" -ForegroundHex $star
+        }
     } else {
         Write-Host "*** $inner ***" -ForegroundColor $FallbackTitleColor
     }
@@ -3004,11 +3367,36 @@ function Show-GfConfigDefaultColorsLine {
     $pri = Get-GfDefaultPrimaryColorHex -Profile $Profile
     $sec = Get-GfDefaultSecondaryColorHex -Profile $Profile
     $text = Get-GfDefaultTextColorHex -Profile $Profile
-    Write-Host (" {0,2}. " -f $Number) -ForegroundColor Cyan -NoNewline
+    Write-GfTrueColorText -Text (" {0,2}. " -f $Number) -ForegroundHex $text -NoNewline
+    Write-GfConfigNfIcon -IconKey 'cfg.colors'
     Write-GfTrueColorText -Text "█" -ForegroundHex $pri -NoNewline
     Write-GfTrueColorText -Text "█" -ForegroundHex $sec -NoNewline
     Write-GfTrueColorText -Text "█" -ForegroundHex $text -NoNewline
-    Write-Host (" Default Colors:  {0} / {1} / {2}" -f $pri, $sec, $text) -ForegroundColor Cyan
+    Write-GfTrueColorText -Text (" Default Colors:  {0} / {1} / {2}" -f $pri, $sec, $text) -ForegroundHex $text
+}
+
+function Show-GfConfigNerdFontGlyphsLine {
+    param(
+        [object]$Profile = $null,
+        [int]$Number = 2
+    )
+    $on = [bool]$Profile.settings.useNerdFontGlyphs
+    $text = Get-GfDefaultTextColorHex -Profile $Profile
+    Write-GfTrueColorText -Text (" {0,2}. " -f $Number) -ForegroundHex $text -NoNewline
+    Write-GfConfigNfIcon -IconKey 'cfg.nerd'
+    Write-GfTrueColorText -Text ("Nerd Font glyphs:     {0}" -f (Get-GfConfigBoolLabel -On $on)) -ForegroundHex $text -NoNewline
+    if ($on -and $script:gfUseNerdFontGlyphs) {
+        # Showcase a few NF weather/status glyphs when the feature is enabled
+        Write-Host "  " -NoNewline
+        Write-Host (Get-GfGlyph 'cond.skc.day') -ForegroundColor Yellow -NoNewline
+        Write-Host (Get-GfGlyph 'cond.rain') -ForegroundColor Cyan -NoNewline
+        Write-Host (Get-GfGlyph 'moon.first_quarter') -ForegroundColor White -NoNewline
+        Write-Host (Get-GfGlyph 'cfg.wildfire') -ForegroundColor Red -NoNewline
+        Write-Host " " -NoNewline
+        Write-GfTrueColorText -Text (Get-GfGlyph 'pl.title.left') -ForegroundHex (Get-GfDefaultSecondaryColorHex -Profile $Profile) -NoNewline
+        Write-GfTrueColorText -Text (Get-GfGlyph 'pl.title.right') -ForegroundHex (Get-GfDefaultSecondaryColorHex -Profile $Profile) -NoNewline
+    }
+    Write-Host ""
 }
 
 function Save-GfConfigDefaultColors {
@@ -3035,13 +3423,21 @@ function Show-GfConfigDefaultColorsSample {
         [string]$TextHex
     )
     Write-Host "Sample:  " -ForegroundColor White -NoNewline
-    Write-GfTrueColorText -Text "***" -ForegroundHex $SecondaryHex -NoNewline
-    Write-Host " " -NoNewline
-    Write-GfTrueColorText -Text "Title" -ForegroundHex $PrimaryHex -NoNewline
-    Write-Host " " -NoNewline
-    Write-GfTrueColorText -Text "***" -ForegroundHex $SecondaryHex -NoNewline
+    $plLeft = Get-GfGlyph 'pl.title.left'
+    $plRight = Get-GfGlyph 'pl.title.right'
+    if ($script:gfUseNerdFontGlyphs -and $plLeft -and $plRight) {
+        Write-GfTrueColorText -Text $plLeft -ForegroundHex $SecondaryHex -NoNewline
+        Write-GfTrueColorText -Text "Title" -ForegroundHex $PrimaryHex -NoNewline
+        Write-GfTrueColorText -Text $plRight -ForegroundHex $SecondaryHex -NoNewline
+    } else {
+        Write-GfTrueColorText -Text "***" -ForegroundHex $SecondaryHex -NoNewline
+        Write-Host " " -NoNewline
+        Write-GfTrueColorText -Text "Title" -ForegroundHex $PrimaryHex -NoNewline
+        Write-Host " " -NoNewline
+        Write-GfTrueColorText -Text "***" -ForegroundHex $SecondaryHex -NoNewline
+    }
     Write-Host "  " -NoNewline
-    Write-GfTrueColorText -Text "Temperature: 72°F" -ForegroundHex $TextHex
+    Write-GfTrueColorText -Text "$(Get-GfGlyph 'label.temp') 72$(Get-GfTempUnitSuffix)" -ForegroundHex $TextHex
 }
 
 function Edit-GfConfigDefaultColorsSequential {
@@ -3090,7 +3486,7 @@ function Invoke-GfConfigDefaultColors {
         $pri = Get-GfDefaultPrimaryColorHex -Profile $Profile
         $sec = Get-GfDefaultSecondaryColorHex -Profile $Profile
         $text = Get-GfDefaultTextColorHex -Profile $Profile
-        Write-Host "=== Default Colors ===" -ForegroundColor Green
+        Write-GfConfigBanner -Title "Default Colors" -IconKey 'cfg.colors'
         Write-Host "App defaults for titles (primary/secondary) and weather field text. Per-location favorite colors still override when enabled." -ForegroundColor DarkGray
         Write-Host ""
         Write-Host "Primary:   " -ForegroundColor White -NoNewline
@@ -3104,13 +3500,13 @@ function Invoke-GfConfigDefaultColors {
         Write-Host "  $text" -ForegroundColor White
         Show-GfConfigDefaultColorsSample -PrimaryHex $pri -SecondaryHex $sec -TextHex $text
         Write-Host ""
-        Write-Host "Option: " -ForegroundColor Green -NoNewline
-        Write-Host "1" -ForegroundColor Cyan -NoNewline; Write-Host "=Primary  " -ForegroundColor White -NoNewline
-        Write-Host "2" -ForegroundColor Cyan -NoNewline; Write-Host "=Secondary  " -ForegroundColor White -NoNewline
-        Write-Host "3" -ForegroundColor Cyan -NoNewline; Write-Host "=Text  " -ForegroundColor White -NoNewline
-        Write-Host "A" -ForegroundColor Cyan -NoNewline; Write-Host "ll  " -ForegroundColor White -NoNewline
-        Write-Host "R" -ForegroundColor Cyan -NoNewline; Write-Host "eset  " -ForegroundColor White -NoNewline
-        Write-Host "B" -ForegroundColor Cyan -NoNewline; Write-Host "ack" -ForegroundColor White
+        Write-GfTrueColorText -Text "Option: " -ForegroundHex $pri -NoNewline
+        Write-GfTrueColorText -Text "1" -ForegroundHex $text -NoNewline; Write-Host "=Primary  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "2" -ForegroundHex $text -NoNewline; Write-Host "=Secondary  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "3" -ForegroundHex $text -NoNewline; Write-Host "=Text  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "A" -ForegroundHex $text -NoNewline; Write-Host "ll  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "R" -ForegroundHex $text -NoNewline; Write-Host "eset  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "B" -ForegroundHex $text -NoNewline; Write-Host "ack" -ForegroundColor White
         $choice = (Read-Host "Choice").Trim()
         if ($choice -match '^[Bb]$') { return }
         if ($choice -match '^[Rr]$') {
@@ -3188,11 +3584,9 @@ function Show-GfConfigLocationLine {
     if ($UseColors) {
         $primary = if ($Favorite.primaryColor) { [string]$Favorite.primaryColor } else { $null }
         $secondary = if ($Favorite.secondaryColor) { [string]$Favorite.secondaryColor } else { $null }
-        if ($primary -or $secondary) {
-            Write-GfTrueColorText -Text "▀" -ForegroundHex $(if ($primary) { $primary } else { '#00ff00' }) -BackgroundHex $(if ($secondary) { $secondary } else { '#003300' }) -NoNewline
-        } else {
-            Write-Host "▀" -ForegroundColor Green -NoNewline
-        }
+        if (-not $primary) { $primary = Get-GfDefaultPrimaryColorHex }
+        if (-not $secondary) { $secondary = Get-GfDefaultSecondaryColorHex }
+        Write-GfTrueColorText -Text "▀" -ForegroundHex $primary -BackgroundHex $secondary -NoNewline
         Write-Host " $label$latLon" -ForegroundColor White
     } else {
         Write-Host "$label$latLon" -ForegroundColor White
@@ -3583,18 +3977,39 @@ function Invoke-GfConfigChangeSetting {
             return
         }
         2 {
+            $turningOn = -not [bool]$s.useNerdFontGlyphs
+            if ($turningOn) {
+                $family = Get-GfNerdFontFamilyName
+                if ($family) {
+                    Write-Host "Nerd Font detected: $family" -ForegroundColor Cyan
+                    Write-Host "Also set your terminal font face to Cascadia Code NF (or Mono NF) so glyphs render." -ForegroundColor DarkGray
+                } else {
+                    Write-Host "WARNING: No Cascadia Code NF / CaskaydiaCove Nerd Font family was detected on this system." -ForegroundColor Yellow
+                    Write-Host "Install Cascadia Code NF (or Cascadia Mono NF) and set it as your Windows Terminal / host font face." -ForegroundColor Yellow
+                    Write-Host "PUA glyphs may appear as tofu/boxes until the font is installed and selected." -ForegroundColor Red
+                }
+                $s.useNerdFontGlyphs = $true
+                $script:gfUseNerdFontGlyphs = $true
+                Write-Host "Nerd Font glyphs: on" -ForegroundColor Cyan
+            } else {
+                $s.useNerdFontGlyphs = $false
+                $script:gfUseNerdFontGlyphs = $false
+                Write-Host "Nerd Font glyphs: off" -ForegroundColor Cyan
+            }
+        }
+        3 {
             $s.showMagicHours = -not [bool]$s.showMagicHours
             Write-Host "Magic Hours: $(if ($s.showMagicHours) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        3 {
+        4 {
             $s.showIrradiance = -not [bool]$s.showIrradiance
             Write-Host "Irradiance: $(if ($s.showIrradiance) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        4 {
+        5 {
             $s.enableWildfire = -not [bool]$s.enableWildfire
             Write-Host "Wildfire: $(if ($s.enableWildfire) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        5 {
+        6 {
             $cur = [int]$s.wildfireRadiusMiles
             $raw = Read-Host "Wildfire radius miles [$cur]"
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
@@ -3609,34 +4024,34 @@ function Invoke-GfConfigChangeSetting {
                 }
             }
         }
-        6 {
+        7 {
             $s.filterSmallWildfires = -not [bool]$s.filterSmallWildfires
             Write-Host "Filter small fires: $(if ($s.filterSmallWildfires) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        7 {
+        8 {
             $s.enableAqi = -not [bool]$s.enableAqi
             Write-Host "AQI: $(if ($s.enableAqi) { 'on' } else { 'off' })" -ForegroundColor Cyan
             if ($s.enableAqi) {
                 $keyNow = Get-AirNowApiKeyFromEnvironment
                 if (-not $keyNow) {
-                    Write-Host "No AirNowAPI key set. Use setting 13 to add one." -ForegroundColor Yellow
+                    Write-Host "No AirNowAPI key set. Use setting 14 to add one." -ForegroundColor Yellow
                 }
             }
         }
-        8 {
+        9 {
             $s.use24h = -not [bool]$s.use24h
             Write-Host "24-hour times: $(if ($s.use24h) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        9 {
+        10 {
             $s.locationsDrawerOpen = -not [bool]$s.locationsDrawerOpen
             Write-Host "Locations drawer: $(if ($s.locationsDrawerOpen) { 'open' } else { 'closed' })" -ForegroundColor Cyan
         }
-        10 {
+        11 {
             $cur = if ($null -eq $s.controlBarOpen) { $true } else { [bool]$s.controlBarOpen }
             $s.controlBarOpen = -not $cur
             Write-Host "Control bar: $(if ($s.controlBarOpen) { 'open' } else { 'closed' })" -ForegroundColor Cyan
         }
-        11 {
+        12 {
             Write-Host "Modes: full, terse, tersealert, hourly, daily, rain, wind, history" -ForegroundColor DarkGray
             $raw = Read-Host "Current mode [$($s.currentMode)]"
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
@@ -3651,12 +4066,12 @@ function Invoke-GfConfigChangeSetting {
                 }
             }
         }
-        12 {
+        13 {
             $s.perLocationColors = -not [bool]$s.perLocationColors
             $script:gfPerLocationColors = [bool]$s.perLocationColors
             Write-Host "Per-location colors: $(if ($s.perLocationColors) { 'on' } else { 'off' })" -ForegroundColor Cyan
         }
-        13 {
+        14 {
             Invoke-GfConfigAirNowKey
             return
         }
@@ -3746,6 +4161,10 @@ function Show-GfAdvancedConfigModal {
     $script:gfAdvancedMode = $true
     $script:gfAdvancedProfile = $profile
     $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
+    $script:gfUseNerdFontGlyphs = [bool]$profile.settings.useNerdFontGlyphs
+    $script:gfDefaultPrimaryColorHex = Get-GfDefaultPrimaryColorHex -Profile $profile
+    $script:gfDefaultSecondaryColorHex = Get-GfDefaultSecondaryColorHex -Profile $profile
+    $script:gfDefaultTextColorHex = Get-GfDefaultTextColorHex -Profile $profile
 
     while ($true) {
         $profile = Get-GfAdvancedProfile
@@ -3755,6 +4174,10 @@ function Show-GfAdvancedConfigModal {
         }
         $script:gfAdvancedProfile = $profile
         $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
+        $script:gfUseNerdFontGlyphs = [bool]$profile.settings.useNerdFontGlyphs
+        $script:gfDefaultPrimaryColorHex = Get-GfDefaultPrimaryColorHex -Profile $profile
+        $script:gfDefaultSecondaryColorHex = Get-GfDefaultSecondaryColorHex -Profile $profile
+        $script:gfDefaultTextColorHex = Get-GfDefaultTextColorHex -Profile $profile
         $settings = $profile.settings
         $favList = [System.Collections.Generic.List[object]]::new()
         foreach ($f in @($profile.favorites)) {
@@ -3762,26 +4185,27 @@ function Show-GfAdvancedConfigModal {
         }
 
         if ($VerbosePreference -ne 'Continue') { Clear-GfConfigScreen }
-        Write-Host "=== GetForecast Config ===" -ForegroundColor Green
+        Write-GfConfigBanner -Title "GetForecast Config" -IconKey 'cfg.header'
         Write-Host "Profile: $(Get-GfAdvancedProfilePath)" -ForegroundColor DarkGray
         Write-Host ""
-        Write-Host "Settings (enter number to change):" -ForegroundColor Green
+        Write-GfConfigSectionHeader -Text "Settings (enter number to change):" -IconKey 'cfg.settings'
         Show-GfConfigDefaultColorsLine -Profile $profile -Number 1
-        Write-Host ("  2. Magic Hours:          {0}" -f $(if ($settings.showMagicHours) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  3. Irradiance:           {0}" -f $(if ($settings.showIrradiance) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  4. Wildfire:             {0}" -f $(if ($settings.enableWildfire) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  5. Wildfire radius:      {0} mi" -f [int]$settings.wildfireRadiusMiles) -ForegroundColor Cyan
-        Write-Host ("  6. Filter small fires:   {0}" -f $(if ($settings.filterSmallWildfires) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  7. AQI:                  {0}" -f $(if ($settings.enableAqi) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Show-GfConfigNerdFontGlyphsLine -Profile $profile -Number 2
+        Write-GfConfigSettingLine -Number 3 -IconKey 'cfg.magic' -Label "Magic Hours:          " -Value (Get-GfConfigBoolLabel -On ([bool]$settings.showMagicHours))
+        Write-GfConfigSettingLine -Number 4 -IconKey 'cfg.irradiance' -Label "Irradiance:           " -Value (Get-GfConfigBoolLabel -On ([bool]$settings.showIrradiance))
+        Write-GfConfigSettingLine -Number 5 -IconKey 'cfg.wildfire' -Label "Wildfire:             " -Value (Get-GfConfigBoolLabel -On ([bool]$settings.enableWildfire))
+        Write-GfConfigSettingLine -Number 6 -IconKey 'cfg.radius' -Label "Wildfire radius:      " -Value ("{0} mi" -f [int]$settings.wildfireRadiusMiles)
+        Write-GfConfigSettingLine -Number 7 -IconKey 'cfg.filter' -Label "Filter small fires:   " -Value (Get-GfConfigBoolLabel -On ([bool]$settings.filterSmallWildfires))
+        Write-GfConfigSettingLine -Number 8 -IconKey 'cfg.aqi' -Label "AQI:                  " -Value (Get-GfConfigBoolLabel -On ([bool]$settings.enableAqi))
         $airNowMasked = Mask-AirNowKeyDisplay -Key (Get-AirNowApiKeyFromEnvironment)
-        Write-Host ("  8. 24-hour times:        {0}" -f $(if ($settings.use24h) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host ("  9. Locations drawer:     {0}" -f $(if ($settings.locationsDrawerOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
-        Write-Host (" 10. Control bar:          {0}" -f $(if ($null -eq $settings.controlBarOpen -or $settings.controlBarOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
-        Write-Host (" 11. Current mode:         {0}" -f $settings.currentMode) -ForegroundColor Cyan
-        Write-Host (" 12. Per-location colors:  {0}" -f $(if ($settings.perLocationColors) { 'on' } else { 'off' })) -ForegroundColor Cyan
-        Write-Host (" 13. AirNow API key:       {0}" -f $airNowMasked) -ForegroundColor Cyan
+        Write-GfConfigSettingLine -Number 9 -IconKey 'cfg.clock' -Label "24-hour times:        " -Value (Get-GfConfigBoolLabel -On ([bool]$settings.use24h))
+        Write-GfConfigSettingLine -Number 10 -IconKey 'cfg.locations' -Label "Locations drawer:     " -Value $(if ($settings.locationsDrawerOpen) { 'open' } else { 'closed' })
+        Write-GfConfigSettingLine -Number 11 -IconKey 'cfg.bar' -Label "Control bar:          " -Value $(if ($null -eq $settings.controlBarOpen -or $settings.controlBarOpen) { 'open' } else { 'closed' })
+        Write-GfConfigSettingLine -Number 12 -IconKey 'cfg.mode' -Label "Current mode:         " -Value $settings.currentMode
+        Write-GfConfigSettingLine -Number 13 -IconKey 'cfg.perloc' -Label "Per-location colors:  " -Value (Get-GfConfigBoolLabel -On ([bool]$settings.perLocationColors))
+        Write-GfConfigSettingLine -Number 14 -IconKey 'cfg.key' -Label "AirNow API key:       " -Value $airNowMasked
         Write-Host ""
-        Write-Host "Locations ($($favList.Count)):" -ForegroundColor Green
+        Write-GfConfigSectionHeader -Text ("Locations ($($favList.Count)):") -IconKey 'cfg.locations'
         if ($favList.Count -eq 0) {
             Write-Host "  (none)" -ForegroundColor Yellow
         } else {
@@ -3791,19 +4215,21 @@ function Show-GfAdvancedConfigModal {
             }
         }
         Write-Host ""
-        Write-Host "Option: " -ForegroundColor Green -NoNewline
-        Write-Host "1" -ForegroundColor Cyan -NoNewline
+        $pri = $script:gfDefaultPrimaryColorHex
+        $textHex = $script:gfDefaultTextColorHex
+        Write-GfTrueColorText -Text "Option: " -ForegroundHex $pri -NoNewline
+        Write-GfTrueColorText -Text "1" -ForegroundHex $textHex -NoNewline
         Write-Host "-" -ForegroundColor White -NoNewline
-        Write-Host "13" -ForegroundColor Cyan -NoNewline
+        Write-GfTrueColorText -Text "14" -ForegroundHex $textHex -NoNewline
         Write-Host " settings  " -ForegroundColor White -NoNewline
-        Write-Host "L" -ForegroundColor Cyan -NoNewline; Write-Host " <n> edit  " -ForegroundColor White -NoNewline
-        Write-Host "U" -ForegroundColor Cyan -NoNewline; Write-Host " <n> up  " -ForegroundColor White -NoNewline
-        Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host " <n> down  " -ForegroundColor White -NoNewline
-        Write-Host "N" -ForegroundColor Cyan -NoNewline; Write-Host "ew  " -ForegroundColor White -NoNewline
-        Write-Host "Q" -ForegroundColor Cyan -NoNewline; Write-Host "uit" -ForegroundColor White
+        Write-GfTrueColorText -Text "L" -ForegroundHex $textHex -NoNewline; Write-Host " <n> edit  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "U" -ForegroundHex $textHex -NoNewline; Write-Host " <n> up  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "D" -ForegroundHex $textHex -NoNewline; Write-Host " <n> down  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "N" -ForegroundHex $textHex -NoNewline; Write-Host "ew  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "Q" -ForegroundHex $textHex -NoNewline; Write-Host "uit" -ForegroundColor White
         $choice = (Read-Host "Choice").Trim()
         if ($choice -match '^[Qq]$') {
-            Write-Host "Config saved." -ForegroundColor Green
+            Write-GfTrueColorText -Text "Config saved." -ForegroundHex $pri
             return
         }
         if ($choice -match '^[Nn]$') {
@@ -3842,12 +4268,12 @@ function Show-GfAdvancedConfigModal {
             continue
         }
         $settingNum = 0
-        if ([int]::TryParse($choice, [ref]$settingNum) -and $settingNum -ge 1 -and $settingNum -le 13) {
+        if ([int]::TryParse($choice, [ref]$settingNum) -and $settingNum -ge 1 -and $settingNum -le 14) {
             Invoke-GfConfigChangeSetting -Profile $profile -SettingNumber $settingNum
             Start-Sleep -Milliseconds 400
             continue
         }
-        Write-Host "Unknown choice. Examples: 3  |  13  |  L 2  |  U 3  |  D 1  |  N  |  Q" -ForegroundColor Gray
+        Write-Host "Unknown choice. Examples: 3  |  14  |  L 2  |  U 3  |  D 1  |  N  |  Q" -ForegroundColor Gray
         Start-Sleep -Milliseconds 900
     }
 }
@@ -4336,6 +4762,16 @@ function Initialize-GfAdvancedMode {
     $script:gfDefaultTextColorHex = Get-GfDefaultTextColorHex -Profile $profile
     $script:gfDefaultPrimaryColorHex = Get-GfDefaultPrimaryColorHex -Profile $profile
     $script:gfDefaultSecondaryColorHex = Get-GfDefaultSecondaryColorHex -Profile $profile
+    $script:gfUseNerdFontGlyphs = [bool]$profile.settings.useNerdFontGlyphs
+    if ($script:gfUseNerdFontGlyphs) {
+        Initialize-GfGlyphTables
+        $nfFamily = Get-GfNerdFontFamilyName
+        if ($nfFamily) {
+            Write-Verbose "Nerd Font glyphs on (font=$nfFamily)"
+        } else {
+            Write-Verbose "Nerd Font glyphs on but no Cascadia/Caskaydia NF family detected"
+        }
+    }
     $script:gfLocationsDrawerOpen = [bool]$profile.settings.locationsDrawerOpen
     if (-not $script:cliNoBarSpecified) {
         if ($null -ne $profile.settings.controlBarOpen) {
@@ -4658,8 +5094,9 @@ function Get-UpdatedFetchDisplayTime {
 
 function Get-UpdatedConditionsLineText {
     $displayFetchTime = Get-UpdatedFetchDisplayTime
+    $updatedPrefix = Get-GfGlyph 'prefix.updated'
     if ($null -eq $displayFetchTime) {
-        return "Updated: N/A"
+        return "${updatedPrefix}Updated: N/A"
     }
     $fetchUtc = if ($displayFetchTime -is [datetime] -and $displayFetchTime.Kind -eq [DateTimeKind]::Utc) {
         $displayFetchTime
@@ -4672,14 +5109,14 @@ function Get-UpdatedConditionsLineText {
     # absolute timestamp instead of a relative "just now" that would immediately be stale.
     # Include the destination timezone abbreviation (e.g. MDT) so one-shot output is unambiguous.
     if ($script:NoInteractive -and $script:NoInteractive.IsPresent) {
-        $line = "Updated: $(Format-UpdatedAbsoluteTime -DateTime $displayFetchTime -IncludeTimeZoneAbbreviation $true)"
+        $line = "${updatedPrefix}Updated: $(Format-UpdatedAbsoluteTime -DateTime $displayFetchTime -IncludeTimeZoneAbbreviation $true)"
         if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
             $line += " [NWS: $(Format-UpdatedAbsoluteTime -DateTime $script:currentTimeLocal -AlreadyLocationLocal $true -IncludeTimeZoneAbbreviation $true)]"
         }
         return $line
     }
 
-    $line = "Updated: $(Format-TimeAgoFromSeconds -Seconds $fetchSeconds)"
+    $line = "${updatedPrefix}Updated: $(Format-TimeAgoFromSeconds -Seconds $fetchSeconds)"
     if ($script:usesObservation) {
         $nwsUtc = Get-NwsObservationInstantUtc
         if ($null -ne $nwsUtc) {
@@ -4810,7 +5247,9 @@ function Test-UpdatedConditionsLineAtCursor {
         $rect = New-Object System.Management.Automation.Host.Rectangle(0, $CursorTop, $right, $CursorTop)
         $cells = $Host.UI.RawUI.GetBufferContents($rect)
         $text = -join (@($cells) | ForEach-Object { $_.Character })
-        return ($text.TrimStart().StartsWith('Updated:'))
+        $trimmed = $text.TrimStart()
+        # Optional Nerd Font clock prefix before "Updated:"
+        return ($trimmed -match 'Updated:')
     } catch {
         return $false
     }
@@ -7721,31 +8160,44 @@ function Get-MoonPhase {
     
     $phaseName = ""
     $emoji = ""
-    
+
+    # Phase name bands (8 named phases); glyph may be 28-step NF cycle
     if ($phase -lt 0.125) {
         $phaseName = "New Moon"
-        $emoji = "🌑"
     } elseif ($phase -lt 0.25) {
         $phaseName = "Waxing Crescent"
-        $emoji = "🌒"
     } elseif ($phase -lt 0.375) {
         $phaseName = "First Quarter"
-        $emoji = "🌓"
     } elseif ($phase -lt 0.48) {
         $phaseName = "Waxing Gibbous"
-        $emoji = "🌔"
     } elseif ($phase -lt 0.52) {
         $phaseName = "Full Moon"
-        $emoji = "🌕"
     } elseif ($phase -lt 0.75) {
         $phaseName = "Waning Gibbous"
-        $emoji = "🌖"
     } elseif ($phase -lt 0.875) {
         $phaseName = "Last Quarter"
-        $emoji = "🌗"
     } else {
         $phaseName = "Waning Crescent"
-        $emoji = "🌘"
+    }
+
+    Initialize-GfGlyphTables
+    if ($script:gfUseNerdFontGlyphs -and $script:gfNerdMoonCycle -and $script:gfNerdMoonCycle.Count -eq 28) {
+        # Higher-resolution 28-glyph moon cycle (E38D..E3A8)
+        $moonIndex = [int][Math]::Floor($phase * 28)
+        if ($moonIndex -ge 28) { $moonIndex = 27 }
+        if ($moonIndex -lt 0) { $moonIndex = 0 }
+        $emoji = [string]$script:gfNerdMoonCycle[$moonIndex]
+    } else {
+        $emoji = switch ($phaseName) {
+            'New Moon' { Get-GfGlyph 'moon.new' }
+            'Waxing Crescent' { Get-GfGlyph 'moon.waxing_crescent' }
+            'First Quarter' { Get-GfGlyph 'moon.first_quarter' }
+            'Waxing Gibbous' { Get-GfGlyph 'moon.waxing_gibbous' }
+            'Full Moon' { Get-GfGlyph 'moon.full' }
+            'Waning Gibbous' { Get-GfGlyph 'moon.waning_gibbous' }
+            'Last Quarter' { Get-GfGlyph 'moon.last_quarter' }
+            default { Get-GfGlyph 'moon.waning_crescent' }
+        }
     }
     
     # Calculate next full moon and new moon dates
@@ -8243,43 +8695,37 @@ function Get-WeatherIcon ($iconUrl, $isDaytime = $true, $precipProb = 0) {
         $condition = $matches[1]
         
         # Prioritize precipitation-related conditions when present
-        # Check for precipitation conditions first (highest priority)
-        if ($condition -match "tsra") { return "⛈️" }  # Thunderstorm
-        if ($condition -match "rain" -and $precipProb -ge 50) { return "🌧️" }  # Rain (only if >= 50% chance)
-        if ($condition -match "snow") { return "❄️" }  # Snow
-        if ($condition -match "fzra") { return "🧊" }  # Freezing rain
+        if ($condition -match "tsra") { return (Get-GfGlyph 'cond.tsra') }
+        if ($condition -match "rain" -and $precipProb -ge 50) { return (Get-GfGlyph 'cond.rain') }
+        if ($condition -match "snow") { return (Get-GfGlyph 'cond.snow') }
+        if ($condition -match "fzra") { return (Get-GfGlyph 'cond.fzra') }
         
-        # Check for other weather conditions
-        if ($condition -match "fog") { return "🌫️" }   # Fog
-        if ($condition -match "haze") { return "🌫️" }  # Haze
-        if ($condition -match "smoke") { return "💨" } # Smoke
-        if ($condition -match "dust") { return "💨" }  # Dust
-        if ($condition -match "wind") { return "💨" }  # Windy
+        if ($condition -match "fog") { return (Get-GfGlyph 'cond.fog') }
+        if ($condition -match "haze") { return (Get-GfGlyph 'cond.fog') }
+        if ($condition -match "smoke") { return (Get-GfGlyph 'cond.smoke') }
+        if ($condition -match "dust") { return (Get-GfGlyph 'cond.smoke') }
+        if ($condition -match "wind") { return (Get-GfGlyph 'cond.wind') }
         
-        # Check for cloud conditions (lower priority than precipitation)
-        if ($condition -match "ovc") { return "☁️" }   # Overcast
-        if ($condition -match "bkn") { return "☁️" }   # Broken clouds
-        if ($condition -match "sct") { 
-            if ($isDaytime) { return "⛅" } else { return "☁️" }
-        }  # Scattered clouds
-        if ($condition -match "few") { 
-            if ($isDaytime) { return "🌤️" } else { return "🌙" }
-        }  # Few clouds
-        if ($condition -match "skc") { 
-            if ($isDaytime) { return "☀️" } else { return "🌙" }
-        }  # Clear
+        if ($condition -match "ovc") { return (Get-GfGlyph 'cond.ovc') }
+        if ($condition -match "bkn") { return (Get-GfGlyph 'cond.ovc') }
+        if ($condition -match "sct") {
+            if ($isDaytime) { return (Get-GfGlyph 'cond.sct.day') } else { return (Get-GfGlyph 'cond.sct.night') }
+        }
+        if ($condition -match "few") {
+            if ($isDaytime) { return (Get-GfGlyph 'cond.few.day') } else { return (Get-GfGlyph 'cond.few.night') }
+        }
+        if ($condition -match "skc") {
+            if ($isDaytime) { return (Get-GfGlyph 'cond.skc.day') } else { return (Get-GfGlyph 'cond.skc.night') }
+        }
         
-        # Check for other common cloud patterns that might not be caught above
-        if ($condition -match "cloud") { return "☁️" }  # Generic cloud
-        if ($condition -match "shower") { return "☁️" }  # Showers (cloudy with precipitation)
-        if ($condition -match "drizzle") { return "☁️" }  # Drizzle (light rain, cloudy)
+        if ($condition -match "cloud") { return (Get-GfGlyph 'cond.ovc') }
+        if ($condition -match "shower") { return (Get-GfGlyph 'cond.ovc') }
+        if ($condition -match "drizzle") { return (Get-GfGlyph 'cond.ovc') }
         
-        # Default fallback - use cloud emoji instead of thermometer for unknown conditions
-        if ($isDaytime) { return "☁️" } else { return "🌙" }
+        if ($isDaytime) { return (Get-GfGlyph 'cond.default.day') } else { return (Get-GfGlyph 'cond.default.night') }
     }
     
-    # Default fallback if URL parsing fails
-    if ($isDaytime) { return "☁️" } else { return "🌙" }
+    if ($isDaytime) { return (Get-GfGlyph 'cond.default.day') } else { return (Get-GfGlyph 'cond.default.night') }
 }
 
 # Function: Detect if running in Cursor/VS Code terminal
@@ -8328,6 +8774,13 @@ function Get-StringDisplayWidth {
                 $i += 2
                 continue
             }
+        }
+
+        # Nerd Font / Powerline Private Use Area — always single cell when NF mode is on
+        if ($script:gfUseNerdFontGlyphs -and (Test-GfNerdFontPuaChar -CodePoint $codePoint)) {
+            $width += 1
+            $i++
+            continue
         }
         
         # Regular character - check if it's an emoji
@@ -8433,7 +8886,7 @@ function Show-CurrentConditions {
     
     Write-GfCurrentConditionsTitle -City $city -State $state -AlertHeaderPrefix $alertHeaderPrefix -FallbackTitleColor $TitleColor
     Write-GfHost "Currently: $weatherIcon $currentConditions" -ForegroundColor $DefaultColor
-    Write-GfHost "Temperature: $currentTemp°F" -ForegroundColor $TempColor -NoNewline
+    Write-GfHost "$(Get-GfGlyph 'label.temp') $currentTemp$(Get-GfTempUnitSuffix)" -ForegroundColor $TempColor -NoNewline
 
     # Calculate and display wind chill, heat index, or estimated WBGT (-wbgt)
     $tempNum = [double]$currentTemp
@@ -8441,7 +8894,7 @@ function Show-CurrentConditions {
         $windSpeedNum = Get-WindSpeed $currentWind
         $windChill = Get-WindChill $tempNum $windSpeedNum
         if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
-            Write-Host " [$windChill°F]" -ForegroundColor Blue -NoNewline
+            Write-Host " [$windChill$(Get-GfTempUnitSuffix)]" -ForegroundColor Blue -NoNewline
         }
     }
     elseif ($script:useWbgtFeelsLike -and $tempNum -gt 50) {
@@ -8457,7 +8910,7 @@ function Show-CurrentConditions {
         if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
             $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
             $wbgtColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
-            Write-GfHost " [${wbgtDisp}°F]" -ForegroundColor $wbgtColor -NoNewline
+            Write-GfHost " [${wbgtDisp}$(Get-GfTempUnitSuffix)]" -ForegroundColor $wbgtColor -NoNewline
         }
     }
     elseif ($tempNum -ge 80) {
@@ -8465,15 +8918,15 @@ function Show-CurrentConditions {
         $heatIndex = Get-HeatIndex $tempNum $humidityNum
         if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
             $hiColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
-            Write-GfHost " [$heatIndex°F]" -ForegroundColor $hiColor -NoNewline
+            Write-GfHost " [$heatIndex$(Get-GfTempUnitSuffix)]" -ForegroundColor $hiColor -NoNewline
         }
     }
 
     if ($currentTempTrend) {
                  $trendIcon = switch ($currentTempTrend) {
-             "rising" { "↗️" }
-             "falling" { "↘️" }
-             "steady" { "→" }
+             "rising" { Get-GfGlyph 'trend.rising' }
+             "falling" { Get-GfGlyph 'trend.falling' }
+             "steady" { Get-GfGlyph 'trend.steady' }
              default { "" }
          }
         Write-GfHost " $trendIcon " -ForegroundColor $DefaultColor -NoNewline
@@ -8543,7 +8996,7 @@ function Show-CurrentConditions {
                             elseif ($dewPointF -le 54) { "White" }
                             elseif ($dewPointF -le 64) { "Yellow" }
                             else { "Red" }
-            Write-Host "Dew Point: $dewPointF°F" -ForegroundColor $dewPointColor
+            Write-Host "Dew Point: $dewPointF$(Get-GfTempUnitSuffix)" -ForegroundColor $dewPointColor
         }
         catch {
             Write-Verbose "Error formatting dew point: $($_.Exception.Message)"
@@ -8568,7 +9021,7 @@ function Show-CurrentConditions {
         }
     }
     if ($SolarIrradiance -and $script:showIrradiance) {
-        Write-GfHost "Irradiance: $SolarIrradiance" -ForegroundColor $DefaultColor
+        Write-GfHost "$(Get-GfGlyph 'prefix.irradiance')Irradiance: $SolarIrradiance" -ForegroundColor $DefaultColor
     }
     
     # Display moon phase information
@@ -8599,8 +9052,17 @@ function Show-CurrentConditions {
             $blueActive = ($magicHours.Blue.IsActive -and $null -ne $magicHours.Blue.ActiveUntil)
             $goldenLabel = if ($goldenActive) { "Golden Hour" } else { "Next Golden Hour" }
             $blueLabel = if ($blueActive) { "Blue Hour" } else { "Next Blue Hour" }
-            Write-GfHost "${goldenLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Golden -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor $DefaultColor
-            Write-GfHost "${blueLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Blue -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor $DefaultColor
+            $magicPrefix = Get-GfGlyph 'prefix.magic'
+            $goldenValue = Format-MagicHourValue -PeriodState $magicHours.Golden -TimeZoneId $TimeZoneId -ReferenceNow $magicRef
+            $blueValue = Format-MagicHourValue -PeriodState $magicHours.Blue -TimeZoneId $TimeZoneId -ReferenceNow $magicRef
+            if (-not [string]::IsNullOrEmpty($magicPrefix)) {
+                Write-GfHost $magicPrefix -ForegroundColor Yellow -NoNewline
+            }
+            Write-GfHost "${goldenLabel}: $goldenValue" -ForegroundColor $DefaultColor
+            if (-not [string]::IsNullOrEmpty($magicPrefix)) {
+                Write-GfHost $magicPrefix -ForegroundColor Blue -NoNewline
+            }
+            Write-GfHost "${blueLabel}: $blueValue" -ForegroundColor $DefaultColor
         }
     }
 
@@ -8771,7 +9233,7 @@ function Show-HourlyForecast {
             $windSpeedNum = Get-WindSpeed $wind
             $windChill = Get-WindChill $tempNum $windSpeedNum
             if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
-                $windchillHeatIndex = " [$windChill°F]"
+                $windchillHeatIndex = " [$windChill$(Get-GfTempUnitSuffix)]"
                 $windchillHeatIndexColor = "Blue"
             }
         }
@@ -8782,7 +9244,7 @@ function Show-HourlyForecast {
             $wbgt = Get-EstimatedWBGT -TempF $tempNum -HumidityPct $humidityNum -WindMph $windSpeedNum -Lat $Latitude -Lon $Longitude -AtDate $hourAt -IsDaytime $isPeriodDaytime -SkyText $shortForecast -TimeZoneId $TimeZone
             if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
                 $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
-                $windchillHeatIndex = " [${wbgtDisp}°F]"
+                $windchillHeatIndex = " [${wbgtDisp}$(Get-GfTempUnitSuffix)]"
                 $windchillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
             }
         }
@@ -8790,7 +9252,7 @@ function Show-HourlyForecast {
             $humidityNum = [double]$period.relativeHumidity.value
             $heatIndex = Get-HeatIndex $tempNum $humidityNum
             if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
-                $windchillHeatIndex = " [$heatIndex°F]"
+                $windchillHeatIndex = " [$heatIndex$(Get-GfTempUnitSuffix)]"
                 $windchillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
             }
         }
@@ -8798,7 +9260,7 @@ function Show-HourlyForecast {
         # Build and write the line piece-by-piece for easier colorization
         $timePart = "$hourDisplay "
         $iconPart = "$periodIcon"
-        $tempPart = " $temp°F"
+        $tempPart = " $temp$(Get-GfTempUnitSuffix)"
         # Normalize spacing around dashes in wind speed: ensure exactly one space on each side
         $windNormalized = $wind -replace '\s*-\s*', ' - '
         # Pad wind direction for alignment, but we'll trim trailing spaces before the dash
@@ -8911,8 +9373,8 @@ function Get-SevenDayHighLowTempText {
         [object]$NighttimePeriod
     )
     $parts = @()
-    if ($DaytimePeriod) { $parts += "H:$($DaytimePeriod.temperature)°F" }
-    if ($NighttimePeriod) { $parts += "L:$($NighttimePeriod.temperature)°F" }
+    if ($DaytimePeriod) { $parts += "H:$($DaytimePeriod.temperature)$(Get-GfTempUnitSuffix)" }
+    if ($NighttimePeriod) { $parts += "L:$($NighttimePeriod.temperature)$(Get-GfTempUnitSuffix)" }
     if ($parts.Count -eq 0) { return '' }
     return ' ' + ($parts -join ' ')
 }
@@ -8927,12 +9389,12 @@ function Write-SevenDayHighLowTemps {
     if ($DaytimePeriod) {
         $high = $DaytimePeriod.temperature
         $highColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$high) -DefaultColor $DefaultColor -AlertColor $AlertColor
-        Write-GfHost " H:${high}°F" -ForegroundColor $highColor -NoNewline
+        Write-GfHost " H:${high}$(Get-GfTempUnitSuffix)" -ForegroundColor $highColor -NoNewline
     }
     if ($NighttimePeriod) {
         $low = $NighttimePeriod.temperature
         $lowColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$low) -DefaultColor $DefaultColor -AlertColor $AlertColor
-        Write-GfHost " L:${low}°F" -ForegroundColor $lowColor -NoNewline
+        Write-GfHost " L:${low}$(Get-GfTempUnitSuffix)" -ForegroundColor $lowColor -NoNewline
     }
 }
 
@@ -9023,7 +9485,7 @@ function Show-SevenDayForecast {
             if ($tempNum -le 50) {
                 $windChill = Get-WindChill $tempNum $windSpeed
                 if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
-                    $windChillHeatIndex = " [$windChill°F]"
+                    $windChillHeatIndex = " [$windChill$(Get-GfTempUnitSuffix)]"
                     $windChillHeatIndexColor = "Blue"
                 }
             } elseif ($script:useWbgtFeelsLike -and $tempNum -gt 50) {
@@ -9031,14 +9493,14 @@ function Show-SevenDayForecast {
                 $wbgt = Get-EstimatedWBGT -TempF $tempNum -HumidityPct $humidityNum -WindMph $windSpeed -Lat $Latitude -Lon $Longitude -AtDate $periodTime -IsDaytime $isPeriodDaytime -SkyText $shortForecast -TimeZoneId $TimeZone
                 if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
                     $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
-                    $windChillHeatIndex = " [${wbgtDisp}°F]"
+                    $windChillHeatIndex = " [${wbgtDisp}$(Get-GfTempUnitSuffix)]"
                     $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             } elseif ($tempNum -ge 80) {
                 $humidityNum = [double]$displayPeriod.relativeHumidity.value
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
                 if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
-                    $windChillHeatIndex = " [$heatIndex°F]"
+                    $windChillHeatIndex = " [$heatIndex$(Get-GfTempUnitSuffix)]"
                     $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             }
@@ -9122,7 +9584,7 @@ function Show-SevenDayForecast {
             }
             Write-GfHost " $windDisplay $($displayPeriod.windDirection)" -ForegroundColor $windColor -NoNewline
             if ($precipProb -gt 0) {
-                Write-GfHost " ($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
+                Write-GfHost (Get-GfPrecipBadgeText -PrecipProb $precipProb) -ForegroundColor $precipColor -NoNewline
             }
             Write-Host ""
             
@@ -9195,8 +9657,8 @@ function Show-SevenDayForecast {
         # Split the line into parts for color coding
         $tempStart = if ($tempPartText) { $formattedLine.IndexOf($tempPartText) } else { -1 }
         if ($tempStart -lt 0) {
-            $tempStart = $formattedLine.IndexOf(" H:$highTemp°F")
-            if ($tempStart -lt 0) { $tempStart = $formattedLine.IndexOf(" L:$lowTemp°F") }
+            $tempStart = $formattedLine.IndexOf(" H:$highTemp$(Get-GfTempUnitSuffix)")
+            if ($tempStart -lt 0) { $tempStart = $formattedLine.IndexOf(" L:$lowTemp$(Get-GfTempUnitSuffix)") }
         }
         
         if ($tempStart -ge 0) {
@@ -9218,17 +9680,18 @@ function Show-SevenDayForecast {
             # Check if there's precipitation data and apply color coding
             if ($precipProb -gt 0) {
                 # Find the precipitation part in the line
-                $precipStart = $afterTemp.IndexOf("($precipProb%☔️)")
+                $precipToken = "($precipProb%$(Get-GfGlyph 'precip.drop'))"
+                $precipStart = $afterTemp.IndexOf($precipToken)
                 if ($precipStart -ge 0) {
                     # Write everything before precipitation
                     Write-GfHost $afterTemp.Substring(0, $precipStart) -ForegroundColor $DefaultColor -NoNewline
                     
                     # Write precipitation with proper color
                     $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
-                    Write-GfHost "($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
+                    Write-GfHost $precipToken -ForegroundColor $precipColor -NoNewline
                     
                     # Write everything after precipitation
-                    $precipEnd = "($precipProb%☔️)".Length
+                    $precipEnd = $precipToken.Length
                     if ($precipStart + $precipEnd -lt $afterTemp.Length) {
                         Write-GfHost $afterTemp.Substring($precipStart + $precipEnd) -ForegroundColor $DefaultColor
                     } else {
@@ -9329,7 +9792,7 @@ function Show-Observations {
             if ($tempNum -le 50) {
                 $windChill = Get-WindChill $tempNum $windSpeedNum
                 if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
-                    $windChillHeatIndex = " [$windChill°F]"
+                    $windChillHeatIndex = " [$windChill$(Get-GfTempUnitSuffix)]"
                     $windChillHeatIndexColor = "Blue"
                 }
             } elseif ($script:useWbgtFeelsLike -and $tempNum -gt 50 -and $null -ne $dayData.AvgHumidity) {
@@ -9341,14 +9804,14 @@ function Show-Observations {
                 $wbgt = Get-EstimatedWBGT -TempF $tempNum -HumidityPct $humidityNum -WindMph $windSpeedNum -Lat $Latitude -Lon $Longitude -AtDate $atWbgt -IsDaytime $true -SkyText $skyForWbgt -TimeZoneId $TimeZone
                 if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
                     $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
-                    $windChillHeatIndex = " [${wbgtDisp}°F]"
+                    $windChillHeatIndex = " [${wbgtDisp}$(Get-GfTempUnitSuffix)]"
                     $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             } elseif ($tempNum -ge 80) {
                 $humidityNum = if ($null -ne $dayData.AvgHumidity) { [double]$dayData.AvgHumidity } else { 0 }
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
                 if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
-                    $windChillHeatIndex = " [$heatIndex°F]"
+                    $windChillHeatIndex = " [$heatIndex$(Get-GfTempUnitSuffix)]"
                     $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             }
@@ -9448,7 +9911,7 @@ function Show-Observations {
         
         # Temperature display
         if ($null -ne $highTemp) {
-            Write-GfHost " H:$highTemp°F" -ForegroundColor $tempColor -NoNewline
+            Write-GfHost " H:$highTemp$(Get-GfTempUnitSuffix)" -ForegroundColor $tempColor -NoNewline
         } else {
             Write-GfHost "H:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
@@ -9458,7 +9921,7 @@ function Show-Observations {
         }
         
         if ($null -ne $lowTemp) {
-            Write-GfHost " L:$lowTemp°F" -ForegroundColor $tempColor -NoNewline
+            Write-GfHost " L:$lowTemp$(Get-GfTempUnitSuffix)" -ForegroundColor $tempColor -NoNewline
         } else {
             Write-GfHost " L:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
@@ -9648,7 +10111,7 @@ function Get-NwsAlertHeaderEmojiSuffix {
         $eventText = if ($props.event) { "$($props.event)" } else { '' }
         $headlineText = if ($props.headline) { "$($props.headline)" } else { '' }
         $subjectText = "$eventText $headlineText".ToLower()
-        if ($subjectText.Contains('heat')) { return '🌡' }
+        if ($subjectText.Contains('heat')) { return (Get-GfGlyph 'alert.heat') }
     }
     return ''
 }
@@ -9663,7 +10126,7 @@ function Get-NwsCurrentConditionsHeaderAlertPrefix {
     $displayableAlerts = Get-DisplayableNwsAlerts -AlertsData $AlertsData
     if ($displayableAlerts.Count -eq 0) { return '' }
     $emojiSuffix = Get-NwsAlertHeaderEmojiSuffix -DisplayableAlerts $displayableAlerts -Now $Now
-    return "⚠️$emojiSuffix "
+    return "$(Get-GfGlyph 'alert.warn')$emojiSuffix "
 }
 
 # Function to display weather alerts
@@ -11196,7 +11659,7 @@ function Show-WildFireTerseLine {
     $restParts = @()
     if ($null -ne $f.Contained) {
         $pct = [Math]::Round([double]$f.Contained, 0)
-        if ($pct -ge 100) { $restParts += [char]0x2705 } else { $restParts += "${pct}%" }
+        if ($pct -ge 100) { $restParts += (Get-GfGlyph 'wildfire.check') } else { $restParts += "${pct}%" }
     }
     # Behavior omitted on terse line (shown in full Wild Fire Info)
     $distMi = [Math]::Round([double]$f.DistanceMi, 0)
@@ -11205,7 +11668,7 @@ function Show-WildFireTerseLine {
     $restColor = $DefaultColor
     $acresColor = Get-WildFireAcresForegroundColor -Acres $f.Acres -DefaultColor $DefaultColor
 
-    Write-Host "Fire: " -ForegroundColor Red -NoNewline
+    Write-Host "$(Get-GfGlyph 'wildfire.fire') " -ForegroundColor Red -NoNewline
     if ($f.InciWebUrl) {
         Write-Host "$([char]27)]8;;$($f.InciWebUrl)$([char]27)\$($f.Name)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
     } else {
@@ -12102,14 +12565,23 @@ function Get-WindGlyph {
     # Get direction index (default to 0 for N if not found)
     $dirIndex = if ($directionMap.ContainsKey($WindDirection)) { $directionMap[$WindDirection] } else { 0 }
     
-    # Choose glyph set based on wind speed
-    if ($WindSpeed -lt 7) {
-        $glyphs = @("▽", "◺", "◁", "◸", "△", "◹", "▷", "◿")
+    if ($script:gfUseNerdFontGlyphs) {
+        # NF weather-wind set  mapped N..NW
+        $nfKeys = @('wind.N', 'wind.NE', 'wind.E', 'wind.SE', 'wind.S', 'wind.SW', 'wind.W', 'wind.NW')
+        $glyph = Get-GfGlyph $nfKeys[$dirIndex]
+        if ([string]::IsNullOrEmpty($glyph)) {
+            $glyph = if ($WindSpeed -lt 7) { @("▽", "◺", "◁", "◸", "△", "◹", "▷", "◿")[$dirIndex] }
+                     else { @("▼", "◣", "◀", "◤", "▲", "◥", "▶", "◢")[$dirIndex] }
+        }
     } else {
-        $glyphs = @("▼", "◣", "◀", "◤", "▲", "◥", "▶", "◢")
+        # Choose glyph set based on wind speed
+        if ($WindSpeed -lt 7) {
+            $glyphs = @("▽", "◺", "◁", "◸", "△", "◹", "▷", "◿")
+        } else {
+            $glyphs = @("▼", "◣", "◀", "◤", "▲", "◥", "▶", "◢")
+        }
+        $glyph = $glyphs[$dirIndex]
     }
-    
-    $glyph = $glyphs[$dirIndex]
     
     # Get color based on wind speed
     $color = if ($WindSpeed -le 5) { "White" }
@@ -12334,10 +12806,10 @@ function Format-DailyLine {
     $dayPart = "$DayName`: "
     $iconPart = "$Icon"
     $tempPart = ''
-    if ($null -ne $HighTemp -and "$HighTemp" -ne '') { $tempPart += " H:${HighTemp}°F" }
-    if ($null -ne $LowTemp -and "$LowTemp" -ne '') { $tempPart += " L:${LowTemp}°F" }
+    if ($null -ne $HighTemp -and "$HighTemp" -ne '') { $tempPart += " H:${HighTemp}$(Get-GfTempUnitSuffix)" }
+    if ($null -ne $LowTemp -and "$LowTemp" -ne '') { $tempPart += " L:${LowTemp}$(Get-GfTempUnitSuffix)" }
     $forecastPart = " - $Forecast"
-    $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb%☔️)" } else { "" }
+    $precipPart = Get-GfPrecipBadgeText -PrecipProb $PrecipProb
     
     if (Test-CursorTerminal) {
         # In Cursor, use a simple fixed-width approach

@@ -3,8 +3,8 @@
 ## Project: gf (Get Forecast) - NWS Edition
 
 **Author:** Kreft&Cursor
-**Date:** 2026-09-09
-**Version:** 2.5
+**Date:** 2026-09-20
+**Version:** 2.6
 
 ---
 
@@ -19,7 +19,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
 - **Automatic Location Detection:** Uses a fallback provider chain (`ip-api.com` -> `ipwho.is` -> `ipapi.co`) to detect the user's current location from public IP when "here" is specified.
-- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), or optional estimated outdoor **WBGT** with **`-wbgt` / `-UseWbgt`** (Stull wet-bulb + simplified globe; warm band from 75°F; bracket colors match dry-bulb Blue/default/alert — aligned with the forecast web app), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), solar irradiance (clear-sky GHI in W/m², displayed after sunset in white, including in terse mode), optional Magic Hours lines (`-m`/`-magic`) for Golden/Blue hour timing immediately before `Updated:` in Current Conditions, moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland").
+- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), or optional estimated outdoor **WBGT** with **`-wbgt` / `-UseWbgt`** (Stull wet-bulb + simplified globe; warm band from 75°F; bracket colors match dry-bulb Blue/default/alert — aligned with the forecast web app), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), solar irradiance (clear-sky GHI in W/m², displayed after sunset in white, including in terse mode; NF mode prefixes with tachometer glyph), optional Magic Hours lines (`-m`/`-magic`) for Golden/Blue hour timing immediately before `Updated:` in Current Conditions (NF: yellow/blue sun prefixes), moon phase information with emoji or 28-step Nerd Font moon glyphs when Advanced setting **2** is on, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland"). With Advanced Nerd Font glyphs on, titles use light `──┤`/`├──` wrappers instead of `***`.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources. Test/monitoring-only alerts are filtered (matches forecast web). Current-conditions title may show `⚠️` / `🌡` when displayable alerts / heat alerts are active.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), otherwise displayed in white. This applies to both the hourly forecast in the main modal and the dedicated hourly modal. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable. **Pressure (Observations):** Barometric pressure in inHg with color coding: low (<29.50 inHg) cyan, normal (29.50-30.20) white, high (30.20-30.50) yellow, extreme (<29.0 or >30.5) alert/magenta.
 - **AQI Line (AirNow):** Current conditions include an `AQI:` line immediately after `Wind:` when AirNow data is available and displayable **and** the user has configured the persisted Windows **User** environment variable **`AirNowAPI`** (your own key from AirNow; never embedded in the script). Use **`gf.ps1 -aqi`** for setup/validation, or set `AirNowAPI` manually. Format: `AQI: {CategoryName} O3[{O3AQI}] PM2.5[{PM25AQI}]`. `AQI:` is white; `CategoryName` is colored by the highest AirNow category number from O3/PM2.5 (1=Green, 2=Yellow, 3=DarkYellow, 4=Red, 5=Magenta, 6=DarkRed). `O3[...]` and `PM2.5[...]` are independently colored by each pollutant's category number. The line is suppressed when the env var is unset, data is unavailable, response is empty, highest category is 7 (Unavailable), or in terse mode unless highest category is 2-6.
@@ -52,7 +52,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[1]-[0] / [Shift+1]-[Shift+0]** - Advanced mode: load favorite slots 1-10 / 11-20
   - **[Enter]** or **[Esc]** - Exit the script
   - **Ctrl+C** will also exit the script
-- **Advanced Mode (Forecast import):** `-enableadvanced`/`-eadv [file]` enables Advanced mode into `%LOCALAPPDATA%\gf\gf.json` (`schemaVersion` 2). With a Forecast backup file, imports favorites + defaults and shows a colored import report. With no file, creates an empty profile (if needed) and opens the config modal so settings/locations can be built manually. `-disableadvanced`/`-dadv` confirms and removes it. `-load`/`-l N` starts on favorite slot N. `-config` opens a settings/favorites config modal (Advanced only) and exits without binding the last location or running weather fetch/geocode. Create/Edit Latitude accepts a `lat, lon` pair (e.g. `39.107, -77.190`) and skips the Longitude prompt when both are present. Setting **1** edits **Default Colors** (Primary `#00ff00`, Secondary `#00ced1`, Text `#00ced1` — Forecast accent defaults; hex pickers; titles use primary/secondary as truecolor, weather field text uses Text; per-location favorite colors still override when enabled). Defaults cover Magic Hours, Irradiance (`-i` toggles), wildfire radius/filter, AQI (AirNow key → User env `AirNowAPI`), 24h clock, location-bar visibility, current mode, and per-location colors. CLI overrides win for the run. Location bar renders `▀ CustomName` with truecolor (active favorite fully highlighted; inactive show colored glyph only). **Tab** / **Shift+Tab** preview-wrap favorites and load **in-process** after an **800ms** settle (not on the control bar), hydrating from shared `weatherCache` when possible. If the location bar was **off** when Tabbing started, it is force-shown for the preview and **hidden again as soon as settle fires** (including wrap-back to the starting favorite). **Multi-session:** each window registers in `sessions` with heartbeat (~15s); per-location API leadership is the longest-running session whose `activeCacheKey` matches that location (not sticky — Tab-away promotes the next-oldest remaining viewer). Followers re-read cache; only the leader fetches NWS/AirNow/wildfire for that key. See **Weather Cache & Multi-Session Coordination** below. In TerseAlert, **A** toggles panes (Tab is reserved for favorites when Advanced is active). Section titles use favorite secondary for `***` and primary for title text when colors are enabled. Ignored import fields: UpdateAll, ShowRadar, AutoUpdate.
+- **Advanced Mode (Forecast import):** `-enableadvanced`/`-eadv [file]` enables Advanced mode into `%LOCALAPPDATA%\gf\gf.json` (`schemaVersion` 2). With a Forecast backup file, imports favorites + defaults and shows a colored import report. With no file, creates an empty profile (if needed) and opens the config modal so settings/locations can be built manually. `-disableadvanced`/`-dadv` confirms and removes it. `-load`/`-l N` starts on favorite slot N. `-config` opens a settings/favorites config modal (Advanced only) and exits without binding the last location or running weather fetch/geocode. Create/Edit Latitude accepts a `lat, lon` pair (e.g. `39.107, -77.190`) and skips the Longitude prompt when both are present. Setting **1** edits **Default Colors** (Primary `#00ff00`, Secondary `#00ced1`, Text `#00ced1` — Forecast accent defaults; hex pickers; titles use primary/secondary as truecolor, weather field text uses Text; `-config` chrome uses the same primary/secondary/text; per-location favorite colors still override when enabled). Setting **2** toggles **Nerd Font glyphs** (default **off**; see **Nerd Font Glyphs Mode** below). Setting **14** edits the AirNow API key. Defaults cover Magic Hours, Irradiance (`-i` toggles), wildfire radius/filter, AQI (AirNow key → User env `AirNowAPI`), 24h clock, location-bar visibility, current mode, and per-location colors. CLI overrides win for the run. Location bar renders `▀ CustomName` with truecolor (active favorite fully highlighted; inactive show colored glyph only; with NF on, Powerline half-circle chips). **Tab** / **Shift+Tab** preview-wrap favorites and load **in-process** after an **800ms** settle (not on the control bar), hydrating from shared `weatherCache` when possible. If the location bar was **off** when Tabbing started, it is force-shown for the preview and **hidden again as soon as settle fires** (including wrap-back to the starting favorite). **Multi-session:** each window registers in `sessions` with heartbeat (~15s); per-location API leadership is the longest-running session whose `activeCacheKey` matches that location (not sticky — Tab-away promotes the next-oldest remaining viewer). Followers re-read cache; only the leader fetches NWS/AirNow/wildfire for that key. See **Weather Cache & Multi-Session Coordination** below. In TerseAlert, **A** toggles panes (Tab is reserved for favorites when Advanced is active). Section titles use favorite secondary for wrappers and primary for title text when per-location colors are enabled; otherwise Default Colors. With NF on, wrappers are light box-drawing `──┤` / `├──` instead of `***`. Ignored import fields: UpdateAll, ShowRadar, AutoUpdate.
 - **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
 - **Smart Exit:** Pauses for user input before closing if run outside of a standard terminal (e.g., by double-clicking).
 
@@ -375,9 +375,38 @@ With `-Verbose`: NIFC GET URL, raw feature counts, normalized incident summary (
 
 ### Configuration
 
-The script uses a hardcoded user agent string "GetForecast/1.0 (081625PDX)" for API requests. No configuration file is required.
+The script uses a hardcoded user agent string "GetForecast/1.0 (081625PDX)" for API requests. No configuration file is required for basic (non-Advanced) use.
+
+**Advanced profile:** `%LOCALAPPDATA%\gf\gf.json` (`schemaVersion` 2) — favorites, settings (including `defaultPrimaryColor` / `defaultSecondaryColor` / `defaultTextColor` and `useNerdFontGlyphs`), shared `weatherCache`, and `sessions`. Edit with `-config` or import via `-eadv`.
 
 **AirNow AQI:** Optional. Set the Windows **User** environment variable **`AirNowAPI`** to your AirNow API key (persisted; survives new terminals). Run **`gf.ps1 -aqi`** for an interactive setup screen that saves to User scope, validates the key (fixed test coordinates 45.5202471, -122.674194), and supports update/delete. Request keys at: https://docs.airnowapi.org/account/request/
+
+**Nerd Font glyphs:** Advanced setting **2** (`useNerdFontGlyphs`, default `false`). Install **Cascadia Code NF** (or Cascadia Mono NF / CaskaydiaCove) and set it as the terminal Font face. Enabling in `-config` detects installed Cascadia/Caskaydia NF families and warns if none are found. See **Nerd Font Glyphs Mode** below.
+
+### Nerd Font Glyphs Mode
+
+Opt-in Advanced feature controlled by `settings.useNerdFontGlyphs` (config setting **2**). When enabled, `Get-GfGlyph` prefers the Nerd Font registry over emoji/ASCII fallbacks for the whole session.
+
+**Requirements:** Cascadia Code NF / Cascadia Mono NF (or CaskaydiaCove / CaskaydiaMono Nerd Font) installed **and** selected as the host Font face. PUA glyphs otherwise render as tofu. Detection helpers: `Get-GfInstalledFontFamilyNames`, `Get-GfNerdFontFamilyName`.
+
+**What switches on together:**
+
+| Area | Behavior |
+|------|----------|
+| Conditions | Weather icons (`cond.*`, e.g. clear `E30D`, rain `E318`, thunder `E31D`) |
+| Moon | 28-step cycle `E38D`–`E3A8` (`gfNerdMoonCycle`); named 8-phase labels unchanged |
+| Alerts / wildfire / precip / trends | Warning, heat, flame (`EAF2`), check, precip drop, thermometer (`E350`), trend arrows |
+| Wind | Compass glyphs `weather-wind_*` (`E354`–`E35B`) |
+| Line prefixes | Magic Hours sun (`E30D`); Irradiance tachometer `` (`F0E4`); Updated clock `` (`F41C`) |
+| Temp units | Compact `unit.f` / `unit.c` (`E341` / `E339`) via `Get-GfTempUnitSuffix` |
+| Section titles | Light wrappers `──┤` / `├──` (`pl.title.left` / `pl.title.right`) in secondary; body in primary |
+| Location bar | Powerline half-circles `E0B6` / `E0B4` when NF framing is active |
+| `-config` | Setting row icons; bool values as toggle glyphs `F205`/`F204`; 24h icon `E384`; chrome truecolor from Default Colors |
+| Display width | BMP PUA (`E000`–`F8FF`) counted as 1 cell in `Get-StringDisplayWidth` when NF mode is on |
+
+**Magic Hours (NF):** sun prefix Yellow on Golden Hour lines, Blue on Blue Hour lines; label/time keep default text color.
+
+**Implementation notes:** Glyph tables live in `Initialize-GfGlyphTables` (`gfEmojiGlyphs` / `gfNerdGlyphs`). Titles: `Write-GfThemedSectionTitle`. Config UI: `Write-GfConfigBanner`, `Write-GfConfigSectionHeader`, `Write-GfConfigSettingLine`, `Get-GfConfigBoolLabel`. Flag loaded in `Initialize-GfAdvancedMode` and refreshed each `-config` redraw.
 
 ### File Encoding
 
@@ -409,11 +438,12 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 - **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak GHI at location solar noon with time; displayed after Sunset in white as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in both full and terse modes.
 - **Temperature Trend Indicators:** Time-aligned hourly comparison with grid-divergence handling when station observation drives current conditions; `temperatureTrend` API fallback for small changes.
 - **Estimated WBGT (`-wbgt`):** Optional outdoor WBGT bracket instead of heat index (aligned with forecast web heuristic).
-- **Magic Hours (`-m` / `-magic`):** Optional Golden/Blue hour lines immediately before `Updated:`.
+- **Magic Hours (`-m` / `-magic`):** Optional Golden/Blue hour lines immediately before `Updated:`. With Nerd Font glyphs on, the sun prefix is Yellow (Golden) / Blue (Blue Hour).
 - **Wild Fire Info (`-wf` / `-wildfire`):** NIFC WFIGS + InciWeb; see Wildfire technical notes.
-- **Moon Phase Information:** Astronomical moon phase calculation with emoji display and next full moon date
+- **Moon Phase Information:** Astronomical moon phase calculation with emoji display (or 28-step Nerd Font moon glyphs when setting **2** is on) and next full moon date
 - **Humidity Data:** Available in current conditions display
 - **Observed Current Conditions:** Prefer nearest station latest observation when fresh; two-tier G / auto-refresh.
+- **Nerd Font Glyphs (Advanced setting 2):** Opt-in Cascadia Code NF icon set for weather UI and `-config`; see **Nerd Font Glyphs Mode**.
 
 ### Benefits of NWS API
 
@@ -757,7 +787,8 @@ The moon phase feature provides astronomical moon phase information with visual 
   - **Next Full Moon:** Calculates next full moon date (occurs at ~14.77 days in cycle)
 
 - **Visual Display:**
-  - **Emoji Representation:** Each phase displays appropriate moon emoji
+  - **Emoji Representation (default):** Each named phase displays the matching moon emoji
+  - **Nerd Font mode:** When Advanced `useNerdFontGlyphs` is on, the glyph is taken from the 28-step weather-moon PUA cycle (`E38D`–`E3A8`) by phase fraction; phase **name** still uses the 8-band labels above
   - **Phase Name:** Full descriptive name of current moon phase
   - **Next Full Moon:** Shows "Next Full Moon: MM/DD/YYYY" only when not currently full moon
   - **Gray Color:** Displays in gray color for subtle integration
@@ -840,6 +871,9 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **No Dependencies:** Self-contained calculation requiring no external services
 - **Cultural Relevance:** Moon phases have cultural and practical significance worldwide
 
+### Recent Enhancements (v2.6)
+- **Nerd Font glyphs (Advanced setting 2):** Opt-in `useNerdFontGlyphs` (default off). Cascadia Code NF / CaskaydiaCove PUA icons for conditions, 28-step moon, alerts/wildfire/precip/trends/wind, compact °F/°C, Magic/Irradiance/Updated prefixes, light `──┤`/`├──` title wrappers, Powerline location chips, and `-config` icons/toggles. Enable warns if no Cascadia/Caskaydia NF family is installed; terminal Font face must be set to Cascadia Code NF (or Mono NF). Default Colors wire into `-config` chrome (primary/secondary/text). Magic Hours sun glyph is Yellow/Blue by line. PUA display width forced to 1 cell in NF mode.
+
 ### Recent Enhancements (v2.5)
 - **Small-fire filter (`-nosmallfire` / `-nsf`):** Hide wildfires ≤1 acre and fires with no reported acres (Size —) from terse/full output and `(N)` counts; filter runs in `Finalize-WildFireIncidentList` before InciWeb probes. Matches Forecast web **Filter Small Fires** (web edition keeps unknown acres unless changed separately).
 
@@ -903,7 +937,7 @@ The solar irradiance feature displays estimated clear-sky global horizontal irra
 
 #### Solar Irradiance Features:
 
-- **Display Format:** "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white (X = current GHI, Y = peak at solar noon, h:mm = solar noon local time), shown after "Sunset: ..." and before "Moon Phase: ..."
+- **Display Format:** "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white (X = current GHI, Y = peak at solar noon, h:mm = solar noon local time), shown after "Sunset: ..." and before "Moon Phase: ...". With Nerd Font glyphs on, prefixed with tachometer `` (`prefix.irradiance` / `F0E4`).
 - **Units:** Watts per square meter (W/m²), integer
 - **Scope:** Full mode, terse mode, hourly mode, 7-day mode, observations mode, and after manual/auto refresh
 - **Terse Mode:** Uses the same irradiance line as full mode; terse layout instead saves vertical space by combining Sunrise/Sunset into `Sunrise-Sunset: start-end` and omitting the Dew Point line.
@@ -933,7 +967,7 @@ The solar irradiance feature displays estimated clear-sky global horizontal irra
 **Helper:** `Get-SolarNoonForDate` (after `Get-SolarIrradiance`) returns solar noon in UTC and local time for a given date using the same NOAA solar math; used to compute peak irradiance at solar noon and the display time.
 
 **Display Integration:**
-- **Show-CurrentConditions:** Optional parameter `[string]$SolarIrradiance = $null`. When non-null, after the Sunset line: `Write-Host "Irradiance: $SolarIrradiance" -ForegroundColor White`.
+- **Show-CurrentConditions:** Optional parameter `[string]$SolarIrradiance = $null`. When non-null, after the Sunset line: `Write-GfHost "$(Get-GfGlyph 'prefix.irradiance')Irradiance: $SolarIrradiance"` with default text color.
 - **Show-FullWeatherReport:** Receives `CurrentTimeDateTime` (DateTime). When Lat, Lon, TimeZone, and `CurrentTimeDateTime` are present, computes current GHI via `Get-SolarIrradiance`, gets solar noon via `Get-SolarNoonForDate`, computes peak GHI at solar noon via `Get-SolarIrradiance` with `SolarNoonUtc`, then `$solarStr = "${solarWm2}W/m2 [Peak ${peakWm2}W/m2 @ $solarNoonLocalStr]"` and passes `-SolarIrradiance $solarStr` to `Show-CurrentConditions`.
 - **Terse mode:** Same irradiance string is passed when available (terse still shows Irradiance; it omits Dew Point and combines Sunrise/Sunset instead).
 

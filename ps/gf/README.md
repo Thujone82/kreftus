@@ -26,7 +26,8 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
     - `Golden Hour:` / `Next Golden Hour:`
     - `Blue Hour:` / `Next Blue Hour:`
     - Active windows display `Active Until HH:mm`; inactive windows display `HH:mm-HH:mm`.
-  - Moon phase information with emoji and next full moon date.
+    - With Advanced **Nerd Font glyphs** on: sun prefix is yellow on Golden lines and blue on Blue lines.
+  - Moon phase information with emoji (or a 28-step Nerd Font moon cycle when setting **2** is on) and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
   - **Wild Fire Info** (NIFC WFIGS + IRWIN): when wildfires are within the search radius (default **50 mi**), lists size, discovered time, estimated cost to date, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Stats segments (`Size` · `Discovered` · …) start on a new line when they would otherwise wrap mid-section. Terse / Current Conditions one-liner for the largest nearby fire: `Fire:` label, acres, ✅ when 100% contained (else `%`), rounded miles + cardinal, `(N)` when multiple; behavior only in the full section. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run. Use **`-nosmallfire` / `-nsf`** to hide fires **≤ 1 acre** or with **no reported acres** (InciWeb probes skipped for those). See **Smart Color-Coding** below for wildfire color rules.
@@ -98,10 +99,10 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - Consistent gray color for all detailed forecast text
 - **Interactive control bar:** On-screen hotkey hints (toggle with **B** or start hidden with `-b`). Use `-x` for one-shot output without the control bar loop.
 - **CLI tolerance:** Unrecognized switches (e.g. accidental `-c`) produce a yellow warning and the script continues (v2.2).
-- **Moon Phase Information:** Displays current moon phase with emoji and next full moon date:
-  - Shows 8 moon phases: New Moon, Waxing Crescent, First Quarter, Waxing Gibbous, Full Moon, Waning Gibbous, Last Quarter, Waning Crescent
+- **Moon Phase Information:** Displays current moon phase with emoji (or Nerd Font 28-step glyphs when Advanced setting **2** is on) and next full moon date:
+  - Shows 8 named moon phases: New Moon, Waxing Crescent, First Quarter, Waxing Gibbous, Full Moon, Waning Gibbous, Last Quarter, Waning Crescent
   - Uses astronomical calculation based on known new moon reference (January 6, 2000)
-  - Displays appropriate emoji for each phase: 🌑🌒🌓🌔🌕🌖🌗🌘
+  - Default display uses emoji for each phase: 🌑🌒🌓🌔🌕🌖🌗🌘; NF mode uses weather-moon PUA cycle
   - Shows "Next Full Moon: MM/DD/YYYY" only when not currently a full moon
   - Appears in gray color after sunset information
 - **Interactive mode:** When run interactively, keyboard shortcuts switch display modes:
@@ -140,26 +141,48 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
 The script uses a user agent string "GetForecast/1.0 (081625PDX)" for API requests. This is hardcoded in the script and does not require a configuration file.
 
 ### Essential Configuration Tips
-To ensure proper emoji display, you must ensure your terminal and PowerShell are set to use the correct encoding and a font that supports emoji glyphs.
+To ensure proper emoji and Nerd Font glyph display, use UTF-8 encoding and a terminal font that includes the symbols you need.
 
 #### 1. Use a Unicode-Compliant Font
-The default console font may not contain all the necessary emoji glyphs. You should use a font that is designed for terminal use and includes broad Unicode support.
+The default console font may not contain emoji or Nerd Font Private Use Area (PUA) glyphs. Prefer a terminal face with broad Unicode coverage.
 
-**Cascadia Code PL / Cascadia Mono PL:** These are Microsoft's recommended fonts. The "PL" (Powerline) versions include extra glyphs for powerline symbols, which also helps with general Unicode support.
+**Cascadia Code NF / Cascadia Mono NF:** Required for Advanced **Nerd Font glyphs** (config setting **2**). These Microsoft fonts are patched with Nerd Font weather icons, Font Awesome / Octicons symbols, and Powerline separators. Install the font **and** set it as the Windows Terminal / host **Font face**, or PUA glyphs may show as tofu. Setting **2** is **off** by default; enabling it warns if no Cascadia/Caskaydia NF family is detected on the system.
 
-**A Nerd Font:** If you use a customized prompt (like Oh My Posh), you'll need to install a Nerd Font (like Cascadia Code NF) which is patched with thousands of extra glyphs, including extensive emoji sets.
+**Cascadia Code PL / Cascadia Mono PL:** Powerline-only variants — fine for general Unicode and location-bar wedges, but lack the full weather icon set used when setting **2** is on.
+
+**Other Nerd Fonts:** CaskaydiaCove / CaskaydiaMono Nerd Font (upstream rename) are also detected for the enable warning.
 
 To change the font in Windows Terminal:
 
 1. Open Windows Terminal settings (Ctrl+,).
 2. Select the PowerShell profile on the left.
 3. Go to the Appearance section.
-4. In the Font face dropdown, select a font like Cascadia Code PL or a Nerd Font.
+4. In the Font face dropdown, select **Cascadia Code NF** (or Cascadia Mono NF) for full Nerd Font glyph support, or Cascadia Code PL for Powerline-only.
 
+#### Nerd Font glyphs mode (Advanced setting 2)
+
+Opt-in via **`.\gf.ps1 -config`** → setting **2** (`settings.useNerdFontGlyphs` in `%LOCALAPPDATA%\gf\gf.json`). When **on**, all of the following switch together (emoji / ASCII fallbacks when **off**):
+
+| Area | NF behavior |
+|------|-------------|
+| **Conditions / icons** | Weather icons (clear, clouds, rain, snow, fog, smoke, wind, thunder, etc.) |
+| **Moon** | 28-step weather-moon cycle (`E38D`–`E3A8`) instead of 8 emoji phases |
+| **Alerts / wildfire / precip / trends** | Warning, heat, flame, checkmark, precip drop, temp thermometer, trend arrows |
+| **Wind compass** | `weather-wind_*` direction glyphs (`E354`–`E35B`) |
+| **Line prefixes** | Magic Hours sun, Irradiance tachometer (``), Updated clock (``) |
+| **Temperature units** | Compact `°F` / `°C` weather glyphs (`` / ``) in place of `°F` / `°C` text |
+| **Section titles** | Light box wrappers `──┤` / `├──` in **secondary** color; title body in **primary** |
+| **Location bar** | Powerline half-circle chips (`E0B6` / `E0B4`) when framing favorites |
+| **`-config` UI** | Setting icons, toggle on/off (`` / ``), 24h clock icon; chrome uses Default Colors (primary / secondary / text) |
+| **Display width** | BMP PUA code points counted as **1** cell for wrap/align |
+
+**Magic Hours (NF):** the shared sun glyph is **Yellow** on Golden Hour lines and **Blue** on Blue Hour lines; labels and times keep the default text color.
+
+**Default Colors (setting 1)** still drive weather titles and field text whether NF is on or off; `-config` banners, section headers, and setting lines use those same primary / secondary / text hex values as truecolor.
 
 #### 2. Change console encoding to UTF-8
 
-Emojis require UTF-8 encoding. The script attempts to set this automatically; you can also add the following to your PowerShell profile:
+Emojis and NF glyphs require UTF-8 encoding. The script attempts to set this automatically; you can also add the following to your PowerShell profile:
 
 ```powershell
 # Set console output encoding to UTF-8
@@ -214,7 +237,7 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 
 **Profile path:** `%LOCALAPPDATA%\gf\gf.json`
 
-**Imported settings (used):** Magic Hours, Irradiance, Wildfire enable/radius/filter-small, AQI enable + AirNow key (written to User env `AirNowAPI`), 24h times, locations drawer open/closed, current mode, per-location colors, last viewed location (seeds last-active favorite).
+**Imported settings (used):** Magic Hours, Irradiance, Wildfire enable/radius/filter-small, AQI enable + AirNow key (written to User env `AirNowAPI`), 24h times, locations drawer open/closed, current mode, per-location colors, Default Colors (primary/secondary/text), Nerd Font glyphs (`useNerdFontGlyphs`), last viewed location (seeds last-active favorite).
 
 **Ignored from Forecast backup:** `forecastUpdateAll`, `forecastShowRadar`, `forecastAutoUpdate`.
 
@@ -229,8 +252,8 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 - **Tab** / **Shift+Tab** move to the next / previous favorite (wraps). The location-bar highlight updates immediately; the favorite loads **in-process** after **800ms** with no further input (hydrates from `weatherCache` when fresh; leader refreshes if stale). Queued Tab bursts are drained into one update. After a load is accepted, queued keys are flushed and input is ignored until the new location finishes loading. Hotkeys only — not on the control bar. While pending, the location bar is shown even if **L** has it closed (including wrap-back to the starting favorite). If the bar was off when Tabbing started, it is hidden again as soon as settle fires.
 - **Shared cache / multi-window:** `gf.json` holds `weatherCache` (per favorite uid or `lat,lon`) and `sessions`. Multiple GF windows on the same location share one API owner — the longest-running viewer of that key. Followers hydrate from cache; **G** and auto-refresh only hit APIs on the leader. Leaving a location (Tab, other favorite, exit) drops you from that key’s candidate set so the next-oldest viewer takes over within one heartbeat (~15s). Dirty exits are pruned by heartbeat timeout (~45s) or dead PID. Deleting favorites prunes orphaned favorite cache keys. The **Updated:** line (and `[NWS: …]` observation age) tracks the shared cache fetch/observation stamps so every client shows the same age as it re-ages in place.
 - Hotkeys `1`–`0` load slots 1–10; `Shift+1`–`Shift+0` load 11–20 (immediate load).
-- Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled.
-- **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (setting **1** Default Colors for primary/secondary/text; current mode includes `tersealert`; setting **13** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled.
+- Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled; otherwise **Default Colors** (setting **1**): wrappers in secondary, title body in primary. With Nerd Font glyphs on, wrappers are `──┤` / `├──` instead of `***`.
+- **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (setting **1** Default Colors for primary/secondary/text — also used for `-config` chrome; setting **2** Nerd Font glyphs, default off — see [Nerd Font glyphs mode](#nerd-font-glyphs-mode-advanced-setting-2); current mode includes `tersealert`; setting **14** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled (missing favorite colors fall back to Default Colors).
 ### Parameter details
 
 - `Location` [string] (Positional: 0)
@@ -256,7 +279,7 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 
 - `-Config` [switch]
   - **Advanced mode only.** Opens the GetForecast config modal for `%LOCALAPPDATA%\gf\gf.json`, then exits (no weather fetch).
-  - Toggle/edit imported settings (including Default Colors via setting **1** and AirNow API key via setting **13**); reorder favorites; edit name/colors/coordinates or delete a location (with confirm); create a new location.
+  - Toggle/edit imported settings (including Default Colors via setting **1**, Nerd Font glyphs via setting **2** — see [Nerd Font glyphs mode](#nerd-font-glyphs-mode-advanced-setting-2), and AirNow API key via setting **14**); reorder favorites; edit name/colors/coordinates or delete a location (with confirm); create a new location.
   - Without an Advanced profile, prints guidance to run `-eadv` first and exits with an error.
 
 - `-Terse` or `-t` [switch]
@@ -319,6 +342,7 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
   - Enables Golden/Blue hour timing in Current Conditions.
   - Displays the lines immediately before `Updated:`.
   - Labels are `Golden Hour` / `Blue Hour` while active, otherwise `Next Golden Hour` / `Next Blue Hour`.
+  - With Advanced Nerd Font glyphs on, the sun prefix is yellow (Golden) / blue (Blue Hour).
 
 - `-NoInteractive` or `-x` [switch]
   - Exits immediately after displaying weather data (no interactive mode or control bar).
@@ -511,7 +535,7 @@ Light refresh does **not** reset the forecast fetch timestamp. Full refresh upda
 
 ### Updated line
 
-The **Updated:** row shows **when weather was last fully fetched**, plus station age when observation data is in use:
+The **Updated:** row shows **when weather was last fully fetched**, plus station age when observation data is in use. With Advanced Nerd Font glyphs on, the line is prefixed with an Octicons clock (``).
 
 ```
 Updated: just now [NWS: 24 minutes ago]
@@ -747,6 +771,7 @@ These messages provide clear feedback about the script's progress and help users
 
 ## Changelog
 
+- **v2.6** — Advanced **Nerd Font glyphs** (config setting **2**, off by default): Cascadia Code NF weather/status icons, 28-step moon, compact °F/°C, line prefixes, light `──┤`/`├──` title wrappers, Powerline location chips, `-config` NF polish wired to Default Colors; enable warns if no Cascadia/Caskaydia NF family is detected.
 - **v2.5** — **`-nosmallfire` / `-nsf`:** hide wildfires ≤1 acre and fires with no reported acres from display/counts; InciWeb probes skipped for filtered fires.
 - **v2.4** — Wild Fire Info from NIFC WFIGS (50 mi default): full section after alerts with size/containment/behavior and InciWeb links; terse one-liner for the largest fire (`[1/X]` when multiple). Override radius with `-wf`/`-wildfire N` miles; `-wf 0` disables.
 - **v2.3** — TerseAlert mode (`-ta` / `-tersealert`): alternate terse and full alerts every 20s when alerts are active; with `-x`, print terse then alerts. Alerts-only mode (`-a` / `-alerts`) with green empty state. Interactive hotkeys **A** (alerts-only, or TerseAlert pane toggle) and **Shift+T** (TerseAlert), not shown on the control bar.
@@ -773,11 +798,12 @@ These messages provide clear feedback about the script's progress and help users
 
 ## Features Added/Enhanced
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. During polar night or polar day, sun times use `MM/dd HH:mm` format. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
-- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak at location solar noon with time, displayed as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white when available (including terse mode). Estimate only (NWS does not provide irradiance).
+- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak at location solar noon with time, displayed as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white when available (including terse mode). Estimate only (NWS does not provide irradiance). With Nerd Font glyphs on, the line is prefixed with a tachometer glyph (``).
 - **Temperature Trend:** Rising/falling/steady icons on the current temperature line when supported by observation data.
 - **Observed current conditions:** Current Conditions prefer the nearest NWS station’s latest observation when fresh; see [Observed current conditions](#observed-current-conditions).
 - **Estimated WBGT:** Optional `-wbgt` feels-like bracket using Stull wet-bulb + simplified globe term (matches forecast web heuristic).
-- **Alert Header Icons:** ⚠️ and 🌡 prefixes on the current-conditions title when relevant alerts are in effect (v2.2).
+- **Alert Header Icons:** ⚠️ and 🌡 prefixes on the current-conditions title when relevant alerts are in effect (v2.2); NF mode substitutes matching PUA glyphs.
+- **Nerd Font glyphs (Advanced):** Opt-in setting **2** — see [Nerd Font glyphs mode](#nerd-font-glyphs-mode-advanced-setting-2).
 - **Humidity Data:** Available in current conditions display
 
 ## API Information
