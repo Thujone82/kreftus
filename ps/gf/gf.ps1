@@ -307,6 +307,7 @@ $script:gfDefaultTextColorHex = '#00ced1'
 $script:gfDefaultPrimaryColorHex = '#00ff00'
 $script:gfDefaultSecondaryColorHex = '#00ced1'
 $script:gfUseNerdFontGlyphs = $false
+$script:gfNerdFontTitleStyle = 'simple'
 $script:use24hTime = $true
 $script:showIrradiance = $true
 $script:gfRestartRequested = $false
@@ -500,7 +501,7 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
 $skipAdvancedBootStatus = $Config.IsPresent -or $AqiSetup.IsPresent -or ($EnableAdvanced.IsPresent -and -not $EnableAdvancedFile)
 if ($gfAdvancedCanSupplyLocation -and -not $DisableAdvanced.IsPresent -and -not $skipAdvancedBootStatus -and $VerbosePreference -ne 'Continue') {
     try { Clear-Host } catch {}
-    Write-Host "Loading GetForecast Advanced Mode..." -ForegroundColor Yellow
+    Write-Host "Loading GF Advanced..." -ForegroundColor Yellow
     $script:gfAdvancedBootStatusActive = $true
 }
 
@@ -1262,6 +1263,7 @@ function New-GfAdvancedProfileDefaults {
             defaultSecondaryColor = "#00ced1"
             defaultTextColor     = "#00ced1"
             useNerdFontGlyphs    = $false
+            nerdFontTitleStyle   = "simple"
         }
         favorites         = @()
         lastActiveFavorite = $null
@@ -1542,7 +1544,10 @@ function Save-GfAdvancedProfile {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
     # Depth must cover nested weatherCache forecast/hourly/alerts payloads
-    $json = ($Profile | ConvertTo-Json -Depth 30)
+    $json = ConvertTo-Json -InputObject $Profile -Depth 30
+    if ([string]::IsNullOrWhiteSpace($json)) {
+        throw "Refusing to save empty gf.json payload."
+    }
     $temp = Join-Path $dir ("gf.{0}.tmp" -f [guid]::NewGuid().ToString('N'))
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     $lastErr = $null
@@ -1586,6 +1591,13 @@ function Initialize-GfAdvancedProfileShape {
         if ($null -eq $Profile.settings['useNerdFontGlyphs']) {
             $Profile.settings['useNerdFontGlyphs'] = $false
         }
+        if ($null -eq $Profile.settings['nerdFontTitleStyle'] -or [string]::IsNullOrWhiteSpace([string]$Profile.settings.nerdFontTitleStyle)) {
+            $Profile.settings['nerdFontTitleStyle'] = 'simple'
+        } else {
+            $styleRaw = ([string]$Profile.settings.nerdFontTitleStyle).Trim().ToLowerInvariant()
+            if ($styleRaw -notin @('pill', 'fire', 'lean', 'digital', 'bars', 'simple', 'standard')) { $styleRaw = 'simple' }
+            $Profile.settings['nerdFontTitleStyle'] = $styleRaw
+        }
     }
     if ($null -eq $Profile['favorites']) { $Profile['favorites'] = @() }
     elseif ($Profile.favorites -isnot [System.Array]) { $Profile['favorites'] = @($Profile.favorites) }
@@ -1610,17 +1622,27 @@ function Initialize-GfAdvancedProfileShape {
 function Get-GfAdvancedProfile {
     $path = Get-GfAdvancedProfilePath
     if (-not (Test-Path -LiteralPath $path)) { return $null }
-    try {
-        $raw = Read-GfAdvancedProfileText -Path $path
-        if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
-        $obj = $raw | ConvertFrom-Json -ErrorAction Stop
-        $profile = ConvertTo-GfHashtable -InputObject $obj
-        if (-not $profile) { return $null }
-        return (Initialize-GfAdvancedProfileShape -Profile $profile)
-    } catch {
-        Write-Verbose "Failed to load gf.json: $($_.Exception.Message)"
-        return $null
+    # Retry: concurrent Save (temp→copy) can briefly yield empty/partial reads
+    for ($i = 0; $i -lt 8; $i++) {
+        try {
+            $raw = Read-GfAdvancedProfileText -Path $path
+            if ([string]::IsNullOrWhiteSpace($raw)) {
+                Start-Sleep -Milliseconds (40 * ($i + 1))
+                continue
+            }
+            $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+            $profile = ConvertTo-GfHashtable -InputObject $obj
+            if (-not $profile) {
+                Start-Sleep -Milliseconds (40 * ($i + 1))
+                continue
+            }
+            return (Initialize-GfAdvancedProfileShape -Profile $profile)
+        } catch {
+            Write-Verbose "Failed to load gf.json (attempt $($i + 1)): $($_.Exception.Message)"
+            Start-Sleep -Milliseconds (40 * ($i + 1))
+        }
     }
+    return $null
 }
 
 function Get-GfAdvancedProfileLockPath {
@@ -1717,20 +1739,30 @@ function Update-GfAdvancedProfileFields {
     param(
         [hashtable]$Fields
     )
-    $profile = Get-GfAdvancedProfile
-    if (-not $profile -or -not $profile.advancedEnabled) { return $null }
-    foreach ($key in $Fields.Keys) {
-        if ($key -eq 'settings' -and $Fields[$key] -is [hashtable]) {
-            if (-not $profile.settings) { $profile.settings = [ordered]@{} }
-            foreach ($sk in $Fields[$key].Keys) {
-                $profile.settings[$sk] = $Fields[$key][$sk]
+    # Locked reload+patch so concurrent session heartbeats cannot clobber settings
+    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+        $updated = Invoke-GfAdvancedProfileLocked -Action {
+            param($profile)
+            if (-not $profile -or -not $profile.advancedEnabled) { return $null }
+            foreach ($key in $Fields.Keys) {
+                if ($key -eq 'settings' -and (
+                        $Fields[$key] -is [hashtable] -or
+                        $Fields[$key] -is [System.Collections.Specialized.OrderedDictionary]
+                    )) {
+                    if (-not $profile.settings) { $profile['settings'] = [ordered]@{} }
+                    foreach ($sk in $Fields[$key].Keys) {
+                        $profile.settings[$sk] = $Fields[$key][$sk]
+                    }
+                } else {
+                    $profile[$key] = $Fields[$key]
+                }
             }
-        } else {
-            $profile[$key] = $Fields[$key]
+            return $profile
         }
+        if ($null -ne $updated) { return $updated }
+        Start-Sleep -Milliseconds (60 * ($attempt + 1))
     }
-    Save-GfAdvancedProfile -Profile $profile | Out-Null
-    return $profile
+    return $null
 }
 
 function Set-GfAdvancedLastActiveFavorite {
@@ -2606,16 +2638,22 @@ function Write-GfTrueColorText {
         [string]$Text,
         [string]$ForegroundHex = $null,
         [string]$BackgroundHex = $null,
+        [switch]$Bold,
         [switch]$NoNewline
     )
     $fg = ConvertFrom-GfHexColor -Hex $ForegroundHex
     $bg = ConvertFrom-GfHexColor -Hex $BackgroundHex
     $useTrue = Test-GfTrueColorSupport
-    if ($useTrue -and ($fg -or $bg)) {
+    if (($useTrue -or $Bold) -and ($fg -or $bg -or $Bold)) {
         $esc = [char]27
         $seq = ""
+        if ($Bold) { $seq += "$esc[1m" }
         if ($fg) { $seq += "$esc[38;2;$($fg.R);$($fg.G);$($fg.B)m" }
         if ($bg) { $seq += "$esc[48;2;$($bg.R);$($bg.G);$($bg.B)m" }
+        if (-not $seq) {
+            # Bold-only with no color — still emit SGR
+            $seq = "$esc[1m"
+        }
         $reset = "$esc[0m"
         if ($NoNewline) {
             [Console]::Write("$seq$Text$reset")
@@ -2923,6 +2961,153 @@ function Get-GfConfigBoolLabel {
     return $(if ($On) { $OnText } else { $OffText })
 }
 
+function Normalize-GfNerdFontTitleStyle {
+    param([string]$Style)
+    $s = if ($null -eq $Style) { '' } else { ([string]$Style).Trim().ToLowerInvariant() }
+    switch ($s) {
+        'pill' { return 'pill' }
+        'fire' { return 'fire' }
+        'lean' { return 'lean' }
+        'digital' { return 'digital' }
+        'bars' { return 'bars' }
+        'simple' { return 'simple' }
+        'standard' { return 'standard' }
+        default { return 'simple' }
+    }
+}
+
+function Get-GfNerdFontTitleStyle {
+    param([object]$Profile = $null)
+    $raw = $null
+    if ($Profile -and $Profile.settings -and $Profile.settings.nerdFontTitleStyle) {
+        $raw = [string]$Profile.settings.nerdFontTitleStyle
+    } elseif ($script:gfNerdFontTitleStyle) {
+        $raw = [string]$script:gfNerdFontTitleStyle
+    }
+    return (Normalize-GfNerdFontTitleStyle -Style $raw)
+}
+
+function Get-GfNerdFontTitleStyleDisplayName {
+    param([string]$Style)
+    switch (Normalize-GfNerdFontTitleStyle -Style $Style) {
+        'pill' { return 'Pill' }
+        'fire' { return 'Fire' }
+        'lean' { return 'Lean' }
+        'digital' { return 'Digital' }
+        'bars' { return 'Bars' }
+        'standard' { return 'Standard' }
+        default { return 'Simple' }
+    }
+}
+
+function Get-GfTitleWrapperSpec {
+    param([string]$Style = $null)
+    $use = Normalize-GfNerdFontTitleStyle -Style $(if ($Style) { $Style } else { $script:gfNerdFontTitleStyle })
+    switch ($use) {
+        'pill' {
+            return @{
+                Style          = 'pill'
+                Left           = (ConvertTo-GfUnicodeChar 0xE0B6)  # 
+                Right          = (ConvertTo-GfUnicodeChar 0xE0B4)  # 
+                FillBackground = $true
+                PadBlocks      = $false
+                PadSpaces      = $false
+            }
+        }
+        'fire' {
+            return @{
+                Style          = 'fire'
+                Left           = (ConvertTo-GfUnicodeChar 0xE0C2)  # 
+                Right          = (ConvertTo-GfUnicodeChar 0xE0C0)  # 
+                FillBackground = $true
+                PadBlocks      = $true
+                PadSpaces      = $false
+            }
+        }
+        'lean' {
+            return @{
+                Style          = 'lean'
+                Left           = (ConvertTo-GfUnicodeChar 0xE0BA)  # 
+                Right          = (ConvertTo-GfUnicodeChar 0xE0BC)  # 
+                FillBackground = $true
+                PadBlocks      = $true
+                PadSpaces      = $false
+            }
+        }
+        'digital' {
+            return @{
+                Style          = 'digital'
+                Left           = (ConvertTo-GfUnicodeChar 0xE0C7)  # 
+                Right          = (ConvertTo-GfUnicodeChar 0xE0C6)  # 
+                FillBackground = $true
+                PadBlocks      = $true
+                PadSpaces      = $false
+            }
+        }
+        'bars' {
+            return @{
+                Style          = 'bars'
+                Left           = '==='
+                Right          = '==='
+                FillBackground = $false
+                PadBlocks      = $false
+                PadSpaces      = $true
+            }
+        }
+        'standard' {
+            return @{
+                Style          = 'standard'
+                Left           = '***'
+                Right          = '***'
+                FillBackground = $false
+                PadBlocks      = $false
+                PadSpaces      = $true
+            }
+        }
+        default {
+            return @{
+                Style          = 'simple'
+                Left           = ((ConvertTo-GfUnicodeChar 0x2500) + (ConvertTo-GfUnicodeChar 0x2500) + (ConvertTo-GfUnicodeChar 0x2524))  # ──┤
+                Right          = ((ConvertTo-GfUnicodeChar 0x251C) + (ConvertTo-GfUnicodeChar 0x2500) + (ConvertTo-GfUnicodeChar 0x2500))  # ├──
+                FillBackground = $false
+                PadBlocks      = $false
+                PadSpaces      = $false
+            }
+        }
+    }
+}
+
+function Write-GfNfWrappedTitle {
+    param(
+        [string]$Title,
+        [string]$PrimaryHex,
+        [string]$SecondaryHex,
+        [string]$PrefixInside = '',
+        [string]$Style = $null,
+        [switch]$NoNewline
+    )
+    $spec = Get-GfTitleWrapperSpec -Style $Style
+    $cap = if ($SecondaryHex) { $SecondaryHex } else { $PrimaryHex }
+    $body = if ($PrimaryHex) { $PrimaryHex } else { $SecondaryHex }
+    $inner = "$PrefixInside$Title"
+    $block = [string][char]0x2588  # █
+    Write-GfTrueColorText -Text $spec.Left -ForegroundHex $cap -Bold -NoNewline
+    if ($spec.PadSpaces) { Write-Host " " -NoNewline }
+    if ($spec.FillBackground) {
+        if ($spec.PadBlocks) {
+            Write-GfTrueColorText -Text $block -ForegroundHex $cap -BackgroundHex $cap -Bold -NoNewline
+        }
+        Write-GfTrueColorText -Text $inner -ForegroundHex $body -BackgroundHex $cap -Bold -NoNewline
+        if ($spec.PadBlocks) {
+            Write-GfTrueColorText -Text $block -ForegroundHex $cap -BackgroundHex $cap -Bold -NoNewline
+        }
+    } else {
+        Write-GfTrueColorText -Text $inner -ForegroundHex $body -Bold -NoNewline
+    }
+    if ($spec.PadSpaces) { Write-Host " " -NoNewline }
+    Write-GfTrueColorText -Text $spec.Right -ForegroundHex $cap -Bold -NoNewline:$NoNewline
+}
+
 function Write-GfConfigNfIcon {
     param([string]$IconKey)
     if (-not $script:gfUseNerdFontGlyphs) { return }
@@ -2931,7 +3116,7 @@ function Write-GfConfigNfIcon {
         Write-Host "  " -NoNewline
         return
     }
-    Write-GfTrueColorText -Text "$icon " -ForegroundHex (Get-GfDefaultTextColorHex) -NoNewline
+    Write-GfTrueColorText -Text "$icon " -ForegroundHex (Get-GfDefaultSecondaryColorHex) -NoNewline
 }
 
 function Write-GfConfigBanner {
@@ -2942,19 +3127,14 @@ function Write-GfConfigBanner {
     $primary = Get-GfDefaultPrimaryColorHex
     $secondary = Get-GfDefaultSecondaryColorHex
     if ($script:gfUseNerdFontGlyphs) {
-        $left = Get-GfGlyph 'pl.title.left'
-        $right = Get-GfGlyph 'pl.title.right'
         $icon = Get-GfGlyph $IconKey
-        if ($left) { Write-GfTrueColorText -Text $left -ForegroundHex $secondary -NoNewline }
-        if ($icon) { Write-GfTrueColorText -Text "$icon " -ForegroundHex $secondary -NoNewline }
-        Write-GfTrueColorText -Text $Title -ForegroundHex $primary -NoNewline
-        if ($right) { Write-GfTrueColorText -Text $right -ForegroundHex $secondary }
-        else { Write-Host "" }
+        $prefixInside = if ($icon) { "$icon " } else { '' }
+        Write-GfNfWrappedTitle -Title $Title -PrimaryHex $primary -SecondaryHex $secondary -PrefixInside $prefixInside
         return
     }
-    Write-GfTrueColorText -Text '=== ' -ForegroundHex $secondary -NoNewline
-    Write-GfTrueColorText -Text $Title -ForegroundHex $primary -NoNewline
-    Write-GfTrueColorText -Text ' ===' -ForegroundHex $secondary
+    Write-GfTrueColorText -Text '=== ' -ForegroundHex $secondary -Bold -NoNewline
+    Write-GfTrueColorText -Text $Title -ForegroundHex $primary -Bold -NoNewline
+    Write-GfTrueColorText -Text ' ===' -ForegroundHex $secondary -Bold
 }
 
 function Write-GfConfigSectionHeader {
@@ -2965,11 +3145,11 @@ function Write-GfConfigSectionHeader {
     $primary = Get-GfDefaultPrimaryColorHex
     if ($script:gfUseNerdFontGlyphs) {
         $icon = Get-GfGlyph $IconKey
-        if ($icon) { Write-GfTrueColorText -Text "$icon " -ForegroundHex $primary -NoNewline }
-        Write-GfTrueColorText -Text $Text -ForegroundHex $primary
+        if ($icon) { Write-GfTrueColorText -Text "$icon " -ForegroundHex $primary -Bold -NoNewline }
+        Write-GfTrueColorText -Text $Text -ForegroundHex $primary -Bold
         return
     }
-    Write-GfTrueColorText -Text $Text -ForegroundHex $primary
+    Write-GfTrueColorText -Text $Text -ForegroundHex $primary -Bold
 }
 
 function Write-GfConfigSettingLine {
@@ -3196,20 +3376,14 @@ function Write-GfThemedSectionTitle {
     if ($primary -or $secondary) {
         $star = if ($secondary) { $secondary } else { $primary }
         $body = if ($primary) { $primary } else { $secondary }
-        $plLeft = Get-GfGlyph 'pl.title.left'
-        $plRight = Get-GfGlyph 'pl.title.right'
-        if (-not $plLeft) { $plLeft = Get-GfGlyph 'pl.left' }
-        if (-not $plRight) { $plRight = Get-GfGlyph 'pl.right' }
-        if ($script:gfUseNerdFontGlyphs -and $plLeft -and $plRight) {
-            Write-GfTrueColorText -Text $plLeft -ForegroundHex $star -NoNewline
-            Write-GfTrueColorText -Text $inner -ForegroundHex $body -NoNewline
-            Write-GfTrueColorText -Text $plRight -ForegroundHex $star
+        if ($script:gfUseNerdFontGlyphs) {
+            Write-GfNfWrappedTitle -Title $inner -PrimaryHex $body -SecondaryHex $star
         } else {
-            Write-GfTrueColorText -Text "***" -ForegroundHex $star -NoNewline
+            Write-GfTrueColorText -Text "***" -ForegroundHex $star -Bold -NoNewline
             Write-Host " " -NoNewline
-            Write-GfTrueColorText -Text $inner -ForegroundHex $body -NoNewline
+            Write-GfTrueColorText -Text $inner -ForegroundHex $body -Bold -NoNewline
             Write-Host " " -NoNewline
-            Write-GfTrueColorText -Text "***" -ForegroundHex $star
+            Write-GfTrueColorText -Text "***" -ForegroundHex $star -Bold
         }
     } else {
         Write-Host "*** $inner ***" -ForegroundColor $FallbackTitleColor
@@ -3382,19 +3556,24 @@ function Show-GfConfigNerdFontGlyphsLine {
     )
     $on = [bool]$Profile.settings.useNerdFontGlyphs
     $text = Get-GfDefaultTextColorHex -Profile $Profile
+    $pri = Get-GfDefaultPrimaryColorHex -Profile $Profile
+    $sec = Get-GfDefaultSecondaryColorHex -Profile $Profile
     Write-GfTrueColorText -Text (" {0,2}. " -f $Number) -ForegroundHex $text -NoNewline
     Write-GfConfigNfIcon -IconKey 'cfg.nerd'
-    Write-GfTrueColorText -Text ("Nerd Font glyphs:     {0}" -f (Get-GfConfigBoolLabel -On $on)) -ForegroundHex $text -NoNewline
-    if ($on -and $script:gfUseNerdFontGlyphs) {
-        # Showcase a few NF weather/status glyphs when the feature is enabled
-        Write-Host "  " -NoNewline
+    if (-not $on) {
+        Write-GfTrueColorText -Text ("Nerd Font glyphs:     {0}" -f (Get-GfConfigBoolLabel -On $false)) -ForegroundHex $text
+        return
+    }
+    $style = Get-GfNerdFontTitleStyle -Profile $Profile
+    $styleName = Get-GfNerdFontTitleStyleDisplayName -Style $style
+    Write-GfTrueColorText -Text ("Nerd Font glyphs:     {0}  {1}  " -f (Get-GfConfigBoolLabel -On $true), $styleName) -ForegroundHex $text -NoNewline
+    if ($script:gfUseNerdFontGlyphs) {
         Write-Host (Get-GfGlyph 'cond.skc.day') -ForegroundColor Yellow -NoNewline
         Write-Host (Get-GfGlyph 'cond.rain') -ForegroundColor Cyan -NoNewline
         Write-Host (Get-GfGlyph 'moon.first_quarter') -ForegroundColor White -NoNewline
         Write-Host (Get-GfGlyph 'cfg.wildfire') -ForegroundColor Red -NoNewline
         Write-Host " " -NoNewline
-        Write-GfTrueColorText -Text (Get-GfGlyph 'pl.title.left') -ForegroundHex (Get-GfDefaultSecondaryColorHex -Profile $Profile) -NoNewline
-        Write-GfTrueColorText -Text (Get-GfGlyph 'pl.title.right') -ForegroundHex (Get-GfDefaultSecondaryColorHex -Profile $Profile) -NoNewline
+        Write-GfNfWrappedTitle -Title "Title" -PrimaryHex $pri -SecondaryHex $sec -Style $style -NoNewline
     }
     Write-Host ""
 }
@@ -3423,12 +3602,8 @@ function Show-GfConfigDefaultColorsSample {
         [string]$TextHex
     )
     Write-Host "Sample:  " -ForegroundColor White -NoNewline
-    $plLeft = Get-GfGlyph 'pl.title.left'
-    $plRight = Get-GfGlyph 'pl.title.right'
-    if ($script:gfUseNerdFontGlyphs -and $plLeft -and $plRight) {
-        Write-GfTrueColorText -Text $plLeft -ForegroundHex $SecondaryHex -NoNewline
-        Write-GfTrueColorText -Text "Title" -ForegroundHex $PrimaryHex -NoNewline
-        Write-GfTrueColorText -Text $plRight -ForegroundHex $SecondaryHex -NoNewline
+    if ($script:gfUseNerdFontGlyphs) {
+        Write-GfNfWrappedTitle -Title "Title" -PrimaryHex $PrimaryHex -SecondaryHex $SecondaryHex -NoNewline
     } else {
         Write-GfTrueColorText -Text "***" -ForegroundHex $SecondaryHex -NoNewline
         Write-Host " " -NoNewline
@@ -3965,6 +4140,132 @@ function Invoke-GfConfigCreateLocation {
     Start-Sleep -Milliseconds 800
 }
 
+function Invoke-GfConfigNerdFontGlyphs {
+    param([object]$Profile)
+    $pri = Get-GfDefaultPrimaryColorHex -Profile $Profile
+    $sec = Get-GfDefaultSecondaryColorHex -Profile $Profile
+    $text = Get-GfDefaultTextColorHex -Profile $Profile
+
+    while ($true) {
+        Clear-GfConfigScreen
+        $on = [bool]$Profile.settings.useNerdFontGlyphs
+        $style = Get-GfNerdFontTitleStyle -Profile $Profile
+        # Temporarily enable NF for live samples even when currently off
+        $prevNf = $script:gfUseNerdFontGlyphs
+        $script:gfUseNerdFontGlyphs = $true
+        Initialize-GfGlyphTables
+
+        Write-GfConfigBanner -Title "Nerd Font Glyphs" -IconKey 'cfg.nerd'
+        Write-Host "Requires Cascadia Code NF (or Mono NF) as the terminal font face." -ForegroundColor DarkGray
+        Write-Host "Title wrappers use Default Colors (secondary caps / primary text)." -ForegroundColor DarkGray
+        Write-Host ""
+        Write-GfTrueColorText -Text "Current: " -ForegroundHex $text -NoNewline
+        if ($on) {
+            Write-GfTrueColorText -Text ("on  {0}  " -f (Get-GfNerdFontTitleStyleDisplayName -Style $style)) -ForegroundHex $text -NoNewline
+            Write-GfNfWrappedTitle -Title "Title" -PrimaryHex $pri -SecondaryHex $sec -Style $style
+        } else {
+            Write-GfTrueColorText -Text "off" -ForegroundHex $text
+        }
+        Write-Host ""
+        Write-Host "  0. Off" -ForegroundColor White
+        foreach ($opt in @(
+                @{ N = 1; Style = 'pill' },
+                @{ N = 2; Style = 'fire' },
+                @{ N = 3; Style = 'lean' },
+                @{ N = 4; Style = 'digital' },
+                @{ N = 5; Style = 'bars' },
+                @{ N = 6; Style = 'simple' },
+                @{ N = 7; Style = 'standard' }
+            )) {
+            $marker = if ($on -and $style -eq $opt.Style) { '*' } else { ' ' }
+            Write-Host (" {0}{1}. {2,-8} " -f $marker, $opt.N, (Get-GfNerdFontTitleStyleDisplayName -Style $opt.Style)) -ForegroundColor White -NoNewline
+            Write-GfNfWrappedTitle -Title "Title" -PrimaryHex $pri -SecondaryHex $sec -Style $opt.Style
+        }
+        $script:gfUseNerdFontGlyphs = $prevNf
+
+        Write-Host ""
+        Write-GfTrueColorText -Text "Option: " -ForegroundHex $pri -NoNewline
+        Write-GfTrueColorText -Text "0" -ForegroundHex $text -NoNewline; Write-Host "-Off  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "1" -ForegroundHex $text -NoNewline; Write-Host "-Pill  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "2" -ForegroundHex $text -NoNewline; Write-Host "-Fire  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "3" -ForegroundHex $text -NoNewline; Write-Host "-Lean  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "4" -ForegroundHex $text -NoNewline; Write-Host "-Digital  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "5" -ForegroundHex $text -NoNewline; Write-Host "-Bars  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "6" -ForegroundHex $text -NoNewline; Write-Host "-Simple  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "7" -ForegroundHex $text -NoNewline; Write-Host "-Standard  " -ForegroundColor White -NoNewline
+        Write-GfTrueColorText -Text "B" -ForegroundHex $text -NoNewline; Write-Host "ack" -ForegroundColor White
+        $choice = (Read-Host "Choice").Trim()
+        if ($choice -match '^[Bb]$') { return }
+
+        if ($choice -match '^0$') {
+            $saved = Update-GfAdvancedProfileFields -Fields @{
+                settings = @{
+                    useNerdFontGlyphs = $false
+                }
+            }
+            if (-not $saved) {
+                Write-Host "Could not save Nerd Font setting (profile busy). Try again." -ForegroundColor Yellow
+                Start-Sleep -Milliseconds 700
+                continue
+            }
+            $Profile.settings['useNerdFontGlyphs'] = $false
+            $script:gfUseNerdFontGlyphs = $false
+            Write-Host "Nerd Font glyphs: off" -ForegroundColor Cyan
+            Start-Sleep -Milliseconds 500
+            return
+        }
+
+        $styleMap = @{
+            '1' = 'pill'
+            '2' = 'fire'
+            '3' = 'lean'
+            '4' = 'digital'
+            '5' = 'bars'
+            '6' = 'simple'
+            '7' = 'standard'
+        }
+        if (-not $styleMap.ContainsKey($choice)) {
+            Write-Host "Unknown choice." -ForegroundColor Gray
+            Start-Sleep -Milliseconds 600
+            continue
+        }
+
+        $turningOn = -not [bool]$Profile.settings.useNerdFontGlyphs
+        if ($turningOn) {
+            $family = Get-GfNerdFontFamilyName
+            if ($family) {
+                Write-Host "Nerd Font detected: $family" -ForegroundColor Cyan
+                Write-Host "Also set your terminal font face to Cascadia Code NF (or Mono NF) so glyphs render." -ForegroundColor DarkGray
+            } else {
+                Write-Host "WARNING: No Cascadia Code NF / CaskaydiaCove Nerd Font family was detected on this system." -ForegroundColor Yellow
+                Write-Host "Install Cascadia Code NF (or Cascadia Mono NF) and set it as your Windows Terminal / host font face." -ForegroundColor Yellow
+                Write-Host "PUA glyphs may appear as tofu/boxes until the font is installed and selected." -ForegroundColor Red
+            }
+        }
+
+        $newStyle = $styleMap[$choice]
+        $saved = Update-GfAdvancedProfileFields -Fields @{
+            settings = @{
+                useNerdFontGlyphs  = $true
+                nerdFontTitleStyle = $newStyle
+            }
+        }
+        if (-not $saved) {
+            Write-Host "Could not save title style (profile busy). Try again." -ForegroundColor Yellow
+            Start-Sleep -Milliseconds 700
+            continue
+        }
+        $Profile.settings['useNerdFontGlyphs'] = $true
+        $Profile.settings['nerdFontTitleStyle'] = $newStyle
+        $script:gfUseNerdFontGlyphs = $true
+        $script:gfNerdFontTitleStyle = $newStyle
+        Initialize-GfGlyphTables
+        Write-Host ("Nerd Font glyphs: on ({0})" -f (Get-GfNerdFontTitleStyleDisplayName -Style $newStyle)) -ForegroundColor Cyan
+        Start-Sleep -Milliseconds 500
+        return
+    }
+}
+
 function Invoke-GfConfigChangeSetting {
     param(
         [object]$Profile,
@@ -3977,25 +4278,8 @@ function Invoke-GfConfigChangeSetting {
             return
         }
         2 {
-            $turningOn = -not [bool]$s.useNerdFontGlyphs
-            if ($turningOn) {
-                $family = Get-GfNerdFontFamilyName
-                if ($family) {
-                    Write-Host "Nerd Font detected: $family" -ForegroundColor Cyan
-                    Write-Host "Also set your terminal font face to Cascadia Code NF (or Mono NF) so glyphs render." -ForegroundColor DarkGray
-                } else {
-                    Write-Host "WARNING: No Cascadia Code NF / CaskaydiaCove Nerd Font family was detected on this system." -ForegroundColor Yellow
-                    Write-Host "Install Cascadia Code NF (or Cascadia Mono NF) and set it as your Windows Terminal / host font face." -ForegroundColor Yellow
-                    Write-Host "PUA glyphs may appear as tofu/boxes until the font is installed and selected." -ForegroundColor Red
-                }
-                $s.useNerdFontGlyphs = $true
-                $script:gfUseNerdFontGlyphs = $true
-                Write-Host "Nerd Font glyphs: on" -ForegroundColor Cyan
-            } else {
-                $s.useNerdFontGlyphs = $false
-                $script:gfUseNerdFontGlyphs = $false
-                Write-Host "Nerd Font glyphs: off" -ForegroundColor Cyan
-            }
+            Invoke-GfConfigNerdFontGlyphs -Profile $Profile
+            return
         }
         3 {
             $s.showMagicHours = -not [bool]$s.showMagicHours
@@ -4080,8 +4364,18 @@ function Invoke-GfConfigChangeSetting {
             return
         }
     }
-    Save-GfAdvancedProfile -Profile $Profile | Out-Null
-    $script:gfAdvancedProfile = $Profile
+    # Locked settings merge — preserves weatherCache/sessions; avoids clobbering title style
+    $settingsPatch = [ordered]@{}
+    if ($Profile.settings -is [hashtable] -or $Profile.settings -is [System.Collections.Specialized.OrderedDictionary]) {
+        foreach ($sk in @($Profile.settings.Keys)) { $settingsPatch[$sk] = $Profile.settings[$sk] }
+    } elseif ($Profile.settings) {
+        foreach ($prop in $Profile.settings.PSObject.Properties) { $settingsPatch[$prop.Name] = $prop.Value }
+    }
+    $saved = Update-GfAdvancedProfileFields -Fields @{ settings = $settingsPatch }
+    if (-not $saved) {
+        Write-Host "Could not save setting (profile busy). Try again." -ForegroundColor Yellow
+        return
+    }
     $script:gfPerLocationColors = [bool]$Profile.settings.perLocationColors
 }
 
@@ -4162,12 +4456,17 @@ function Show-GfAdvancedConfigModal {
     $script:gfAdvancedProfile = $profile
     $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
     $script:gfUseNerdFontGlyphs = [bool]$profile.settings.useNerdFontGlyphs
+    $script:gfNerdFontTitleStyle = Get-GfNerdFontTitleStyle -Profile $profile
     $script:gfDefaultPrimaryColorHex = Get-GfDefaultPrimaryColorHex -Profile $profile
     $script:gfDefaultSecondaryColorHex = Get-GfDefaultSecondaryColorHex -Profile $profile
     $script:gfDefaultTextColorHex = Get-GfDefaultTextColorHex -Profile $profile
 
     while ($true) {
         $profile = Get-GfAdvancedProfile
+        if (-not $profile -and $script:gfAdvancedProfile -and $script:gfAdvancedProfile.advancedEnabled) {
+            # Prefer in-memory profile over aborting config after a torn disk read
+            $profile = $script:gfAdvancedProfile
+        }
         if (-not $profile) {
             Write-Host "Advanced profile missing." -ForegroundColor Red
             return
@@ -4175,6 +4474,7 @@ function Show-GfAdvancedConfigModal {
         $script:gfAdvancedProfile = $profile
         $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
         $script:gfUseNerdFontGlyphs = [bool]$profile.settings.useNerdFontGlyphs
+        $script:gfNerdFontTitleStyle = Get-GfNerdFontTitleStyle -Profile $profile
         $script:gfDefaultPrimaryColorHex = Get-GfDefaultPrimaryColorHex -Profile $profile
         $script:gfDefaultSecondaryColorHex = Get-GfDefaultSecondaryColorHex -Profile $profile
         $script:gfDefaultTextColorHex = Get-GfDefaultTextColorHex -Profile $profile
@@ -4652,9 +4952,9 @@ function Invoke-GfAdvancedRestartIfRequested {
 }
 
 function Write-GfAdvancedBootStatus {
-    param([string]$Message = "Loading GetForecast Advanced Mode...")
+    param([string]$Message = "Loading GF Advanced...")
     if ([string]::IsNullOrWhiteSpace($Message)) {
-        $Message = "Loading GetForecast Advanced Mode..."
+        $Message = "Loading GF Advanced..."
     }
     $script:gfAdvancedBootStatusActive = $true
     if ($VerbosePreference -eq 'Continue') {
@@ -4738,7 +5038,7 @@ function Initialize-GfAdvancedMode {
     # Show status before the expensive gf.json parse (can take seconds with weatherCache)
     $profilePath = Get-GfAdvancedProfilePath
     if ((Test-Path -LiteralPath $profilePath) -and -not $DisableAdvanced.IsPresent -and -not $configOnlyLaunch) {
-        Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode..."
+        Write-GfAdvancedBootStatus "Loading GF Advanced..."
     }
 
     $profile = Get-GfAdvancedProfile
@@ -4754,7 +5054,7 @@ function Initialize-GfAdvancedMode {
 
     $script:gfAdvancedMode = $true
     if (-not $configOnlyLaunch) {
-        Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode..."
+        Write-GfAdvancedBootStatus "Loading GF Advanced..."
     }
     $script:gfAdvancedProfile = $profile
     $script:gfFavorites = @($profile.favorites)
@@ -4763,11 +5063,12 @@ function Initialize-GfAdvancedMode {
     $script:gfDefaultPrimaryColorHex = Get-GfDefaultPrimaryColorHex -Profile $profile
     $script:gfDefaultSecondaryColorHex = Get-GfDefaultSecondaryColorHex -Profile $profile
     $script:gfUseNerdFontGlyphs = [bool]$profile.settings.useNerdFontGlyphs
+    $script:gfNerdFontTitleStyle = Get-GfNerdFontTitleStyle -Profile $profile
     if ($script:gfUseNerdFontGlyphs) {
         Initialize-GfGlyphTables
         $nfFamily = Get-GfNerdFontFamilyName
         if ($nfFamily) {
-            Write-Verbose "Nerd Font glyphs on (font=$nfFamily)"
+            Write-Verbose "Nerd Font glyphs on (font=$nfFamily style=$($script:gfNerdFontTitleStyle))"
         } else {
             Write-Verbose "Nerd Font glyphs on but no Cascadia/Caskaydia NF family detected"
         }
@@ -4853,7 +5154,7 @@ function Initialize-GfAdvancedMode {
         if ($explicitLocation -and -not (Test-GfSuppliedLocationMatchesFavorite -Favorite $fav -Supplied ([string]$LocationRef.Value))) {
             # e.g. gf bend while lastActive/-l pointed at Portland — honor CLI location as ad-hoc
             Clear-GfActiveFavoriteSelection
-            Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($([string]$LocationRef.Value))"
+            Write-GfAdvancedBootStatus "Loading GF Advanced..."
         } else {
             $script:gfActiveFavoriteIndex = $favIndex
             $script:gfActiveFavorite = $fav
@@ -4871,12 +5172,12 @@ function Initialize-GfAdvancedMode {
             }
             $favLabel = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
             if ($favLabel) {
-                Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($favLabel)"
+                Write-GfAdvancedBootStatus "Loading GF Advanced..."
             }
         }
     } elseif ($explicitLocation) {
         Clear-GfActiveFavoriteSelection
-        Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($([string]$LocationRef.Value))"
+        Write-GfAdvancedBootStatus "Loading GF Advanced..."
     }
 
     Write-Verbose "Advanced mode active: favorites=$($script:gfFavorites.Count) magic=$($script:showMagicHours) irradiance=$($script:showIrradiance) wf=$($script:WILDFIRE_RADIUS_MILES) drawer=$($script:gfLocationsDrawerOpen) 24h=$($script:use24hTime)"
@@ -6932,7 +7233,7 @@ while ($true) { # Loop for location input and geocoding
             Write-Verbose "Using saved favorite coordinates (skip geocode): $city, $state ($lat, $lon)"
             if ($script:gfAdvancedMode) {
                 $locLabel = if ($state) { "$city, $state" } else { "$city" }
-                Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($locLabel)"
+                Write-GfAdvancedBootStatus "Loading GF Advanced..."
             }
             $script:gfSkipGeocodeFromFavorite = $false
             $script:gfFavoriteBootLat = $null
@@ -7176,7 +7477,7 @@ if ($script:gfAdvancedMode) {
         $bootMode = [string]$script:gfAdvancedProfile.settings.currentMode
     }
     $bootLocLabel = if ($city -and $state) { "$city, $state" } elseif ($city) { "$city" } else { "location" }
-    Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($bootLocLabel)"
+    Write-GfAdvancedBootStatus "Loading GF Advanced..."
     Register-GfSession -ActiveCacheKey $bootCacheKey -Mode $bootMode
     $isBootLeader = Test-GfSessionIsLeader -CacheKey $bootCacheKey
     Write-GfAdvancedBootStatus "Loading shared weather cache... ($bootLocLabel)"

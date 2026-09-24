@@ -7,6 +7,7 @@ Invoke-ps2exe "gf.ps1" "gf.exe" `
     -title "GetForecast" `
     -description "Terminal Weather Application" `
     -product "GF" `
+    -version "2.7.0.0" `
     -company "kreft.us" `
     -copyright "Copyright (c) 2025" 
 Write-Host "Build complete!" -ForegroundColor Green

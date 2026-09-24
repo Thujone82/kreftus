@@ -171,14 +171,16 @@ Opt-in via **`.\gf.ps1 -config`** → setting **2** (`settings.useNerdFontGlyphs
 | **Wind compass** | `weather-wind_*` direction glyphs (`E354`–`E35B`) |
 | **Line prefixes** | Magic Hours sun, Irradiance tachometer (``), Updated clock (``) |
 | **Temperature units** | Compact `°F` / `°C` weather glyphs (`` / ``) in place of `°F` / `°C` text |
-| **Section titles** | Light box wrappers `──┤` / `├──` in **secondary** color; title body in **primary** |
+| **Section titles** | Selectable wrappers (setting **2** submenu): **Pill** `…`, **Fire** `█…█`, **Lean** `█…█`, **Digital** `█…█` (filled secondary background on the title), **Bars** `=== … ===`, **Simple** `──┤…├──`, or **Standard** `*** … ***`; title body in **primary**; titles are **bold** |
 | **Location bar** | Powerline half-circle chips (`E0B6` / `E0B4`) when framing favorites |
-| **`-config` UI** | Setting icons, toggle on/off (`` / ``), 24h clock icon; chrome uses Default Colors (primary / secondary / text) |
+| **`-config` UI** | Setting icons in **secondary** color; labels/values in Default Text; toggle on/off (`` / ``); 24h clock icon; chrome uses Default Colors (primary / secondary / text); NF/title-style saves are lock-merged into `gf.json` |
 | **Display width** | BMP PUA code points counted as **1** cell for wrap/align |
+
+**Title wrapper styles:** With setting **2**, choose **Off** or a style (**Pill** / **Fire** / **Lean** / **Digital** / **Bars** / **Simple** / **Standard**). Pill, Fire, Lean, and Digital paint the title text’s background to match the cap glyphs so the bar reads as a continuous pill; Fire, Lean, and Digital also insert solid `█` pads beside the text. Bars uses `=== Title ===`. Simple keeps the light box-drawing wrappers without a fill. Standard uses the classic `*** Title ***` framing (same as non-NF / non-Advanced titles). Stored as `settings.nerdFontTitleStyle` (`pill` \| `fire` \| `lean` \| `digital` \| `bars` \| `simple` \| `standard`; default `simple`).
 
 **Magic Hours (NF):** the shared sun glyph is **Yellow** on Golden Hour lines and **Blue** on Blue Hour lines; labels and times keep the default text color.
 
-**Default Colors (setting 1)** still drive weather titles and field text whether NF is on or off; `-config` banners, section headers, and setting lines use those same primary / secondary / text hex values as truecolor.
+**Default Colors (setting 1)** still drive weather titles and field text whether NF is on or off; `-config` banners, section headers, and setting lines use those same primary / secondary / text hex values as truecolor. Setting-line glyphs alone use secondary.
 
 #### 2. Change console encoding to UTF-8
 
@@ -237,7 +239,7 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 
 **Profile path:** `%LOCALAPPDATA%\gf\gf.json`
 
-**Imported settings (used):** Magic Hours, Irradiance, Wildfire enable/radius/filter-small, AQI enable + AirNow key (written to User env `AirNowAPI`), 24h times, locations drawer open/closed, current mode, per-location colors, Default Colors (primary/secondary/text), Nerd Font glyphs (`useNerdFontGlyphs`), last viewed location (seeds last-active favorite).
+**Imported settings (used):** Magic Hours, Irradiance, Wildfire enable/radius/filter-small, AQI enable + AirNow key (written to User env `AirNowAPI`), 24h times, locations drawer open/closed, current mode, per-location colors, Default Colors (primary/secondary/text), Nerd Font glyphs (`useNerdFontGlyphs`) + title style (`nerdFontTitleStyle`), last viewed location (seeds last-active favorite).
 
 **Ignored from Forecast backup:** `forecastUpdateAll`, `forecastShowRadar`, `forecastAutoUpdate`.
 
@@ -252,8 +254,8 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 - **Tab** / **Shift+Tab** move to the next / previous favorite (wraps). The location-bar highlight updates immediately; the favorite loads **in-process** after **800ms** with no further input (hydrates from `weatherCache` when fresh; leader refreshes if stale). Queued Tab bursts are drained into one update. After a load is accepted, queued keys are flushed and input is ignored until the new location finishes loading. Hotkeys only — not on the control bar. While pending, the location bar is shown even if **L** has it closed (including wrap-back to the starting favorite). If the bar was off when Tabbing started, it is hidden again as soon as settle fires.
 - **Shared cache / multi-window:** `gf.json` holds `weatherCache` (per favorite uid or `lat,lon`) and `sessions`. Multiple GF windows on the same location share one API owner — the longest-running viewer of that key. Followers hydrate from cache; **G** and auto-refresh only hit APIs on the leader. Leaving a location (Tab, other favorite, exit) drops you from that key’s candidate set so the next-oldest viewer takes over within one heartbeat (~15s). Dirty exits are pruned by heartbeat timeout (~45s) or dead PID. Deleting favorites prunes orphaned favorite cache keys. The **Updated:** line (and `[NWS: …]` observation age) tracks the shared cache fetch/observation stamps so every client shows the same age as it re-ages in place.
 - Hotkeys `1`–`0` load slots 1–10; `Shift+1`–`Shift+0` load 11–20 (immediate load).
-- Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled; otherwise **Default Colors** (setting **1**): wrappers in secondary, title body in primary. With Nerd Font glyphs on, wrappers are `──┤` / `├──` instead of `***`.
-- **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (setting **1** Default Colors for primary/secondary/text — also used for `-config` chrome; setting **2** Nerd Font glyphs, default off — see [Nerd Font glyphs mode](#nerd-font-glyphs-mode-advanced-setting-2); current mode includes `tersealert`; setting **14** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled (missing favorite colors fall back to Default Colors).
+- Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled; otherwise **Default Colors** (setting **1**): wrappers in secondary, title body in primary. With Nerd Font glyphs on, wrappers follow `nerdFontTitleStyle` (**Pill** / **Fire** / **Lean** / **Digital** / **Bars** / **Simple** / **Standard**).
+- **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (setting **1** Default Colors for primary/secondary/text — also used for `-config` chrome; setting **2** Nerd Font glyphs + title wrapper style submenu, default off / Simple — see [Nerd Font glyphs mode](#nerd-font-glyphs-mode-advanced-setting-2); current mode includes `tersealert`; setting **14** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled (missing favorite colors fall back to Default Colors).
 ### Parameter details
 
 - `Location` [string] (Positional: 0)
@@ -771,7 +773,8 @@ These messages provide clear feedback about the script's progress and help users
 
 ## Changelog
 
-- **v2.6** — Advanced **Nerd Font glyphs** (config setting **2**, off by default): Cascadia Code NF weather/status icons, 28-step moon, compact °F/°C, line prefixes, light `──┤`/`├──` title wrappers, Powerline location chips, `-config` NF polish wired to Default Colors; enable warns if no Cascadia/Caskaydia NF family is detected.
+- **v2.7** — NF title styles finalized (**Bars** / **Standard** with the full Pill→Standard list); bold section titles; `-config` setting glyphs use secondary color; locked profile saves for title-style/settings (fixes clobber / “Advanced profile missing”); Advanced boot status `Loading GF Advanced...`.
+- **v2.6** — Advanced **Nerd Font glyphs** (config setting **2**, off by default): Cascadia Code NF weather/status icons, 28-step moon, compact °F/°C, line prefixes, selectable title wrappers (**Pill** / **Fire** / **Lean** / **Digital** / **Bars** / **Simple** / **Standard**), Powerline location chips, `-config` NF polish wired to Default Colors; enable warns if no Cascadia/Caskaydia NF family is detected.
 - **v2.5** — **`-nosmallfire` / `-nsf`:** hide wildfires ≤1 acre and fires with no reported acres from display/counts; InciWeb probes skipped for filtered fires.
 - **v2.4** — Wild Fire Info from NIFC WFIGS (50 mi default): full section after alerts with size/containment/behavior and InciWeb links; terse one-liner for the largest fire (`[1/X]` when multiple). Override radius with `-wf`/`-wildfire N` miles; `-wf 0` disables.
 - **v2.3** — TerseAlert mode (`-ta` / `-tersealert`): alternate terse and full alerts every 20s when alerts are active; with `-x`, print terse then alerts. Alerts-only mode (`-a` / `-alerts`) with green empty state. Interactive hotkeys **A** (alerts-only, or TerseAlert pane toggle) and **Shift+T** (TerseAlert), not shown on the control bar.
@@ -803,7 +806,7 @@ These messages provide clear feedback about the script's progress and help users
 - **Observed current conditions:** Current Conditions prefer the nearest NWS station’s latest observation when fresh; see [Observed current conditions](#observed-current-conditions).
 - **Estimated WBGT:** Optional `-wbgt` feels-like bracket using Stull wet-bulb + simplified globe term (matches forecast web heuristic).
 - **Alert Header Icons:** ⚠️ and 🌡 prefixes on the current-conditions title when relevant alerts are in effect (v2.2); NF mode substitutes matching PUA glyphs.
-- **Nerd Font glyphs (Advanced):** Opt-in setting **2** — see [Nerd Font glyphs mode](#nerd-font-glyphs-mode-advanced-setting-2).
+- **Nerd Font glyphs (Advanced):** Opt-in setting **2** — see [Nerd Font glyphs mode](#nerd-font-glyphs-mode-advanced-setting-2). Titles support selectable wrappers and bold text; Advanced boot shows `Loading GF Advanced...`.
 - **Humidity Data:** Available in current conditions display
 
 ## API Information
