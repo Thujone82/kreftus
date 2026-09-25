@@ -9,25 +9,26 @@ import (
 )
 
 var (
-	user32                      = syscall.NewLazyDLL("user32.dll")
-	procGetAsyncKeyState        = user32.NewProc("GetAsyncKeyState")
-	procSetWindowsHookExW       = user32.NewProc("SetWindowsHookExW")
-	procCallNextHookEx          = user32.NewProc("CallNextHookEx")
-	procUnhookWindowsHookEx     = user32.NewProc("UnhookWindowsHookEx")
-	procGetMessageW             = user32.NewProc("GetMessageW")
-	procPostThreadMessageW      = user32.NewProc("PostThreadMessageW")
-	shiftKernel32               = syscall.NewLazyDLL("kernel32.dll")
-	procGetModuleHandleW        = shiftKernel32.NewProc("GetModuleHandleW")
-	procGetCurrentThreadId      = shiftKernel32.NewProc("GetCurrentThreadId")
+	user32                  = syscall.NewLazyDLL("user32.dll")
+	procGetAsyncKeyState    = user32.NewProc("GetAsyncKeyState")
+	procSetWindowsHookExW   = user32.NewProc("SetWindowsHookExW")
+	procCallNextHookEx      = user32.NewProc("CallNextHookEx")
+	procUnhookWindowsHookEx = user32.NewProc("UnhookWindowsHookEx")
+	procGetMessageW         = user32.NewProc("GetMessageW")
+	procPostThreadMessageW  = user32.NewProc("PostThreadMessageW")
+	shiftKernel32           = syscall.NewLazyDLL("kernel32.dll")
+	procGetModuleHandleW    = shiftKernel32.NewProc("GetModuleHandleW")
+	procGetCurrentThreadId  = shiftKernel32.NewProc("GetCurrentThreadId")
 )
 
 const (
-	vkShift        = 0x10
-	whKeyboardLL   = 13
-	wmKeyDown      = 0x0100
-	wmSysKeyDown   = 0x0104
-	wmQuit         = 0x0012
-	llkhfExtended  = 0x01
+	vkShift       = 0x10
+	vkControl     = 0x11
+	whKeyboardLL  = 13
+	wmKeyDown     = 0x0100
+	wmSysKeyDown  = 0x0104
+	wmQuit        = 0x0012
+	llkhfExtended = 0x01
 )
 
 type kbdllhookstruct struct {
@@ -60,6 +61,11 @@ func shiftPollable() bool { return true }
 
 func shiftHeld() bool {
 	r, _, _ := procGetAsyncKeyState.Call(vkShift)
+	return r&0x8000 != 0
+}
+
+func ctrlHeld() bool {
+	r, _, _ := procGetAsyncKeyState.Call(vkControl)
 	return r&0x8000 != 0
 }
 

@@ -66,6 +66,7 @@ type game struct {
 	pencil        bool      // Tab: false = pen ✒️, true = pencil ✏️
 	shiftHold     bool      // momentary pencil while Shift is down; not saved
 	lastShiftHeld time.Time // last time Shift was actually down (NumLock fakes a Shift-up)
+	ctrlHold      bool      // hold Ctrl to highlight only the digit under the cursor
 
 	events    chan tcell.Event
 	saveFlush chan struct{}
@@ -197,8 +198,12 @@ func main() {
 		case <-shiftTick.C:
 			if g.view == viewSolved || (g.view == viewMenu && g.menuIndex == menuReplay) {
 				g.render()
-			} else if g.view == viewPlay && !g.pendingSolved && g.refreshShiftHold() {
-				g.render()
+			} else if g.view == viewPlay && !g.pendingSolved {
+				shiftChanged := g.refreshShiftHold()
+				ctrlChanged := g.refreshCtrlHold()
+				if shiftChanged || ctrlChanged {
+					g.render()
+				}
 			}
 		case <-g.redraw:
 			g.maybeShowSolved()
@@ -379,6 +384,7 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 		return false
 	}
 	g.noteShift(e)
+	g.noteCtrl(e)
 	if g.shiftHold {
 		if d, ok := numpadShiftDigit(e.Key()); ok && shiftMarksKey(e.Key(), keypadOrigin()) {
 			g.applyDigit(d)
@@ -524,6 +530,35 @@ func (g *game) refreshShiftHold() bool {
 		return true
 	}
 	return false
+}
+
+func (g *game) noteCtrl(e *tcell.EventKey) {
+	if ctrlHeld() || e.Modifiers()&tcell.ModCtrl != 0 {
+		g.ctrlHold = true
+		return
+	}
+	g.ctrlHold = false
+}
+
+func (g *game) refreshCtrlHold() bool {
+	if !shiftPollable() {
+		return false
+	}
+	held := ctrlHeld()
+	if held == g.ctrlHold {
+		return false
+	}
+	g.ctrlHold = held
+	return true
+}
+
+// focusDigit is the grid digit under the cursor while Ctrl is held.
+// Empty cells (including pencil-only) yield 0 so Ctrl has no effect.
+func (g *game) focusDigit() byte {
+	if !g.ctrlHold || g.view != viewPlay {
+		return 0
+	}
+	return g.board.digitAt(g.board.cursor)
 }
 
 func digitFromRune(r rune) (byte, bool) {

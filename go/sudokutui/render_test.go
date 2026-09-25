@@ -325,3 +325,76 @@ func TestDigitHueShift(t *testing.T) {
 		t.Fatal("hue wheel should wrap")
 	}
 }
+
+func TestFocusDigitNeedsNumberUnderCursor(t *testing.T) {
+	givens, sol := classicSolved()
+	g := &game{
+		view:     viewPlay,
+		ctrlHold: true,
+		board:    newBoard(givens, sol, givens),
+	}
+	g.board.cursor = 2 // empty in classic puzzle
+	if g.focusDigit() != 0 {
+		t.Fatal("empty cell should not focus")
+	}
+	g.board.cursor = 0 // given '5'
+	if g.focusDigit() != '5' {
+		t.Fatalf("focus=%q want 5", g.focusDigit())
+	}
+	g.ctrlHold = false
+	if g.focusDigit() != 0 {
+		t.Fatal("Ctrl up should clear focus")
+	}
+}
+
+func TestApplyFocusDigitDimsOtherNumbers(t *testing.T) {
+	st := tcell.StyleDefault.Foreground(digitColor[5]).Background(tcell.ColorBlack).Bold(true)
+	got := applyFocusDigit(st, '5', '5', true)
+	if _, _, attrs := got.Decompose(); attrs&tcell.AttrBold == 0 {
+		t.Fatal("matching digit should keep style")
+	}
+	fg, bg, _ := applyFocusDigit(st, '3', '5', true).Decompose()
+	if fg != tcell.ColorGray {
+		t.Fatalf("non-match fg=%v want gray", fg)
+	}
+	if bg != tcell.ColorBlack {
+		t.Fatalf("non-match should drop maroon/other bg, got %v", bg)
+	}
+	if applyFocusDigit(st, '5', 0, true) != st {
+		t.Fatal("no focus should leave style alone")
+	}
+}
+
+func TestPencilStyleFocusKeepsMatchingHalf(t *testing.T) {
+	var b board
+	b.pencil[0][0] = '3'
+	b.pencil[0][1] = '7'
+	st := pencilStyleFocus(&b, 0, '3')
+	fg, bg, _ := st.Decompose()
+	if fg != digitColor[3] {
+		t.Fatalf("top focus fg=%v", fg)
+	}
+	if bg != tcell.ColorBlack {
+		t.Fatalf("non-focus bottom should be black, got %v", bg)
+	}
+	st = pencilStyleFocus(&b, 0, 0)
+	fg, bg, _ = st.Decompose()
+	if fg != digitColor[3] || bg != digitColor[7] {
+		t.Fatalf("no focus should keep both hues: fg=%v bg=%v", fg, bg)
+	}
+}
+
+func TestNoteCtrlTracksModifier(t *testing.T) {
+	if ctrlHeld() {
+		t.Skip("Ctrl is physically down")
+	}
+	g := &game{}
+	g.noteCtrl(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModCtrl))
+	if !g.ctrlHold {
+		t.Fatal("ModCtrl should set ctrlHold")
+	}
+	g.noteCtrl(tcell.NewEventKey(tcell.KeyUp, 0, 0))
+	if g.ctrlHold {
+		t.Fatal("release should clear ctrlHold when Ctrl is not held")
+	}
+}

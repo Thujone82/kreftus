@@ -174,9 +174,9 @@ func (g *game) drawPlay() {
 	}
 	hintY := h - 1
 	if hintY > activeY {
-		hint := "1-9 Enter · 0 Clear · Tab/Shift ✏️ · Space Pause · Esc Menu"
+		hint := "1-9 Enter · 0 Clear · Tab/Shift ✏️ · Ctrl Focus · Space Pause · Esc Menu"
 		if g.pencilActive() {
-			hint = "1-9 Mark · 0 Clear · Tab ✒️ · Space Pause · Esc Menu"
+			hint = "1-9 Mark · 0 Clear · Tab ✒️ · Ctrl Focus · Space Pause · Esc Menu"
 		}
 		drawCentered(g.screen, w/2, hintY, hint, styleDim)
 	}
@@ -406,7 +406,8 @@ func recolor(s tcell.Screen, x, y int, st tcell.Style) {
 }
 
 func (g *game) cellStyle(i int, done [10]bool) tcell.Style {
-	return cellStyle(&g.board, i, done)
+	st := cellStyle(&g.board, i, done)
+	return applyFocusDigit(st, g.board.grid[i], g.focusDigit(), g.board.isLocked(i))
 }
 
 func cellStyle(b *board, i int, done [10]bool) tcell.Style {
@@ -431,6 +432,22 @@ func cellStyle(b *board, i int, done [10]bool) tcell.Style {
 	return st
 }
 
+// applyFocusDigit strips digit hues (and wrong maroon) from cells that are not
+// the Ctrl-held focus digit so only that number stays colored.
+func applyFocusDigit(st tcell.Style, cell, focus byte, locked bool) tcell.Style {
+	if focus == 0 || (cell >= '1' && cell <= '9' && cell == focus) {
+		return st
+	}
+	if cell < '1' || cell > '9' {
+		return st
+	}
+	out := tcell.StyleDefault.Foreground(tcell.ColorGray).Background(tcell.ColorBlack)
+	if locked {
+		out = out.Bold(true)
+	}
+	return out
+}
+
 func (g *game) modeGlyph() string {
 	if g.pencilActive() {
 		return modePencil
@@ -439,18 +456,22 @@ func (g *game) modeGlyph() string {
 }
 
 func (g *game) pencilStyle(i int) tcell.Style {
-	return pencilStyle(&g.board, i)
+	return pencilStyleFocus(&g.board, i, g.focusDigit())
 }
 
 func pencilStyle(b *board, i int) tcell.Style {
+	return pencilStyleFocus(b, i, 0)
+}
+
+func pencilStyleFocus(b *board, i int, focus byte) tcell.Style {
 	top := b.pencil[i][0]
 	bot := b.pencil[i][1]
 	fg := tcell.ColorBlack
 	bg := tcell.ColorBlack
-	if top >= '1' && top <= '9' {
+	if top >= '1' && top <= '9' && (focus == 0 || top == focus) {
 		fg = digitColor[top-'0']
 	}
-	if bot >= '1' && bot <= '9' {
+	if bot >= '1' && bot <= '9' && (focus == 0 || bot == focus) {
 		bg = digitColor[bot-'0']
 	}
 	return tcell.StyleDefault.Foreground(fg).Background(bg)

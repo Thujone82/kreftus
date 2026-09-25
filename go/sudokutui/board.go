@@ -311,6 +311,17 @@ func (b *board) hasPencil(i int) bool {
 	return emptyCell(b.grid[i]) && (b.pencil[i][0] != 0 || b.pencil[i][1] != 0)
 }
 
+func (b *board) digitAt(i int) byte {
+	if i < 0 || i >= 81 {
+		return 0
+	}
+	v := b.grid[i]
+	if v >= '1' && v <= '9' {
+		return v
+	}
+	return 0
+}
+
 func (b *board) pencilsString() (top, bot, slot string) {
 	var t, o, s [81]byte
 	for i := 0; i < 81; i++ {

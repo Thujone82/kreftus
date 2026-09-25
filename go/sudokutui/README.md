@@ -18,7 +18,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 - **Grid flash** — green ~0.6s on a correct lock-in, red on a mistake
 - **Difficulty stats** — Perfect (zero-error wins), Successes, Error Rate (average incorrect entries per success), Failed, Best (fewest mistakes, then fastest) until a perfect exists then Fastest, Average (all solves, then perfects only once you have one), and remaining puzzles update as you change difficulty
 - **Continue Game** — one in-progress save per difficulty; progress (including the compact move log) is saved after every move
-- **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed. Under the board, **Active:** lists the numbers that are not finished yet, in those same hues. Accent-colored ▶ ◀ ▼ ▲ mark the selected row and column
+- **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed. Under the board, **Active:** lists the numbers that are not finished yet, in those same hues. Accent-colored ▶ ◀ ▼ ▲ mark the selected row and column. **Hold Ctrl** while the cursor is on a placed digit to strip color from every other digit and pencil mark so only that number stays highlighted; moving the cursor re-evaluates the focus digit; Ctrl on an empty cell does nothing
 - **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
 - **Red cell** — incorrect entry against the solution
 - **Play clock** — elapsed time in the top-right; pause freezes it
@@ -36,6 +36,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 | In game | Arrows or WASD | Move cursor (wraps around the board) |
 | In game | Tab | Toggle ✒️ pen / ✏️ pencil |
 | In game | Hold Shift | Momentary pencil (HUD + 1–9 marks; does not change Tab mode). Keypad 1–9 mark; arrows and WASD still move |
+| In game | Hold Ctrl | Highlight only the digit under the cursor (no effect on empty cells); moving the cursor updates the focus |
 | In game | 1–9 | Enter a digit (pen) or add/toggle a pencil mark; completed numbers are ignored |
 | In game | 0, Backspace, or Delete | Clear the cell (pen) or clear pencil marks |
 | In game | Space | Pause / resume |

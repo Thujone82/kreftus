@@ -6,6 +6,8 @@ func shiftPollable() bool { return false }
 
 func shiftHeld() bool { return false }
 
+func ctrlHeld() bool { return false }
+
 func startShiftWatch() {}
 
 func stopShiftWatch() {}
