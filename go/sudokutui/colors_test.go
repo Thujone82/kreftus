@@ -105,6 +105,21 @@ func TestSudokuBannerLetterOffsets(t *testing.T) {
 	}
 }
 
+func TestBannerHueShift(t *testing.T) {
+	if bannerHueShift(0) != 0 {
+		t.Fatal("start at 0")
+	}
+	if bannerHueShift(199) != 0 {
+		t.Fatal("same frame until 200ms")
+	}
+	if bannerHueShift(200) != 1 {
+		t.Fatal("5 fps steps one wheel index")
+	}
+	if bannerHueShift(int64(colorWheelSize)*replayCelebrateFrameMs) != 0 {
+		t.Fatal("wheel should wrap")
+	}
+}
+
 func TestDigitColorsAvoidWhite(t *testing.T) {
 	for d := 1; d <= 9; d++ {
 		if digitColor[d] == tcell.ColorWhite || digitColor[d] == digitCompleteColor {

@@ -146,14 +146,27 @@ func (g *game) drawSudokuBanner(y int) {
 	if x < 0 {
 		x = 0
 	}
+	shift := 0
+	if g.view == viewSolved && !g.replayStarted.IsZero() {
+		shift = bannerHueShift(time.Since(g.replayStarted).Milliseconds())
+	}
 	for i, ch := range letters {
 		if i > 0 {
 			x++
 		}
-		st := tcell.StyleDefault.Foreground(g.wheelColor(5 + i)).Background(tcell.ColorBlack).Bold(true)
+		st := tcell.StyleDefault.Foreground(g.wheelColor(5 + i + shift)).Background(tcell.ColorBlack).Bold(true)
 		g.screen.SetContent(x, y, ch, nil, st)
 		x++
 	}
+}
+
+// bannerHueShift steps the SUDOKU rainbow on the solved screen at the same
+// 5 fps cadence as the celebrate digit cycle.
+func bannerHueShift(elapsedMs int64) int {
+	if elapsedMs < 0 {
+		elapsedMs = 0
+	}
+	return int(elapsedMs/replayCelebrateFrameMs) % colorWheelSize
 }
 
 func (g *game) drawPlay() {
