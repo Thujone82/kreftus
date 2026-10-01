@@ -3356,6 +3356,18 @@ function Show-GfAdvancedLocationBar {
     Write-Host ""
 }
 
+function Get-GfWeatherThemeFavorite {
+    # Tab preview moves gfActiveFavorite with the location-bar highlight immediately,
+    # but weather content stays on the loaded favorite until settle commits. Theme
+    # titles from the loaded favorite so chrome does not flash the preview colors.
+    if (-not $script:gfAdvancedMode) { return $null }
+    $favs = @($script:gfFavorites)
+    if ($script:gfLoadedFavoriteIndex -ge 0 -and $script:gfLoadedFavoriteIndex -lt $favs.Count) {
+        return $favs[$script:gfLoadedFavoriteIndex]
+    }
+    return $script:gfActiveFavorite
+}
+
 function Write-GfThemedSectionTitle {
     param(
         [string]$Title,
@@ -3365,12 +3377,13 @@ function Write-GfThemedSectionTitle {
     $primary = Get-GfDefaultPrimaryColorHex
     $secondary = Get-GfDefaultSecondaryColorHex
     # Per-location favorite accents override profile defaults when present
-    if ($script:gfAdvancedMode -and $script:gfPerLocationColors -and $script:gfActiveFavorite) {
-        if ($script:gfActiveFavorite.primaryColor -and -not [string]::IsNullOrWhiteSpace([string]$script:gfActiveFavorite.primaryColor)) {
-            $primary = [string]$script:gfActiveFavorite.primaryColor
+    $themeFav = Get-GfWeatherThemeFavorite
+    if ($script:gfAdvancedMode -and $script:gfPerLocationColors -and $themeFav) {
+        if ($themeFav.primaryColor -and -not [string]::IsNullOrWhiteSpace([string]$themeFav.primaryColor)) {
+            $primary = [string]$themeFav.primaryColor
         }
-        if ($script:gfActiveFavorite.secondaryColor -and -not [string]::IsNullOrWhiteSpace([string]$script:gfActiveFavorite.secondaryColor)) {
-            $secondary = [string]$script:gfActiveFavorite.secondaryColor
+        if ($themeFav.secondaryColor -and -not [string]::IsNullOrWhiteSpace([string]$themeFav.secondaryColor)) {
+            $secondary = [string]$themeFav.secondaryColor
         }
     }
     if ($primary -or $secondary) {

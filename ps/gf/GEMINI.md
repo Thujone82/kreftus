@@ -219,7 +219,8 @@ Digit slots `1`–`0` / `Shift+1`–`0` use the same switch path (immediate, no 
 
 #### Tab settle & location bar
 
-- Preview updates highlight immediately; load waits **800ms** after the last Tab/Shift+Tab (`$script:gfFavoriteSettleMilliseconds`).
+- Preview updates location-bar highlight immediately; load waits **800ms** after the last Tab/Shift+Tab (`$script:gfFavoriteSettleMilliseconds`).
+- Weather section titles keep the **loaded** favorite’s colors during preview (not the highlight target) so content does not flash another location’s theme before the switch.
 - Queued Tab bursts drain into one nudge + one timer.
 - Wrap-back to the already-loaded favorite **keeps** the settle timer (selection feedback) and does **not** clear pending early.
 - If the location bar was **closed** when the preview gesture started (`$script:gfTabPreviewHideBarAfterSettle`), the bar is force-shown while pending, then **hidden immediately when settle fires** (redraw before any switch). If the bar was already open, it stays open.
@@ -248,7 +249,7 @@ Digit slots `1`–`0` / `Shift+1`–`0` use the same switch path (immediate, no 
 | `Get-GfSessionLeaderIdFromProfile` / `Test-GfSessionIsLeader` | Election |
 | `Get-GfWeatherCacheEntry` / `Restore-GfWeatherCacheSnapshot` / `Save-GfActiveWeatherCacheIfLeader` | Cache I/O |
 | `Switch-GfAdvancedFavoriteInProcess` | In-process favorite switch |
-| `Move-GfAdvancedFavoritePreview` / `Complete-GfAdvancedFavoritePendingLoadIfDue` | Tab settle |
+| `Move-GfAdvancedFavoritePreview` / `Complete-GfAdvancedFavoritePendingLoadIfDue` / `Get-GfWeatherThemeFavorite` | Tab settle + loaded-favorite title colors |
 | `Convert-DateTimeToUtcInstant` / `Get-NwsObservationInstantUtc` | Updated/NWS age math |
 
 ### API Endpoints Used
@@ -875,6 +876,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Title wrapper styles completed:** Setting **2** submenu order **Pill** / **Fire** / **Lean** / **Digital** / **Bars** (`=== Title ===`) / **Simple** (`──┤`/`├──`) / **Standard** (`*** Title ***`); Fire/Lean/Digital keep `█` pads; titles render **bold**.
 - **Config polish:** Setting-line NF icons use Default **secondary** color; labels/values stay on Default **text**. Locked `Update-GfAdvancedProfileFields` for NF/title-style (and other config settings) so concurrent session heartbeats cannot clobber saves; profile load retries torn reads; config modal falls back to in-memory profile instead of aborting with “Advanced profile missing.”
 - **Boot status:** Advanced launch message shortened to `Loading GF Advanced...` (no location suffix).
+- **Tab preview theme:** Section titles theme from the **loaded** favorite (`Get-GfWeatherThemeFavorite`) so Tab/Shift+Tab highlight moves without recoloring weather chrome to the preview target before settle.
 
 ### Recent Enhancements (v2.6)
 - **Nerd Font glyphs (Advanced setting 2):** Opt-in `useNerdFontGlyphs` (default off) with `nerdFontTitleStyle` (`pill` / `fire` / `lean` / `digital` / `bars` / `simple` / `standard`). Cascadia Code NF / CaskaydiaCove PUA icons for conditions, 28-step moon, alerts/wildfire/precip/trends/wind, compact °F/°C, Magic/Irradiance/Updated prefixes, selectable title wrappers, Powerline location chips, and `-config` icons/toggles. Enable warns if no Cascadia/Caskaydia NF family is installed; terminal Font face must be set to Cascadia Code NF (or Mono NF). Default Colors wire into `-config` chrome (primary/secondary/text). Magic Hours sun glyph is Yellow/Blue by line. PUA display width forced to 1 cell in NF mode.
@@ -895,7 +897,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 
 - **TerseAlert Mode (`-ta` / `-tersealert`):** Terse-like view; when alerts are active, interactive mode alternates every 20s with a full alerts list (**A** toggles immediately and resets the timer). With `-x`, prints terse then full alerts in sequence.
 - **Alerts Mode (`-a` / `-alerts`):** Alerts-only display with location in the header; green empty message when none are active.
-- **Interactive Hotkeys:** **A** switches to alerts-only (or toggles TerseAlert panes while in TerseAlert); **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**); Advanced **Tab**/**Shift+Tab** wrap favorites with an 800ms settle before load (closed location bar force-shown during preview, hidden again on settle). Hotkeys only — not shown on the control bar.
+- **Interactive Hotkeys:** **A** switches to alerts-only (or toggles TerseAlert panes while in TerseAlert); **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**); Advanced **Tab**/**Shift+Tab** wrap favorites with an 800ms settle before load (closed location bar force-shown during preview, hidden again on settle; weather titles stay on loaded-favorite colors during preview). Hotkeys only — not shown on the control bar.
 
 ### Recent Enhancements (v2.2)
 
