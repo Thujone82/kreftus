@@ -1,0 +1,7 @@
+/* Local overrides - not from upstream; restored by updtrimps.ps1 */
+#autoItemsDiv {
+  max-height: 45vh;
+}
+#autoItemsDiv.modeLg {
+  max-height: 55vh;
+}

@@ -90,17 +90,23 @@ try {
   if (-not (Test-Path -LiteralPath $trimpsPath)) {
     New-Item -ItemType Directory -Path $trimpsPath -Force | Out-Null
   }
-  # --- Copy only files that are new or changed (skip .git, .vscode); skip PWA-owned files only when we already have them ---
-  # Do not overwrite index.html, manifest.json, or sw.js when they already exist - we own them and restore below
-  $pwaOwnedFiles = @{ 'index.html' = $true; 'manifest.json' = $true; 'sw.js' = $true }
+  # --- Copy only files that are new or changed (skip .git, .vscode); skip local-owned files when they already exist ---
+  # Do not overwrite index.html, manifest.json, sw.js, or css/kreftus-local.css when they already exist - we own them and restore below
+  $localOwnedFiles = @{
+    'index.html' = $true
+    'manifest.json' = $true
+    'sw.js' = $true
+    'css\kreftus-local.css' = $true
+    'css/kreftus-local.css' = $true
+  }
   $cloneBaseLen = (Resolve-Path -LiteralPath $cloneDir).Path.TrimEnd('\').Length + 1
   $copyCount = 0
   $skipCount = 0
   Get-ChildItem -Path $cloneDir -Recurse -File -Force | Where-Object { $_.FullName -notmatch '\.(git|vscode)\\' } | ForEach-Object {
     $rel = $_.FullName.Substring($cloneBaseLen)
     $dest = Join-Path $trimpsPath $rel
-    if ($pwaOwnedFiles.ContainsKey($rel) -and (Test-Path -LiteralPath $dest)) {
-      Write-Verbose "Skipped (PWA Owned): $rel"
+    if ($localOwnedFiles.ContainsKey($rel) -and (Test-Path -LiteralPath $dest)) {
+      Write-Verbose "Skipped (local owned): $rel"
       $skipCount++
       return 
     }
@@ -140,11 +146,46 @@ if (Test-Path -LiteralPath $vscodePath) {
   Write-Host "   [-] Removed .vscode directory" -ForegroundColor DarkGray
 }
 
-Write-Step "Restoring PWA components (manifest.json, sw.js, index.html)..."
+Write-Step "Restoring local components (PWA + kreftus-local.css)..."
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+
+# --- Restore local CSS overlay (only write if missing or content differs) ---
+# Use ASCII-only content so PS 5.1 script encoding (no BOM) cannot corrupt the here-string
+$localCssContent = @'
+/* Local overrides - not from upstream; restored by updtrimps.ps1 */
+#autoItemsDiv {
+  max-height: 45vh;
+}
+#autoItemsDiv.modeLg {
+  max-height: 55vh;
+}
+'@
+# Normalize newlines + trailing whitespace so LF vs CRLF does not force a rewrite
+function Test-TextContentDiffers {
+  param([string]$Existing, [string]$Expected)
+  $norm = {
+    param([string]$s)
+    return (($s -replace "`r`n", "`n" -replace "`r", "`n").TrimEnd() + "`n")
+  }
+  return (& $norm $Existing) -ne (& $norm $Expected)
+}
+$localCssPath = Join-Path $trimpsPath 'css\kreftus-local.css'
+$localCssDir = Split-Path -Parent $localCssPath
+if (-not (Test-Path -LiteralPath $localCssDir)) {
+  New-Item -ItemType Directory -Path $localCssDir -Force | Out-Null
+}
+$needWriteLocalCss = -not (Test-Path -LiteralPath $localCssPath)
+if (-not $needWriteLocalCss) {
+  $needWriteLocalCss = Test-TextContentDiffers ([System.IO.File]::ReadAllText($localCssPath, $utf8NoBom)) $localCssContent
+}
+if ($needWriteLocalCss) {
+  [System.IO.File]::WriteAllText($localCssPath, $localCssContent.TrimEnd() + "`n", $utf8NoBom)
+  Write-Host "   [+] Wrote css/kreftus-local.css" -ForegroundColor DarkGray
+}
+
 # --- Restore PWA: manifest.json (only write if missing or content differs); use UTF-8 no BOM for stable compare ---
 $manifestContent = '{"name":"Trimps","short_name":"Trimps","start_url":"./","display":"standalone","scope":"./","icons":[{"src":"favicon.ico","type":"image/x-icon","sizes":"any"}]}'
 $manifestPath = Join-Path $trimpsPath 'manifest.json'
-$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 $needWriteManifest = -not (Test-Path -LiteralPath $manifestPath)
 if (-not $needWriteManifest) {
   $needWriteManifest = [System.IO.File]::ReadAllText($manifestPath, $utf8NoBom) -ne $manifestContent
@@ -217,12 +258,16 @@ if ($needWriteSw) {
   Write-Host "   [+] Wrote sw.js" -ForegroundColor DarkGray
 }
 
-# --- Restore PWA: index.html (idempotent; only write if we made edits) ---
+# --- Restore PWA + local CSS link in index.html (idempotent; only write if we made edits) ---
 $indexPath = Join-Path $trimpsPath 'index.html'
 $indexHtml = Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8
 $indexChanged = $false
 if ($indexHtml -notmatch 'manifest\.json') {
   $indexHtml = $indexHtml -replace '(\t<link rel="icon" href="favicon\.ico"[^>]*>)', ('$1' + "`r`n`t<link rel=`"manifest`" href=`"manifest.json`">")
+  $indexChanged = $true
+}
+if ($indexHtml -notmatch 'kreftus-local\.css') {
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css`" />")
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
@@ -242,7 +287,7 @@ if ($indexHtml -notmatch 'serviceWorker') {
 }
 if ($indexChanged) {
   [System.IO.File]::WriteAllText($indexPath, $indexHtml, $utf8NoBom)
-  Write-Host "   [~] Injected PWA tags into index.html" -ForegroundColor DarkGray
+  Write-Host "   [~] Injected PWA / local CSS tags into index.html" -ForegroundColor DarkGray
 }
 
 # --- Capture "after" state ---
