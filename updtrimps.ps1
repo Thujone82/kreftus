@@ -98,6 +98,10 @@ try {
     'sw.js' = $true
     'css\kreftus-local.css' = $true
     'css/kreftus-local.css' = $true
+    'icons\192.png' = $true
+    'icons/192.png' = $true
+    'icons\512.png' = $true
+    'icons/512.png' = $true
   }
   $cloneBaseLen = (Resolve-Path -LiteralPath $cloneDir).Path.TrimEnd('\').Length + 1
   $copyCount = 0
@@ -183,15 +187,75 @@ if ($needWriteLocalCss) {
   Write-Host "   [+] Wrote css/kreftus-local.css" -ForegroundColor DarkGray
 }
 
+# --- Restore PWA icons (192/512 PNG) from favicon if missing ---
+# favicon.ico is a misnamed 16x16 PNG; Chrome/Android install requires explicit 192 and 512 PNG icons
+$iconsDir = Join-Path $trimpsPath 'icons'
+$icon192 = Join-Path $iconsDir '192.png'
+$icon512 = Join-Path $iconsDir '512.png'
+$faviconPath = Join-Path $trimpsPath 'favicon.ico'
+if ((-not (Test-Path -LiteralPath $icon192)) -or (-not (Test-Path -LiteralPath $icon512))) {
+  if (Test-Path -LiteralPath $faviconPath) {
+    Add-Type -AssemblyName System.Drawing
+    if (-not (Test-Path -LiteralPath $iconsDir)) { New-Item -ItemType Directory -Path $iconsDir -Force | Out-Null }
+    $src = [System.Drawing.Image]::FromFile($faviconPath)
+    try {
+      foreach ($size in @(192, 512)) {
+        $outPath = Join-Path $iconsDir ("$size.png")
+        if (Test-Path -LiteralPath $outPath) { continue }
+        $bmp = New-Object System.Drawing.Bitmap $size, $size
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+        $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+        $g.Clear([System.Drawing.Color]::Transparent)
+        $g.DrawImage($src, 0, 0, $size, $size)
+        $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
+        $g.Dispose()
+        $bmp.Dispose()
+        Write-Host "   [+] Wrote icons/$size.png" -ForegroundColor DarkGray
+      }
+    } finally {
+      $src.Dispose()
+    }
+  }
+}
+
 # --- Restore PWA: manifest.json (only write if missing or content differs); use UTF-8 no BOM for stable compare ---
-$manifestContent = '{"name":"Trimps","short_name":"Trimps","start_url":"./","display":"standalone","scope":"./","icons":[{"src":"favicon.ico","type":"image/x-icon","sizes":"any"}]}'
+$manifestContent = @'
+{
+  "name": "Trimps",
+  "short_name": "Trimps",
+  "start_url": "./",
+  "display": "standalone",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "icons/192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
+'@
 $manifestPath = Join-Path $trimpsPath 'manifest.json'
 $needWriteManifest = -not (Test-Path -LiteralPath $manifestPath)
 if (-not $needWriteManifest) {
-  $needWriteManifest = [System.IO.File]::ReadAllText($manifestPath, $utf8NoBom) -ne $manifestContent
+  $needWriteManifest = Test-TextContentDiffers ([System.IO.File]::ReadAllText($manifestPath, $utf8NoBom)) $manifestContent
 }
 if ($needWriteManifest) {
-  [System.IO.File]::WriteAllText($manifestPath, $manifestContent, $utf8NoBom)
+  [System.IO.File]::WriteAllText($manifestPath, $manifestContent.TrimEnd() + "`n", $utf8NoBom)
   Write-Host "   [+] Wrote manifest.json" -ForegroundColor DarkGray
 }
 
@@ -201,7 +265,11 @@ const CACHE_NAME = 'trimps-v1';
 
 const PRECACHE_URLS = [
   './',
-  'index.html'
+  'index.html',
+  'manifest.json',
+  'icons/192.png',
+  'icons/512.png',
+  'favicon.ico'
 ];
 
 self.addEventListener('install', function (event) {
@@ -251,7 +319,7 @@ self.addEventListener('fetch', function (event) {
 $swPath = Join-Path $trimpsPath 'sw.js'
 $needWriteSw = -not (Test-Path -LiteralPath $swPath)
 if (-not $needWriteSw) {
-  $needWriteSw = [System.IO.File]::ReadAllText($swPath, $utf8NoBom) -ne $swContent
+  $needWriteSw = Test-TextContentDiffers ([System.IO.File]::ReadAllText($swPath, $utf8NoBom)) $swContent
 }
 if ($needWriteSw) {
   [System.IO.File]::WriteAllText($swPath, $swContent, $utf8NoBom)
@@ -262,8 +330,16 @@ if ($needWriteSw) {
 $indexPath = Join-Path $trimpsPath 'index.html'
 $indexHtml = Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8
 $indexChanged = $false
-if ($indexHtml -notmatch 'manifest\.json') {
-  $indexHtml = $indexHtml -replace '(\t<link rel="icon" href="favicon\.ico"[^>]*>)', ('$1' + "`r`n`t<link rel=`"manifest`" href=`"manifest.json`">")
+if ($indexHtml -match 'rel="icon" href="favicon\.ico"' -and $indexHtml -notmatch 'type="image/png" sizes="16x16"') {
+  $indexHtml = $indexHtml -replace '<link rel="icon" href="favicon\.ico"[^>]*>', '<link rel="icon" href="favicon.ico" type="image/png" sizes="16x16">'
+  $indexChanged = $true
+}
+if ($indexHtml -notmatch 'rel="manifest"') {
+  $indexHtml = $indexHtml -replace '(\t<link rel="icon" href="favicon\.ico"[^>]*>)', ('$1' + "`r`n`t<link rel=`"apple-touch-icon`" href=`"icons/192.png`">`r`n`t<link rel=`"manifest`" href=`"manifest.json`">")
+  $indexChanged = $true
+}
+elseif ($indexHtml -notmatch 'apple-touch-icon') {
+  $indexHtml = $indexHtml -replace '(<link rel="manifest" href="manifest\.json">)', ("`t<link rel=`"apple-touch-icon`" href=`"icons/192.png`">`r`n" + '$1')
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {

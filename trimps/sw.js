@@ -2,7 +2,11 @@ const CACHE_NAME = 'trimps-v1';
 
 const PRECACHE_URLS = [
   './',
-  'index.html'
+  'index.html',
+  'manifest.json',
+  'icons/192.png',
+  'icons/512.png',
+  'favicon.ico'
 ];
 
 self.addEventListener('install', function (event) {
