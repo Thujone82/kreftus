@@ -162,6 +162,8 @@
     }
     .icon-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border-strong); background: var(--surface-3); }
     .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .icon-btn.sm { height: 26px; min-width: 26px; padding: 0 6px; border-radius: 7px; font-size: 11px; }
+    .btn-del-file:hover { color: var(--sell) !important; border-color: var(--sell) !important; background: var(--sell-soft) !important; }
     .icon-btn svg { width: 17px; height: 17px; flex: none; }
     .icon-btn .lbl { font-size: 12px; font-weight: 650; font-family: var(--mono); }
     .btn {
@@ -441,7 +443,7 @@
         <button type="button" class="icon-btn" id="btnFiles" title="Pick CSV files">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"/></svg>
         </button>
-        <button type="button" class="icon-btn" id="btnRescan" title="Rescan folder (R)" disabled>
+        <button type="button" class="icon-btn" id="btnRescan" title="Refresh sources (R)" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
         </button>
         <div class="menu-wrap">
@@ -758,13 +760,14 @@
               <button type="button" class="btn sm ghost" id="btnSelAll">Select all</button>
               <button type="button" class="btn sm ghost" id="btnSelMerged">Merged only</button>
               <button type="button" class="btn sm ghost" id="btnSelNone">None</button>
+              <button type="button" class="btn sm ghost" id="btnClearFiles">Clear all</button>
               <button type="button" class="btn sm" id="btnAddFiles">Add files…</button>
             </div>
           </div>
           <div class="card-b">
             <div class="tbl-wrap" style="max-height:none">
               <table class="tbl" id="srcTable">
-                <thead><tr><th>File</th><th>Size</th><th>Rows</th><th>Used</th><th>Duplicates</th><th>Skipped</th><th>First</th><th>Last</th></tr></thead>
+                <thead><tr><th>File</th><th>Size</th><th>Rows</th><th>Used</th><th>Duplicates</th><th>Skipped</th><th>First</th><th>Last</th><th style="width:36px"></th></tr></thead>
                 <tbody></tbody>
               </table>
             </div>
@@ -791,7 +794,7 @@
           <div><span>Toggle theme</span><kbd class="kbd">T</kbd></div>
           <div><span>Toggle UTC / local</span><kbd class="kbd">U</kbd></div>
           <div><span>Toggle Linear / Log</span><kbd class="kbd">L</kbd></div>
-          <div><span>Rescan folder</span><kbd class="kbd">R</kbd></div>
+          <div><span>Refresh sources</span><kbd class="kbd">R</kbd></div>
           <div><span>Next / prev row</span><span><kbd class="kbd">J</kbd> <kbd class="kbd">K</kbd></span></div>
           <div><span>Reset zoom / close</span><kbd class="kbd">Esc</kbd></div>
           <div><span>This dialog</span><kbd class="kbd">?</kbd></div>
@@ -823,7 +826,7 @@
   /* ======================================================================
      Constants & state
      ====================================================================== */
-  const LEDGER_NAME_RE = /^(ledger\.csv|vbtc\s*-\s*ledger_merged.*\.csv|vbtc\s*-\s*ledger_\d{6}(@\d{6})?\.csv)$/i;
+  const LEDGER_NAME_RE = /^(ledger.*\.csv|vbtc\s*-\s*ledger.*\.csv)$/i;
   const IDB_NAME = 'vbtc-ledger-analysis';
   const IDB_STORE = 'handles';
   const PREFS_KEY = 'vbtc-ledger-analysis-prefs';
@@ -1665,7 +1668,10 @@
   }
   function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, '')); return Number.isFinite(n) ? n : 0; }
   const sats = x => Math.round(x * 1e8);
-  function isLedgerFileName(name) { return LEDGER_NAME_RE.test(String(name || '').trim()); }
+  function isLedgerFileName(name) {
+    const s = String(name || '').trim();
+    return /\.csv$/i.test(s) && (/ledger/i.test(s) || /vbtc/i.test(s) || LEDGER_NAME_RE.test(s));
+  }
 
   function parseFiles(files) {
     const rows = [], seen = new Set(), fileStats = [];
@@ -2013,23 +2019,26 @@
   /* ======================================================================
      Ingest
      ====================================================================== */
-  async function readHandle(handle) { const f = await handle.getFile(); return { name: f.name, text: await f.text(), size: f.size }; }
+  async function readHandle(handle) { const f = await handle.getFile(); return { name: f.name, text: await f.text(), size: f.size, handle }; }
   async function scanDirectory(handle) {
     const found = [];
+    const allCsv = [];
     for await (const [name, entry] of handle.entries()) {
-      if (entry.kind === 'file' && isLedgerFileName(name)) found.push(await readHandle(entry));
+      if (entry.kind === 'file' && /\.csv$/i.test(name)) {
+        if (isLedgerFileName(name)) found.push(await readHandle(entry));
+        allCsv.push(entry);
+      }
     }
-    found.sort((a, b) => a.name.localeCompare(b.name));
-    return found;
+    const toUse = found.length ? found : await Promise.all(allCsv.map(readHandle));
+    toUse.sort((a, b) => a.name.localeCompare(b.name));
+    return toUse;
   }
   function defaultSelection(files) {
-    const hasMerged = files.some(f => /ledger_merged/i.test(f.name));
-    return files.map(f => Object.assign({}, f, { selected: hasMerged ? /ledger_merged/i.test(f.name) : true }));
+    return files.map(f => Object.assign({}, f, { selected: true }));
   }
   async function ingestFileList(list) {
     const arr = Array.from(list || []);
-    const matched = arr.filter(f => isLedgerFileName(f.name));
-    const use = matched.length ? matched : arr.filter(f => /\.csv$/i.test(f.name));
+    const use = arr.filter(f => /\.csv$/i.test(f.name));
     const out = await Promise.all(use.map(async f => ({ name: f.name, text: await f.text(), size: f.size })));
     out.sort((a, b) => a.name.localeCompare(b.name));
     return out;
@@ -2040,11 +2049,23 @@
     s.title = text;
     s.className = 'pill' + (kind ? ' ' + kind : '');
   }
+  function updateRescanState() {
+    const hasFolder = !!state.dirHandle;
+    const hasFiles = !!(state.files && state.files.length);
+    const enabled = hasFolder || hasFiles;
+    const btn = $('#btnRescan');
+    btn.disabled = !enabled;
+    btn.title = hasFolder
+      ? 'Rescan folder “' + (state.dirHandle.name || 'Folder') + '” (R)'
+      : hasFiles
+        ? 'Refresh ' + state.files.length + ' file(s) (R)'
+        : 'Refresh sources (R)';
+  }
   async function setFiles(files, label, opts) {
     opts = opts || {};
     state.files = opts.keepSelection ? mergeSelection(files) : defaultSelection(files);
     state.sourceLabel = label;
-    $('#btnRescan').disabled = !state.dirHandle;
+    updateRescanState();
     if (!state.files.length) {
       showApp(false);
       setStatus('No ledger CSVs found', 'warn');
@@ -2054,16 +2075,58 @@
     showApp(true);
     await runAnalysis();
   }
+  async function addFiles(files, label) {
+    if (!files || !files.length) return;
+    if (!state.files || !state.files.length) {
+      await setFiles(files, label);
+      return;
+    }
+    const map = new Map(state.files.map(f => [f.name, f]));
+    let added = 0, updated = 0;
+    for (const f of files) {
+      if (map.has(f.name)) {
+        const existing = map.get(f.name);
+        existing.text = f.text;
+        existing.size = f.size;
+        if (f.handle) existing.handle = f.handle;
+        existing.selected = true;
+        updated++;
+      } else {
+        map.set(f.name, Object.assign({}, f, { selected: true }));
+        added++;
+      }
+    }
+    state.files = Array.from(map.values());
+    state.files.sort((a, b) => a.name.localeCompare(b.name));
+    if (label && state.sourceLabel && !state.sourceLabel.includes(label)) {
+      state.sourceLabel = state.sourceLabel + ' + ' + label;
+    } else if (!state.sourceLabel) {
+      state.sourceLabel = label;
+    }
+    updateRescanState();
+    showApp(true);
+    await runAnalysis();
+    const msg = added && updated
+      ? 'Added ' + added + ' and updated ' + updated + ' file(s)'
+      : added
+        ? 'Added ' + added + ' file(s)'
+        : 'Updated ' + updated + ' file(s)';
+    toast(msg, 'ok');
+  }
   function mergeSelection(files) {
-    const prev = new Map(state.files.map(f => [f.name, f.selected]));
+    const prev = new Map((state.files || []).map(f => [f.name, f]));
     const sel = defaultSelection(files);
-    return sel.map(f => prev.has(f.name) ? Object.assign(f, { selected: prev.get(f.name) }) : f);
+    return sel.map(f => {
+      const p = prev.get(f.name);
+      return p ? Object.assign(f, { selected: p.selected, handle: f.handle || p.handle }) : f;
+    });
   }
   function showApp(on) {
     $('#emptyState').classList.toggle('hidden', on);
     $('#app').classList.toggle('hidden', !on);
     $('#subbar').classList.toggle('hidden', !on);
     $('#btnExport').disabled = !on;
+    updateRescanState();
   }
 
   async function pickFolder() {
@@ -2085,12 +2148,89 @@
       toast('Folder access failed: ' + (err && err.message), 'err');
     }
   }
-  function pickFiles() { const fi = $('#fileInput'); fi.value = ''; fi.click(); }
+  let filePickMode = 'set';
+  async function pickFiles(mode) {
+    filePickMode = mode || (state.files && state.files.length ? 'add' : 'set');
+    if (window.showOpenFilePicker) {
+      try {
+        const handles = await window.showOpenFilePicker({
+          multiple: true,
+          types: [{
+            description: 'CSV Files',
+            accept: { 'text/csv': ['.csv'] }
+          }]
+        });
+        if (!handles || !handles.length) return;
+        const files = await Promise.all(handles.map(async h => {
+          const f = await h.getFile();
+          return { name: f.name, text: await f.text(), size: f.size, handle: h };
+        }));
+        files.sort((a, b) => a.name.localeCompare(b.name));
+        state.dirHandle = null;
+        if (filePickMode === 'add') {
+          await addFiles(files, 'Files');
+        } else {
+          await setFiles(files, 'Files');
+        }
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.warn('showOpenFilePicker failed, falling back to file input', err);
+      }
+    }
+    const fi = $('#fileInput');
+    fi.value = '';
+    fi.click();
+  }
   async function rescan() {
-    if (!state.dirHandle) return;
-    setStatus('Rescanning…', 'busy');
-    await setFiles(await scanDirectory(state.dirHandle), state.dirHandle.name || 'Folder', { keepSelection: true });
-    toast('Folder rescanned', 'ok');
+    if (state.dirHandle) {
+      setStatus('Rescanning ' + (state.dirHandle.name || 'Folder') + '…', 'busy');
+      await setFiles(await scanDirectory(state.dirHandle), state.dirHandle.name || 'Folder', { keepSelection: true });
+      toast('Folder rescanned', 'ok');
+      return;
+    }
+    if (!state.files || !state.files.length) return;
+
+    setStatus('Refreshing ' + state.files.length + ' file(s)…', 'busy');
+    let refreshed = 0;
+    const missing = [];
+
+    for (const f of state.files) {
+      if (f.handle) {
+        try {
+          if (f.handle.queryPermission) {
+            const perm = await f.handle.queryPermission({ mode: 'read' });
+            if (perm !== 'granted') {
+              const req = await f.handle.requestPermission({ mode: 'read' });
+              if (req !== 'granted') { missing.push(f.name); continue; }
+            }
+          }
+          const file = await f.handle.getFile();
+          f.text = await file.text();
+          f.size = file.size;
+          refreshed++;
+        } catch (err) {
+          console.warn('Could not re-read handle for', f.name, err);
+          missing.push(f.name);
+        }
+      } else {
+        missing.push(f.name);
+      }
+    }
+
+    if (refreshed > 0) {
+      await runAnalysis();
+      updateRescanState();
+      if (missing.length > 0) {
+        toast('Refreshed ' + refreshed + ' file(s) (' + missing.length + ' require re-selection)', 'warn');
+      } else {
+        toast('Refreshed ' + refreshed + ' file(s)', 'ok');
+      }
+      return;
+    }
+
+    toast('Select files to refresh', 'info');
+    pickFiles('add');
   }
   async function tryRestoreFolder() {
     if (!window.showDirectoryPicker || !window.indexedDB) return false;
@@ -2688,7 +2828,8 @@
       return '<tr data-k="' + k + '"><td class="fname"><label style="display:flex;gap:10px;align-items:center;cursor:pointer"><input type="checkbox" data-k="' + k + '"' + (f.selected ? ' checked' : '') + '>' +
         '<span title="' + esc(f.name) + '">' + esc(f.name) + '</span>' + (s && !s.headerOk ? ' <span class="tag warn">no header</span>' : '') + '</label></td>' +
         '<td>' + (f.size / 1024).toFixed(1) + ' KB</td><td>' + c(s && s.total) + '</td><td>' + c(s && s.used) + '</td><td>' + c(s && s.dup) + '</td><td>' + c(s && s.skipped) + '</td>' +
-        '<td>' + (s && fin(s.first) ? fmtDate(s.first) : '—') + '</td><td>' + (s && fin(s.last) ? fmtDate(s.last) : '—') + '</td></tr>';
+        '<td>' + (s && fin(s.first) ? fmtDate(s.first) : '—') + '</td><td>' + (s && fin(s.last) ? fmtDate(s.last) : '—') + '</td>' +
+        '<td style="text-align:right"><button type="button" class="icon-btn sm btn-del-file" data-del="' + k + '" title="Remove file from analysis">✕</button></td></tr>';
     }).join('');
     const nSel = state.files.filter(f => f.selected).length;
     $('#srcSub').textContent = nSel + ' of ' + state.files.length + ' selected' + (state.dirHandle ? ' · folder “' + state.dirHandle.name + '”' : '');
@@ -2853,9 +2994,9 @@
 
   $('#btnFolder').addEventListener('click', pickFolder);
   $('#btnFolderEmpty').addEventListener('click', pickFolder);
-  $('#btnFiles').addEventListener('click', pickFiles);
-  $('#btnFilesEmpty').addEventListener('click', pickFiles);
-  $('#btnAddFiles').addEventListener('click', pickFiles);
+  $('#btnFiles').addEventListener('click', () => pickFiles(state.files && state.files.length ? 'add' : 'set'));
+  $('#btnFilesEmpty').addEventListener('click', () => pickFiles('set'));
+  $('#btnAddFiles').addEventListener('click', () => pickFiles('add'));
   $('#btnReconnect').addEventListener('click', reconnect);
   $('#btnRescan').addEventListener('click', rescan);
   $('#btnTheme').addEventListener('click', () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark'));
@@ -2868,7 +3009,11 @@
     const files = await ingestFileList(e.target.files);
     if (!files.length) { toast('No CSV files selected', 'warn'); return; }
     state.dirHandle = null;
-    await setFiles(files, 'Files');
+    if (filePickMode === 'add') {
+      await addFiles(files, 'Files');
+    } else {
+      await setFiles(files, 'Files');
+    }
   });
 
   // drag & drop anywhere
@@ -2882,10 +3027,39 @@
     e.preventDefault();
     dragDepth = 0;
     $('#dropOverlay').classList.remove('show');
-    const files = await ingestFileList(e.dataTransfer.files);
+
+    let files = [];
+    if (e.dataTransfer.items && e.dataTransfer.items.length) {
+      const items = Array.from(e.dataTransfer.items).filter(it => it.kind === 'file');
+      try {
+        const handleList = await Promise.all(items.map(async it => {
+          if (typeof it.getAsFileSystemHandle === 'function') {
+            try {
+              const h = await it.getAsFileSystemHandle();
+              if (h && h.kind === 'file' && /\.csv$/i.test(h.name)) {
+                const f = await h.getFile();
+                return { name: f.name, text: await f.text(), size: f.size, handle: h };
+              }
+            } catch (_) {}
+          }
+          return null;
+        }));
+        const valid = handleList.filter(Boolean);
+        if (valid.length > 0) files = valid;
+      } catch (_) {}
+    }
+
+    if (!files.length) {
+      files = await ingestFileList(e.dataTransfer.files);
+    }
+
     if (!files.length) { toast('No CSV files in drop', 'warn'); return; }
     state.dirHandle = null;
-    await setFiles(files, 'Drop');
+    if (state.files && state.files.length) {
+      await addFiles(files, 'Drop');
+    } else {
+      await setFiles(files, 'Drop');
+    }
   });
 
   // tabs, range, series
@@ -2984,10 +3158,46 @@
     state.files[+cb.dataset.k].selected = cb.checked;
     scheduleAnalysis();
   });
+  $('#srcTable tbody').addEventListener('click', async e => {
+    const btn = e.target.closest('.btn-del-file');
+    if (!btn) return;
+    const k = +btn.dataset.del;
+    if (k >= 0 && k < state.files.length) {
+      const removed = state.files.splice(k, 1)[0];
+      if (!state.files.length) {
+        state.dirHandle = null;
+        state.sourceLabel = '';
+        state.base = null;
+        state.sum = null;
+        showApp(false);
+        setStatus('No ledgers loaded', '');
+        updateRescanState();
+        renderSources();
+        toast('Removed ' + (removed ? removed.name : 'file'), 'info');
+      } else {
+        await runAnalysis();
+        updateRescanState();
+        toast('Removed ' + (removed ? removed.name : 'file'), 'info');
+      }
+    }
+  });
   const bulkSel = fn => { state.files.forEach(f => { f.selected = fn(f); }); renderSources(); scheduleAnalysis(); };
   $('#btnSelAll').addEventListener('click', () => bulkSel(() => true));
   $('#btnSelNone').addEventListener('click', () => bulkSel(() => false));
   $('#btnSelMerged').addEventListener('click', () => bulkSel(f => /ledger_merged/i.test(f.name)));
+  $('#btnClearFiles').addEventListener('click', () => {
+    if (!state.files.length) return;
+    state.files = [];
+    state.dirHandle = null;
+    state.sourceLabel = '';
+    state.base = null;
+    state.sum = null;
+    showApp(false);
+    setStatus('No ledgers loaded', '');
+    updateRescanState();
+    renderSources();
+    toast('All files cleared', 'info');
+  });
 
   // export menu
   $('#btnExport').addEventListener('click', e => { e.stopPropagation(); $('#exportMenu').classList.toggle('show'); });
@@ -3015,7 +3225,7 @@
       state.scaleOverrides[prefs.series] = cur === 'log' ? 'linear' : 'log';
       renderMain(true);
     }
-    else if ((e.key === 'r' || e.key === 'R') && state.dirHandle) rescan();
+    else if ((e.key === 'r' || e.key === 'R') && (state.dirHandle || (state.files && state.files.length))) rescan();
     else if (e.key === '?') $('#helpDlg').showModal();
     else if (e.key === '/' && loaded) { e.preventDefault(); setTab('trades'); setTimeout(() => $('#tblSearch').focus(), 30); }
     else if (loaded && prefs.tab === 'trades' && (e.key === 'j' || e.key === 'ArrowDown')) { e.preventDefault(); stepRow(1); }
@@ -3035,6 +3245,7 @@
   if (hashTheme) applyTheme(hashTheme);
   const hashTab = (hash.match(/\b(overview|performance|activity|trades|integrity|sources)\b/) || [])[1];
   setTab(hashTab || prefs.tab);
+  updateRescanState();
   (async () => {
     await tryRestoreFolder();
   })();
