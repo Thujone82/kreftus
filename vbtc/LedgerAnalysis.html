@@ -254,14 +254,32 @@
     .heat .hc:hover { outline-color: var(--text); }
     .heat .hl { color: var(--muted); font-family: var(--mono); display: flex; align-items: center; font-size: 10.5px; }
     .heat .hh { color: var(--faint); font-family: var(--mono); text-align: center; font-size: 10px; }
-    .cal-wrap { overflow-x: auto; padding-bottom: 4px; }
-    .cal { display: grid; grid-template-rows: 14px repeat(7, 13px); grid-auto-flow: column; grid-template-columns: 30px; grid-auto-columns: 13px; gap: 3px; width: max-content; }
-    .cal .cd { border-radius: 3px; background: var(--surface-3); cursor: pointer; outline: 1px solid transparent; }
-    .cal .cd:hover { outline-color: var(--text); }
-    .cal .cd.out { background: transparent; cursor: default; outline: none; }
-    .cal .cm { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: visible; font-family: var(--mono); }
-    .cal .cl { font-size: 10px; color: var(--faint); font-family: var(--mono); line-height: 13px; }
-    .legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-top: 10px; }
+    .cal-wrap { overflow-x: auto; padding-bottom: 4px; width: 100%; scrollbar-width: thin; }
+    .cal {
+      display: grid;
+      grid-auto-flow: column;
+      grid-template-rows: 16px repeat(7, auto);
+      gap: var(--cal-gap, 3px);
+      width: 100%;
+      align-items: center;
+      transition: gap 0.15s ease;
+    }
+    .cal .cd {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+      border-radius: var(--cal-radius, 3px);
+      background: var(--surface-3);
+      cursor: pointer;
+      outline: 1px solid transparent;
+      box-sizing: border-box;
+      transition: outline-color 0.1s, transform 0.1s;
+    }
+    .cal .cd:hover { outline-color: var(--text); transform: scale(1.08); z-index: 2; }
+    .cal .cd.out { background: transparent; cursor: default; outline: none; pointer-events: none; }
+    .cal .cm { font-size: var(--cal-font-size, 10px); color: var(--muted); white-space: nowrap; overflow: visible; font-family: var(--mono); padding-bottom: 2px; user-select: none; }
+    .cal .cl { font-size: var(--cal-font-size, 10px); color: var(--faint); font-family: var(--mono); display: flex; align-items: center; user-select: none; }
+    .legend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 12px; }
     .legend span.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
     /* ---------- tables ---------- */
@@ -2502,7 +2520,9 @@
     ['Mon', '', 'Wed', '', 'Fri', '', 'Sun'].forEach(l => { html += '<span class="cl">' + l + '</span>'; });
     let t = start, lastMonth = -1;
     g = 0;
+    let numCols = 0;
     while (t <= endDay && g++ < 60) {
+      numCols++;
       const pm = P(t).m;
       html += '<span class="cm">' + (pm !== lastMonth ? fmtDate(t, { month: 'short' }) : '') + '</span>';
       lastMonth = pm;
@@ -2516,11 +2536,46 @@
       t = addDays(t, 7);
     }
     el.innerHTML = html;
+    el.dataset.cols = numCols;
+    layoutCalendar();
     $('#calSub').textContent = (clipped ? 'last 53 weeks of range · ' : '') + S.activeDays + ' active days · click a day to focus';
     const sw = metric === 'pnl'
       ? [alpha(PAL.sell, 1), alpha(PAL.sell, 0.45), alpha(PAL.muted, 0.28), alpha(PAL.buy, 0.45), alpha(PAL.buy, 1)]
       : [0.2, 0.4, 0.6, 0.8, 1].map(a => alpha(metric === 'count' ? PAL.accent : PAL.violet, a));
     $('#calLegend').innerHTML = '<span>' + (metric === 'pnl' ? 'Loss' : 'Less') + '</span>' + sw.map(c => '<span class="sw" style="background:' + c + '"></span>').join('') + '<span>' + (metric === 'pnl' ? 'Gain' : 'More') + '</span>';
+  }
+
+  function layoutCalendar() {
+    const el = $('#cal');
+    if (!el || !el.children.length) return;
+    const wrap = el.closest('.cal-wrap');
+    if (!wrap) return;
+    const avail = wrap.clientWidth;
+    if (avail <= 0) return;
+
+    const cols = parseInt(el.dataset.cols, 10) || Math.max(1, Math.ceil(el.querySelectorAll('.cd').length / 7)) || 53;
+    const labelW = avail < 600 ? 22 : avail < 900 ? 26 : 28;
+    const gap = avail < 800 ? 2 : avail < 1200 ? 3 : 4;
+    const totalGaps = cols * gap;
+
+    let cellW = (avail - labelW - totalGaps) / cols;
+    const minCell = 9;
+    const maxCell = 34;
+
+    if (cellW > maxCell) cellW = maxCell;
+    else if (cellW < minCell) cellW = minCell;
+
+    const totalW = Math.round(labelW + cols * cellW + totalGaps);
+
+    el.style.gap = gap + 'px';
+    el.style.width = cellW <= minCell ? totalW + 'px' : '100%';
+    el.style.maxWidth = cellW >= maxCell ? totalW + 'px' : '100%';
+    el.style.gridTemplateColumns = labelW + 'px repeat(' + cols + ', minmax(0, 1fr))';
+    el.style.gridTemplateRows = '16px repeat(7, auto)';
+
+    const radius = Math.max(2, Math.min(5, Math.round(cellW * 0.18)));
+    el.style.setProperty('--cal-radius', radius + 'px');
+    el.style.setProperty('--cal-font-size', Math.max(9, Math.min(12, Math.round(cellW * 0.48))) + 'px');
   }
   function renderMonths(S) {
     const tb = $('#monthTable tbody');
@@ -2848,6 +2903,7 @@
       Object.values(charts).forEach(c => c.draw());
       if (tab === 'trades') renderRows();
       if (state.sum && tab === 'overview') renderKpis(state.sum);
+      if (tab === 'performance') layoutCalendar();
     });
   }
 
@@ -2991,6 +3047,14 @@
   charts.hold = new BarChart($('#chartHold'), {});
   charts.inter = new BarChart($('#chartInter'), {});
   charts.timeline = new GapTimeline($('#chartTimeline'));
+
+  const calWrap = $('.cal-wrap');
+  if (calWrap && window.ResizeObserver) {
+    new ResizeObserver(() => layoutCalendar()).observe(calWrap);
+  }
+  window.addEventListener('resize', () => {
+    if (prefs.tab === 'performance') layoutCalendar();
+  });
 
   $('#btnFolder').addEventListener('click', pickFolder);
   $('#btnFolderEmpty').addEventListener('click', pickFolder);
