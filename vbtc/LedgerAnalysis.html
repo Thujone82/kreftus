@@ -166,6 +166,23 @@
     .btn-del-file:hover { color: var(--sell) !important; border-color: var(--sell) !important; background: var(--sell-soft) !important; }
     .icon-btn svg { width: 17px; height: 17px; flex: none; }
     .icon-btn .lbl { font-size: 12px; font-weight: 650; font-family: var(--mono); }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--faint);
+      flex: none;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    #btnLive.active {
+      color: var(--buy);
+      border-color: rgba(34, 197, 94, 0.45);
+      background: var(--buy-soft);
+    }
+    #btnLive.active .live-dot {
+      background: var(--buy);
+      box-shadow: 0 0 6px var(--buy);
+      animation: pulse 1.2s infinite;
+    }
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
       height: 38px; padding: 0 16px;
@@ -404,8 +421,8 @@
     .menu button:hover { background: var(--surface-3); }
     .menu button small { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: 11px; }
     .toasts { position: fixed; right: 18px; bottom: 18px; z-index: 110; display: grid; gap: 8px; }
-    .toast { padding: 10px 14px; border-radius: 11px; background: var(--surface-solid); border: 1px solid var(--border-strong); box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5); font-size: 13px; animation: fadein 0.2s ease; max-width: 380px; display: flex; gap: 10px; align-items: center; }
-    .toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--info); flex: none; }
+    .toast { padding: 10px 14px; border-radius: 11px; background: var(--surface-solid); border: 1px solid var(--border-strong); box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5); font-size: 13px; animation: fadein 0.2s ease; max-width: 400px; display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; white-space: pre-line; }
+    .toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--info); flex: none; margin-top: 5px; }
     .toast.ok::before { background: var(--buy); } .toast.err::before { background: var(--sell); } .toast.warn::before { background: var(--warn); }
     dialog { border: 1px solid var(--border-strong); border-radius: 18px; background: var(--surface-solid); color: var(--text); padding: 0; width: min(720px, calc(100vw - 32px)); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.6); }
     dialog::backdrop { background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(3px); }
@@ -463,6 +480,9 @@
         </button>
         <button type="button" class="icon-btn" id="btnRescan" title="Refresh sources (R)" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="btnLive" title="Toggle Live mode: check for changes every 20s (V)" disabled>
+          <span class="live-dot"></span><span class="lbl">LIVE</span>
         </button>
         <div class="menu-wrap">
           <button type="button" class="icon-btn" id="btnExport" title="Export" disabled>
@@ -813,6 +833,7 @@
           <div><span>Toggle UTC / local</span><kbd class="kbd">U</kbd></div>
           <div><span>Toggle Linear / Log</span><kbd class="kbd">L</kbd></div>
           <div><span>Refresh sources</span><kbd class="kbd">R</kbd></div>
+          <div><span>Toggle Live mode</span><kbd class="kbd">V</kbd></div>
           <div><span>Next / prev row</span><span><kbd class="kbd">J</kbd> <kbd class="kbd">K</kbd></span></div>
           <div><span>Reset zoom / close</span><kbd class="kbd">Esc</kbd></div>
           <div><span>This dialog</span><kbd class="kbd">?</kbd></div>
@@ -880,6 +901,9 @@
     table: { q: '', type: 'all', flag: 'all', min: 0, sort: 'i', dir: 1, sel: -1, idx: [] },
     gapKind: 'all',
     scaleOverrides: {}, // user scale override per series: 'linear' | 'log'
+    live: false,
+    liveTimer: 0,
+    liveChecking: false,
   };
   const charts = {};
 
@@ -2037,7 +2061,7 @@
   /* ======================================================================
      Ingest
      ====================================================================== */
-  async function readHandle(handle) { const f = await handle.getFile(); return { name: f.name, text: await f.text(), size: f.size, handle }; }
+  async function readHandle(handle) { const f = await handle.getFile(); return { name: f.name, text: await f.text(), size: f.size, lastModified: f.lastModified, handle }; }
   async function scanDirectory(handle) {
     const found = [];
     const allCsv = [];
@@ -2057,7 +2081,7 @@
   async function ingestFileList(list) {
     const arr = Array.from(list || []);
     const use = arr.filter(f => /\.csv$/i.test(f.name));
-    const out = await Promise.all(use.map(async f => ({ name: f.name, text: await f.text(), size: f.size })));
+    const out = await Promise.all(use.map(async f => ({ name: f.name, text: await f.text(), size: f.size, lastModified: f.lastModified })));
     out.sort((a, b) => a.name.localeCompare(b.name));
     return out;
   }
@@ -2078,6 +2102,12 @@
       : hasFiles
         ? 'Refresh ' + state.files.length + ' file(s) (R)'
         : 'Refresh sources (R)';
+
+    const btnLive = $('#btnLive');
+    if (btnLive) {
+      btnLive.disabled = !enabled;
+      if (!enabled && state.live) stopLive(true);
+    }
   }
   async function setFiles(files, label, opts) {
     opts = opts || {};
@@ -2106,6 +2136,7 @@
         const existing = map.get(f.name);
         existing.text = f.text;
         existing.size = f.size;
+        existing.lastModified = f.lastModified;
         if (f.handle) existing.handle = f.handle;
         existing.selected = true;
         updated++;
@@ -2181,7 +2212,7 @@
         if (!handles || !handles.length) return;
         const files = await Promise.all(handles.map(async h => {
           const f = await h.getFile();
-          return { name: f.name, text: await f.text(), size: f.size, handle: h };
+          return { name: f.name, text: await f.text(), size: f.size, lastModified: f.lastModified, handle: h };
         }));
         files.sort((a, b) => a.name.localeCompare(b.name));
         state.dirHandle = null;
@@ -2201,54 +2232,60 @@
     fi.click();
   }
   async function rescan() {
-    if (state.dirHandle) {
-      setStatus('Rescanning ' + (state.dirHandle.name || 'Folder') + '…', 'busy');
-      await setFiles(await scanDirectory(state.dirHandle), state.dirHandle.name || 'Folder', { keepSelection: true });
-      toast('Folder rescanned', 'ok');
-      return;
-    }
-    if (!state.files || !state.files.length) return;
+    state.liveChecking = true;
+    try {
+      if (state.dirHandle) {
+        setStatus('Rescanning ' + (state.dirHandle.name || 'Folder') + '…', 'busy');
+        await setFiles(await scanDirectory(state.dirHandle), state.dirHandle.name || 'Folder', { keepSelection: true });
+        toast('Folder rescanned', 'ok');
+        return;
+      }
+      if (!state.files || !state.files.length) return;
 
-    setStatus('Refreshing ' + state.files.length + ' file(s)…', 'busy');
-    let refreshed = 0;
-    const missing = [];
+      setStatus('Refreshing ' + state.files.length + ' file(s)…', 'busy');
+      let refreshed = 0;
+      const missing = [];
 
-    for (const f of state.files) {
-      if (f.handle) {
-        try {
-          if (f.handle.queryPermission) {
-            const perm = await f.handle.queryPermission({ mode: 'read' });
-            if (perm !== 'granted') {
-              const req = await f.handle.requestPermission({ mode: 'read' });
-              if (req !== 'granted') { missing.push(f.name); continue; }
+      for (const f of state.files) {
+        if (f.handle) {
+          try {
+            if (f.handle.queryPermission) {
+              const perm = await f.handle.queryPermission({ mode: 'read' });
+              if (perm !== 'granted') {
+                const req = await f.handle.requestPermission({ mode: 'read' });
+                if (req !== 'granted') { missing.push(f.name); continue; }
+              }
             }
+            const file = await f.handle.getFile();
+            f.text = await file.text();
+            f.size = file.size;
+            f.lastModified = file.lastModified;
+            refreshed++;
+          } catch (err) {
+            console.warn('Could not re-read handle for', f.name, err);
+            missing.push(f.name);
           }
-          const file = await f.handle.getFile();
-          f.text = await file.text();
-          f.size = file.size;
-          refreshed++;
-        } catch (err) {
-          console.warn('Could not re-read handle for', f.name, err);
+        } else {
           missing.push(f.name);
         }
-      } else {
-        missing.push(f.name);
       }
-    }
 
-    if (refreshed > 0) {
-      await runAnalysis();
-      updateRescanState();
-      if (missing.length > 0) {
-        toast('Refreshed ' + refreshed + ' file(s) (' + missing.length + ' require re-selection)', 'warn');
-      } else {
-        toast('Refreshed ' + refreshed + ' file(s)', 'ok');
+      if (refreshed > 0) {
+        await runAnalysis();
+        updateRescanState();
+        if (missing.length > 0) {
+          toast('Refreshed ' + refreshed + ' file(s) (' + missing.length + ' require re-selection)', 'warn');
+        } else {
+          toast('Refreshed ' + refreshed + ' file(s)', 'ok');
+        }
+        return;
       }
-      return;
-    }
 
-    toast('Select files to refresh', 'info');
-    pickFiles('add');
+      toast('Select files to refresh', 'info');
+      pickFiles('add');
+    } finally {
+      state.liveChecking = false;
+    }
   }
   async function tryRestoreFolder() {
     if (!window.showDirectoryPicker || !window.indexedDB) return false;
@@ -2277,6 +2314,163 @@
       $('#reconnect').classList.add('hidden');
       await setFiles(await scanDirectory(h), h.name || 'Folder');
     } catch (err) { toast('Reconnect failed: ' + err.message, 'err'); }
+  }
+
+  /* ======================================================================
+     Live polling (auto-check every 20s)
+     ====================================================================== */
+  function stopLive(silent) {
+    if (!state.live && !state.liveTimer) return;
+    state.live = false;
+    const btn = $('#btnLive');
+    if (btn) {
+      btn.classList.remove('active');
+      btn.title = 'Toggle Live mode: check for changes every 20s (V)';
+    }
+    if (state.liveTimer) {
+      clearInterval(state.liveTimer);
+      state.liveTimer = 0;
+    }
+    if (!silent) toast('Live mode paused', 'info');
+  }
+
+  function toggleLive(enable) {
+    if (enable === undefined) enable = !state.live;
+    if (enable) {
+      const hasFolder = !!state.dirHandle;
+      const hasHandles = !!(state.files && state.files.some(f => f.handle));
+      if (!hasFolder && !hasHandles) {
+        toast('Live mode requires file handles — choose folder or pick files', 'warn');
+        return;
+      }
+      state.live = true;
+      const btn = $('#btnLive');
+      if (btn) {
+        btn.classList.add('active');
+        btn.title = 'Live mode active: checking every 20s (click to pause)';
+      }
+      if (state.liveTimer) clearInterval(state.liveTimer);
+      state.liveTimer = setInterval(pollLiveSources, 20000);
+      toast('Live mode active · checking every 20s', 'ok');
+    } else {
+      stopLive(false);
+    }
+  }
+
+  function notifyNewTransactions(newRows) {
+    if (!newRows || !newRows.length) return;
+    const buys = newRows.filter(r => r.TX === 'Buy').length;
+    const sells = newRows.filter(r => r.TX === 'Sell').length;
+    const parts = [];
+    if (buys) parts.push(buys + ' Buy' + (buys > 1 ? 's' : ''));
+    if (sells) parts.push(sells + ' Sell' + (sells > 1 ? 's' : ''));
+    const breakdown = parts.join(', ');
+
+    const latest = newRows.reduce((a, b) => (b.t > a.t ? b : a), newRows[0]);
+    const timeStr = new Date(latest.t).toLocaleTimeString(undefined, tzo({ hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }));
+
+    let msg = '';
+    if (newRows.length === 1) {
+      msg = '+1 new trade: ' + latest.TX + ' ' + btcC(latest.BTC) + ' BTC @ ' + usd(latest.rate) + (timeStr ? ' (' + timeStr + ')' : '');
+    } else {
+      msg = '+' + newRows.length + ' new trades (' + breakdown + ') · Latest: ' + latest.TX + ' ' + btcC(latest.BTC) + ' BTC @ ' + usd(latest.rate) + (timeStr ? ' (' + timeStr + ')' : '');
+    }
+    toast(msg, 'ok', 6000);
+  }
+
+  async function pollLiveSources() {
+    if (!state.live || state.liveChecking) return;
+    state.liveChecking = true;
+    try {
+      if (state.dirHandle) {
+        if (state.dirHandle.queryPermission) {
+          try {
+            const perm = await state.dirHandle.queryPermission({ mode: 'read' });
+            if (perm !== 'granted') return;
+          } catch (_) { return; }
+        }
+        const scanned = await scanDirectory(state.dirHandle);
+        const prevMap = new Map((state.files || []).map(f => [f.name, f]));
+        let fileDiff = scanned.length !== (state.files || []).length;
+        if (!fileDiff) {
+          for (const s of scanned) {
+            const p = prevMap.get(s.name);
+            if (!p || p.size !== s.size || (s.lastModified && p.lastModified && p.lastModified !== s.lastModified) || p.text !== s.text) {
+              fileDiff = true;
+              break;
+            }
+          }
+        }
+        if (fileDiff) {
+          const prevRows = (state.base && state.base.rows) ? state.base.rows : [];
+          const existingTimes = new Set(prevRows.map(r => r.Time));
+          state.files = mergeSelection(scanned);
+          const sel = state.files.filter(f => f.selected);
+          const parsed = parseFiles(sel);
+          const newRows = parsed.rows.filter(r => !existingTimes.has(r.Time));
+
+          state.base = enrich(parsed);
+          applyRange();
+          renderSources();
+          renderIntegrity();
+          const n = state.base.rows.length;
+          setStatus((state.sourceLabel ? state.sourceLabel + ' · ' : '') + sel.length + ' file(s) · ' + int(n) + ' txs', state.base.gaps.length ? 'warn' : 'ok');
+
+          if (newRows.length > 0) {
+            notifyNewTransactions(newRows);
+          } else {
+            toast('Ledger files updated (' + parsed.rows.length + ' trades)', 'ok', 4000);
+          }
+        }
+      } else if (state.files && state.files.length) {
+        let fileDiff = false;
+        for (const f of state.files) {
+          if (!f.handle) continue;
+          try {
+            if (f.handle.queryPermission) {
+              const perm = await f.handle.queryPermission({ mode: 'read' });
+              if (perm !== 'granted') continue;
+            }
+            const file = await f.handle.getFile();
+            if (file.size !== f.size || (f.lastModified && file.lastModified !== f.lastModified) || !f.lastModified) {
+              const text = await file.text();
+              if (text !== f.text) {
+                fileDiff = true;
+                f.text = text;
+                f.size = file.size;
+                f.lastModified = file.lastModified;
+              }
+            }
+          } catch (err) {
+            console.warn('Error reading handle during live poll', f.name, err);
+          }
+        }
+        if (fileDiff) {
+          const prevRows = (state.base && state.base.rows) ? state.base.rows : [];
+          const existingTimes = new Set(prevRows.map(r => r.Time));
+          const sel = state.files.filter(f => f.selected);
+          const parsed = parseFiles(sel);
+          const newRows = parsed.rows.filter(r => !existingTimes.has(r.Time));
+
+          state.base = enrich(parsed);
+          applyRange();
+          renderSources();
+          renderIntegrity();
+          const n = state.base.rows.length;
+          setStatus((state.sourceLabel ? state.sourceLabel + ' · ' : '') + sel.length + ' file(s) · ' + int(n) + ' txs', state.base.gaps.length ? 'warn' : 'ok');
+
+          if (newRows.length > 0) {
+            notifyNewTransactions(newRows);
+          } else {
+            toast('Ledger files updated (' + parsed.rows.length + ' trades)', 'ok', 4000);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Live poll error', err);
+    } finally {
+      state.liveChecking = false;
+    }
   }
 
   /* ======================================================================
@@ -3063,6 +3257,7 @@
   $('#btnAddFiles').addEventListener('click', () => pickFiles('add'));
   $('#btnReconnect').addEventListener('click', reconnect);
   $('#btnRescan').addEventListener('click', rescan);
+  $('#btnLive').addEventListener('click', () => toggleLive());
   $('#btnTheme').addEventListener('click', () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark'));
   $('#btnTz').addEventListener('click', () => applyTz(!TZ.utc));
   $('#btnHelp').addEventListener('click', () => $('#helpDlg').showModal());
@@ -3102,7 +3297,7 @@
               const h = await it.getAsFileSystemHandle();
               if (h && h.kind === 'file' && /\.csv$/i.test(h.name)) {
                 const f = await h.getFile();
-                return { name: f.name, text: await f.text(), size: f.size, handle: h };
+                return { name: f.name, text: await f.text(), size: f.size, lastModified: f.lastModified, handle: h };
               }
             } catch (_) {}
           }
@@ -3229,6 +3424,7 @@
     if (k >= 0 && k < state.files.length) {
       const removed = state.files.splice(k, 1)[0];
       if (!state.files.length) {
+        stopLive(true);
         state.dirHandle = null;
         state.sourceLabel = '';
         state.base = null;
@@ -3251,6 +3447,7 @@
   $('#btnSelMerged').addEventListener('click', () => bulkSel(f => /ledger_merged/i.test(f.name)));
   $('#btnClearFiles').addEventListener('click', () => {
     if (!state.files.length) return;
+    stopLive(true);
     state.files = [];
     state.dirHandle = null;
     state.sourceLabel = '';
@@ -3290,6 +3487,7 @@
       renderMain(true);
     }
     else if ((e.key === 'r' || e.key === 'R') && (state.dirHandle || (state.files && state.files.length))) rescan();
+    else if ((e.key === 'v' || e.key === 'V') && loaded) toggleLive();
     else if (e.key === '?') $('#helpDlg').showModal();
     else if (e.key === '/' && loaded) { e.preventDefault(); setTab('trades'); setTimeout(() => $('#tblSearch').focus(), 30); }
     else if (loaded && prefs.tab === 'trades' && (e.key === 'j' || e.key === 'ArrowDown')) { e.preventDefault(); stepRow(1); }
@@ -3309,6 +3507,7 @@
   if (hashTheme) applyTheme(hashTheme);
   const hashTab = (hash.match(/\b(overview|performance|activity|trades|integrity|sources)\b/) || [])[1];
   setTab(hashTab || prefs.tab);
+  window.__vbtc = { state, pollLiveSources, toggleLive, stopLive, rescan };
   updateRescanState();
   (async () => {
     await tryRestoreFolder();
