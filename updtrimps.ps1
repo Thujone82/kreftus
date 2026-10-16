@@ -158,11 +158,25 @@ $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
-/* Keep the SA popup within the viewport so content is not clipped off-screen */
+/*
+ * Keep the SA popup within the viewport. Do NOT put overflow-y: auto on the
+ * tooltip shell - that promotes overflow-x to auto and shows a useless
+ * horizontal scrollbar when children are slightly wider (e.g. .autoStats
+ * width 50% + padding under content-box). Clip the shell; scroll only the items list.
+ */
 #tooltipDiv.tooltipExtraBiggest {
   max-height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+#tooltipDiv.tooltipExtraBiggest #tipText {
+  max-width: 100%;
   overflow-x: hidden;
-  overflow-y: auto;
+}
+
+/* Prevent SA stat columns from exceeding 100% width (50% + padding) */
+#tooltipDiv.tooltipExtraBiggest .autoStats {
   box-sizing: border-box;
 }
 
@@ -274,7 +288,7 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v3';
+const CACHE_NAME = 'trimps-v4';
 
 const PRECACHE_URLS = [
   './',
