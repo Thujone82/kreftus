@@ -157,11 +157,23 @@ $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 # Use ASCII-only content so PS 5.1 script encoding (no BOM) cannot corrupt the here-string
 $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
-#autoItemsDiv {
-  max-height: 45vh;
+
+/* Keep the SA popup within the viewport so content is not clipped off-screen */
+#tooltipDiv.tooltipExtraBiggest {
+  max-height: 100vh;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
+
+/*
+ * Items list uses remaining viewport below the SA chrome (title, dust, fight UI, tabs).
+ * Scroll when the grid would otherwise extend past the bottom of the screen.
+ */
+#autoItemsDiv,
 #autoItemsDiv.modeLg {
-  max-height: 55vh;
+  max-height: max(8em, calc(100vh - 30em));
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 '@
 # Normalize newlines + trailing whitespace so LF vs CRLF does not force a rewrite
@@ -261,7 +273,7 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v1';
+const CACHE_NAME = 'trimps-v2';
 
 const PRECACHE_URLS = [
   './',
