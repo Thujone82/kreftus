@@ -161,6 +161,7 @@ $localCssContent = @'
 /* Keep the SA popup within the viewport so content is not clipped off-screen */
 #tooltipDiv.tooltipExtraBiggest {
   max-height: 100vh;
+  overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
 }
@@ -273,7 +274,7 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v2';
+const CACHE_NAME = 'trimps-v3';
 
 const PRECACHE_URLS = [
   './',

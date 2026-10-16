@@ -3,6 +3,7 @@
 /* Keep the SA popup within the viewport so content is not clipped off-screen */
 #tooltipDiv.tooltipExtraBiggest {
   max-height: 100vh;
+  overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
 }
