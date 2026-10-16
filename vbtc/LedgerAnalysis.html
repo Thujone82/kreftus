@@ -258,6 +258,36 @@
     .kpis.compact .kpi-value { font-size: clamp(16px, 1.45vw, 20px); }
     .tone-buy { --tone: var(--buy); } .tone-sell { --tone: var(--sell); } .tone-accent { --tone: var(--accent); }
     .tone-info { --tone: var(--info); } .tone-warn { --tone: var(--warn); } .tone-violet { --tone: var(--violet); }
+    .kpi-unrealized { position: relative; }
+    .kpi-unrealized.disabled { border-style: dashed; }
+    .kpi-unrealized.disabled .kpi-value { filter: blur(3px); opacity: 0.35; user-select: none; }
+    .kpi-unrealized.disabled .kpi-note { opacity: 0.25; user-select: none; }
+    .kpi-overlay {
+      position: absolute; inset: 0; border-radius: var(--radius);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      backdrop-filter: blur(3px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; z-index: 5; padding: 8px 12px; text-align: center;
+    }
+    .btn-enable-lcw {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 28px; padding: 0 12px; border-radius: 8px;
+      font-size: 11.5px; font-weight: 650; border: 1px solid var(--accent);
+      background: linear-gradient(135deg, #ffb547, #f7931a); color: #1a1000;
+      cursor: pointer; box-shadow: 0 4px 14px -4px rgba(247, 147, 26, 0.7);
+      transition: transform 0.1s ease, filter 0.15s ease;
+    }
+    .btn-enable-lcw:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn-enable-lcw:active { transform: translateY(0); }
+    .btn-enable-lcw svg { width: 12px; height: 12px; }
+    .overlay-hint { font-size: 10.5px; color: var(--muted); line-height: 1.2; }
+    .kpi-gear-btn {
+      margin-left: auto; background: transparent; border: 1px solid transparent;
+      padding: 3px 5px; color: var(--muted); cursor: pointer; border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      line-height: 1; transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .kpi-gear-btn:hover { color: var(--text); background: var(--surface-3); border-color: var(--border); }
 
     /* ---------- insights ---------- */
     .insights { display: grid; gap: 8px; align-content: start; max-height: clamp(320px, 48vh, 470px); overflow: auto; }
@@ -344,6 +374,15 @@
     .kv > div, .detail > div { padding: 9px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); min-width: 0; }
     .kv small, .detail small { display: block; color: var(--muted); font-size: 11.5px; }
     .kv b, .detail b { font-family: var(--mono); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn.ghost.active { border-color: var(--violet); color: var(--violet); background: var(--violet-soft); }
+    .lot-summary { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .lot-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-3); gap: 2px; }
+    .lot-bar > span { height: 100%; transition: width 0.25s ease; }
+    .lot-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); font-family: var(--mono); flex-wrap: wrap; gap: 8px; }
+    .lot-list { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
+    .lot-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 7px; background: var(--surface-3); border: 1px solid var(--border); font-family: var(--mono); font-size: 11.5px; cursor: pointer; font-weight: 500; }
+    .lot-chip:hover { border-color: var(--accent); color: var(--text); }
+    .detail > div.wide { grid-column: 1 / -1; }
 
     /* ---------- integrity ---------- */
     .ring { --p: 100; --c: var(--buy); width: 148px; height: 148px; border-radius: 50%; margin: 6px auto 14px; background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--surface-3) 0); display: grid; place-items: center; }
@@ -515,6 +554,12 @@
         <button type="button" class="tab" data-tab="sources"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Sources</button>
       </nav>
       <div class="range">
+        <div class="seg alt" id="basisSeg" title="Cost basis accounting method (B)">
+          <button type="button" class="active" data-basis="fifo" title="First-In, First-Out (oldest lots first)">FIFO</button>
+          <button type="button" data-basis="lifo" title="Last-In, First-Out (newest lots first)">LIFO</button>
+          <button type="button" data-basis="hifo" title="Highest-In, First-Out (highest cost lots first)">HIFO</button>
+          <button type="button" data-basis="avg" title="Weighted Average Cost basis">AVG</button>
+        </div>
         <div class="seg" id="rangeSeg">
           <button type="button" data-preset="24h">24H</button>
           <button type="button" data-preset="7d">7D</button>
@@ -549,8 +594,8 @@
           <button type="button" class="btn sm" id="btnReconnect">Reconnect folder</button>
         </div>
         <div class="hero-feats">
-          <div class="feat"><b>FIFO P/L</b>Realized &amp; unrealized P/L, win rate, profit factor, drawdown.</div>
-          <div class="feat"><b>Patterns</b>Hour × weekday heatmap, daily calendar, hold times.</div>
+          <div class="feat"><b>Multi-Basis P/L</b>FIFO, LIFO, HIFO &amp; Avg Cost with HODL benchmark alpha.</div>
+          <div class="feat"><b>Patterns</b>Hour × weekday heatmap, daily calendar, rolling win rate.</div>
           <div class="feat"><b>Integrity</b>Satoshi-level continuity checks with jump-to-row.</div>
           <div class="feat"><b>Export</b>Filtered trades, daily &amp; monthly summaries, JSON.</div>
         </div>
@@ -571,6 +616,7 @@
               <div class="actions">
                 <button type="button" class="btn sm ghost hidden" id="btnApplyZoom" title="Use the zoomed window as the global date range">Apply as range</button>
                 <button type="button" class="btn sm ghost hidden" id="btnResetZoom" title="Reset zoom (Esc)">Reset zoom</button>
+                <button type="button" class="btn sm ghost active" id="btnBench" title="Overlay passive Buy &amp; Hold (HODL) benchmark curve">vs HODL</button>
                 <div class="seg alt" id="seriesSeg">
                   <button type="button" data-series="equity">Total P/L</button>
                   <button type="button" data-series="realized">Realized</button>
@@ -586,7 +632,7 @@
             </div>
             <div class="card-b">
               <div class="chart lg"><canvas id="chartMain"></canvas></div>
-              <div class="hint"><span><kbd>Drag</kbd> zoom</span><span><kbd>Shift</kbd>+<kbd>Drag</kbd> pan</span><span><kbd>Ctrl</kbd>+<kbd>Wheel</kbd> zoom</span><span><kbd>Double-click</kbd> reset</span><span>Click a trade marker to open it</span></div>
+              <div class="hint"><span><kbd>Drag</kbd> zoom</span><span><kbd>Shift</kbd>+<kbd>Drag</kbd> pan</span><span><kbd>Ctrl</kbd>+<kbd>Wheel</kbd> zoom</span><span><kbd>Double-click</kbd> reset</span><span>Hover or click a trade marker to trace matched lots</span></div>
             </div>
           </div>
           <div class="card">
@@ -612,7 +658,26 @@
           </div>
           <div class="card">
             <div class="card-h"><h3>Realized P/L by period</h3><span class="sub" id="pnlSub"></span></div>
-            <div class="card-b"><div class="chart"><canvas id="chartPnl"></canvas></div><div class="hint">FIFO realized P/L on sells. Click a bar to drill in.</div></div>
+            <div class="card-b"><div class="chart"><canvas id="chartPnl"></canvas></div><div class="hint" id="pnlHint">Realized P/L on sells. Click a bar to drill in.</div></div>
+          </div>
+        </div>
+        <div class="card" id="openLotsCard">
+          <div class="card-h">
+            <h3>Open position lots</h3>
+            <span class="sub" id="openLotsSub"></span>
+          </div>
+          <div class="card-b">
+            <div class="lot-summary hidden" id="openLotsSummary">
+              <div class="lot-bar" id="openLotsBar"></div>
+              <div class="lot-meta" id="openLotsMeta"></div>
+            </div>
+            <div class="tbl-wrap" id="openLotsWrap">
+              <table class="tbl" id="openLotsTable">
+                <thead><tr><th>Buy #</th><th>Acquired</th><th>Orig BTC</th><th>Open BTC</th><th>Share</th><th>Entry Price</th><th>Cost Basis</th><th>Current Value</th><th>Unrealized P/L</th><th>Return</th><th>Age</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="hint">Unconsumed buy lots at the end of the selected range under the active cost basis method. Click a lot to inspect the buy row; double-click to view on the Rate chart.</div>
           </div>
         </div>
       </section>
@@ -622,12 +687,33 @@
         <div class="kpis compact" id="kpisPerf"></div>
         <div class="grid g2">
           <div class="card">
-            <div class="card-h"><h3>Drawdown</h3><span class="sub">Total P/L below running peak (within range)</span></div>
+            <div class="card-h"><h3>Drawdown</h3><span class="sub" id="ddSub">Total P/L below running peak (within range)</span></div>
             <div class="card-b"><div class="chart md"><canvas id="chartDD"></canvas></div></div>
           </div>
           <div class="card">
             <div class="card-h"><h3>Realized P/L distribution</h3><span class="sub">per sell</span></div>
             <div class="card-b"><div class="chart md"><canvas id="chartDist"></canvas></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h">
+            <h3>Rolling performance</h3>
+            <span class="sub" id="rollSub">trailing closed sells</span>
+            <div class="actions">
+              <div class="seg alt sm" id="rollMetricSeg" title="Rolling metric">
+                <button type="button" class="active" data-rmetric="winrate">Win rate %</button>
+                <button type="button" data-rmetric="expectancy">Avg P/L ($)</button>
+              </div>
+              <div class="seg alt sm" id="rollWinSeg" title="Trailing sell window size">
+                <button type="button" data-rwin="10">10 sells</button>
+                <button type="button" class="active" data-rwin="20">20 sells</button>
+                <button type="button" data-rwin="50">50 sells</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-b">
+            <div class="chart"><canvas id="chartRoll"></canvas></div>
+            <div class="hint">Tracks trailing win rate or average realized P/L per sell across a rolling window of closed trades.</div>
           </div>
         </div>
         <div class="card">
@@ -832,6 +918,7 @@
           <div><span>Toggle theme</span><kbd class="kbd">T</kbd></div>
           <div><span>Toggle UTC / local</span><kbd class="kbd">U</kbd></div>
           <div><span>Toggle Linear / Log</span><kbd class="kbd">L</kbd></div>
+          <div><span>Cycle cost basis</span><kbd class="kbd">B</kbd></div>
           <div><span>Refresh sources</span><kbd class="kbd">R</kbd></div>
           <div><span>Toggle Live mode</span><kbd class="kbd">V</kbd></div>
           <div><span>Next / prev row</span><span><kbd class="kbd">J</kbd> <kbd class="kbd">K</kbd></span></div>
@@ -842,19 +929,49 @@
       <div>
         <h4>Glossary</h4>
         <dl class="gloss">
-          <dt>Realized P/L</dt><dd>Sell proceeds minus FIFO cost basis of the BTC sold (oldest buys are consumed first).</dd>
-          <dt>Unrealized P/L</dt><dd>Open FIFO lots valued at the latest rate minus their cost.</dd>
+          <dt>Cost basis</dt><dd><b>FIFO</b> (oldest lots first), <b>LIFO</b> (newest first), <b>HIFO</b> (highest cost first), or <b>AVG</b> (weighted average cost).</dd>
+          <dt>Realized P/L</dt><dd>Sell proceeds minus cost basis of the BTC sold under the active accounting method.</dd>
+          <dt>Unrealized P/L</dt><dd>Open buy lots valued at the latest rate minus their cost basis.</dd>
           <dt>Total P/L</dt><dd>Cumulative realized + unrealized at each trade. KPI shows change over the selected range.</dd>
+          <dt>vs. HODL Alpha</dt><dd>Active Total P/L minus passive Buy &amp; Hold P/L on the same capital deployed.</dd>
+          <dt>Sharpe / Sortino</dt><dd>Annualized risk-adjusted daily P/L return vs. total volatility (Sharpe) or downside volatility (Sortino).</dd>
           <dt>Effective price</dt><dd>Trade USD ÷ trade BTC — the price actually paid or received.</dd>
           <dt>Win rate</dt><dd>Share of sells with positive realized P/L (break-even excluded).</dd>
           <dt>Profit factor</dt><dd>Gross realized gains ÷ gross realized losses.</dd>
           <dt>Expectancy</dt><dd>Average realized P/L per sell.</dd>
-          <dt>Max drawdown</dt><dd>Largest drop in Total P/L from a running peak within the range.</dd>
-          <dt>Hold time</dt><dd>BTC-weighted age of the FIFO lots consumed by a sell.</dd>
+          <dt>Max drawdown</dt><dd>Largest drop in Total P/L from a running peak within the range, plus time underwater.</dd>
+          <dt>Hold time</dt><dd>BTC-weighted age of the buy lots consumed by a sell.</dd>
           <dt>Unmatched sell</dt><dd>BTC sold with no prior buy in the loaded data (e.g. missing history); excluded from P/L.</dd>
           <dt>Continuity gap</dt><dd>User BTC differs from previous User BTC ± trade BTC by more than 2 satoshis.</dd>
         </dl>
       </div>
+    </div>
+  </dialog>
+
+  <dialog id="lcwDlg">
+    <div class="dlg-h">
+      <h2>LiveCoinWatch API Setup</h2>
+      <button type="button" class="icon-btn" style="margin-left:auto" id="btnCloseLcw" title="Close">✕</button>
+    </div>
+    <div class="dlg-b">
+      <div>
+        <p style="margin:0 0 12px;font-size:13px;line-height:1.5;color:var(--text);">
+          Connect your <b>LiveCoinWatch</b> API key to fetch real-time Bitcoin spot prices and enable live mark-to-market Unrealized P/L on open inventory.
+        </p>
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12.5px;margin-bottom:14px;line-height:1.5;">
+          <div style="font-weight:600;color:var(--text);margin-bottom:4px;">🔑 Get a free API key:</div>
+          <a href="https://www.livecoinwatch.com/tools/api" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:underline;word-break:break-all;">https://www.livecoinwatch.com/tools/api ↗</a>
+          <div style="color:var(--muted);font-size:11.5px;margin-top:4px;">Free tier includes 10,000 daily requests. The key is stored locally in your browser.</div>
+        </div>
+        <label for="lcwKeyInput" style="display:block;font-size:11.5px;font-weight:650;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">LiveCoinWatch API Key</label>
+        <input type="text" id="lcwKeyInput" class="input" placeholder="Paste your API key here..." autocomplete="off" spellcheck="false" style="width:100%;font-family:var(--mono);font-size:13px;">
+        <div id="lcwStatus" style="min-height:20px;margin-top:8px;font-size:12px;"></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);background:var(--surface-2);border-radius:0 0 18px 18px;">
+      <button type="button" class="btn" id="btnClearLcw" style="margin-right:auto;display:none;color:var(--sell);border-color:var(--border);">Clear / Disable</button>
+      <button type="button" class="btn" id="btnCancelLcw">Cancel</button>
+      <button type="button" class="btn primary" id="btnSaveLcw">Save &amp; Connect</button>
     </div>
   </dialog>
 
@@ -874,14 +991,28 @@
   const H = 3600e3, D = 864e5;
   const MONO = getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'monospace';
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const BASIS_ORDER = ['fifo', 'lifo', 'hifo', 'avg'];
+  const BASIS_LABEL = { fifo: 'FIFO', lifo: 'LIFO', hifo: 'HIFO', avg: 'AVG' };
 
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 
   const prefs = Object.assign({
     theme: 'dark', tab: 'overview', series: 'equity', preset: 'all', utc: false, heat: 'count', cal: 'pnl', period: 'auto',
+    basis: 'fifo', bench: true, rollMetric: 'winrate', rollWin: 20,
+    lcwKey: '',
   }, (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (_) { return {}; } })());
-  function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (_) { /* ignore */ } }
+  if (!prefs.lcwKey) {
+    try { prefs.lcwKey = localStorage.getItem('vbtc_lcw_key') || ''; } catch (_) {}
+  }
+  if (!BASIS_LABEL[prefs.basis]) prefs.basis = 'fifo';
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+      if (prefs.lcwKey) localStorage.setItem('vbtc_lcw_key', prefs.lcwKey);
+      else localStorage.removeItem('vbtc_lcw_key');
+    } catch (_) { /* ignore */ }
+  }
 
   const TZ = { utc: !!prefs.utc };
   const SENSIBLE_SCALE = {
@@ -904,6 +1035,10 @@
     live: false,
     liveTimer: 0,
     liveChecking: false,
+    liveBtcPrice: null,
+    liveBtcTime: null,
+    liveBtcFetching: false,
+    liveBtcError: null,
   };
   const charts = {};
 
@@ -918,6 +1053,7 @@
 
   function usd(n) { return fin(n) ? (n < 0 ? '-' : '') + '$' + nf2.format(Math.abs(n)) : '—'; }
   function usdS(n) { return fin(n) ? (n > 0.004 ? '+' : n < -0.004 ? '-' : '') + '$' + nf2.format(Math.abs(n)) : '—'; }
+  function usd0(n) { return fin(n) ? (n < 0 ? '-' : '') + '$' + nf0.format(Math.round(Math.abs(n))) : '—'; }
   function usdC(n) {
     if (!fin(n)) return '—';
     const a = Math.abs(n), s = n < 0 ? '-' : '';
@@ -1179,7 +1315,8 @@
       super(canvas);
       this.opts = opts || {};
       this.series = []; this.markers = []; this.full = null; this.view = null;
-      this.hover = null; this.drag = null; this.focusT = null; this.hoverMarker = null; this.visMarkers = [];
+      this.hover = null; this.drag = null; this.focusT = null; this.syncT = null; this.hoverMarker = null; this.visMarkers = [];
+      this.shadeWindow = null; this.refLine = null;
       this.pl = 50; this.pr = 12; this.pt = 10; this.pb = 24;
       const c = canvas;
       c.addEventListener('pointerdown', e => {
@@ -1203,6 +1340,10 @@
           return;
         }
         this.hover = { x, y, cx: e.clientX, cy: e.clientY };
+        if (this.opts.onHoverT && this.full) {
+          const inPlot = x >= this.pl && x <= this.w - this.pr && y >= this.pt && y <= this.h - this.pb;
+          this.opts.onHoverT(inPlot ? this.px2t(x) : null);
+        }
         this.schedule();
       });
       c.addEventListener('pointerup', () => {
@@ -1219,7 +1360,13 @@
         }
         this.schedule();
       });
-      c.addEventListener('pointerleave', () => { if (this.drag) return; this.hover = null; hideTip(); this.schedule(); });
+      c.addEventListener('pointerleave', () => {
+        if (this.drag) return;
+        this.hover = null;
+        if (this.opts.onHoverT) this.opts.onHoverT(null);
+        hideTip();
+        this.schedule();
+      });
       c.addEventListener('dblclick', () => this.resetView());
       c.addEventListener('wheel', e => {
         if (!(e.ctrlKey || e.metaKey) || !this.full) return;
@@ -1252,6 +1399,8 @@
       this.yFmt = opts.yFmt || (v => String(v));
       this.includeZero = !!opts.includeZero;
       this.scaleMode = opts.scaleMode || 'linear';
+      this.shadeWindow = opts.shadeWindow || null;
+      this.refLine = opts.refLine || null;
       let mn = Infinity, mx = -Infinity;
       for (const s of this.series) { if (s.pts.length) { mn = Math.min(mn, s.pts[0].x); mx = Math.max(mx, s.pts[s.pts.length - 1].x); } }
       if (!fin(mn)) this.full = null;
@@ -1306,6 +1455,7 @@
         for (let i = i0; i <= i1; i++) { const y = s.pts[i].y; if (y == null || !fin(y)) continue; if (y < ymin) ymin = y; if (y > ymax) ymax = y; }
       }
       if (this.includeZero && this.scaleMode !== 'log') { ymin = Math.min(ymin, 0); ymax = Math.max(ymax, 0); }
+      if (this.refLine && fin(this.refLine.y) && this.scaleMode !== 'log') { ymin = Math.min(ymin, this.refLine.y); ymax = Math.max(ymax, this.refLine.y); }
       if (!fin(ymin)) { drawEmpty(ctx, W, Hh); return; }
 
       const isLog = this.scaleMode === 'log';
@@ -1371,6 +1521,13 @@
         ctx.strokeStyle = PAL.borderStrong; ctx.setLineDash([4, 4]);
         ctx.beginPath(); ctx.moveTo(this.pl, y); ctx.lineTo(W - this.pr, y); ctx.stroke(); ctx.setLineDash([]);
       }
+      if (this.refLine && fin(this.refLine.y)) {
+        const ry = Math.round(y2px(this.refLine.y)) + 0.5;
+        if (ry >= pt && ry <= pt + ph) {
+          ctx.strokeStyle = this.refLine.color || PAL.borderStrong; ctx.setLineDash([4, 4]);
+          ctx.beginPath(); ctx.moveTo(this.pl, ry); ctx.lineTo(W - this.pr, ry); ctx.stroke(); ctx.setLineDash([]);
+        }
+      }
 
       const tt = timeTicks(v.min, v.max, Math.max(2, Math.floor(pw / 100)));
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -1383,6 +1540,14 @@
 
       ctx.save();
       ctx.beginPath(); ctx.rect(this.pl, pt - 3, pw, ph + 6); ctx.clip();
+      if (this.shadeWindow && fin(this.shadeWindow.from) && fin(this.shadeWindow.to) && this.shadeWindow.to > this.shadeWindow.from) {
+        const sx0 = Math.max(this.pl, this.t2px(this.shadeWindow.from));
+        const sx1 = Math.min(this.pl + pw, this.t2px(this.shadeWindow.to));
+        if (sx1 > sx0) {
+          ctx.fillStyle = this.shadeWindow.color || alpha(PAL.warn, 0.08);
+          ctx.fillRect(sx0, pt, sx1 - sx0, ph);
+        }
+      }
       const splitY = zeroY != null ? zeroY : y2px(0);
       const zf = Math.max(0, Math.min(1, (splitY - pt) / ph));
       for (const s of this.series) {
@@ -1461,6 +1626,26 @@
       if (!hv || this.drag || hv.x < this.pl || hv.x > this.w - this.pr || hv.y < pt || hv.y > pt + ph) {
         this.canvas.style.cursor = 'default';
         if (hv) hideTip();
+        if (this.syncT != null && this.full) {
+          const v = this.xr();
+          if (this.syncT >= v.min && this.syncT <= v.max) {
+            const sx = this.t2px(this.syncT);
+            ctx.strokeStyle = alpha(PAL.accent, 0.55); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.moveTo(Math.round(sx) + 0.5, pt); ctx.lineTo(Math.round(sx) + 0.5, pt + ph); ctx.stroke(); ctx.setLineDash([]);
+            const prim = this.series.find(s => !s.hidden && s.pts.length);
+            if (prim) {
+              let j = lowerBound(prim.pts, this.syncT, 'x');
+              if (j >= prim.pts.length) j = prim.pts.length - 1;
+              if (j > 0 && Math.abs(prim.pts[j - 1].x - this.syncT) < Math.abs(prim.pts[j].x - this.syncT)) j--;
+              const p = prim.pts[j];
+              if (p && p.y != null && fin(p.y)) {
+                const col = prim.signed ? (p.y >= 0 ? prim.color : prim.neg) : prim.color;
+                ctx.fillStyle = col; ctx.strokeStyle = PAL.surface; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(this.t2px(p.x), this.y2px(p.y), 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+              }
+            }
+          }
+        }
         return;
       }
       let best = null, bd = 81;
@@ -1470,6 +1655,28 @@
       }
       if (best) {
         this.hoverMarker = best[2];
+        if (this.opts.getLinks) {
+          const links = this.opts.getLinks(best[2]);
+          if (links && links.length) {
+            ctx.save();
+            ctx.beginPath(); ctx.rect(this.pl, pt - 3, this.plotW(), ph + 6); ctx.clip();
+            for (const lk of links) {
+              const x1 = this.t2px(lk.x1), y1 = this.y2px(lk.y1);
+              const x2 = this.t2px(lk.x2), y2 = this.y2px(lk.y2);
+              const cx = (x1 + x2) / 2, cy = Math.min(y1, y2) - Math.min(42, Math.max(14, Math.abs(x2 - x1) * 0.18));
+              const col = lk.open ? PAL.info : (lk.pnl >= 0 ? PAL.buy : PAL.sell);
+              ctx.strokeStyle = alpha(col, 0.82);
+              ctx.lineWidth = 1.8;
+              if (lk.open) ctx.setLineDash([4, 3]);
+              ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cx, cy, x2, y2); ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.fillStyle = col; ctx.strokeStyle = PAL.surface; ctx.lineWidth = 1.5;
+              ctx.beginPath(); ctx.arc(x1, y1, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+              ctx.beginPath(); ctx.arc(x2, y2, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            }
+            ctx.restore();
+          }
+        }
         ctx.strokeStyle = PAL.text; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(best[0], best[1], 7, 0, Math.PI * 2); ctx.stroke();
         this.canvas.style.cursor = 'pointer';
@@ -1509,14 +1716,23 @@
     constructor(canvas, opts) {
       super(canvas);
       this.opts = opts || {};
-      this.labels = []; this.ds = []; this.hoverI = -1; this.geo = null;
+      this.labels = []; this.ds = []; this.hoverI = -1; this.syncI = -1; this.geo = null;
       canvas.addEventListener('pointermove', e => {
         const i = this.idxAt(this.lx(e), this.ly(e));
-        if (i !== this.hoverI) { this.hoverI = i; this.schedule(); }
+        if (i !== this.hoverI) {
+          this.hoverI = i;
+          if (this.opts.onHoverI) this.opts.onHoverI(i);
+          this.schedule();
+        }
         if (i >= 0) { showTip(this.tipHtml(i), e.clientX, e.clientY); canvas.style.cursor = this.opts.onClick ? 'pointer' : 'default'; }
         else { hideTip(); canvas.style.cursor = 'default'; }
       });
-      canvas.addEventListener('pointerleave', () => { this.hoverI = -1; hideTip(); this.schedule(); });
+      canvas.addEventListener('pointerleave', () => {
+        this.hoverI = -1;
+        if (this.opts.onHoverI) this.opts.onHoverI(-1);
+        hideTip();
+        this.schedule();
+      });
       canvas.addEventListener('click', e => { const i = this.idxAt(this.lx(e), this.ly(e)); if (i >= 0 && this.opts.onClick) this.opts.onClick(i); });
     }
     setData(d) {
@@ -1528,6 +1744,7 @@
       this.tipTitle = d.tipTitle || null;
       this.tipExtra = d.tipExtra || null;
       this.hoverI = -1;
+      this.syncI = -1;
       this.draw();
     }
     val(d, i) { const v = d.data[i] || 0; return d.negate ? -v : v; }
@@ -1577,7 +1794,11 @@
         ctx.beginPath(); ctx.moveTo(pl, y); ctx.lineTo(W - pr, y); ctx.stroke();
         ctx.fillStyle = PAL.faint; ctx.fillText(this.yFmt(t), pl - 7, y);
       }
-      if (this.hoverI >= 0) { ctx.fillStyle = alpha(PAL.muted, 0.09); ctx.fillRect(pl + this.hoverI * slot, pt, slot, ph); }
+      const hi = this.hoverI >= 0 ? this.hoverI : (this.syncI >= 0 && this.syncI < n ? this.syncI : -1);
+      if (hi >= 0) {
+        ctx.fillStyle = alpha(this.hoverI >= 0 ? PAL.muted : PAL.accent, 0.11);
+        ctx.fillRect(pl + hi * slot, pt, slot, ph);
+      }
       const bw = Math.max(1, slot * (n > 60 ? 0.86 : 0.7));
       const off = (slot - bw) / 2;
       const r = bw > 6 ? 3 : 0;
@@ -1755,12 +1976,199 @@
   }
 
   /* ======================================================================
-     Enrichment (full history): continuity, FIFO lots, running P/L
+     Enrichment (full history): continuity, multi-method lots, running P/L
      ====================================================================== */
+  function pickLot(lots, mode, headRef) {
+    if (mode === 'lifo') {
+      for (let k = lots.length - 1; k >= 0; k--) {
+        if (lots[k].btc > EPS) return lots[k];
+      }
+      return null;
+    }
+    if (mode === 'hifo') {
+      let best = null;
+      for (let k = 0; k < lots.length; k++) {
+        const l = lots[k];
+        if (l.btc > EPS && (!best || l.price > best.price)) best = l;
+      }
+      return best;
+    }
+    while (headRef.i < lots.length && lots[headRef.i].btc <= EPS) headRef.i++;
+    return headRef.i < lots.length ? lots[headRef.i] : null;
+  }
+
+  function computeOpenLotsAt(rows, endIdx, mode, spotRate) {
+    if (!rows.length || endIdx < 0) return [];
+    const lots = [];
+    const headRef = { i: 0 };
+    let openBtc = 0;
+    const maxI = Math.min(endIdx, rows.length - 1);
+    for (let i = 0; i <= maxI; i++) {
+      const r = rows[i];
+      if (r.TX === 'Buy') {
+        lots.push({ buyIdx: i, btc: r.BTC, origBtc: r.BTC, price: r.price, t: r.t, Time: r.Time });
+        openBtc += r.BTC;
+      } else {
+        let rem = r.BTC;
+        if (mode === 'avg') {
+          if (openBtc > EPS) {
+            const matched = Math.min(rem, openBtc);
+            const ratio = matched / openBtc;
+            for (let k = 0; k < lots.length; k++) {
+              if (lots[k].btc > EPS) lots[k].btc = Math.max(0, lots[k].btc * (1 - ratio));
+            }
+            openBtc = Math.max(0, openBtc - matched);
+          }
+        } else {
+          while (rem > EPS) {
+            const lot = pickLot(lots, mode, headRef);
+            if (!lot) break;
+            const take = Math.min(lot.btc, rem);
+            lot.btc -= take;
+            rem -= take;
+            openBtc = Math.max(0, openBtc - take);
+          }
+        }
+      }
+    }
+    const lastRate = (spotRate && spotRate > 0) ? spotRate : rows[maxI].rate;
+    const lastT = rows[maxI].t;
+    const out = [];
+    for (const l of lots) {
+      if (l.btc > 1e-8) {
+        const cost = l.btc * l.price;
+        const value = l.btc * lastRate;
+        out.push({
+          buyIdx: l.buyIdx,
+          btc: l.btc,
+          origBtc: l.origBtc,
+          price: l.price,
+          cost,
+          value,
+          unrealized: value - cost,
+          pct: l.price > 0 ? lastRate / l.price - 1 : 0,
+          ageMs: Math.max(0, lastT - l.t),
+          t: l.t,
+          Time: l.Time,
+        });
+      }
+    }
+    return out;
+  }
+
+  /* ======================================================================
+     LiveCoinWatch live price fetcher & mark-to-market
+     ====================================================================== */
+  async function testAndFetchLcwPrice(key) {
+    if (!key) throw new Error('API Key is required');
+    const res = await fetch('https://api.livecoinwatch.com/coins/single', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key.trim(),
+      },
+      body: JSON.stringify({ currency: 'USD', code: 'BTC', meta: false }),
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Invalid API Key or daily credits exhausted (HTTP ' + res.status + ')');
+      }
+      throw new Error('LiveCoinWatch HTTP ' + res.status);
+    }
+    const data = await res.json();
+    if (!data || typeof data.rate !== 'number' || data.rate <= 0) {
+      throw new Error('Invalid price data received');
+    }
+    return data.rate;
+  }
+
+  async function fetchLiveBtcPrice(force) {
+    if (!prefs.lcwKey || state.liveBtcFetching) return;
+    if (!force && state.liveBtcTime && Date.now() - state.liveBtcTime < 5000) return;
+    state.liveBtcFetching = true;
+    try {
+      const price = await testAndFetchLcwPrice(prefs.lcwKey);
+      state.liveBtcPrice = price;
+      state.liveBtcTime = Date.now();
+      state.liveBtcError = null;
+      if (state.base && state.base.rows && state.base.rows.length) {
+        applyRange();
+      } else if (state.sum) {
+        renderKpis(state.sum);
+      }
+    } catch (err) {
+      console.warn('LiveCoinWatch price fetch error:', err);
+      state.liveBtcError = err.message || 'Fetch failed';
+      if (state.sum) renderKpis(state.sum);
+    } finally {
+      state.liveBtcFetching = false;
+    }
+  }
+
+  function openLcwDialog() {
+    const dlg = $('#lcwDlg');
+    if (!dlg) return;
+    const input = $('#lcwKeyInput');
+    const status = $('#lcwStatus');
+    const clearBtn = $('#btnClearLcw');
+    input.value = prefs.lcwKey || '';
+    if (state.liveBtcPrice) {
+      status.textContent = 'Current live spot: ' + usd(state.liveBtcPrice);
+      status.style.color = 'var(--buy)';
+    } else if (state.liveBtcError) {
+      status.textContent = state.liveBtcError;
+      status.style.color = 'var(--sell)';
+    } else {
+      status.textContent = '';
+      status.style.color = 'var(--muted)';
+    }
+    clearBtn.style.display = prefs.lcwKey ? 'inline-flex' : 'none';
+    dlg.showModal();
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  }
+
+  async function saveLcwKey() {
+    const input = $('#lcwKeyInput');
+    const status = $('#lcwStatus');
+    const saveBtn = $('#btnSaveLcw');
+    const key = (input.value || '').trim();
+    if (!key) {
+      status.textContent = 'Please enter your LiveCoinWatch API key (or Cancel).';
+      status.style.color = 'var(--sell)';
+      input.focus();
+      return;
+    }
+    status.textContent = 'Validating key with LiveCoinWatch…';
+    status.style.color = 'var(--muted)';
+    saveBtn.disabled = true;
+    try {
+      const price = await testAndFetchLcwPrice(key);
+      if (price > 0) {
+        prefs.lcwKey = key;
+        savePrefs();
+        state.liveBtcPrice = price;
+        state.liveBtcTime = Date.now();
+        state.liveBtcError = null;
+        $('#lcwDlg').close();
+        toast('LiveCoinWatch connected! Spot: ' + usd(price), 'ok');
+        applyRange();
+      } else {
+        throw new Error('No valid rate returned');
+      }
+    } catch (err) {
+      status.textContent = 'Verification failed: ' + (err.message || 'Check key and internet connection');
+      status.style.color = 'var(--sell)';
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
   function enrich(parsed) {
+    const mode = BASIS_ORDER.includes(prefs.basis) ? prefs.basis : 'fifo';
     const rows = parsed.rows, gaps = [];
     const lots = [];
-    let head = 0, prevUser = 0, openBtc = 0, openCost = 0, cumReal = 0, peak = 0, unmatchedBtc = 0, unmatchedN = 0;
+    const headRef = { i: 0 };
+    let prevUser = 0, openBtc = 0, openCost = 0, cumReal = 0, peak = 0, unmatchedBtc = 0, unmatchedN = 0;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       r.i = i;
@@ -1782,16 +2190,50 @@
         gaps.push({ i, kind, diffSats: diff, t: r.t });
       }
       if (r.TX === 'Buy') {
-        lots.push({ btc: r.BTC, price: r.price, t: r.t });
+        lots.push({ buyIdx: i, btc: r.BTC, origBtc: r.BTC, price: r.price, t: r.t, Time: r.Time });
         openBtc += r.BTC; openCost += r.USD;
         r.realized = null; r.holdMs = null; r.unmatched = 0; r.costBasis = null;
+        r.matchedLots = null; r.matchedSells = [];
       } else {
         let rem = r.BTC, cost = 0, matched = 0, holdW = 0;
-        while (rem > EPS && head < lots.length) {
-          const lot = lots[head], take = Math.min(lot.btc, rem);
-          cost += take * lot.price; holdW += take * (r.t - lot.t); matched += take;
-          lot.btc -= take; rem -= take;
-          if (lot.btc <= EPS) head++;
+        r.matchedLots = []; r.matchedSells = null;
+        if (mode === 'avg') {
+          if (openBtc > EPS) {
+            matched = Math.min(rem, openBtc);
+            const avgP = openCost / openBtc;
+            cost = matched * avgP;
+            rem -= matched;
+            const ratio = matched / openBtc;
+            for (let k = 0; k < lots.length; k++) {
+              const lot = lots[k];
+              if (lot.btc <= EPS) continue;
+              const take = lot.btc * ratio;
+              const lotCost = take * avgP;
+              const lotProceeds = r.BTC > 0 ? r.USD * (take / r.BTC) : 0;
+              const lotPnl = lotProceeds - lotCost;
+              holdW += take * (r.t - lot.t);
+              lot.btc = Math.max(0, lot.btc - take);
+              r.matchedLots.push({ buyIdx: lot.buyIdx, btc: take, price: lot.price, t: lot.t, Time: lot.Time, pnl: lotPnl });
+              if (rows[lot.buyIdx] && rows[lot.buyIdx].matchedSells) {
+                rows[lot.buyIdx].matchedSells.push({ sellIdx: i, btc: take, price: r.price, t: r.t, Time: r.Time, pnl: lotPnl });
+              }
+            }
+          }
+        } else {
+          while (rem > EPS) {
+            const lot = pickLot(lots, mode, headRef);
+            if (!lot) break;
+            const take = Math.min(lot.btc, rem);
+            const lotCost = take * lot.price;
+            const lotProceeds = r.BTC > 0 ? r.USD * (take / r.BTC) : 0;
+            const lotPnl = lotProceeds - lotCost;
+            cost += lotCost; holdW += take * (r.t - lot.t); matched += take;
+            lot.btc -= take; rem -= take;
+            r.matchedLots.push({ buyIdx: lot.buyIdx, btc: take, price: lot.price, t: lot.t, Time: lot.Time, pnl: lotPnl });
+            if (rows[lot.buyIdx] && rows[lot.buyIdx].matchedSells) {
+              rows[lot.buyIdx].matchedSells.push({ sellIdx: i, btc: take, price: r.price, t: r.t, Time: r.Time, pnl: lotPnl });
+            }
+          }
         }
         const unmatched = rem > 1e-10 ? rem : 0;
         if (unmatched) { unmatchedBtc += unmatched; unmatchedN++; }
@@ -1817,7 +2259,7 @@
     }
     // Floor to 1 decimal place so even a single gap keeps score below 100%
     const integrity = rows.length ? Math.max(0, Math.floor(1000 * (1 - gaps.length / rows.length)) / 10) : 100;
-    return Object.assign({}, parsed, { gaps, integrity, unmatchedBtc, unmatchedN });
+    return Object.assign({}, parsed, { gaps, integrity, unmatchedBtc, unmatchedN, basis: mode });
   }
 
   /* ======================================================================
@@ -1855,30 +2297,55 @@
 
   function summarize(base, i0, i1, from, to) {
     const rows = base.rows;
-    const S = { i0, i1, from, to, count: Math.max(0, i1 - i0 + 1) };
+    const mode = base.basis || prefs.basis || 'fifo';
+    const S = { i0, i1, from, to, count: Math.max(0, i1 - i0 + 1), basis: mode };
     S.gapsInRange = base.gaps.filter(g => g.i >= i0 && g.i <= i1).length;
-    if (S.count === 0) { S.series = { eq: [], real: [], rate: [], avgCost: [], userBtc: [], value: [], dd: [] }; S.markers = []; S.insights = []; return S; }
+    if (S.count === 0) {
+      S.series = { eq: [], real: [], rate: [], avgCost: [], userBtc: [], value: [], dd: [], hodl: [] };
+      S.markers = []; S.insights = []; S.openLots = []; S.closedSells = [];
+      return S;
+    }
     let buyN = 0, sellN = 0, buyUSD = 0, sellUSD = 0, buyBTC = 0, sellBTC = 0, realized = 0;
     let wins = 0, losses = 0, grossWin = 0, grossLoss = 0, largestWin = null, largestLoss = null;
     let curW = 0, curL = 0, maxW = 0, maxL = 0, rateHi = -Infinity, rateLo = Infinity;
     const prevEq = i0 > 0 ? rows[i0 - 1].totalPl : 0;
-    let peak = prevEq, maxDD = 0, maxDDt = null;
-    const sizes = [], reals = [], holds = [], inter = [], dayMap = new Map(), monMap = new Map();
+    const prevReal = i0 > 0 ? rows[i0 - 1].cumRealized : 0;
+    let peak = prevEq, peakT = rows[i0].t, maxDD = 0, maxDDt = null;
+    let maxDDDur = 0, ddStartT = null, ddEndT = null, ddRecovered = true;
+    const initBtc = rows[i0].prevUser, firstRate = rows[i0].rate;
+    let hodlBtc = initBtc, hodlCost = initBtc * firstRate, netCash = 0, maxCash = 0;
+    const sizes = [], reals = [], holds = [], inter = [], closedSells = [], dayMap = new Map(), monMap = new Map();
     const heatN = mat(), heatV = mat(), heatP = mat();
     const hourB = new Array(24).fill(0), hourS = new Array(24).fill(0), dowB = new Array(7).fill(0), dowS = new Array(7).fill(0);
-    const ser = { eq: [], real: [], rate: [], avgCost: [], userBtc: [], value: [], dd: [] };
+    const ser = { eq: [], real: [], rate: [], avgCost: [], userBtc: [], value: [], dd: [], hodl: [] };
     const markers = [];
     let maxTrade = null;
     for (let i = i0; i <= i1; i++) {
       const r = rows[i], t = r.t, p = P(t), dw = (p.dow + 6) % 7;
       const isBuy = r.TX === 'Buy';
-      if (isBuy) { buyN++; buyUSD += r.USD; buyBTC += r.BTC; hourB[p.h]++; dowB[dw]++; }
-      else {
+      if (isBuy) {
+        buyN++; buyUSD += r.USD; buyBTC += r.BTC; hourB[p.h]++; dowB[dw]++;
+        netCash += r.USD;
+        if (netCash > maxCash) {
+          const addUsd = netCash - maxCash;
+          maxCash = netCash;
+          hodlBtc += r.price > 0 ? addUsd / r.price : 0;
+          hodlCost += addUsd;
+        }
+      } else {
         sellN++; sellUSD += r.USD; sellBTC += r.BTC; hourS[p.h]++; dowS[dw]++;
+        netCash -= r.USD;
         realized += r.realized;
         if (!r.unmatched || r.costBasis > 0) reals.push(r.realized);
-        if (r.realized > 0.005) { wins++; grossWin += r.realized; curW++; curL = 0; if (!largestWin || r.realized > largestWin.realized) largestWin = r; }
-        else if (r.realized < -0.005) { losses++; grossLoss -= r.realized; curL++; curW = 0; if (!largestLoss || r.realized < largestLoss.realized) largestLoss = r; }
+        if (r.realized > 0.005) {
+          wins++; grossWin += r.realized; curW++; curL = 0;
+          if (!largestWin || r.realized > largestWin.realized) largestWin = r;
+          closedSells.push({ t, realized: r.realized, win: 1, i });
+        } else if (r.realized < -0.005) {
+          losses++; grossLoss -= r.realized; curL++; curW = 0;
+          if (!largestLoss || r.realized < largestLoss.realized) largestLoss = r;
+          closedSells.push({ t, realized: r.realized, win: 0, i });
+        }
         maxW = Math.max(maxW, curW); maxL = Math.max(maxL, curL);
         if (r.holdMs != null) holds.push(r.holdMs);
       }
@@ -1888,12 +2355,26 @@
       if (r.rate > rateHi) rateHi = r.rate;
       if (r.rate > 0 && r.rate < rateLo) rateLo = r.rate;
       const eq = r.totalPl;
-      if (eq > peak) peak = eq;
+      if (eq >= peak) {
+        if (t - peakT > maxDDDur && peak > prevEq) {
+          maxDDDur = t - peakT; ddStartT = peakT; ddEndT = t; ddRecovered = true;
+        }
+        peak = eq; peakT = t;
+      } else {
+        if (t - peakT > maxDDDur) {
+          maxDDDur = t - peakT; ddStartT = peakT; ddEndT = t; ddRecovered = false;
+        }
+      }
       const dd = eq - peak;
       if (dd < maxDD) { maxDD = dd; maxDDt = t; }
+      const hodlPl = hodlBtc * r.rate - hodlCost;
       const dk = dayKey(t);
       let dm = dayMap.get(dk);
-      if (!dm) { dm = { key: dk, t: dayStart(t), n: 0, buys: 0, sells: 0, buyUSD: 0, sellUSD: 0, realized: 0, wins: 0, closed: 0 }; dayMap.set(dk, dm); }
+      if (!dm) {
+        dm = { key: dk, t: dayStart(t), n: 0, buys: 0, sells: 0, buyUSD: 0, sellUSD: 0, realized: 0, wins: 0, closed: 0, startEq: i > 0 ? rows[i - 1].totalPl : 0, endEq: eq };
+        dayMap.set(dk, dm);
+      }
+      dm.endEq = eq;
       const mkk = monthKey(t);
       let mm = monMap.get(mkk);
       if (!mm) { mm = { key: mkk, t: mk(p.y, p.m, 1), n: 0, buys: 0, sells: 0, buyUSD: 0, sellUSD: 0, realized: 0, wins: 0, closed: 0 }; monMap.set(mkk, mm); }
@@ -1905,6 +2386,7 @@
       heatN[dw][p.h]++; heatV[dw][p.h] += r.USD; if (!isBuy) heatP[dw][p.h] += r.realized;
       ser.eq.push({ x: t, y: eq });
       ser.real.push({ x: t, y: r.cumRealized });
+      ser.hodl.push({ x: t, y: prevEq + hodlPl });
       ser.rate.push({ x: t, y: r.rate });
       ser.avgCost.push({ x: t, y: r.avgCost });
       ser.userBtc.push({ x: t, y: r.userBtc });
@@ -1913,6 +2395,13 @@
       markers.push({ x: t, y: r.rate, buy: isBuy, i });
     }
     const first = rows[i0], last = rows[i1];
+    const isTerminal = (i1 === rows.length - 1);
+    const spotRate = (isTerminal && prefs.lcwKey && state.liveBtcPrice && state.liveBtcPrice > 0) ? state.liveBtcPrice : null;
+    const effectiveRate = spotRate || last.rate;
+    const liveUnrealized = (spotRate && last.openBtc > 0) ? (last.openBtc * spotRate - last.openCost) : (last.openBtc <= 0 ? 0 : last.unrealized);
+    const periodPl = (last.cumRealized + liveUnrealized) - prevEq;
+    const hodlPl = hodlBtc * effectiveRate - hodlCost;
+    const alphaPl = periodPl - hodlPl;
     Object.assign(S, {
       buyN, sellN, buyUSD, sellUSD, buyBTC, sellBTC, volume: buyUSD + sellUSD, realized, wins, losses, grossWin, grossLoss,
       largestWin, largestLoss, maxW, maxL, maxTrade,
@@ -1921,21 +2410,40 @@
       avgWin: wins ? grossWin / wins : NaN,
       avgLoss: losses ? -grossLoss / losses : NaN,
       expectancy: sellN ? realized / sellN : NaN,
-      periodPl: last.totalPl - prevEq,
-      unrealized: last.unrealized, openBtc: last.openBtc, avgCost: last.avgCost,
-      userBtc: last.userBtc, rate: last.rate, holdValue: last.holdValue,
+      periodPl, prevEq, prevReal, hodlPl, alphaPl, hodlBtc, hodlMaxCash: maxCash,
+      unrealized: liveUnrealized, openBtc: last.openBtc, avgCost: last.avgCost,
+      userBtc: last.userBtc, rate: effectiveRate, lastRate: last.rate, liveRate: spotRate, holdValue: last.userBtc * effectiveRate,
       first: first.t, last: last.t, span: last.t - first.t,
       rateFirst: first.rate, rateHi, rateLo: fin(rateLo) ? rateLo : NaN,
       avgBuyPrice: buyBTC > 0 ? buyUSD / buyBTC : NaN,
       avgSellPrice: sellBTC > 0 ? sellUSD / sellBTC : NaN,
-      maxDD, maxDDt, series: ser, markers,
+      maxDD, maxDDt, maxDDDur, ddStartT, ddEndT, ddRecovered,
+      series: ser, markers, closedSells,
       heatN, heatV, heatP, hourB, hourS, dowB, dowS, dayMap,
     });
+    S.openLots = computeOpenLotsAt(rows, i1, mode, spotRate);
     S.cadence = S.count > 1 ? S.span / (S.count - 1) : NaN;
     S.days = Array.from(dayMap.values()).sort((a, b) => a.t - b.t);
     S.months = Array.from(monMap.values()).sort((a, b) => a.t - b.t);
     S.activeDays = S.days.length;
     S.tradesPerDay = S.span > 0 ? S.count / Math.max(1, S.span / D) : S.count;
+
+    // Risk-adjusted metrics (Sharpe, Sortino, Recovery Factor)
+    S.sharpe = NaN;
+    S.sortino = NaN;
+    if (S.days.length >= 2) {
+      const dRets = S.days.map(d => d.endEq - d.startEq);
+      const mean = dRets.reduce((a, b) => a + b, 0) / dRets.length;
+      const variance = dRets.reduce((a, v) => a + (v - mean) * (v - mean), 0) / dRets.length;
+      const sd = Math.sqrt(variance);
+      const downSq = dRets.reduce((a, v) => a + (v < 0 ? v * v : 0), 0) / dRets.length;
+      const downSd = Math.sqrt(downSq);
+      if (sd > 1e-9) S.sharpe = (mean / sd) * Math.sqrt(365);
+      if (downSd > 1e-9) S.sortino = (mean / downSd) * Math.sqrt(365);
+      else if (mean > 0) S.sortino = Infinity;
+    }
+    S.recoveryFactor = S.maxDD < -0.005 ? S.periodPl / Math.abs(S.maxDD) : (S.periodPl > 0 ? Infinity : NaN);
+
     const sz = sizes.slice().sort((a, b) => a - b);
     S.avgSize = S.volume / S.count;
     S.medSize = quantile(sz, 0.5);
@@ -2029,19 +2537,31 @@
     const out = [];
     const add = (tone, html) => out.push({ tone, html });
     const pl = S.periodPl;
-    add(pl >= 0 ? 'buy' : 'sell', 'Total P/L over range <b class="' + sgn(pl) + '">' + usdS(pl) + '</b> — realized <b class="' + sgn(S.realized) + '">' + usdS(S.realized) + '</b>, unrealized now <b class="' + sgn(S.unrealized) + '">' + usdS(S.unrealized) + '</b>.');
+    const bLabel = BASIS_LABEL[S.basis] || 'FIFO';
+    add(pl >= 0 ? 'buy' : 'sell', 'Total P/L (' + bLabel + ') <b class="' + sgn(pl) + '">' + usdS(pl) + '</b> — realized <b class="' + sgn(S.realized) + '">' + usdS(S.realized) + '</b>, unrealized now <b class="' + sgn(S.unrealized) + '">' + usdS(S.unrealized) + '</b>.');
+    if (fin(S.alphaPl)) {
+      add(S.alphaPl >= 0 ? 'buy' : 'warn', 'Active trading ' + (S.alphaPl >= 0 ? 'beat' : 'trailed') + ' passive HODL by <b class="' + sgn(S.alphaPl) + '">' + usdS(S.alphaPl) + '</b> (HODL P/L <b class="' + sgn(S.hodlPl) + '">' + usdS(S.hodlPl) + '</b>).');
+    }
     if (S.wins + S.losses > 0) {
       const pf = S.profitFactor === Infinity ? '∞' : fin(S.profitFactor) ? S.profitFactor.toFixed(2) : '—';
       add(S.winRate >= 0.5 ? 'buy' : 'warn', 'Win rate <b>' + pct(S.winRate) + '</b> across ' + int(S.wins + S.losses) + ' closed sells; profit factor <b>' + pf + '</b>, expectancy <b class="' + sgn(S.expectancy) + '">' + usdS(S.expectancy) + '</b>/sell.');
+    }
+    if (fin(S.sharpe) || fin(S.sortino)) {
+      const sh = fin(S.sharpe) ? S.sharpe.toFixed(2) : '—';
+      const so = S.sortino === Infinity ? '∞' : fin(S.sortino) ? S.sortino.toFixed(2) : '—';
+      add(S.sharpe >= 1 ? 'buy' : S.sharpe >= 0 ? 'info' : 'warn', 'Risk-adjusted return: annualized Sharpe <b>' + sh + '</b> · Sortino <b>' + so + '</b>.');
     }
     if (S.bestDay && S.bestDay.realized > 0) add('buy', 'Best day <b>' + fmtDate(S.bestDay.t) + '</b> with <b class="pos">' + usdS(S.bestDay.realized) + '</b> realized over ' + S.bestDay.sells + ' sells.');
     if (S.worstDay && S.worstDay.realized < 0) add('sell', 'Worst day <b>' + fmtDate(S.worstDay.t) + '</b> with <b class="neg">' + usdS(S.worstDay.realized) + '</b> realized.');
     if (S.greenDays + S.redDays > 1) add('info', '<b>' + S.greenDays + '</b> green vs <b>' + S.redDays + '</b> red trading days (' + pct(S.greenDays / (S.greenDays + S.redDays), 0) + ' green).');
     if (S.openBtc > 0 && fin(S.avgCost)) {
       const d = S.rate / S.avgCost - 1;
-      add(d >= 0 ? 'buy' : 'warn', 'Open position <b>' + btc(S.openBtc) + ' BTC</b> at avg cost <b>' + usd(S.avgCost) + '</b>; last rate is <b class="' + sgn(d) + '">' + pctS(d) + '</b> ' + (d >= 0 ? 'above' : 'below') + ' cost.');
+      add(d >= 0 ? 'buy' : 'warn', 'Open position <b>' + btc(S.openBtc) + ' BTC</b> (' + int(S.openLots.length) + ' lot' + (S.openLots.length === 1 ? '' : 's') + ') at avg cost <b>' + usd(S.avgCost) + '</b>; last rate is <b class="' + sgn(d) + '">' + pctS(d) + '</b> ' + (d >= 0 ? 'above' : 'below') + ' cost.');
     }
-    if (S.maxDD < -0.005) add('sell', 'Max drawdown <b class="neg">' + usdS(S.maxDD) + '</b> from peak, bottoming on <b>' + fmtDate(S.maxDDt) + '</b>.');
+    if (S.maxDD < -0.005) {
+      const uw = S.maxDDDur > 0 ? ' · longest underwater <b>' + dur(S.maxDDDur) + '</b>' + (S.ddRecovered ? '' : ' (unrecovered)') : '';
+      add('sell', 'Max drawdown <b class="neg">' + usdS(S.maxDD) + '</b> from peak, bottoming on <b>' + fmtDate(S.maxDDt) + '</b>' + uw + '.');
+    }
     if (S.maxW > 1 || S.maxL > 1) add('violet', 'Longest streaks: <b class="pos">' + S.maxW + '</b> wins, <b class="neg">' + S.maxL + '</b> losses in a row.');
     if (S.count > 5) add('accent', 'Busiest hour <b>' + pad2(S.busyHour) + ':00–' + pad2((S.busyHour + 1) % 24) + ':00</b> ' + tzName() + ' (' + pct(S.busyHourN / S.count, 0) + ' of trades); busiest day <b>' + DOW[S.busyDow] + '</b>.');
     if (S.rateFirst > 0) {
@@ -2232,6 +2752,7 @@
     fi.click();
   }
   async function rescan() {
+    if (prefs.lcwKey) fetchLiveBtcPrice(true);
     state.liveChecking = true;
     try {
       if (state.dirHandle) {
@@ -2351,6 +2872,7 @@
       }
       if (state.liveTimer) clearInterval(state.liveTimer);
       state.liveTimer = setInterval(pollLiveSources, 20000);
+      if (prefs.lcwKey) fetchLiveBtcPrice(true);
       toast('Live mode active · checking every 20s', 'ok');
     } else {
       stopLive(false);
@@ -2380,6 +2902,7 @@
 
   async function pollLiveSources() {
     if (!state.live || state.liveChecking) return;
+    if (prefs.lcwKey) fetchLiveBtcPrice();
     state.liveChecking = true;
     try {
       if (state.dirHandle) {
@@ -2508,6 +3031,18 @@
     if (durs[pr]) return { from: Math.max(first, last - durs[pr]), to: last };
     return { from: first, to: last };
   }
+  function setBasis(mode) {
+    if (!BASIS_ORDER.includes(mode)) mode = 'fifo';
+    prefs.basis = mode;
+    savePrefs();
+    $$('#basisSeg button').forEach(b => b.classList.toggle('active', b.dataset.basis === mode));
+    if (state.base && state.base.rows) {
+      state.base = enrich({ rows: state.base.rows, fileStats: state.base.fileStats, quality: state.base.quality });
+      applyRange();
+      renderIntegrity();
+      toast('Cost basis: ' + BASIS_LABEL[mode], 'info', 2200);
+    }
+  }
   function setRange(preset, from, to) {
     state.range = { preset, from: from == null ? null : from, to: to == null ? null : to };
     if (preset !== 'custom') { prefs.preset = preset; savePrefs(); }
@@ -2529,6 +3064,7 @@
      ====================================================================== */
   function renderRangeControls(rg) {
     $$('#rangeSeg button').forEach(b => b.classList.toggle('active', b.dataset.preset === state.range.preset));
+    $$('#basisSeg button').forEach(b => b.classList.toggle('active', b.dataset.basis === (prefs.basis || 'fifo')));
     const toVal = t => { const p = P(t); return p.y + '-' + pad2(p.m + 1) + '-' + pad2(p.d); };
     if (state.base.rows.length) {
       const rows = state.base.rows;
@@ -2546,6 +3082,7 @@
     renderMain();
     renderInsights(S);
     renderPeriods(S);
+    renderOpenLots(S);
     renderPerformance(S);
     renderActivity(S);
     tableApply(true);
@@ -2555,11 +3092,14 @@
   }
 
   function kpiHtml(it) {
-    return '<div class="kpi tone-' + (it.tone || 'info') + '" title="' + esc(it.title || '') + '">' +
+    const cls = ['kpi', 'tone-' + (it.tone || 'info'), it.extraClass || ''].filter(Boolean).join(' ');
+    return '<div class="' + cls + '" title="' + esc(it.title || '') + '">' +
       '<div class="kpi-label">' + it.label + '</div>' +
       '<div class="kpi-value ' + (it.cls || '') + '">' + it.value + '</div>' +
       '<div class="kpi-note">' + (it.note || '&nbsp;') + '</div>' +
-      (it.spark ? '<canvas class="spark"></canvas>' : '') + '</div>';
+      (it.spark ? '<canvas class="spark"></canvas>' : '') +
+      (it.overlayHtml || '') +
+      '</div>';
   }
   function renderKpiGrid(el, items) {
     el.innerHTML = items.map(kpiHtml).join('');
@@ -2577,28 +3117,85 @@
       return;
     }
     const tone = v => (v >= 0 ? 'buy' : 'sell');
+    const bLabel = BASIS_LABEL[S.basis] || 'FIFO';
+    const hasLcw = !!prefs.lcwKey;
+    let unRealItem;
+    if (!hasLcw) {
+      unRealItem = {
+        label: '<span>Unrealized P/L</span>',
+        value: '$0.00',
+        tone: 'info',
+        note: S.openBtc > 0 ? btc(S.openBtc) + ' BTC open' : 'No open position',
+        extraClass: 'kpi-unrealized disabled',
+        title: 'Live mark-to-market requires LiveCoinWatch API key',
+        overlayHtml:
+          '<div class="kpi-overlay" id="lcwEnableOverlay">' +
+            '<button type="button" class="btn-enable-lcw" id="btnEnableLcw">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' +
+              'Enable Live Price' +
+            '</button>' +
+            '<span class="overlay-hint">LiveCoinWatch key required</span>' +
+          '</div>'
+      };
+    } else {
+      const gearBtn =
+        '<button type="button" class="kpi-gear-btn" id="btnLcwSettings" title="LiveCoinWatch API Settings (change or clear key)">' +
+          '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<circle cx="12" cy="12" r="3"/>' +
+            '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>' +
+          '</svg>' +
+        '</button>';
+      let noteTxt = '';
+      if (state.liveBtcFetching && !state.liveBtcPrice) {
+        noteTxt = 'Fetching spot price…';
+      } else if (state.liveBtcPrice) {
+        noteTxt = btc(S.openBtc) + ' BTC open @ ' + usd0(state.liveBtcPrice);
+      } else if (state.liveBtcError) {
+        noteTxt = btc(S.openBtc) + ' BTC @ ' + usd0(S.rate) + ' (API error)';
+      } else {
+        noteTxt = btc(S.openBtc) + ' BTC open @ ' + usd0(S.rate);
+      }
+      unRealItem = {
+        label: '<span>Unrealized P/L</span>' + gearBtn,
+        value: usdS(S.unrealized),
+        cls: sgn(S.unrealized),
+        tone: tone(S.unrealized),
+        note: noteTxt,
+        extraClass: 'kpi-unrealized',
+        title: 'Open inventory mark-to-market against ' + (state.liveBtcPrice ? 'LiveCoinWatch spot rate (' + usd(state.liveBtcPrice) + ')' : 'latest trade rate')
+      };
+    }
     renderKpiGrid($('#kpisOverview'), [
-      { label: 'Total P/L', value: usdS(S.periodPl), cls: sgn(S.periodPl), tone: tone(S.periodPl), note: 'Realized + unrealized change', spark: S.series.eq, title: 'Change in (cumulative realized + unrealized) P/L across the selected range' },
-      { label: 'Realized P/L', value: usdS(S.realized), cls: sgn(S.realized), tone: tone(S.realized), note: int(S.sellN) + ' sells · FIFO basis', spark: S.series.real },
-      { label: 'Unrealized P/L', value: usdS(S.unrealized), cls: sgn(S.unrealized), tone: tone(S.unrealized), note: btc(S.openBtc) + ' BTC open @ ' + usdC(S.rate) },
+      { label: 'Total P/L (' + bLabel + ')', value: usdS(S.periodPl), cls: sgn(S.periodPl), tone: tone(S.periodPl), note: 'vs HODL ' + usdS(S.alphaPl) + ' alpha', spark: S.series.eq, title: 'Change in (cumulative realized + unrealized) P/L across the selected range (' + bLabel + ' cost basis)' },
+      { label: 'vs. HODL Alpha', value: usdS(S.alphaPl), cls: sgn(S.alphaPl), tone: tone(S.alphaPl), note: 'HODL P/L ' + usdS(S.hodlPl), spark: S.series.hodl, sparkColor: 'warn', title: 'Active Total P/L minus passive Buy & Hold P/L on the same starting BTC + net capital added' },
+      { label: 'Realized P/L', value: usdS(S.realized), cls: sgn(S.realized), tone: tone(S.realized), note: int(S.sellN) + ' sells · ' + bLabel + ' basis', spark: S.series.real },
+      unRealItem,
       { label: 'Win rate', value: pct(S.winRate), tone: S.winRate >= 0.5 ? 'buy' : 'warn', note: S.wins + 'W · ' + S.losses + 'L · PF ' + pfTxt(S.profitFactor) },
       { label: 'Holdings (User BTC)', value: btc(S.userBtc), tone: 'accent', note: '≈ ' + usd(S.holdValue) + ' at last rate', spark: S.series.userBtc },
-      { label: 'Avg cost basis', value: S.openBtc > 0 ? usd(S.avgCost) : '—', tone: 'info', note: S.openBtc > 0 ? pctS(S.rate / S.avgCost - 1) + ' vs rate ' + usd(S.rate) : 'No open position', spark: S.series.rate },
-      { label: 'Volume', value: usd(S.volume), tone: 'violet', note: int(S.count) + ' trades · ' + int(S.buyN) + ' buys / ' + int(S.sellN) + ' sells' },
-      { label: 'Max drawdown', value: usdS(S.maxDD), cls: S.maxDD < 0 ? 'neg' : '', tone: 'sell', note: S.maxDDt ? 'bottom on ' + fmtDate(S.maxDDt) : 'No drawdown', spark: S.series.dd },
+      { label: 'Avg cost basis', value: S.openBtc > 0 ? usd(S.avgCost) : '—', tone: 'info', note: S.openBtc > 0 ? pctS(S.rate / S.avgCost - 1) + ' vs rate · ' + int(S.openLots.length) + ' lot' + (S.openLots.length === 1 ? '' : 's') : 'No open position', spark: S.series.rate },
+      { label: 'Max drawdown', value: usdS(S.maxDD), cls: S.maxDD < 0 ? 'neg' : '', tone: 'sell', note: S.maxDDt ? 'bottom ' + fmtDate(S.maxDDt) + (S.maxDDDur > 0 ? ' · ' + dur(S.maxDDDur) + ' uw' : '') : 'No drawdown', spark: S.series.dd },
     ]);
   }
 
-  const SERIES_META = {
-    equity: { title: 'Total P/L', sub: 'cumulative realized + unrealized (FIFO)' },
-    realized: { title: 'Realized P/L', sub: 'cumulative, FIFO cost basis' },
-    rate: { title: 'BTC rate & trades', sub: '▲ buys  ▼ sells  · dashed = avg cost of open lots' },
-    holdings: { title: 'Holdings', sub: 'User BTC after each trade' },
-    value: { title: 'Holdings value', sub: 'User BTC × rate' },
-  };
+  function getSeriesMeta(basis) {
+    const b = BASIS_LABEL[basis] || 'FIFO';
+    return {
+      equity: { title: 'Total P/L', sub: 'cumulative realized + unrealized (' + b + ')' + (prefs.bench ? ' · dashed = passive HODL' : '') },
+      realized: { title: 'Realized P/L', sub: 'cumulative, ' + b + ' cost basis' },
+      rate: { title: 'BTC rate & trades', sub: '▲ buys  ▼ sells  · dashed = avg cost (' + b + ') · hover trade for lot links' },
+      holdings: { title: 'Holdings', sub: 'User BTC after each trade' },
+      value: { title: 'Holdings value', sub: 'User BTC × rate' },
+    };
+  }
   function renderMain(keepView) {
     const S = state.sum, s = prefs.series;
+    const meta = getSeriesMeta(S && S.basis);
     $$('#seriesSeg button').forEach(b => b.classList.toggle('active', b.dataset.series === s));
+    const btnBench = $('#btnBench');
+    if (btnBench) {
+      btnBench.classList.toggle('hidden', s !== 'equity');
+      btnBench.classList.toggle('active', !!prefs.bench);
+    }
     const scaleMode = state.scaleOverrides[s] || SENSIBLE_SCALE[s] || 'linear';
     $$('#scaleSeg button').forEach(b => b.classList.toggle('active', b.dataset.scale === scaleMode));
     const isLog = scaleMode === 'log';
@@ -2608,11 +3205,17 @@
       badge.className = 'pill sm ' + (isLog ? 'accent' : 'faint');
       badge.title = isLog ? 'Logarithmic scale active' : 'Linear scale active';
     }
-    $('#mainTitle').textContent = SERIES_META[s].title;
-    $('#mainSub').textContent = SERIES_META[s].sub + ' · ' + (isLog ? 'Log scale' : 'Linear scale');
+    $('#mainTitle').textContent = meta[s].title;
+    $('#mainSub').textContent = meta[s].sub + ' · ' + (isLog ? 'Log scale' : 'Linear scale');
     const ser = S.series;
     let series, markers = null, o = {};
-    if (s === 'equity') { series = [{ pts: ser.eq, color: PAL.buy, neg: PAL.sell, signed: true, fill: true, label: 'Total P/L', fmt: usdS }]; o = { yFmt: usdC, includeZero: true }; }
+    if (s === 'equity') {
+      series = [{ pts: ser.eq, color: PAL.buy, neg: PAL.sell, signed: true, fill: true, label: 'Total P/L', fmt: usdS }];
+      if (prefs.bench && ser.hodl && ser.hodl.length) {
+        series.push({ pts: ser.hodl, color: PAL.warn, dash: [5, 4], width: 1.8, label: 'HODL P/L', fmt: usdS });
+      }
+      o = { yFmt: usdC, includeZero: true };
+    }
     else if (s === 'realized') { series = [{ pts: ser.real, color: PAL.buy, neg: PAL.sell, signed: true, fill: true, label: 'Realized P/L', fmt: usdS }]; o = { yFmt: usdC, includeZero: true }; }
     else if (s === 'rate') {
       series = [
@@ -2634,7 +3237,9 @@
   }
   function renderPeriods(S) {
     const per = S.per;
+    const bLabel = BASIS_LABEL[S && S.basis] || 'FIFO';
     $$('#periodSeg button').forEach(b => b.classList.toggle('active', b.dataset.period === (prefs.period || 'auto')));
+    if ($('#pnlHint')) $('#pnlHint').textContent = bLabel + ' cost basis · click bar to zoom';
     if (!S.count || !per) {
       charts.vol.setData({ labels: [], datasets: [] });
       charts.pnl.setData({ labels: [], datasets: [] });
@@ -2642,7 +3247,7 @@
     }
     const unitName = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly' }[per.unit];
     $('#volSub').textContent = unitName + ' · ' + per.starts.length + ' buckets';
-    $('#pnlSub').textContent = unitName;
+    $('#pnlSub').textContent = unitName + ' · ' + bLabel;
     const tipTitle = i => per.unit === 'hour' ? fmtDT(per.starts[i]).replace(/:\d\d$/, '') : per.unit === 'week' ? 'Week of ' + fmtDate(per.starts[i]) : per.unit === 'month' ? fmtDate(per.starts[i], { month: 'long', year: 'numeric' }) : fmtDate(per.starts[i], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
     charts.vol.setData({
       labels: per.labels, stacked: true, yFmt: usdC, tipFmt: usd, tipTitle,
@@ -2655,7 +3260,7 @@
     charts.pnl.setData({
       labels: per.labels, yFmt: usdC, tipTitle,
       tipExtra: i => tipRow('Trades', int(per.n[i])),
-      datasets: [{ label: 'Realized', data: per.realized, colorFn: v => (v >= 0 ? PAL.buy : PAL.sell), fmt: usdS, signed: true }],
+      datasets: [{ label: 'Realized (' + bLabel + ')', data: per.realized, colorFn: v => (v >= 0 ? PAL.buy : PAL.sell), fmt: usdS, signed: true }],
     });
   }
   function drillPeriod(i) {
@@ -2665,28 +3270,140 @@
     toast('Range set to ' + per.labels[i], 'info');
   }
 
+  function renderOpenLots(S) {
+    const sub = $('#openLotsSub'), sumEl = $('#openLotsSummary'), barEl = $('#openLotsBar'), metaEl = $('#openLotsMeta'), tb = $('#openLotsTable tbody');
+    if (!sub || !sumEl || !barEl || !tb) return;
+    const bLabel = BASIS_LABEL[S && S.basis] || 'FIFO';
+    const lots = (S && S.openLots) || [];
+    if (!S || !S.count || !lots.length || S.openBtc <= 1e-8) {
+      sub.textContent = bLabel + ' · no open inventory at range end';
+      sumEl.classList.add('hidden');
+      barEl.innerHTML = '';
+      metaEl.innerHTML = '';
+      tb.innerHTML = '<tr><td colspan="11" class="muted">No open lots</td></tr>';
+      return;
+    }
+    sumEl.classList.remove('hidden');
+    let inProfBtc = 0, uwBtc = 0, minP = Infinity, maxP = -Infinity, oldest = 0, wAge = 0;
+    for (const l of lots) {
+      if (l.unrealized >= 0) inProfBtc += l.btc; else uwBtc += l.btc;
+      if (l.price < minP) minP = l.price;
+      if (l.price > maxP) maxP = l.price;
+      if (l.ageMs > oldest) oldest = l.ageMs;
+      wAge += l.ageMs * l.btc;
+    }
+    const avgAge = S.openBtc > 0 ? wAge / S.openBtc : 0;
+    const beDiff = S.avgCost > 0 ? S.rate / S.avgCost - 1 : 0;
+    sub.textContent = bLabel + ' · ' + int(lots.length) + ' open lot' + (lots.length === 1 ? '' : 's') + ' · ' + btc(S.openBtc) + ' BTC' + (S.liveRate ? ' @ ' + usd0(S.liveRate) : '');
+
+    barEl.innerHTML = lots.map(l => {
+      const wPct = Math.max(0.4, (l.btc / S.openBtc) * 100).toFixed(2);
+      const intensity = Math.min(1, 0.35 + Math.min(0.65, Math.abs(l.pct) * 2.5)).toFixed(2);
+      const bg = alpha(l.unrealized >= 0 ? PAL.buy : PAL.sell, intensity);
+      return '<span data-i="' + l.buyIdx + '" style="width:' + wPct + '%;background:' + bg + '" title="Buy #' + (l.buyIdx + 1) + ' (' + fmtDate(l.t) + '): ' + btc(l.btc) + ' BTC @ ' + usd(l.price) + ' · Unrealized ' + usdS(l.unrealized) + ' (' + pctS(l.pct) + ')"></span>';
+    }).join('');
+    metaEl.innerHTML =
+      '<span><b>Break-even:</b> ' + usd(S.avgCost) + ' (<b class="' + sgn(beDiff) + '">' + pctS(beDiff) + '</b> vs ' + usd0(S.rate) + ')</span>' +
+      '<span><b>In profit:</b> <b class="pos">' + btcC(inProfBtc) + ' BTC</b> · <b>Underwater:</b> <b class="neg">' + btcC(uwBtc) + ' BTC</b></span>' +
+      '<span><b>Entry range:</b> ' + usdC(minP) + '–' + usdC(maxP) + ' · <b>Avg age:</b> ' + dur(avgAge) + '</span>';
+
+    const showLots = lots.slice(0, 250);
+    tb.innerHTML = showLots.map(l => {
+      const posShare = S.openBtc > 0 ? l.btc / S.openBtc : 0;
+      return '<tr data-i="' + l.buyIdx + '">' +
+        '<td>#' + (l.buyIdx + 1) + '</td>' +
+        '<td>' + fmtDT(l.t) + '</td>' +
+        '<td>' + btc(l.origBtc) + '</td>' +
+        '<td>' + btc(l.btc) + '</td>' +
+        '<td>' + pct(posShare, 1) + '</td>' +
+        '<td>' + usd(l.price) + '</td>' +
+        '<td>' + usd(l.cost) + '</td>' +
+        '<td>' + usd(l.value) + '</td>' +
+        '<td class="' + sgn(l.unrealized) + '">' + usdS(l.unrealized) + '</td>' +
+        '<td class="' + sgn(l.pct) + '">' + pctS(l.pct, 2) + '</td>' +
+        '<td>' + dur(l.ageMs) + '</td></tr>';
+    }).join('');
+  }
+
+  function renderRolling(S) {
+    if (!charts.roll) return;
+    const metric = prefs.rollMetric || 'winrate';
+    const W = Math.max(2, parseInt(prefs.rollWin, 10) || 20);
+    $$('#rollMetricSeg button').forEach(b => b.classList.toggle('active', b.dataset.rmetric === metric));
+    $$('#rollWinSeg button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.rwin, 10) === W));
+    const cs = (S && S.closedSells) || [];
+    if (!S || !S.count || !cs.length) {
+      if ($('#rollSub')) $('#rollSub').textContent = 'No closed sells in range';
+      charts.roll.setData([], null, {});
+      return;
+    }
+    const pts = [];
+    let wSum = 0, rSum = 0;
+    for (let k = 0; k < cs.length; k++) {
+      wSum += cs[k].win;
+      rSum += cs[k].realized;
+      if (k >= W) {
+        wSum -= cs[k - W].win;
+        rSum -= cs[k - W].realized;
+      }
+      const denom = Math.min(k + 1, W);
+      pts.push({
+        x: cs[k].t,
+        y: metric === 'winrate' ? (wSum / denom) * 100 : (rSum / denom),
+      });
+    }
+    if ($('#rollSub')) {
+      $('#rollSub').textContent = 'Trailing ' + W + ' closed sells (' + int(cs.length) + ' closed sells in range · ' + (BASIS_LABEL[S.basis] || 'FIFO') + ')';
+    }
+    if (metric === 'winrate') {
+      charts.roll.setData(
+        [{ pts, color: PAL.accent, fill: true, label: 'Rolling win rate (' + W + ')', fmt: v => v.toFixed(1) + '%' }],
+        null,
+        { yFmt: v => Math.round(v) + '%', includeZero: true, refLine: { y: 50, color: PAL.borderStrong } }
+      );
+    } else {
+      charts.roll.setData(
+        [{ pts, color: PAL.buy, neg: PAL.sell, signed: true, fill: true, label: 'Rolling expectancy (' + W + ')', fmt: usdS }],
+        null,
+        { yFmt: usdC, includeZero: true }
+      );
+    }
+  }
+
   function renderPerformance(S) {
     if (!S.count) {
       renderKpiGrid($('#kpisPerf'), [{ label: 'No trades in range', value: '—', tone: 'warn' }]);
     } else {
+      const shTxt = fin(S.sharpe) ? S.sharpe.toFixed(2) : '—';
+      const soTxt = S.sortino === Infinity ? '∞' : fin(S.sortino) ? S.sortino.toFixed(2) : '—';
+      const rfTxt = S.recoveryFactor === Infinity ? '∞' : fin(S.recoveryFactor) ? S.recoveryFactor.toFixed(2) : '—';
       renderKpiGrid($('#kpisPerf'), [
         { label: 'Win rate', value: pct(S.winRate), tone: S.winRate >= 0.5 ? 'buy' : 'warn', note: S.wins + ' wins · ' + S.losses + ' losses' },
         { label: 'Profit factor', value: pfTxt(S.profitFactor), tone: S.profitFactor >= 1 ? 'buy' : 'sell', note: usd(S.grossWin) + ' / ' + usd(S.grossLoss) },
-        { label: 'Expectancy / sell', value: usdS(S.expectancy), cls: sgn(S.expectancy), tone: S.expectancy >= 0 ? 'buy' : 'sell', note: 'avg realized per sell' },
-        { label: 'Avg win / avg loss', value: '<span class="pos">' + usdC(S.avgWin) + '</span> / <span class="neg">' + usdC(S.avgLoss) + '</span>', tone: 'info', note: fin(S.avgWin) && fin(S.avgLoss) && S.avgLoss ? 'ratio ' + (S.avgWin / -S.avgLoss).toFixed(2) : '—' },
-        { label: 'Largest win', value: S.largestWin ? usdS(S.largestWin.realized) : '—', cls: 'pos', tone: 'buy', note: S.largestWin ? fmtDT(S.largestWin.t) : '—' },
-        { label: 'Largest loss', value: S.largestLoss ? usdS(S.largestLoss.realized) : '—', cls: 'neg', tone: 'sell', note: S.largestLoss ? fmtDT(S.largestLoss.t) : '—' },
-        { label: 'Streaks (W / L)', value: '<span class="pos">' + S.maxW + '</span> / <span class="neg">' + S.maxL + '</span>', tone: 'violet', note: S.greenDays + ' green · ' + S.redDays + ' red days' },
+        { label: 'Expectancy / sell', value: usdS(S.expectancy), cls: sgn(S.expectancy), tone: S.expectancy >= 0 ? 'buy' : 'sell', note: 'avg realized per sell (' + (BASIS_LABEL[S.basis] || 'FIFO') + ')' },
+        { label: 'Avg win / avg loss', value: '<span class="pos">' + usdC(S.avgWin) + '</span> / <span class="neg">' + usdC(S.avgLoss) + '</span>', tone: 'info', note: fin(S.avgWin) && fin(S.avgLoss) && S.avgLoss ? 'payoff ratio ' + (S.avgWin / -S.avgLoss).toFixed(2) : '—' },
+        { label: 'Sharpe / Sortino', value: shTxt + ' / ' + soTxt, tone: S.sharpe >= 1 ? 'buy' : S.sharpe >= 0 ? 'info' : 'warn', note: 'annualized daily total P/L', title: 'Annualized Sharpe (return / volatility) and Sortino (return / downside volatility) across active days' },
+        { label: 'Recovery & Underwater', value: rfTxt + 'x', tone: S.recoveryFactor >= 1 ? 'buy' : 'warn', note: S.maxDDDur > 0 ? 'max uw ' + dur(S.maxDDDur) + (S.ddRecovered ? '' : ' (open)') : 'no underwater span', title: 'Net Total P/L divided by Max Drawdown, plus longest time spent below high-water mark' },
+        { label: 'Largest win / loss', value: '<span class="pos">' + (S.largestWin ? usdC(S.largestWin.realized) : '—') + '</span> / <span class="neg">' + (S.largestLoss ? usdC(S.largestLoss.realized) : '—') + '</span>', tone: 'buy', note: 'Streaks: ' + S.maxW + 'W / ' + S.maxL + 'L' },
         { label: 'Hold time', value: dur(S.medHold), tone: 'accent', note: 'median · avg ' + dur(S.avgHold) },
       ]);
     }
-    charts.dd.setData(S.count ? [{ pts: S.series.dd, color: PAL.sell, fill: true, label: 'Drawdown', fmt: usdS }] : [], null, { yFmt: usdC, includeZero: true });
+    if ($('#ddSub')) {
+      $('#ddSub').textContent = S.count && S.maxDD < -0.005
+        ? 'Peak-to-trough ' + usdS(S.maxDD) + (S.maxDDDur > 0 ? ' · shaded = longest underwater (' + dur(S.maxDDDur) + (S.ddRecovered ? '' : ', unrecovered') + ')' : '')
+        : 'Peak-to-trough on total P/L';
+    }
+    const ddShade = (S.count && S.maxDDDur > 0 && fin(S.ddStartT) && fin(S.ddEndT))
+      ? { from: S.ddStartT, to: S.ddEndT, color: alpha(PAL.sell, 0.11) }
+      : null;
+    charts.dd.setData(S.count ? [{ pts: S.series.dd, color: PAL.sell, fill: true, label: 'Drawdown', fmt: usdS }] : [], null, { yFmt: usdC, includeZero: true, shadeWindow: ddShade });
     const d = S.dist || { labels: [], counts: [], mids: [] };
     charts.dist.setData({
       labels: d.labels,
       tipTitle: i => usdC(d.mids[i] - d.step / 2) + ' to ' + usdC(d.mids[i] + d.step / 2),
       datasets: [{ label: 'Sells', data: d.counts, colorFn: (v, i) => (d.mids[i] >= 0 ? (Math.abs(d.mids[i]) < d.step / 2 ? PAL.muted : PAL.buy) : PAL.sell) }],
     });
+    renderRolling(S);
     renderCalendar(S);
     renderMonths(S);
   }
@@ -2945,7 +3662,8 @@
     const inRange = r && state.sum.count && T.sel >= state.sum.i0 && T.sel <= state.sum.i1;
     ['#btnCopyRow', '#btnShowOnChart'].forEach(id => { $(id).disabled = !inRange; });
     if (!inRange) { el.innerHTML = '<div class="empty-note" style="grid-column:1/-1">No row selected — click a row above.</div>'; $('#detailSub').textContent = 'Click a row to inspect it'; return; }
-    $('#detailSub').textContent = '#' + (r.i + 1) + ' · ' + r.source;
+    const bLabel = BASIS_LABEL[state.base.basis] || 'FIFO';
+    $('#detailSub').textContent = '#' + (r.i + 1) + ' · ' + r.source + ' · ' + bLabel;
     const slip = r.rate > 0 ? r.price / r.rate - 1 : NaN;
     const f = [
       ['Type', '<span class="tag ' + (r.TX === 'Buy' ? 'buy' : 'sell') + '">' + r.TX + '</span>'],
@@ -2959,8 +3677,8 @@
       ['Prev User BTC', btc(r.prevUser)],
       ['User BTC', btc(r.userBtc)],
       ['Expected User BTC', btc(r.expected) + (r.gap ? ' <span class="tag info">' + r.gap + ' · Δ' + r.diffSats + ' sats</span>' : '')],
-      ['Realized P/L', r.realized != null ? '<span class="' + sgn(r.realized) + '">' + usdS(r.realized) + '</span>' : '—'],
-      ['FIFO cost basis', r.costBasis != null ? usd(r.costBasis) : '—'],
+      ['Realized P/L (' + bLabel + ')', r.realized != null ? '<span class="' + sgn(r.realized) + '">' + usdS(r.realized) + '</span>' : '—'],
+      [bLabel + ' cost basis', r.costBasis != null ? usd(r.costBasis) : '—'],
       ['Hold time', r.holdMs != null ? dur(r.holdMs) : '—'],
       ['Open BTC after', btc(r.openBtc)],
       ['Avg cost after', r.avgCost != null ? usd(r.avgCost) : '—'],
@@ -2968,7 +3686,21 @@
       ['Total P/L after', '<span class="' + sgn(r.totalPl) + '">' + usdS(r.totalPl) + '</span>'],
     ];
     if (r.unmatched) f.push(['Unmatched BTC', '<span class="tag warn">' + btc(r.unmatched) + '</span>']);
-    el.innerHTML = f.map(x => '<div><small>' + x[0] + '</small><b>' + x[1] + '</b></div>').join('');
+    let html = f.map(x => '<div><small>' + x[0] + '</small><b>' + x[1] + '</b></div>').join('');
+    if (r.TX === 'Sell' && r.matchedLots && r.matchedLots.length) {
+      const show = r.matchedLots.slice(0, 24);
+      html += '<div class="wide"><small>Matched buy lots (' + int(r.matchedLots.length) + ' · ' + bLabel + ' — click to inspect)</small><div class="lot-list">' +
+        show.map(m => '<span class="lot-chip" data-i="' + m.buyIdx + '"><b class="pos">Buy #' + (m.buyIdx + 1) + '</b> · ' + btcC(m.btc) + ' BTC @ ' + usd(m.price) + ' · <b class="' + sgn(m.pnl) + '">' + usdS(m.pnl) + '</b></span>').join('') +
+        (r.matchedLots.length > show.length ? '<span class="muted">+' + (r.matchedLots.length - show.length) + ' more</span>' : '') +
+        '</div></div>';
+    } else if (r.TX === 'Buy' && r.matchedSells && r.matchedSells.length) {
+      const show = r.matchedSells.slice(0, 24);
+      html += '<div class="wide"><small>Consumed by sells (' + int(r.matchedSells.length) + ' · ' + bLabel + ' — click to inspect)</small><div class="lot-list">' +
+        show.map(m => '<span class="lot-chip" data-i="' + m.sellIdx + '"><b class="neg">Sell #' + (m.sellIdx + 1) + '</b> · ' + btcC(m.btc) + ' BTC @ ' + usd(m.price) + ' · <b class="' + sgn(m.pnl) + '">' + usdS(m.pnl) + '</b></span>').join('') +
+        (r.matchedSells.length > show.length ? '<span class="muted">+' + (r.matchedSells.length - show.length) + ' more</span>' : '') +
+        '</div></div>';
+    }
+    el.innerHTML = html;
   }
 
   /* ---------- integrity ---------- */
@@ -3128,11 +3860,43 @@
     });
   }
   function rowTip(r) {
+    const bLabel = BASIS_LABEL[state.base && state.base.basis] || 'FIFO';
     let html = '<div class="tt"><span class="tag ' + (r.TX === 'Buy' ? 'buy' : 'sell') + '">' + r.TX + '</span> #' + (r.i + 1) + ' · ' + fmtDT(r.t) + '</div>';
     html += tipRow('USD', usd(r.USD)) + tipRow('BTC', btc(r.BTC)) + tipRow('Rate', usd(r.rate)) + tipRow('User BTC', btc(r.userBtc));
-    if (r.realized != null) html += tipRow('Realized', usdS(r.realized), null, sgn(r.realized));
+    if (r.realized != null) html += tipRow('Realized (' + bLabel + ')', usdS(r.realized), null, sgn(r.realized));
+    if (r.TX === 'Sell' && r.matchedLots && r.matchedLots.length) {
+      html += tipRow('Matched buys', int(r.matchedLots.length) + ' lot' + (r.matchedLots.length === 1 ? '' : 's'));
+    } else if (r.TX === 'Buy' && r.matchedSells && r.matchedSells.length) {
+      html += tipRow('Consumed by', int(r.matchedSells.length) + ' sell' + (r.matchedSells.length === 1 ? '' : 's'));
+    }
     if (r.gap) html += tipRow('Gap', r.gap);
     return html;
+  }
+  function getLotLinks(m) {
+    if (!m || prefs.series !== 'rate' || !state.base || !state.base.rows) return null;
+    const rows = state.base.rows, r = rows[m.i];
+    if (!r) return null;
+    if (r.TX === 'Sell' && r.matchedLots && r.matchedLots.length) {
+      return r.matchedLots.slice(0, 24).map(l => ({
+        x1: l.t,
+        y1: rows[l.buyIdx] ? rows[l.buyIdx].rate : l.price,
+        x2: r.t,
+        y2: r.rate,
+        pnl: l.pnl,
+        open: false,
+      }));
+    }
+    if (r.TX === 'Buy' && r.matchedSells && r.matchedSells.length) {
+      return r.matchedSells.slice(0, 24).map(s => ({
+        x1: r.t,
+        y1: r.rate,
+        x2: s.t,
+        y2: rows[s.sellIdx] ? rows[s.sellIdx].rate : s.price,
+        pnl: s.pnl,
+        open: false,
+      }));
+    }
+    return null;
   }
 
   /* ======================================================================
@@ -3177,18 +3941,20 @@
       download('vbtc-gaps-' + stamp() + '.csv', csv(out));
     } else if (kind === 'summary') {
       const pick = {};
-      ['count', 'buyN', 'sellN', 'buyUSD', 'sellUSD', 'buyBTC', 'sellBTC', 'volume', 'realized', 'unrealized', 'periodPl', 'wins', 'losses', 'winRate', 'profitFactor',
-        'avgWin', 'avgLoss', 'expectancy', 'maxDD', 'maxW', 'maxL', 'openBtc', 'avgCost', 'userBtc', 'rate', 'holdValue', 'avgBuyPrice', 'avgSellPrice',
+      ['count', 'buyN', 'sellN', 'buyUSD', 'sellUSD', 'buyBTC', 'sellBTC', 'volume', 'realized', 'unrealized', 'periodPl', 'hodlPl', 'alphaPl', 'wins', 'losses', 'winRate', 'profitFactor',
+        'avgWin', 'avgLoss', 'expectancy', 'sharpe', 'sortino', 'recoveryFactor', 'maxDD', 'maxDDDur', 'maxW', 'maxL', 'openBtc', 'avgCost', 'userBtc', 'rate', 'holdValue', 'avgBuyPrice', 'avgSellPrice',
         'avgSize', 'medSize', 'cadence', 'medInter', 'medHold', 'avgHold', 'tradesPerDay', 'activeDays', 'gapsInRange'].forEach(k => {
         const v = S[k]; pick[k] = fin(v) ? +v.toFixed(8) : v === Infinity ? 'Infinity' : null;
       });
       const doc = {
         generated: new Date().toISOString(),
         timezone: tzName(),
+        costBasis: S.basis || prefs.basis || 'fifo',
         range: { preset: state.range.preset, from: S.count ? iso(S.first) : null, to: S.count ? iso(S.last) : null },
         files: state.files.filter(f => f.selected).map(f => f.name),
         integrity: { score: state.base.integrity, gaps: state.base.gaps.length, unmatchedSells: state.base.unmatchedN, quality: state.base.quality },
         stats: pick,
+        openLots: (S.openLots || []).map(l => ({ buyRow: l.buyIdx + 1, time: l.Time, btc: +l.btc.toFixed(8), price: +l.price.toFixed(2), unrealized: +l.unrealized.toFixed(2) })),
         insights: (S.insights || []).map(x => x.html.replace(/<[^>]+>/g, '')),
         monthly: (S.months || []).map(m => ({ month: m.key, trades: m.n, buyUSD: +m.buyUSD.toFixed(2), sellUSD: +m.sellUSD.toFixed(2), realized: +m.realized.toFixed(2) })),
       };
@@ -3226,14 +3992,50 @@
      Wiring
      ====================================================================== */
   readPalette();
+  function syncFromTime(src, t) {
+    const per = state.sum && state.sum.per;
+    let bi = -1;
+    if (t != null && per && per.starts && per.starts.length) {
+      const k = upperBound(per.starts, t) - 1;
+      if (k >= 0 && k < per.starts.length && t < per.ends[k]) bi = k;
+    }
+    for (const c of [charts.main, charts.dd, charts.roll]) {
+      if (c && c !== src && c.syncT !== t) { c.syncT = t; c.schedule(); }
+    }
+    for (const b of [charts.vol, charts.pnl]) {
+      if (b && b.syncI !== bi) { b.syncI = bi; b.schedule(); }
+    }
+  }
+  function syncFromBar(src, i) {
+    const per = state.sum && state.sum.per;
+    const t = (i >= 0 && per && per.starts[i] != null) ? (per.starts[i] + per.ends[i]) / 2 : null;
+    for (const b of [charts.vol, charts.pnl]) {
+      if (b && b !== src && b.syncI !== i) { b.syncI = i; b.schedule(); }
+    }
+    if (charts.main && charts.main.syncT !== t) { charts.main.syncT = t; charts.main.schedule(); }
+  }
+
   charts.main = new TimeChart($('#chartMain'), {
     onView: z => { $('#btnResetZoom').classList.toggle('hidden', !z); $('#btnApplyZoom').classList.toggle('hidden', !z); },
     markerTip: m => rowTip(state.base.rows[m.i]),
     onMarkerClick: m => openRow(m.i),
+    getLinks: m => getLotLinks(m),
+    onHoverT: t => syncFromTime(charts.main, t),
+    extraTip: px => {
+      if (prefs.series !== 'equity' || !prefs.bench || !state.sum || !state.sum.series.hodl.length) return '';
+      const eqPts = state.sum.series.eq, hdPts = state.sum.series.hodl;
+      let j = lowerBound(eqPts, px, 'x');
+      if (j >= eqPts.length) j = eqPts.length - 1;
+      if (j > 0 && eqPts[j].x > px) j--;
+      if (!eqPts[j] || !hdPts[j]) return '';
+      const alphaDiff = eqPts[j].y - hdPts[j].y;
+      return tipRow('Alpha vs HODL', usdS(alphaDiff), alphaDiff >= 0 ? PAL.buy : PAL.sell, sgn(alphaDiff));
+    },
   });
-  charts.dd = new TimeChart($('#chartDD'), {});
-  charts.vol = new BarChart($('#chartVol'), { onClick: drillPeriod });
-  charts.pnl = new BarChart($('#chartPnl'), { onClick: drillPeriod });
+  charts.dd = new TimeChart($('#chartDD'), { onHoverT: t => syncFromTime(charts.dd, t) });
+  charts.roll = new TimeChart($('#chartRoll'), { onHoverT: t => syncFromTime(charts.roll, t) });
+  charts.vol = new BarChart($('#chartVol'), { onClick: drillPeriod, onHoverI: i => syncFromBar(charts.vol, i) });
+  charts.pnl = new BarChart($('#chartPnl'), { onClick: drillPeriod, onHoverI: i => syncFromBar(charts.pnl, i) });
   charts.dist = new BarChart($('#chartDist'), {});
   charts.hour = new BarChart($('#chartHour'), {});
   charts.dow = new BarChart($('#chartDow'), {});
@@ -3263,6 +4065,39 @@
   $('#btnHelp').addEventListener('click', () => $('#helpDlg').showModal());
   $('#btnCloseHelp').addEventListener('click', () => $('#helpDlg').close());
   $('#helpDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+  $('#btnCloseLcw').addEventListener('click', () => $('#lcwDlg').close());
+  $('#btnCancelLcw').addEventListener('click', () => $('#lcwDlg').close());
+  $('#lcwDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+  $('#btnClearLcw').addEventListener('click', () => {
+    delete prefs.lcwKey;
+    savePrefs();
+    state.liveBtcPrice = null;
+    state.liveBtcTime = null;
+    state.liveBtcError = null;
+    $('#lcwDlg').close();
+    toast('LiveCoinWatch disabled', 'info');
+    applyRange();
+  });
+  $('#btnSaveLcw').addEventListener('click', saveLcwKey);
+  $('#lcwKeyInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); saveLcwKey(); }
+  });
+
+  $('#kpisOverview').addEventListener('click', e => {
+    const btnEnable = e.target.closest('#btnEnableLcw') || e.target.closest('#lcwEnableOverlay');
+    if (btnEnable) {
+      e.stopPropagation();
+      openLcwDialog();
+      return;
+    }
+    const btnGear = e.target.closest('#btnLcwSettings');
+    if (btnGear) {
+      e.stopPropagation();
+      openLcwDialog();
+      return;
+    }
+  });
 
   $('#fileInput').addEventListener('change', async e => {
     const files = await ingestFileList(e.target.files);
@@ -3321,9 +4156,10 @@
     }
   });
 
-  // tabs, range, series
+  // tabs, range, series, basis, benchmark, rolling
   $$('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $$('#rangeSeg button').forEach(b => b.addEventListener('click', () => setRange(b.dataset.preset)));
+  $$('#basisSeg button').forEach(b => b.addEventListener('click', () => setBasis(b.dataset.basis)));
   function onDateInput() {
     const parse = (s, endOfDay) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); if (!m) return null; const t = mk(+m[1], +m[2] - 1, +m[3] + (endOfDay ? 1 : 0)); return endOfDay ? t - 1 : t; };
     let a = parse($('#dateFrom').value, false), b = parse($('#dateTo').value, true);
@@ -3334,6 +4170,11 @@
   $('#dateFrom').addEventListener('change', onDateInput);
   $('#dateTo').addEventListener('change', onDateInput);
   $$('#seriesSeg button').forEach(b => b.addEventListener('click', () => { prefs.series = b.dataset.series; savePrefs(); renderMain(true); }));
+  $('#btnBench').addEventListener('click', () => {
+    prefs.bench = !prefs.bench;
+    savePrefs();
+    renderMain(true);
+  });
   $$('#scaleSeg button').forEach(b => b.addEventListener('click', () => {
     state.scaleOverrides[prefs.series] = b.dataset.scale;
     renderMain(true);
@@ -3343,6 +4184,13 @@
   $$('#heatSeg button').forEach(b => b.addEventListener('click', () => { prefs.heat = b.dataset.heat; savePrefs(); renderHeat(state.sum); }));
   $$('#calSeg button').forEach(b => b.addEventListener('click', () => { prefs.cal = b.dataset.cal; savePrefs(); renderCalendar(state.sum); }));
   $$('#periodSeg button').forEach(b => b.addEventListener('click', () => { prefs.period = b.dataset.period; savePrefs(); applyRange(); }));
+  $$('#rollMetricSeg button').forEach(b => b.addEventListener('click', () => { prefs.rollMetric = b.dataset.rmetric; savePrefs(); renderRolling(state.sum); }));
+  $$('#rollWinSeg button').forEach(b => b.addEventListener('click', () => { prefs.rollWin = parseInt(b.dataset.rwin, 10) || 20; savePrefs(); renderRolling(state.sum); }));
+
+  // open lots & detail lot chips click
+  $('#openLotsBar').addEventListener('click', e => { const s = e.target.closest('span[data-i]'); if (s) openRow(+s.dataset.i); });
+  $('#openLotsTable tbody').addEventListener('click', e => { const tr = e.target.closest('tr[data-i]'); if (tr) openRow(+tr.dataset.i); });
+  $('#detail').addEventListener('click', e => { const ch = e.target.closest('.lot-chip[data-i]'); if (ch) openRow(+ch.dataset.i); });
 
   // heatmap tooltip
   $('#heat').addEventListener('mousemove', e => {
@@ -3481,6 +4329,10 @@
     if (loaded && /^[1-6]$/.test(e.key)) { setTab(tabs[+e.key - 1]); e.preventDefault(); }
     else if (e.key === 't' || e.key === 'T') applyTheme(prefs.theme === 'dark' ? 'light' : 'dark');
     else if (e.key === 'u' || e.key === 'U') applyTz(!TZ.utc);
+    else if ((e.key === 'b' || e.key === 'B') && loaded) {
+      const cur = BASIS_ORDER.indexOf(prefs.basis || 'fifo');
+      setBasis(BASIS_ORDER[(cur + 1) % BASIS_ORDER.length]);
+    }
     else if ((e.key === 'l' || e.key === 'L') && loaded && prefs.tab === 'overview') {
       const cur = state.scaleOverrides[prefs.series] || SENSIBLE_SCALE[prefs.series] || 'linear';
       state.scaleOverrides[prefs.series] = cur === 'log' ? 'linear' : 'log';
@@ -3507,7 +4359,7 @@
   if (hashTheme) applyTheme(hashTheme);
   const hashTab = (hash.match(/\b(overview|performance|activity|trades|integrity|sources)\b/) || [])[1];
   setTab(hashTab || prefs.tab);
-  window.__vbtc = { state, pollLiveSources, toggleLive, stopLive, rescan };
+  window.__vbtc = { state, prefs, charts, setBasis, pollLiveSources, toggleLive, stopLive, rescan, fetchLiveBtcPrice, openLcwDialog, saveLcwKey };
   updateRescanState();
   (async () => {
     await tryRestoreFolder();
