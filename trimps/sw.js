@@ -1,9 +1,11 @@
-const CACHE_NAME = 'trimps-v4';
+const CACHE_NAME = 'trimps-v5';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
+  'css/kreftus-local.css',
+  'css/kreftus-local.css?5',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'

@@ -159,36 +159,85 @@ $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
 /*
- * Keep the SA popup within the viewport. Do NOT put overflow-y: auto on the
- * tooltip shell - that promotes overflow-x to auto and shows a useless
- * horizontal scrollbar when children are slightly wider (e.g. .autoStats
- * width 50% + padding under content-box). Clip the shell; scroll only the items list.
+ * Keep the SA popup within the viewport. Clip the shell (no scrollbars on it).
+ * Vertical scroll only on #autoItemsDiv. Fix width overflows that appear when
+ * the window is narrow (tab buttons + 7-column item rows).
  */
 #tooltipDiv.tooltipExtraBiggest {
   max-height: 100vh;
+  max-width: 100vw;
   overflow: hidden;
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest #tipText {
+#tooltipDiv.tooltipExtraBiggest #tipText,
+#tooltipDiv.tooltipExtraBiggest .noselect {
   max-width: 100%;
   overflow-x: hidden;
-}
-
-/* Prevent SA stat columns from exceeding 100% width (50% + padding) */
-#tooltipDiv.tooltipExtraBiggest .autoStats {
   box-sizing: border-box;
 }
 
+/* Stat columns: 50% width + padding must stay inside the panel */
+#tooltipDiv.tooltipExtraBiggest .autoStats {
+  box-sizing: border-box;
+  max-width: 50%;
+}
+
+/* Tab row: wrap/shrink when narrow instead of forcing horizontal overflow */
+#tooltipDiv.tooltipExtraBiggest #autoBattleMenuButtons {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#tooltipDiv.tooltipExtraBiggest #autoBattleMenuButtons .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+}
+
+#tooltipDiv.tooltipExtraBiggest #abLevelButtons {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
 /*
- * Items list uses remaining viewport below the SA chrome (title, dust, fight UI, tabs).
- * Scroll when the grid would otherwise extend past the bottom of the screen.
+ * Items list: remaining viewport height; vertical scroll only.
+ * Use flex rows so 7 columns always fit (avoids inline-block whitespace overflow).
  */
 #autoItemsDiv,
 #autoItemsDiv.modeLg {
   max-height: max(8em, calc(100vh - 30em));
+  max-width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > div {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv .autoItemContainer {
+  box-sizing: border-box;
+  width: calc(100% / 7);
+  max-width: calc(100% / 7);
+  margin-left: 0;
+  padding: 0 0.05em;
+}
+
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv .autoItem {
+  box-sizing: border-box;
+  margin-left: 0;
+  margin-right: 0;
+  max-width: 100%;
 }
 '@
 # Normalize newlines + trailing whitespace so LF vs CRLF does not force a rewrite
@@ -288,12 +337,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v4';
+const CACHE_NAME = 'trimps-v5';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
+  'css/kreftus-local.css',
+  'css/kreftus-local.css?5',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -370,7 +421,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?5`" />")
+  $indexChanged = $true
+}
+elseif ($indexHtml -match 'kreftus-local\.css"' -and $indexHtml -notmatch 'kreftus-local\.css\?') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css"', 'href="css/kreftus-local.css?5"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
