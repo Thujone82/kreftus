@@ -60,7 +60,11 @@
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > div {
+/*
+ * Only item rows (divs that contain .autoItemContainer) use flex.
+ * Misc tab .abMiscBox children must stay inline-block so presets sit side-by-side.
+ */
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > div:has(.autoItemContainer) {
   display: flex;
   flex-wrap: wrap;
   max-width: 100%;
@@ -80,4 +84,22 @@
   margin-left: 0;
   margin-right: 0;
   max-width: 100%;
+}
+
+/*
+ * Restore inline-block flow for Misc / Bonuses / Contracts boxes.
+ * (An earlier rule set display:flex on all #autoItemsDiv > div, which
+ * stacked these full-width instead of in rows.)
+ */
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .abMiscBox,
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .autoBonusBox,
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .contractBox {
+  display: inline-block;
+  box-sizing: border-box;
+  vertical-align: top;
+}
+
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > button.autoBonusBox {
+  box-sizing: border-box;
+  vertical-align: top;
 }

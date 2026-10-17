@@ -218,7 +218,11 @@ $localCssContent = @'
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > div {
+/*
+ * Only item rows (divs that contain .autoItemContainer) use flex.
+ * Misc tab .abMiscBox children must stay inline-block so presets sit side-by-side.
+ */
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > div:has(.autoItemContainer) {
   display: flex;
   flex-wrap: wrap;
   max-width: 100%;
@@ -238,6 +242,24 @@ $localCssContent = @'
   margin-left: 0;
   margin-right: 0;
   max-width: 100%;
+}
+
+/*
+ * Restore inline-block flow for Misc / Bonuses / Contracts boxes.
+ * (An earlier rule set display:flex on all #autoItemsDiv > div, which
+ * stacked these full-width instead of in rows.)
+ */
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .abMiscBox,
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .autoBonusBox,
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .contractBox {
+  display: inline-block;
+  box-sizing: border-box;
+  vertical-align: top;
+}
+
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > button.autoBonusBox {
+  box-sizing: border-box;
+  vertical-align: top;
 }
 '@
 # Normalize newlines + trailing whitespace so LF vs CRLF does not force a rewrite
@@ -337,14 +359,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v5';
+const CACHE_NAME = 'trimps-v7';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?5',
+  'css/kreftus-local.css?7',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -421,11 +443,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?5`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?7`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'kreftus-local\.css"' -and $indexHtml -notmatch 'kreftus-local\.css\?') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css"', 'href="css/kreftus-local.css?5"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?7"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?7"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
