@@ -12,11 +12,18 @@
   box-sizing: border-box;
 }
 
+/* Only the outer tip wrappers — not .noselect on HP bars (.innerFightBar),
+ * where overflow-x:hidden promotes overflow-y:auto and shows a V-scrollbar. */
 #tooltipDiv.tooltipExtraBiggest #tipText,
-#tooltipDiv.tooltipExtraBiggest .noselect {
+#tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
   max-width: 100%;
   overflow-x: hidden;
   box-sizing: border-box;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar,
+#tooltipDiv.tooltipExtraBiggest .innerFightBar {
+  overflow: hidden;
 }
 
 /* Stat columns: 50% width + padding must stay inside the panel */

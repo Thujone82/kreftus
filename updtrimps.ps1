@@ -170,11 +170,18 @@ $localCssContent = @'
   box-sizing: border-box;
 }
 
+/* Only the outer tip wrappers — not .noselect on HP bars (.innerFightBar),
+ * where overflow-x:hidden promotes overflow-y:auto and shows a V-scrollbar. */
 #tooltipDiv.tooltipExtraBiggest #tipText,
-#tooltipDiv.tooltipExtraBiggest .noselect {
+#tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
   max-width: 100%;
   overflow-x: hidden;
   box-sizing: border-box;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar,
+#tooltipDiv.tooltipExtraBiggest .innerFightBar {
+  overflow: hidden;
 }
 
 /* Stat columns: 50% width + padding must stay inside the panel */
@@ -359,14 +366,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v7';
+const CACHE_NAME = 'trimps-v8';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?7',
+  'css/kreftus-local.css?8',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -443,11 +450,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?7`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?8`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?7"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?7"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?8"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?8"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
