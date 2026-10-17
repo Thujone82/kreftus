@@ -12,18 +12,47 @@
   box-sizing: border-box;
 }
 
-/* Only the outer tip wrappers — not .noselect on HP bars (.innerFightBar),
- * where overflow-x:hidden promotes overflow-y:auto and shows a V-scrollbar. */
+/*
+ * Clip (not hidden) on tip wrappers: overflow-x:hidden promotes overflow-y to
+ * auto, which put classic V-scrollbars on HP text (.noselect.innerFightBar).
+ */
 #tooltipDiv.tooltipExtraBiggest #tipText,
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   box-sizing: border-box;
 }
 
+/*
+ * SA fight bars: never scroll. Also size text to the bar so a 1px line-height
+ * mismatch cannot create a scrollable overflow box.
+ */
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder,
 #tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar,
-#tooltipDiv.tooltipExtraBiggest .innerFightBar {
-  overflow: hidden;
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar,
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .noselect {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar::-webkit-scrollbar,
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar::-webkit-scrollbar,
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .noselect::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar {
+  height: auto !important;
+  line-height: 1.25em !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar {
+  font-size: 1em !important;
+  line-height: 1.25em !important;
 }
 
 /* Stat columns: 50% width + padding must stay inside the panel */

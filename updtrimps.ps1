@@ -170,18 +170,47 @@ $localCssContent = @'
   box-sizing: border-box;
 }
 
-/* Only the outer tip wrappers — not .noselect on HP bars (.innerFightBar),
- * where overflow-x:hidden promotes overflow-y:auto and shows a V-scrollbar. */
+/*
+ * Clip (not hidden) on tip wrappers: overflow-x:hidden promotes overflow-y to
+ * auto, which put classic V-scrollbars on HP text (.noselect.innerFightBar).
+ */
 #tooltipDiv.tooltipExtraBiggest #tipText,
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   box-sizing: border-box;
 }
 
+/*
+ * SA fight bars: never scroll. Also size text to the bar so a 1px line-height
+ * mismatch cannot create a scrollable overflow box.
+ */
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder,
 #tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar,
-#tooltipDiv.tooltipExtraBiggest .innerFightBar {
-  overflow: hidden;
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar,
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .noselect {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar::-webkit-scrollbar,
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar::-webkit-scrollbar,
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .noselect::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar {
+  height: auto !important;
+  line-height: 1.25em !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar {
+  font-size: 1em !important;
+  line-height: 1.25em !important;
 }
 
 /* Stat columns: 50% width + padding must stay inside the panel */
@@ -366,14 +395,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v8';
+const CACHE_NAME = 'trimps-v9';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?8',
+  'css/kreftus-local.css?9',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -403,10 +432,33 @@ self.addEventListener('activate', function (event) {
   );
 });
 
+function isStyleRequest(request, url) {
+  return request.destination === 'style' || /kreftus-local\.css/i.test(url.pathname + url.search);
+}
+
 self.addEventListener('fetch', function (event) {
   var request = event.request;
   if (request.method !== 'GET') return;
-  if (new URL(request.url).origin !== self.location.origin) return;
+  var url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Always prefer fresh CSS so layout fixes are not stuck behind cache-first.
+  if (isStyleRequest(request, url)) {
+    event.respondWith(
+      fetch(request).then(function (response) {
+        if (response && response.status === 200) {
+          var clone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(request, clone);
+          });
+        }
+        return response;
+      }).catch(function () {
+        return caches.match(request);
+      })
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(request).then(function (cached) {
@@ -450,11 +502,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?8`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?9`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?8"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?8"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?9"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?9"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
