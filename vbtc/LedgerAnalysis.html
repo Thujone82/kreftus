@@ -713,7 +713,7 @@
           </div>
           <div class="card-b">
             <div class="chart"><canvas id="chartRoll"></canvas></div>
-            <div class="hint">Tracks trailing win rate or average realized P/L per sell across a rolling window of closed trades.</div>
+            <div class="hint">Tracks trailing win rate or average realized P/L across the preceding X closed sells in the ledger for each point.</div>
           </div>
         </div>
         <div class="card">
@@ -774,11 +774,11 @@
             <div class="card-b"><div class="chart"><canvas id="chartSize"></canvas></div></div>
           </div>
           <div class="card">
-            <div class="card-h"><h3>Hold time</h3><span class="sub">FIFO, per sell</span></div>
+            <div class="card-h"><h3>Hold time</h3><span class="sub" id="holdSub">FIFO, per sell</span></div>
             <div class="card-b"><div class="chart"><canvas id="chartHold"></canvas></div></div>
           </div>
           <div class="card">
-            <div class="card-h"><h3>Time between trades</h3></div>
+            <div class="card-h"><h3>Time between trades</h3><span class="sub" id="interSub">between executions</span></div>
             <div class="card-b"><div class="chart"><canvas id="chartInter"></canvas></div></div>
           </div>
         </div>
@@ -956,7 +956,7 @@
     <div class="dlg-b">
       <div>
         <p style="margin:0 0 12px;font-size:13px;line-height:1.5;color:var(--text);">
-          Connect your <b>LiveCoinWatch</b> API key to fetch real-time Bitcoin spot prices and enable live mark-to-market Unrealized P/L on open inventory.
+          Connect your <b>LiveCoinWatch</b> API key to fetch real-time Bitcoin spot prices, enable live mark-to-market Unrealized P/L on open inventory, and enhance chart price curves with historical market data (refreshed every 10 min while on Live).
         </p>
         <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12.5px;margin-bottom:14px;line-height:1.5;">
           <div style="font-weight:600;color:var(--text);margin-bottom:4px;">🔑 Get a free API key:</div>
@@ -993,6 +993,7 @@
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const BASIS_ORDER = ['fifo', 'lifo', 'hifo', 'avg'];
   const BASIS_LABEL = { fifo: 'FIFO', lifo: 'LIFO', hifo: 'HIFO', avg: 'AVG' };
+  const LCW_HISTORY_CADENCE_MS = 10 * 60 * 1000; // 10 minutes (expensive history call while on Live)
 
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -1039,6 +1040,10 @@
     liveBtcTime: null,
     liveBtcFetching: false,
     liveBtcError: null,
+    lcwHistory: null,
+    lcwHistoryTime: null,
+    lcwHistoryFetching: false,
+    lcwHistoryError: null,
   };
   const charts = {};
 
@@ -1403,6 +1408,9 @@
       this.refLine = opts.refLine || null;
       let mn = Infinity, mx = -Infinity;
       for (const s of this.series) { if (s.pts.length) { mn = Math.min(mn, s.pts[0].x); mx = Math.max(mx, s.pts[s.pts.length - 1].x); } }
+      if (opts.xMin != null && opts.xMax != null && fin(opts.xMin) && fin(opts.xMax) && opts.xMax > opts.xMin) {
+        mn = opts.xMin; mx = opts.xMax;
+      }
       if (!fin(mn)) this.full = null;
       else { if (mn === mx) { mn -= 30 * 60e3; mx += 30 * 60e3; } this.full = { min: mn, max: mx }; }
       if (!opts.keepView) { this.view = null; this.focusT = null; if (this.opts.onView) this.opts.onView(false); }
@@ -1997,7 +2005,7 @@
     return headRef.i < lots.length ? lots[headRef.i] : null;
   }
 
-  function computeOpenLotsAt(rows, endIdx, mode, spotRate) {
+  function computeOpenLotsAt(rows, endIdx, mode, spotRate, asOfTime) {
     if (!rows.length || endIdx < 0) return [];
     const lots = [];
     const headRef = { i: 0 };
@@ -2032,7 +2040,8 @@
       }
     }
     const lastRate = (spotRate && spotRate > 0) ? spotRate : rows[maxI].rate;
-    const lastT = rows[maxI].t;
+    const isTerminal = (maxI >= rows.length - 1);
+    const refT = asOfTime != null ? asOfTime : (isTerminal ? Date.now() : rows[maxI].t);
     const out = [];
     for (const l of lots) {
       if (l.btc > 1e-8) {
@@ -2047,7 +2056,7 @@
           value,
           unrealized: value - cost,
           pct: l.price > 0 ? lastRate / l.price - 1 : 0,
-          ageMs: Math.max(0, lastT - l.t),
+          ageMs: Math.max(0, refT - l.t),
           t: l.t,
           Time: l.Time,
         });
@@ -2082,6 +2091,87 @@
     return data.rate;
   }
 
+  async function testAndFetchLcwHistory(key, startMs, endMs) {
+    if (!key) throw new Error('API Key is required');
+    const res = await fetch('https://api.livecoinwatch.com/coins/single/history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key.trim(),
+      },
+      body: JSON.stringify({
+        currency: 'USD',
+        code: 'BTC',
+        start: Math.round(startMs),
+        end: Math.round(endMs),
+        meta: false,
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Invalid API Key or daily credits exhausted (HTTP ' + res.status + ')');
+      }
+      throw new Error('LiveCoinWatch HTTP ' + res.status);
+    }
+    const data = await res.json();
+    if (!data || !Array.isArray(data.history)) {
+      throw new Error('Invalid history data received');
+    }
+    return data.history;
+  }
+
+  async function fetchLcwHistory(force) {
+    if (!prefs.lcwKey || state.lcwHistoryFetching) return;
+    const now = Date.now();
+    if (!force && state.lcwHistoryTime && (now - state.lcwHistoryTime < LCW_HISTORY_CADENCE_MS)) return;
+
+    let startMs = now - 30 * 86400000; // default 30 days
+    let endMs = now;
+    if (state.base && state.base.rows && state.base.rows.length) {
+      const rg = computeRange();
+      if (rg && rg.from && rg.to) {
+        const span = rg.to - rg.from;
+        // Keep span <= 30 days so LiveCoinWatch returns granular hourly candles (~720 points)
+        if (span > 0 && span <= 30 * 86400000) {
+          startMs = Math.max(0, rg.from - 3600000);
+          endMs = Math.min(now, rg.to + 3600000);
+          if (now - endMs < 86400000) endMs = now;
+        } else {
+          startMs = now - 30 * 86400000;
+          endMs = now;
+        }
+      }
+    }
+    startMs = Math.min(startMs, endMs - 60000);
+
+    state.lcwHistoryFetching = true;
+    try {
+      const rawHistory = await testAndFetchLcwHistory(prefs.lcwKey, startMs, endMs);
+      const map = new Map((state.lcwHistory || []).map(p => [p.date, p.rate]));
+      for (const item of rawHistory) {
+        if (item && fin(item.date) && fin(item.rate) && item.rate > 0) {
+          map.set(item.date, item.rate);
+        }
+      }
+      state.lcwHistory = Array.from(map.entries())
+        .map(([date, rate]) => ({ date, rate }))
+        .sort((a, b) => a.date - b.date);
+      state.lcwHistoryTime = now;
+      if (state.base && state.base.rows && state.base.rows.length) {
+        applyRange();
+      }
+      try {
+        idbSet('lcwHistory', state.lcwHistory);
+        idbSet('lcwHistoryTime', state.lcwHistoryTime);
+      } catch (_) {}
+    } catch (err) {
+      console.warn('LiveCoinWatch history fetch error:', err);
+      state.lcwHistoryError = err.message || 'History fetch failed';
+    } finally {
+      state.lcwHistoryFetching = false;
+    }
+  }
+
   async function fetchLiveBtcPrice(force) {
     if (!prefs.lcwKey || state.liveBtcFetching) return;
     if (!force && state.liveBtcTime && Date.now() - state.liveBtcTime < 5000) return;
@@ -2113,7 +2203,11 @@
     const clearBtn = $('#btnClearLcw');
     input.value = prefs.lcwKey || '';
     if (state.liveBtcPrice) {
-      status.textContent = 'Current live spot: ' + usd(state.liveBtcPrice);
+      let st = 'Current live spot: ' + usd(state.liveBtcPrice);
+      if (state.lcwHistory && state.lcwHistory.length) {
+        st += ' · Market history: ' + int(state.lcwHistory.length) + ' pts (10m live sync)';
+      }
+      status.textContent = st;
       status.style.color = 'var(--buy)';
     } else if (state.liveBtcError) {
       status.textContent = state.liveBtcError;
@@ -2152,6 +2246,8 @@
         $('#lcwDlg').close();
         toast('LiveCoinWatch connected! Spot: ' + usd(price), 'ok');
         applyRange();
+        // Fetch market history once on key setup to immediately enhance charts
+        fetchLcwHistory(true);
       } else {
         throw new Error('No valid rate returned');
       }
@@ -2257,9 +2353,17 @@
       r.dd = r.totalPl - peak;
       prevUser = r.userBtc;
     }
+    const allClosedSells = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.TX === 'Sell' && fin(r.realized)) {
+        if (r.realized > 0.005) allClosedSells.push({ t: r.t, realized: r.realized, win: 1, i });
+        else if (r.realized < -0.005) allClosedSells.push({ t: r.t, realized: r.realized, win: 0, i });
+      }
+    }
     // Floor to 1 decimal place so even a single gap keeps score below 100%
     const integrity = rows.length ? Math.max(0, Math.floor(1000 * (1 - gaps.length / rows.length)) / 10) : 100;
-    return Object.assign({}, parsed, { gaps, integrity, unmatchedBtc, unmatchedN, basis: mode });
+    return Object.assign({}, parsed, { gaps, integrity, unmatchedBtc, unmatchedN, basis: mode, allClosedSells });
   }
 
   /* ======================================================================
@@ -2402,6 +2506,55 @@
     const periodPl = (last.cumRealized + liveUnrealized) - prevEq;
     const hodlPl = hodlBtc * effectiveRate - hodlCost;
     const alphaPl = periodPl - hodlPl;
+
+    if (state.lcwHistory && state.lcwHistory.length) {
+      const tMin = first.t;
+      const tMax = (isTerminal && prefs.lcwKey) ? Date.now() : last.t;
+      const histPts = state.lcwHistory.filter(h => h.date >= tMin && h.date <= tMax);
+      if (histPts.length > 0) {
+        const rateMap = new Map();
+        for (const h of histPts) rateMap.set(h.date, h.rate);
+        for (const pt of ser.rate) rateMap.set(pt.x, pt.y);
+        if (spotRate && isTerminal) rateMap.set(Date.now(), spotRate);
+        ser.rate = Array.from(rateMap.entries())
+          .map(([x, y]) => ({ x, y }))
+          .sort((a, b) => a.x - b.x);
+
+        let curHodlBtc = rows[i0].prevUser, curHodlCost = rows[i0].prevUser * rows[i0].rate;
+        let runningNetCash = 0, runningMaxCash = 0;
+        let tradeIdx = i0;
+        const hodlPts = [];
+        for (const pt of ser.rate) {
+          while (tradeIdx <= i1 && rows[tradeIdx].t <= pt.x) {
+            const tr = rows[tradeIdx];
+            if (tr.TX === 'Buy') {
+              runningNetCash += tr.USD;
+              if (runningNetCash > runningMaxCash) {
+                const add = runningNetCash - runningMaxCash;
+                runningMaxCash = runningNetCash;
+                curHodlBtc += tr.price > 0 ? add / tr.price : 0;
+                curHodlCost += add;
+              }
+            } else {
+              runningNetCash -= tr.USD;
+            }
+            tradeIdx++;
+          }
+          const curHPl = curHodlBtc * pt.y - curHodlCost;
+          hodlPts.push({ x: pt.x, y: prevEq + curHPl });
+        }
+        if (hodlPts.length > 0) ser.hodl = hodlPts;
+
+        for (const pt of ser.rate) {
+          if (pt.y > rateHi) rateHi = pt.y;
+          if (pt.y > 0 && pt.y < rateLo) rateLo = pt.y;
+        }
+      }
+    } else if (spotRate && isTerminal) {
+      ser.rate.push({ x: Date.now(), y: spotRate });
+      ser.hodl.push({ x: Date.now(), y: prevEq + hodlPl });
+    }
+
     Object.assign(S, {
       buyN, sellN, buyUSD, sellUSD, buyBTC, sellBTC, volume: buyUSD + sellUSD, realized, wins, losses, grossWin, grossLoss,
       largestWin, largestLoss, maxW, maxL, maxTrade,
@@ -2418,10 +2571,12 @@
       avgBuyPrice: buyBTC > 0 ? buyUSD / buyBTC : NaN,
       avgSellPrice: sellBTC > 0 ? sellUSD / sellBTC : NaN,
       maxDD, maxDDt, maxDDDur, ddStartT, ddEndT, ddRecovered,
-      series: ser, markers, closedSells,
+      series: ser, markers, closedSells, allClosedSells: base.allClosedSells || [],
       heatN, heatV, heatP, hourB, hourS, dowB, dowS, dayMap,
+      isTerminal,
     });
-    S.openLots = computeOpenLotsAt(rows, i1, mode, spotRate);
+    const asOfT = isTerminal ? Date.now() : (rgTo || last.t);
+    S.openLots = computeOpenLotsAt(rows, i1, mode, spotRate, asOfT);
     S.cadence = S.count > 1 ? S.span / (S.count - 1) : NaN;
     S.days = Array.from(dayMap.values()).sort((a, b) => a.t - b.t);
     S.months = Array.from(monMap.values()).sort((a, b) => a.t - b.t);
@@ -2642,6 +2797,13 @@
     }
     showApp(true);
     await runAnalysis();
+    if (prefs.lcwKey) {
+      fetchLiveBtcPrice();
+      const now = Date.now();
+      if (!state.lcwHistory || !state.lcwHistory.length || !state.lcwHistoryTime || (now - state.lcwHistoryTime >= LCW_HISTORY_CADENCE_MS)) {
+        fetchLcwHistory();
+      }
+    }
   }
   async function addFiles(files, label) {
     if (!files || !files.length) return;
@@ -2752,7 +2914,10 @@
     fi.click();
   }
   async function rescan() {
-    if (prefs.lcwKey) fetchLiveBtcPrice(true);
+    if (prefs.lcwKey) {
+      fetchLiveBtcPrice(true);
+      fetchLcwHistory(true);
+    }
     state.liveChecking = true;
     try {
       if (state.dirHandle) {
@@ -2872,7 +3037,13 @@
       }
       if (state.liveTimer) clearInterval(state.liveTimer);
       state.liveTimer = setInterval(pollLiveSources, 20000);
-      if (prefs.lcwKey) fetchLiveBtcPrice(true);
+      if (prefs.lcwKey) {
+        fetchLiveBtcPrice(true);
+        const now = Date.now();
+        if (!state.lcwHistoryTime || (now - state.lcwHistoryTime >= LCW_HISTORY_CADENCE_MS)) {
+          fetchLcwHistory();
+        }
+      }
       toast('Live mode active · checking every 20s', 'ok');
     } else {
       stopLive(false);
@@ -2902,7 +3073,13 @@
 
   async function pollLiveSources() {
     if (!state.live || state.liveChecking) return;
-    if (prefs.lcwKey) fetchLiveBtcPrice();
+    if (prefs.lcwKey) {
+      fetchLiveBtcPrice();
+      const now = Date.now();
+      if (!state.lcwHistoryTime || (now - state.lcwHistoryTime >= LCW_HISTORY_CADENCE_MS)) {
+        fetchLcwHistory();
+      }
+    }
     state.liveChecking = true;
     try {
       if (state.dirHandle) {
@@ -3206,7 +3383,8 @@
       badge.title = isLog ? 'Logarithmic scale active' : 'Linear scale active';
     }
     $('#mainTitle').textContent = meta[s].title;
-    $('#mainSub').textContent = meta[s].sub + ' · ' + (isLog ? 'Log scale' : 'Linear scale');
+    const histTag = (s === 'rate' && state.lcwHistory && state.lcwHistory.length) ? ' · LiveCoinWatch market history' : '';
+    $('#mainSub').textContent = meta[s].sub + ' · ' + (isLog ? 'Log scale' : 'Linear scale') + histTag;
     const ser = S.series;
     let series, markers = null, o = {};
     if (s === 'equity') {
@@ -3285,7 +3463,12 @@
     }
     sumEl.classList.remove('hidden');
     let inProfBtc = 0, uwBtc = 0, minP = Infinity, maxP = -Infinity, oldest = 0, wAge = 0;
+    const isTerminal = !S || S.isTerminal !== false;
+    const now = Date.now();
     for (const l of lots) {
+      if (isTerminal) {
+        l.ageMs = Math.max(0, now - l.t);
+      }
       if (l.unrealized >= 0) inProfBtc += l.btc; else uwBtc += l.btc;
       if (l.price < minP) minP = l.price;
       if (l.price > maxP) maxP = l.price;
@@ -3325,47 +3508,85 @@
     }).join('');
   }
 
+  // Periodically refresh open lots age display every 10s
+  setInterval(() => {
+    if (prefs.tab === 'overview' && state.sum && state.sum.openLots && state.sum.openLots.length && state.sum.isTerminal !== false) {
+      renderOpenLots(state.sum);
+    }
+  }, 10000);
+
   function renderRolling(S) {
     if (!charts.roll) return;
     const metric = prefs.rollMetric || 'winrate';
     const W = Math.max(2, parseInt(prefs.rollWin, 10) || 20);
     $$('#rollMetricSeg button').forEach(b => b.classList.toggle('active', b.dataset.rmetric === metric));
     $$('#rollWinSeg button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.rwin, 10) === W));
-    const cs = (S && S.closedSells) || [];
-    if (!S || !S.count || !cs.length) {
+    const allCs = (S && S.allClosedSells) || (state.base && state.base.allClosedSells) || [];
+    if (!S || !S.count || !allCs.length) {
       if ($('#rollSub')) $('#rollSub').textContent = 'No closed sells in range';
       charts.roll.setData([], null, {});
       return;
     }
-    const pts = [];
+    // Precompute rolling metric across entire ledger history so each point
+    // accurately reflects the trailing W closed sells regardless of the selected date range.
+    const allPts = [];
     let wSum = 0, rSum = 0;
-    for (let k = 0; k < cs.length; k++) {
-      wSum += cs[k].win;
-      rSum += cs[k].realized;
+    for (let k = 0; k < allCs.length; k++) {
+      wSum += allCs[k].win;
+      rSum += allCs[k].realized;
       if (k >= W) {
-        wSum -= cs[k - W].win;
-        rSum -= cs[k - W].realized;
+        wSum -= allCs[k - W].win;
+        rSum -= allCs[k - W].realized;
       }
       const denom = Math.min(k + 1, W);
-      pts.push({
-        x: cs[k].t,
+      allPts.push({
+        x: allCs[k].t,
         y: metric === 'winrate' ? (wSum / denom) * 100 : (rSum / denom),
+        i: allCs[k].i,
       });
     }
-    if ($('#rollSub')) {
-      $('#rollSub').textContent = 'Trailing ' + W + ' closed sells (' + int(cs.length) + ' closed sells in range · ' + (BASIS_LABEL[S.basis] || 'FIFO') + ')';
+
+    const inRange = allPts.filter(p => p.i >= S.i0 && p.i <= S.i1);
+    if (!inRange.length) {
+      if ($('#rollSub')) $('#rollSub').textContent = 'No closed sells in range';
+      charts.roll.setData([], null, {});
+      return;
     }
+
+    // Connect cleanly from the left boundary by including 1 predecessor point before i0 if available
+    const firstIdx = allPts.findIndex(p => p.i >= S.i0 && p.i <= S.i1);
+    const startIdx = firstIdx > 0 ? firstIdx - 1 : 0;
+    let lastIdx = -1;
+    for (let k = allPts.length - 1; k >= 0; k--) {
+      if (allPts[k].i >= S.i0 && allPts[k].i <= S.i1) { lastIdx = k; break; }
+    }
+    const pts = allPts.slice(startIdx, lastIdx + 1).map(p => ({ x: p.x, y: p.y }));
+
+    if ($('#rollSub')) {
+      const bLabel = (BASIS_LABEL[S.basis] || (prefs.basis || 'fifo').toUpperCase());
+      $('#rollSub').textContent = 'Rolling ' + W + '-sell window (' + int(inRange.length) + ' closed sells in range · ' + bLabel + ')';
+    }
+
+    const chartOpts = {
+      xMin: S.first,
+      xMax: S.last,
+      includeZero: true,
+    };
+
     if (metric === 'winrate') {
+      chartOpts.yFmt = v => Math.round(v) + '%';
+      chartOpts.refLine = { y: 50, color: PAL.borderStrong };
       charts.roll.setData(
         [{ pts, color: PAL.accent, fill: true, label: 'Rolling win rate (' + W + ')', fmt: v => v.toFixed(1) + '%' }],
         null,
-        { yFmt: v => Math.round(v) + '%', includeZero: true, refLine: { y: 50, color: PAL.borderStrong } }
+        chartOpts
       );
     } else {
+      chartOpts.yFmt = usdC;
       charts.roll.setData(
         [{ pts, color: PAL.buy, neg: PAL.sell, signed: true, fill: true, label: 'Rolling expectancy (' + W + ')', fmt: usdS }],
         null,
-        { yFmt: usdC, includeZero: true }
+        chartOpts
       );
     }
   }
@@ -3385,7 +3606,7 @@
         { label: 'Sharpe / Sortino', value: shTxt + ' / ' + soTxt, tone: S.sharpe >= 1 ? 'buy' : S.sharpe >= 0 ? 'info' : 'warn', note: 'annualized daily total P/L', title: 'Annualized Sharpe (return / volatility) and Sortino (return / downside volatility) across active days' },
         { label: 'Recovery & Underwater', value: rfTxt + 'x', tone: S.recoveryFactor >= 1 ? 'buy' : 'warn', note: S.maxDDDur > 0 ? 'max uw ' + dur(S.maxDDDur) + (S.ddRecovered ? '' : ' (open)') : 'no underwater span', title: 'Net Total P/L divided by Max Drawdown, plus longest time spent below high-water mark' },
         { label: 'Largest win / loss', value: '<span class="pos">' + (S.largestWin ? usdC(S.largestWin.realized) : '—') + '</span> / <span class="neg">' + (S.largestLoss ? usdC(S.largestLoss.realized) : '—') + '</span>', tone: 'buy', note: 'Streaks: ' + S.maxW + 'W / ' + S.maxL + 'L' },
-        { label: 'Hold time', value: dur(S.medHold), tone: 'accent', note: 'median · avg ' + dur(S.avgHold) },
+        { label: 'Hold time', value: dur(S.medHold), tone: 'accent', note: 'median (' + (BASIS_LABEL[S.basis] || 'FIFO') + ') · avg ' + dur(S.avgHold) },
       ]);
     }
     if ($('#ddSub')) {
@@ -3506,7 +3727,7 @@
     } else {
       renderKpiGrid($('#kpisAct'), [
         { label: 'Trades / day', value: S.tradesPerDay.toFixed(1), tone: 'accent', note: S.activeDays + ' active days' },
-        { label: 'Avg cadence', value: dur(S.cadence), tone: 'info', note: 'median gap ' + dur(S.medInter) },
+        { label: 'Trade cadence', value: dur(S.cadence), tone: 'info', note: 'median interval ' + dur(S.medInter) },
         { label: 'Busiest hour', value: pad2(S.busyHour) + ':00', tone: 'violet', note: int(S.busyHourN) + ' trades · ' + tzName() },
         { label: 'Busiest weekday', value: DOW[S.busyDow], tone: 'violet', note: int(S.busyDowN) + ' trades' },
         { label: 'Avg trade', value: usd(S.avgSize), tone: 'accent', note: 'median ' + usd(S.medSize) },
@@ -3519,6 +3740,17 @@
     const tz = tzName();
     $('#hourSub').textContent = tz;
     $('#heatSub').textContent = tz + ' · Monday first';
+    const bLabel = (BASIS_LABEL[S.basis] || (prefs.basis || 'fifo').toUpperCase());
+    if ($('#holdSub')) {
+      $('#holdSub').textContent = fin(S.medHold)
+        ? bLabel + ' · avg ' + dur(S.avgHold) + ' · median ' + dur(S.medHold)
+        : bLabel + ' · per sell';
+    }
+    if ($('#interSub')) {
+      $('#interSub').textContent = fin(S.medInter)
+        ? 'avg ' + dur(S.cadence) + ' · median ' + dur(S.medInter)
+        : 'between executions';
+    }
     const hours = Array.from({ length: 24 }, (_, i) => pad2(i));
     charts.hour.setData({
       labels: hours, stacked: true, tipTitle: i => pad2(i) + ':00–' + pad2((i + 1) % 24) + ':00 ' + tz,
@@ -4075,9 +4307,16 @@
     state.liveBtcPrice = null;
     state.liveBtcTime = null;
     state.liveBtcError = null;
+    state.lcwHistory = null;
+    state.lcwHistoryTime = null;
+    state.lcwHistoryError = null;
     $('#lcwDlg').close();
     toast('LiveCoinWatch disabled', 'info');
     applyRange();
+    try {
+      idbSet('lcwHistory', null);
+      idbSet('lcwHistoryTime', null);
+    } catch (_) {}
   });
   $('#btnSaveLcw').addEventListener('click', saveLcwKey);
   $('#lcwKeyInput').addEventListener('keydown', e => {
@@ -4359,10 +4598,24 @@
   if (hashTheme) applyTheme(hashTheme);
   const hashTab = (hash.match(/\b(overview|performance|activity|trades|integrity|sources)\b/) || [])[1];
   setTab(hashTab || prefs.tab);
-  window.__vbtc = { state, prefs, charts, setBasis, pollLiveSources, toggleLive, stopLive, rescan, fetchLiveBtcPrice, openLcwDialog, saveLcwKey };
+  window.__vbtc = { state, prefs, charts, setBasis, pollLiveSources, toggleLive, stopLive, rescan, fetchLiveBtcPrice, fetchLcwHistory, testAndFetchLcwHistory, openLcwDialog, saveLcwKey };
   updateRescanState();
   (async () => {
+    try {
+      const cachedHist = await idbGet('lcwHistory');
+      const cachedTime = await idbGet('lcwHistoryTime');
+      if (Array.isArray(cachedHist) && cachedHist.length) {
+        state.lcwHistory = cachedHist;
+        state.lcwHistoryTime = cachedTime || Date.now();
+      }
+    } catch (_) {}
     await tryRestoreFolder();
+    if (prefs.lcwKey) {
+      fetchLiveBtcPrice();
+      if (!state.lcwHistory || !state.lcwHistory.length) {
+        fetchLcwHistory();
+      }
+    }
   })();
 })();
   </script>
