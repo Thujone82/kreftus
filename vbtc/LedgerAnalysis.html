@@ -594,7 +594,7 @@
           <button type="button" class="btn sm" id="btnReconnect">Reconnect folder</button>
         </div>
         <div class="hero-feats">
-          <div class="feat"><b>Multi-Basis P/L</b>FIFO, LIFO, HIFO &amp; Avg Cost with HODL benchmark alpha.</div>
+          <div class="feat"><b>Multi-Basis P/L</b>FIFO, LIFO, HIFO &amp; Avg Cost with Trade vs HODL comparison.</div>
           <div class="feat"><b>Patterns</b>Hour × weekday heatmap, daily calendar, rolling win rate.</div>
           <div class="feat"><b>Integrity</b>Satoshi-level continuity checks with jump-to-row.</div>
           <div class="feat"><b>Export</b>Filtered trades, daily &amp; monthly summaries, JSON.</div>
@@ -933,7 +933,7 @@
           <dt>Realized P/L</dt><dd>Sell proceeds minus cost basis of the BTC sold under the active accounting method.</dd>
           <dt>Unrealized P/L</dt><dd>Open buy lots valued at the latest rate minus their cost basis.</dd>
           <dt>Total P/L</dt><dd>Cumulative realized + unrealized at each trade. KPI shows change over the selected range.</dd>
-          <dt>vs. HODL Alpha</dt><dd>Active Total P/L minus passive Buy &amp; Hold P/L on the same capital deployed.</dd>
+          <dt>vs. HODL</dt><dd>Active Total P/L minus passive Buy &amp; Hold P/L on the same capital deployed.</dd>
           <dt>Sharpe / Sortino</dt><dd>Annualized risk-adjusted daily P/L return vs. total volatility (Sharpe) or downside volatility (Sortino).</dd>
           <dt>Effective price</dt><dd>Trade USD ÷ trade BTC — the price actually paid or received.</dd>
           <dt>Win rate</dt><dd>Share of sells with positive realized P/L (break-even excluded).</dd>
@@ -2524,6 +2524,11 @@
         let runningNetCash = 0, runningMaxCash = 0;
         let tradeIdx = i0;
         const hodlPts = [];
+        const eqPts = [];
+        const realPts = [];
+        const valPts = [];
+        const userBtcPts = [];
+        const avgCostPts = [];
         for (const pt of ser.rate) {
           while (tradeIdx <= i1 && rows[tradeIdx].t <= pt.x) {
             const tr = rows[tradeIdx];
@@ -2542,8 +2547,32 @@
           }
           const curHPl = curHodlBtc * pt.y - curHodlCost;
           hodlPts.push({ x: pt.x, y: prevEq + curHPl });
+
+          const activeTrade = tradeIdx > i0 ? rows[tradeIdx - 1] : rows[i0];
+          if (activeTrade) {
+            const unReal = (activeTrade.openBtc > 0) ? (activeTrade.openBtc * pt.y - activeTrade.openCost) : 0;
+            const curEq = activeTrade.cumRealized + unReal;
+            eqPts.push({ x: pt.x, y: curEq });
+            realPts.push({ x: pt.x, y: activeTrade.cumRealized });
+            valPts.push({ x: pt.x, y: activeTrade.userBtc * pt.y });
+            userBtcPts.push({ x: pt.x, y: activeTrade.userBtc });
+            if (activeTrade.avgCost != null) avgCostPts.push({ x: pt.x, y: activeTrade.avgCost });
+          }
         }
         if (hodlPts.length > 0) ser.hodl = hodlPts;
+        if (eqPts.length > 0) ser.eq = eqPts;
+        if (realPts.length > 0) ser.real = realPts;
+        if (valPts.length > 0) ser.value = valPts;
+        if (userBtcPts.length > 0) ser.userBtc = userBtcPts;
+        if (avgCostPts.length > 0) ser.avgCost = avgCostPts;
+
+        let runningPeak = i0 > 0 ? rows[i0 - 1].totalPl : 0;
+        const ddPts = [];
+        for (let k = 0; k < eqPts.length; k++) {
+          if (eqPts[k].y >= runningPeak) runningPeak = eqPts[k].y;
+          ddPts.push({ x: eqPts[k].x, y: eqPts[k].y - runningPeak });
+        }
+        if (ddPts.length > 0) ser.dd = ddPts;
 
         for (const pt of ser.rate) {
           if (pt.y > rateHi) rateHi = pt.y;
@@ -2551,8 +2580,17 @@
         }
       }
     } else if (spotRate && isTerminal) {
-      ser.rate.push({ x: Date.now(), y: spotRate });
-      ser.hodl.push({ x: Date.now(), y: prevEq + hodlPl });
+      const now = Date.now();
+      ser.rate.push({ x: now, y: spotRate });
+      ser.hodl.push({ x: now, y: prevEq + hodlPl });
+      const curEq = last.cumRealized + liveUnrealized;
+      ser.eq.push({ x: now, y: curEq });
+      ser.real.push({ x: now, y: last.cumRealized });
+      ser.value.push({ x: now, y: last.userBtc * spotRate });
+      ser.userBtc.push({ x: now, y: last.userBtc });
+      if (last.avgCost != null) ser.avgCost.push({ x: now, y: last.avgCost });
+      const curPeak = Math.max(peak, curEq);
+      ser.dd.push({ x: now, y: curEq - curPeak });
     }
 
     Object.assign(S, {
@@ -3343,8 +3381,8 @@
       };
     }
     renderKpiGrid($('#kpisOverview'), [
-      { label: 'Total P/L (' + bLabel + ')', value: usdS(S.periodPl), cls: sgn(S.periodPl), tone: tone(S.periodPl), note: 'vs HODL ' + usdS(S.alphaPl) + ' alpha', spark: S.series.eq, title: 'Change in (cumulative realized + unrealized) P/L across the selected range (' + bLabel + ' cost basis)' },
-      { label: 'vs. HODL Alpha', value: usdS(S.alphaPl), cls: sgn(S.alphaPl), tone: tone(S.alphaPl), note: 'HODL P/L ' + usdS(S.hodlPl), spark: S.series.hodl, sparkColor: 'warn', title: 'Active Total P/L minus passive Buy & Hold P/L on the same starting BTC + net capital added' },
+      { label: 'Total P/L (' + bLabel + ')', value: usdS(S.periodPl), cls: sgn(S.periodPl), tone: tone(S.periodPl), note: 'vs HODL ' + usdS(S.alphaPl), spark: S.series.eq, title: 'Change in (cumulative realized + unrealized) P/L across the selected range (' + bLabel + ' cost basis)' },
+      { label: 'vs. HODL', value: usdS(S.alphaPl), cls: sgn(S.alphaPl), tone: tone(S.alphaPl), note: 'HODL P/L ' + usdS(S.hodlPl), spark: S.series.hodl, sparkColor: 'warn', title: 'Active Total P/L minus passive Buy & Hold P/L on the same starting BTC + net capital added' },
       { label: 'Realized P/L', value: usdS(S.realized), cls: sgn(S.realized), tone: tone(S.realized), note: int(S.sellN) + ' sells · ' + bLabel + ' basis', spark: S.series.real },
       unRealItem,
       { label: 'Win rate', value: pct(S.winRate), tone: S.winRate >= 0.5 ? 'buy' : 'warn', note: S.wins + 'W · ' + S.losses + 'L · PF ' + pfTxt(S.profitFactor) },
@@ -4261,7 +4299,7 @@
       if (j > 0 && eqPts[j].x > px) j--;
       if (!eqPts[j] || !hdPts[j]) return '';
       const alphaDiff = eqPts[j].y - hdPts[j].y;
-      return tipRow('Alpha vs HODL', usdS(alphaDiff), alphaDiff >= 0 ? PAL.buy : PAL.sell, sgn(alphaDiff));
+      return tipRow('Trade vs HODL', usdS(alphaDiff), alphaDiff >= 0 ? PAL.buy : PAL.sell, sgn(alphaDiff));
     },
   });
   charts.dd = new TimeChart($('#chartDD'), { onHoverT: t => syncFromTime(charts.dd, t) });
