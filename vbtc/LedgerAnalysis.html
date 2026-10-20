@@ -459,6 +459,18 @@
     .menu button { display: flex; width: 100%; align-items: center; gap: 10px; text-align: left; padding: 8px 10px; border: 0; background: transparent; border-radius: 8px; cursor: pointer; font-size: 13px; }
     .menu button:hover { background: var(--surface-3); }
     .menu button small { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: 11px; }
+    .basis-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 12px; font-weight: 700; cursor: pointer; user-select: none; transition: background 0.12s, border-color 0.12s; white-space: nowrap; }
+    .basis-btn:hover, .basis-btn[aria-expanded="true"] { background: var(--surface-3); border-color: var(--border-strong); }
+    .basis-btn .caret { transition: transform 0.15s ease; color: var(--muted); flex-shrink: 0; }
+    .basis-btn[aria-expanded="true"] .caret { transform: rotate(180deg); color: var(--text); }
+    .menu.basis-menu { left: 0; right: auto; top: 35px; min-width: 200px; padding: 4px; }
+    .basis-menu button { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; border-radius: 8px; font-size: 12.5px; color: var(--text); border: 0; background: transparent; cursor: pointer; width: 100%; text-align: left; font-family: var(--font); }
+    .basis-menu button:hover { background: var(--surface-3); }
+    .basis-menu button.active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+    .basis-menu button.active .basis-code { color: var(--accent); }
+    .basis-menu button.active small { color: var(--accent); opacity: 0.9; }
+    .basis-menu .basis-code { font-family: var(--mono); font-weight: 700; font-size: 12px; letter-spacing: 0.04em; }
+    .basis-menu small { margin-left: auto; color: var(--muted); font-family: var(--font); font-size: 11px; }
     .toasts { position: fixed; right: 18px; bottom: 18px; z-index: 110; display: grid; gap: 8px; }
     .toast { padding: 10px 14px; border-radius: 11px; background: var(--surface-solid); border: 1px solid var(--border-strong); box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5); font-size: 13px; animation: fadein 0.2s ease; max-width: 400px; display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; white-space: pre-line; }
     .toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--info); flex: none; margin-top: 5px; }
@@ -554,11 +566,29 @@
         <button type="button" class="tab" data-tab="sources"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Sources</button>
       </nav>
       <div class="range">
-        <div class="seg alt" id="basisSeg" title="Cost basis accounting method (B)">
-          <button type="button" class="active" data-basis="fifo" title="First-In, First-Out (oldest lots first)">FIFO</button>
-          <button type="button" data-basis="lifo" title="Last-In, First-Out (newest lots first)">LIFO</button>
-          <button type="button" data-basis="hifo" title="Highest-In, First-Out (highest cost lots first)">HIFO</button>
-          <button type="button" data-basis="avg" title="Weighted Average Cost basis">AVG</button>
+        <div class="menu-wrap" id="basisWrap">
+          <button type="button" class="basis-btn" id="btnBasis" title="Cost basis accounting method (B)" aria-haspopup="true" aria-expanded="false">
+            <span id="basisCur">FIFO</span>
+            <svg class="caret" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="menu basis-menu" id="basisSeg" role="menu">
+            <button type="button" class="active" data-basis="fifo" role="menuitem">
+              <span class="basis-code">FIFO</span>
+              <small>Oldest lots first</small>
+            </button>
+            <button type="button" data-basis="lifo" role="menuitem">
+              <span class="basis-code">LIFO</span>
+              <small>Newest lots first</small>
+            </button>
+            <button type="button" data-basis="hifo" role="menuitem">
+              <span class="basis-code">HIFO</span>
+              <small>Highest cost first</small>
+            </button>
+            <button type="button" data-basis="avg" role="menuitem">
+              <span class="basis-code">AVG</span>
+              <small>Average cost</small>
+            </button>
+          </div>
         </div>
         <div class="seg" id="rangeSeg">
           <button type="button" data-preset="24h">24H</button>
@@ -3234,12 +3264,18 @@
     if (!BASIS_ORDER.includes(mode)) mode = 'fifo';
     prefs.basis = mode;
     savePrefs();
+    const lbl = BASIS_LABEL[mode] || 'FIFO';
+    if ($('#basisCur')) $('#basisCur').textContent = lbl;
     $$('#basisSeg button').forEach(b => b.classList.toggle('active', b.dataset.basis === mode));
+    const basisSeg = $('#basisSeg');
+    if (basisSeg) basisSeg.classList.remove('show');
+    const btnBasis = $('#btnBasis');
+    if (btnBasis) btnBasis.setAttribute('aria-expanded', 'false');
     if (state.base && state.base.rows) {
       state.base = enrich({ rows: state.base.rows, fileStats: state.base.fileStats, quality: state.base.quality });
       applyRange();
       renderIntegrity();
-      toast('Cost basis: ' + BASIS_LABEL[mode], 'info', 2200);
+      toast('Cost basis: ' + lbl, 'info', 2200);
     }
   }
   function setRange(preset, from, to) {
@@ -3263,7 +3299,9 @@
      ====================================================================== */
   function renderRangeControls(rg) {
     $$('#rangeSeg button').forEach(b => b.classList.toggle('active', b.dataset.preset === state.range.preset));
-    $$('#basisSeg button').forEach(b => b.classList.toggle('active', b.dataset.basis === (prefs.basis || 'fifo')));
+    const curBasis = prefs.basis || 'fifo';
+    if ($('#basisCur')) $('#basisCur').textContent = BASIS_LABEL[curBasis] || 'FIFO';
+    $$('#basisSeg button').forEach(b => b.classList.toggle('active', b.dataset.basis === curBasis));
     const toVal = t => { const p = P(t); return p.y + '-' + pad2(p.m + 1) + '-' + pad2(p.d); };
     if (state.base.rows.length) {
       const rows = state.base.rows;
@@ -4420,6 +4458,12 @@
   // tabs, range, series, basis, benchmark, rolling
   $$('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $$('#rangeSeg button').forEach(b => b.addEventListener('click', () => setRange(b.dataset.preset)));
+  $('#btnBasis').addEventListener('click', e => {
+    e.stopPropagation();
+    $('#exportMenu').classList.remove('show');
+    const open = $('#basisSeg').classList.toggle('show');
+    $('#btnBasis').setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
   $$('#basisSeg button').forEach(b => b.addEventListener('click', () => setBasis(b.dataset.basis)));
   function onDateInput() {
     const parse = (s, endOfDay) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); if (!m) return null; const t = mk(+m[1], +m[2] - 1, +m[3] + (endOfDay ? 1 : 0)); return endOfDay ? t - 1 : t; };
@@ -4570,9 +4614,20 @@
   });
 
   // export menu
-  $('#btnExport').addEventListener('click', e => { e.stopPropagation(); $('#exportMenu').classList.toggle('show'); });
+  $('#btnExport').addEventListener('click', e => {
+    e.stopPropagation();
+    $('#basisSeg').classList.remove('show');
+    $('#btnBasis').setAttribute('aria-expanded', 'false');
+    $('#exportMenu').classList.toggle('show');
+  });
   $('#exportMenu').addEventListener('click', e => { const b = e.target.closest('button[data-export]'); if (!b) return; $('#exportMenu').classList.remove('show'); exportKind(b.dataset.export); });
-  document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) $('#exportMenu').classList.remove('show'); });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#exportMenu') && !e.target.closest('#btnExport')) $('#exportMenu').classList.remove('show');
+    if (!e.target.closest('#basisWrap')) {
+      $('#basisSeg').classList.remove('show');
+      $('#btnBasis').setAttribute('aria-expanded', 'false');
+    }
+  });
 
   // keyboard
   document.addEventListener('keydown', e => {
@@ -4580,6 +4635,9 @@
     const typing = tag === 'input' || tag === 'select' || tag === 'textarea';
     if (e.key === 'Escape') {
       $('#exportMenu').classList.remove('show');
+      $('#basisSeg').classList.remove('show');
+      const btnB = $('#btnBasis');
+      if (btnB) btnB.setAttribute('aria-expanded', 'false');
       if (typing) { e.target.blur(); return; }
       if (charts.main.isZoomed()) charts.main.resetView();
       return;
@@ -4613,6 +4671,9 @@
      ====================================================================== */
   applyTheme(prefs.theme);
   applyTz(prefs.utc);
+  const curBasis = prefs.basis || 'fifo';
+  if ($('#basisCur')) $('#basisCur').textContent = BASIS_LABEL[curBasis] || 'FIFO';
+  $$('#basisSeg button').forEach(b => b.classList.toggle('active', b.dataset.basis === curBasis));
   const hash = location.hash.toLowerCase();
   const hashSeries = (hash.match(/\b(equity|realized|rate|holdings|value)\b/) || [])[1];
   if (hashSeries) prefs.series = hashSeries;
