@@ -159,32 +159,40 @@ $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
 /*
- * Keep the SA popup within the viewport. Header is a 2-column grid
- * (Huffy | Enemy). Items list uses a real max-height so it scrolls
- * inside the window instead of being clipped.
+ * Stretch SA from the top of the window to just above the Save toolbar
+ * so the items list can fill leftover height instead of leaving a gap.
+ * Header stays a 2-column grid (Huffy | Enemy).
  */
 #tooltipDiv.tooltipExtraBiggest {
-  max-height: 100vh;
-  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  top: 0 !important;
+  bottom: 2.6vw;
   max-width: 100vw;
   overflow: hidden;
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest #tipText {
+#tooltipDiv.tooltipExtraBiggest > #tipText {
+  flex: 1 1 0%;
+  min-height: 0;
   max-width: 100%;
-  overflow-x: clip;
-  overflow-y: visible;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
 }
 
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
+  flex: 1 1 0%;
+  min-height: 0;
   max-width: 100%;
   overflow-x: clip;
-  overflow-y: visible;
+  overflow-y: hidden;
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 2%;
+  grid-template-rows: repeat(8, max-content) minmax(0, 1fr);
   box-sizing: border-box;
 }
 
@@ -266,12 +274,13 @@ $localCssContent = @'
 }
 
 /*
- * Items list: cap to leftover viewport so the scrollbar stays on-screen.
- * 40vw approximates the SA header (stats + tabs); 8em is the floor.
+ * Items list: last grid row fills leftover popup height and scrolls.
  */
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
-  max-height: max(8em, calc(100dvh - 40vw)) !important;
+  grid-row: 9;
+  min-height: 0;
+  max-height: none;
   max-width: 100%;
   overflow-y: auto !important;
   overflow-x: hidden;
@@ -419,14 +428,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v13';
+const CACHE_NAME = 'trimps-v14';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?13',
+  'css/kreftus-local.css?14',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -526,11 +535,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?13`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?14`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?13"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?13"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?14"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?14"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
