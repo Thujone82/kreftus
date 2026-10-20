@@ -159,31 +159,47 @@ $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
 /*
- * SA popup sizes to its content (short tabs stay short). Header is a
- * 2-column grid (Huffy | Enemy). Items list caps at leftover viewport
- * height so long tabs scroll instead of overflowing.
+ * SA popup tracks the window height (minus the Save toolbar). Header
+ * stays a 2-column grid. The items list is the leftover row and scrolls.
  */
 #tooltipDiv.tooltipExtraBiggest {
+  display: flex;
+  flex-direction: column;
+  top: 0 !important;
+  height: calc(100vh - 3.2vw) !important;
+  height: calc(100dvh - 3.2vw) !important;
+  max-height: calc(100vh - 3.2vw) !important;
+  max-height: calc(100dvh - 3.2vw) !important;
   max-width: 100vw;
-  overflow-x: hidden;
-  overflow-y: visible;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest #tipText {
+#tooltipDiv.tooltipExtraBiggest > #tipTitle,
+#tooltipDiv.tooltipExtraBiggest > hr,
+#tooltipDiv.tooltipExtraBiggest > #tipCost {
+  flex: 0 0 auto;
+}
+
+#tooltipDiv.tooltipExtraBiggest > #tipText {
+  flex: 1 1 0%;
+  min-height: 0;
   max-width: 100%;
-  overflow-x: clip;
-  overflow-y: visible;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
 }
 
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
+  flex: 1 1 0%;
+  min-height: 0;
   max-width: 100%;
-  overflow-x: clip;
-  overflow-y: visible;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 2%;
+  grid-template-rows: repeat(8, max-content) minmax(0, 1fr);
   box-sizing: border-box;
 }
 
@@ -265,16 +281,18 @@ $localCssContent = @'
 }
 
 /*
- * Items list: grow with content, then scroll. Cap is viewport-height
- * based so a wide window cannot push the list (and its scrollbar) off
- * the bottom. Short tabs stay short because this is max-height only.
+ * Items list: last grid row is leftover window height. min-height:0 lets
+ * it shrink on resize so overflow-y:auto can scroll.
  */
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
-  max-height: 36vh !important;
+  grid-row: 9;
+  min-height: 0 !important;
+  max-height: none !important;
   max-width: 100%;
   overflow-y: auto !important;
   overflow-x: hidden;
+  align-self: stretch;
   box-sizing: border-box;
 }
 
@@ -419,14 +437,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v17';
+const CACHE_NAME = 'trimps-v18';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?17',
+  'css/kreftus-local.css?18',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -526,11 +544,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?17`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?18`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?17"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?17"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?18"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?18"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
