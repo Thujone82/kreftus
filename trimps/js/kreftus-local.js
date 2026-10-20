@@ -1,11 +1,13 @@
 /* Local overlay - not from upstream; restored by updtrimps.ps1
- * Size Spire Assault to the real window (innerHeight), not vh/dvh.
- * Desktop Trimps does not update 100vh correctly on resize.
+ * Cap Spire Assault to the real window (innerHeight minus Save bar).
+ * Do not force height: short tabs stay compact; long tabs scroll.
  */
 (function () {
   function toolbarHeight() {
     var row = document.getElementById('settingsRow');
-    return (row && row.offsetParent !== null && row.offsetHeight) ? row.offsetHeight : 0;
+    if (!row) return 0;
+    var r = row.getBoundingClientRect();
+    return r.height > 0 ? Math.ceil(r.height) : 0;
   }
 
   function sizeSpireAssault() {
@@ -23,9 +25,9 @@
     var h = window.innerHeight - toolbarHeight();
     if (h < 80) h = 80;
     var next = h + 'px';
-    if (el.style.height === next && el.style.top === '0px') return;
+    if (el.style.maxHeight === next && !el.style.height) return;
     el.style.top = '0px';
-    el.style.height = next;
+    el.style.height = '';
     el.style.maxHeight = next;
     el.setAttribute('data-sa-sized', '1');
   }
