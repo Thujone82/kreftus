@@ -159,14 +159,11 @@ $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
 /*
- * Keep the SA popup within the viewport. The header stays in normal 2-column
- * flow (grid); only #autoItemsDiv grows into leftover height and scrolls.
+ * Keep the SA popup within the viewport. Header is a 2-column grid
+ * (Huffy | Enemy). Items list uses a real max-height so it scrolls
+ * inside the window instead of being clipped.
  */
 #tooltipDiv.tooltipExtraBiggest {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
   max-height: 100vh;
   max-height: 100dvh;
   max-width: 100vw;
@@ -174,34 +171,20 @@ $localCssContent = @'
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest > * {
-  flex: 0 0 auto;
-}
-
-#tooltipDiv.tooltipExtraBiggest > #tipText {
-  flex: 1 1 0%;
-  min-height: 0;
+#tooltipDiv.tooltipExtraBiggest #tipText {
   max-width: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  overflow-x: clip;
+  overflow-y: visible;
   box-sizing: border-box;
 }
 
-/*
- * 2-column grid restores Huffy/Enemy names, bars, and stats side-by-side.
- * Last row is 1fr so the items list scrollbar stays inside the popup.
- */
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
-  flex: 1 1 0%;
-  min-height: 0;
-  height: 100%;
   max-width: 100%;
   overflow-x: clip;
-  overflow-y: hidden;
+  overflow-y: visible;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(8, max-content) minmax(0, 1fr);
+  column-gap: 2%;
   box-sizing: border-box;
 }
 
@@ -209,13 +192,14 @@ $localCssContent = @'
 #tooltipDiv.tooltipExtraBiggest #abLevelButtons,
 #tooltipDiv.tooltipExtraBiggest #autoBattleStatsText,
 #tooltipDiv.tooltipExtraBiggest #autoBattleMenuButtons,
-#tooltipDiv.tooltipExtraBiggest #autoBattleNotes {
+#tooltipDiv.tooltipExtraBiggest #autoBattleNotes,
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv {
   grid-column: 1 / -1;
 }
 
 #tooltipDiv.tooltipExtraBiggest .autoBattleTopName,
 #tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder {
-  width: 100%;
+  width: auto;
   max-width: 100%;
   margin-left: 0;
   margin-right: 0;
@@ -282,20 +266,15 @@ $localCssContent = @'
 }
 
 /*
- * Items list: last grid row (leftover popup height); vertical scroll only.
- * Use flex rows so 7 columns always fit (avoids inline-block whitespace overflow).
+ * Items list: cap to leftover viewport so the scrollbar stays on-screen.
+ * 40vw approximates the SA header (stats + tabs); 8em is the floor.
  */
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
-  grid-column: 1 / -1;
-  grid-row: 9;
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
+  max-height: max(8em, calc(100dvh - 40vw)) !important;
   max-width: 100%;
-  overflow-y: auto;
+  overflow-y: auto !important;
   overflow-x: hidden;
-  align-self: stretch;
   box-sizing: border-box;
 }
 
@@ -440,14 +419,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v12';
+const CACHE_NAME = 'trimps-v13';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?12',
+  'css/kreftus-local.css?13',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -547,11 +526,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?12`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?13`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?12"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?12"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?13"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?13"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
