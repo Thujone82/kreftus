@@ -165,6 +165,8 @@ $localCssContent = @'
 #tooltipDiv.tooltipExtraBiggest {
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
   max-height: 100vh;
   max-height: 100dvh;
   max-width: 100vw;
@@ -177,7 +179,7 @@ $localCssContent = @'
 }
 
 #tooltipDiv.tooltipExtraBiggest > #tipText {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-height: 0;
   max-width: 100%;
   overflow: hidden;
@@ -191,8 +193,9 @@ $localCssContent = @'
  * Last row is 1fr so the items list scrollbar stays inside the popup.
  */
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-height: 0;
+  height: 100%;
   max-width: 100%;
   overflow-x: clip;
   overflow-y: hidden;
@@ -287,10 +290,12 @@ $localCssContent = @'
   grid-column: 1 / -1;
   grid-row: 9;
   min-height: 0;
-  max-height: none;
+  height: 100%;
+  max-height: 100%;
   max-width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  align-self: stretch;
   box-sizing: border-box;
 }
 
@@ -435,14 +440,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v11';
+const CACHE_NAME = 'trimps-v12';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?11',
+  'css/kreftus-local.css?12',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -542,11 +547,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?11`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?12`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?11"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?11"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?12"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?12"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
