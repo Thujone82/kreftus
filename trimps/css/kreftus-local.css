@@ -1,9 +1,8 @@
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
 /*
- * Keep the SA popup within the viewport. Flex column so #autoItemsDiv
- * gets leftover height (no guessed 100vh - 30em that overruns the window).
- * Vertical scroll only on #autoItemsDiv.
+ * Keep the SA popup within the viewport. The header stays in normal 2-column
+ * flow (grid); only #autoItemsDiv grows into leftover height and scrolls.
  */
 #tooltipDiv.tooltipExtraBiggest {
   display: flex;
@@ -30,8 +29,8 @@
 }
 
 /*
- * Clip (not overflow-x:hidden) on the outer tip wrapper: hidden promotes
- * overflow-y to auto, which put V-scrollbars on HP text.
+ * 2-column grid restores Huffy/Enemy names, bars, and stats side-by-side.
+ * Last row is 1fr so the items list scrollbar stays inside the popup.
  */
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
   flex: 1 1 auto;
@@ -39,13 +38,27 @@
   max-width: 100%;
   overflow-x: clip;
   overflow-y: hidden;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(8, max-content) minmax(0, 1fr);
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest #tipText > .noselect > *:not(#autoItemsDiv) {
-  flex: 0 0 auto;
+#tooltipDiv.tooltipExtraBiggest #autoDust,
+#tooltipDiv.tooltipExtraBiggest #abLevelButtons,
+#tooltipDiv.tooltipExtraBiggest #autoBattleStatsText,
+#tooltipDiv.tooltipExtraBiggest #autoBattleMenuButtons,
+#tooltipDiv.tooltipExtraBiggest #autoBattleNotes {
+  grid-column: 1 / -1;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBattleTopName,
+#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
 }
 
 /*
@@ -108,13 +121,14 @@
 }
 
 /*
- * Items list: remaining popup height; vertical scroll only.
+ * Items list: last grid row (leftover popup height); vertical scroll only.
  * Use flex rows so 7 columns always fit (avoids inline-block whitespace overflow).
  */
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
-  flex: 1 1 auto;
-  min-height: 4em;
+  grid-column: 1 / -1;
+  grid-row: 9;
+  min-height: 0;
   max-height: none;
   max-width: 100%;
   overflow-y: auto;
