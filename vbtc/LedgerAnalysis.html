@@ -2524,11 +2524,6 @@
         let runningNetCash = 0, runningMaxCash = 0;
         let tradeIdx = i0;
         const hodlPts = [];
-        const eqPts = [];
-        const realPts = [];
-        const valPts = [];
-        const userBtcPts = [];
-        const avgCostPts = [];
         for (const pt of ser.rate) {
           while (tradeIdx <= i1 && rows[tradeIdx].t <= pt.x) {
             const tr = rows[tradeIdx];
@@ -2548,31 +2543,20 @@
           const curHPl = curHodlBtc * pt.y - curHodlCost;
           hodlPts.push({ x: pt.x, y: prevEq + curHPl });
 
-          const activeTrade = tradeIdx > i0 ? rows[tradeIdx - 1] : rows[i0];
-          if (activeTrade) {
-            const unReal = (activeTrade.openBtc > 0) ? (activeTrade.openBtc * pt.y - activeTrade.openCost) : 0;
-            const curEq = activeTrade.cumRealized + unReal;
-            eqPts.push({ x: pt.x, y: curEq });
-            realPts.push({ x: pt.x, y: activeTrade.cumRealized });
-            valPts.push({ x: pt.x, y: activeTrade.userBtc * pt.y });
-            userBtcPts.push({ x: pt.x, y: activeTrade.userBtc });
-            if (activeTrade.avgCost != null) avgCostPts.push({ x: pt.x, y: activeTrade.avgCost });
+          // Only append post-trade mark-to-market points for series after the last trade in range
+          if (pt.x > last.t) {
+            const unReal = last.openBtc > 0 ? (last.openBtc * pt.y - last.openCost) : 0;
+            const curEq = last.cumRealized + unReal;
+            ser.eq.push({ x: pt.x, y: curEq });
+            ser.real.push({ x: pt.x, y: last.cumRealized });
+            ser.value.push({ x: pt.x, y: last.userBtc * pt.y });
+            ser.userBtc.push({ x: pt.x, y: last.userBtc });
+            if (last.avgCost != null) ser.avgCost.push({ x: pt.x, y: last.avgCost });
+            const curPeak = Math.max(peak, curEq);
+            ser.dd.push({ x: pt.x, y: curEq - curPeak });
           }
         }
         if (hodlPts.length > 0) ser.hodl = hodlPts;
-        if (eqPts.length > 0) ser.eq = eqPts;
-        if (realPts.length > 0) ser.real = realPts;
-        if (valPts.length > 0) ser.value = valPts;
-        if (userBtcPts.length > 0) ser.userBtc = userBtcPts;
-        if (avgCostPts.length > 0) ser.avgCost = avgCostPts;
-
-        let runningPeak = i0 > 0 ? rows[i0 - 1].totalPl : 0;
-        const ddPts = [];
-        for (let k = 0; k < eqPts.length; k++) {
-          if (eqPts[k].y >= runningPeak) runningPeak = eqPts[k].y;
-          ddPts.push({ x: eqPts[k].x, y: eqPts[k].y - runningPeak });
-        }
-        if (ddPts.length > 0) ser.dd = ddPts;
 
         for (const pt of ser.rate) {
           if (pt.y > rateHi) rateHi = pt.y;
