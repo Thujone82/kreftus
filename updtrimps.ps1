@@ -159,27 +159,51 @@ $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
 /*
- * Keep the SA popup within the viewport. Clip the shell (no scrollbars on it).
- * Vertical scroll only on #autoItemsDiv. Fix width overflows that appear when
- * the window is narrow (tab buttons + 7-column item rows).
+ * Keep the SA popup within the viewport. Flex column so #autoItemsDiv
+ * gets leftover height (no guessed 100vh - 30em that overruns the window).
+ * Vertical scroll only on #autoItemsDiv.
  */
 #tooltipDiv.tooltipExtraBiggest {
+  display: flex;
+  flex-direction: column;
   max-height: 100vh;
+  max-height: 100dvh;
   max-width: 100vw;
   overflow: hidden;
   box-sizing: border-box;
 }
 
+#tooltipDiv.tooltipExtraBiggest > * {
+  flex: 0 0 auto;
+}
+
+#tooltipDiv.tooltipExtraBiggest > #tipText {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
 /*
- * Clip (not hidden) on tip wrappers: overflow-x:hidden promotes overflow-y to
- * auto, which put classic V-scrollbars on HP text (.noselect.innerFightBar).
+ * Clip (not overflow-x:hidden) on the outer tip wrapper: hidden promotes
+ * overflow-y to auto, which put V-scrollbars on HP text.
  */
-#tooltipDiv.tooltipExtraBiggest #tipText,
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
+  flex: 1 1 auto;
+  min-height: 0;
   max-width: 100%;
   overflow-x: clip;
-  overflow-y: visible;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
+}
+
+#tooltipDiv.tooltipExtraBiggest #tipText > .noselect > *:not(#autoItemsDiv) {
+  flex: 0 0 auto;
 }
 
 /*
@@ -242,12 +266,14 @@ $localCssContent = @'
 }
 
 /*
- * Items list: remaining viewport height; vertical scroll only.
+ * Items list: remaining popup height; vertical scroll only.
  * Use flex rows so 7 columns always fit (avoids inline-block whitespace overflow).
  */
-#autoItemsDiv,
-#autoItemsDiv.modeLg {
-  max-height: max(8em, calc(100vh - 30em));
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
+  flex: 1 1 auto;
+  min-height: 4em;
+  max-height: none;
   max-width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
@@ -395,14 +421,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v9';
+const CACHE_NAME = 'trimps-v10';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?9',
+  'css/kreftus-local.css?10',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -502,11 +528,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?9`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?10`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?9"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?9"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?10"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?10"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
