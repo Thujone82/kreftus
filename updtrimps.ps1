@@ -167,7 +167,10 @@ $localCssContent = @'
   display: flex;
   flex-direction: column;
   top: 0 !important;
-  bottom: 2.6vw;
+  bottom: auto !important;
+  height: calc(100dvh - 3vw) !important;
+  min-height: calc(100dvh - 3vw) !important;
+  max-height: calc(100dvh - 3vw) !important;
   max-width: 100vw;
   overflow: hidden;
   box-sizing: border-box;
@@ -280,7 +283,8 @@ $localCssContent = @'
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
   grid-row: 9;
   min-height: 0;
-  max-height: none;
+  height: 100%;
+  max-height: none !important;
   max-width: 100%;
   overflow-y: auto !important;
   overflow-x: hidden;
@@ -428,14 +432,14 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v14';
+const CACHE_NAME = 'trimps-v15';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?14',
+  'css/kreftus-local.css?15',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -535,11 +539,11 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?14`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?15`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?14"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?14"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?15"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?15"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
