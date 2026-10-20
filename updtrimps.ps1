@@ -98,6 +98,8 @@ try {
     'sw.js' = $true
     'css\kreftus-local.css' = $true
     'css/kreftus-local.css' = $true
+    'js\kreftus-local.js' = $true
+    'js/kreftus-local.js' = $true
     'icons\192.png' = $true
     'icons/192.png' = $true
     'icons\512.png' = $true
@@ -150,7 +152,7 @@ if (Test-Path -LiteralPath $vscodePath) {
   Write-Host "   [-] Removed .vscode directory" -ForegroundColor DarkGray
 }
 
-Write-Step "Restoring local components (PWA + kreftus-local.css)..."
+Write-Step "Restoring local components (PWA + kreftus-local overlay)..."
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 # --- Restore local CSS overlay (only write if missing or content differs) ---
@@ -165,11 +167,6 @@ $localCssContent = @'
 #tooltipDiv.tooltipExtraBiggest {
   display: flex;
   flex-direction: column;
-  top: 0 !important;
-  height: calc(100vh - 3.2vw) !important;
-  height: calc(100dvh - 3.2vw) !important;
-  max-height: calc(100vh - 3.2vw) !important;
-  max-height: calc(100dvh - 3.2vw) !important;
   max-width: 100vw;
   overflow: hidden;
   box-sizing: border-box;
@@ -363,6 +360,75 @@ if ($needWriteLocalCss) {
   Write-Host "   [+] Wrote css/kreftus-local.css" -ForegroundColor DarkGray
 }
 
+$localJsContent = @'
+/* Local overlay - not from upstream; restored by updtrimps.ps1
+ * Size Spire Assault to the real window (innerHeight), not vh/dvh.
+ * Desktop Trimps does not update 100vh correctly on resize.
+ */
+(function () {
+  function toolbarHeight() {
+    var row = document.getElementById('settingsRow');
+    return (row && row.offsetParent !== null && row.offsetHeight) ? row.offsetHeight : 0;
+  }
+
+  function sizeSpireAssault() {
+    var el = document.getElementById('tooltipDiv');
+    if (!el) return;
+    var isSa = el.className.indexOf('tooltipExtraBiggest') !== -1 && el.style.display !== 'none';
+    if (!isSa) {
+      if (el.getAttribute('data-sa-sized')) {
+        el.style.height = '';
+        el.style.maxHeight = '';
+        el.removeAttribute('data-sa-sized');
+      }
+      return;
+    }
+    var h = window.innerHeight - toolbarHeight();
+    if (h < 80) h = 80;
+    var next = h + 'px';
+    if (el.style.height === next && el.style.top === '0px') return;
+    el.style.top = '0px';
+    el.style.height = next;
+    el.style.maxHeight = next;
+    el.setAttribute('data-sa-sized', '1');
+  }
+
+  window.addEventListener('resize', sizeSpireAssault);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', sizeSpireAssault);
+  }
+
+  function bind() {
+    sizeSpireAssault();
+    var el = document.getElementById('tooltipDiv');
+    if (!el || !window.MutationObserver) return;
+    new MutationObserver(sizeSpireAssault).observe(el, {
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    bind();
+  }
+})();
+'@
+$localJsPath = Join-Path $trimpsPath 'js\kreftus-local.js'
+$localJsDir = Split-Path -Parent $localJsPath
+if (-not (Test-Path -LiteralPath $localJsDir)) {
+  New-Item -ItemType Directory -Path $localJsDir -Force | Out-Null
+}
+$needWriteLocalJs = -not (Test-Path -LiteralPath $localJsPath)
+if (-not $needWriteLocalJs) {
+  $needWriteLocalJs = Test-TextContentDiffers ([System.IO.File]::ReadAllText($localJsPath, $utf8NoBom)) $localJsContent
+}
+if ($needWriteLocalJs) {
+  [System.IO.File]::WriteAllText($localJsPath, $localJsContent.TrimEnd() + "`n", $utf8NoBom)
+  Write-Host "   [+] Wrote js/kreftus-local.js" -ForegroundColor DarkGray
+}
+
 # --- Restore PWA icons (192/512 PNG) from favicon if missing ---
 # favicon.ico is a misnamed 16x16 PNG; Chrome/Android install requires explicit 192 and 512 PNG icons
 $iconsDir = Join-Path $trimpsPath 'icons'
@@ -437,14 +503,16 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v18';
+const CACHE_NAME = 'trimps-v19';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?18',
+  'css/kreftus-local.css?19',
+  'js/kreftus-local.js',
+  'js/kreftus-local.js?19',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -474,8 +542,9 @@ self.addEventListener('activate', function (event) {
   );
 });
 
-function isStyleRequest(request, url) {
-  return request.destination === 'style' || /kreftus-local\.css/i.test(url.pathname + url.search);
+function isLocalOverlay(request, url) {
+  var path = url.pathname + url.search;
+  return request.destination === 'style' || request.destination === 'script' || /kreftus-local\.(css|js)/i.test(path);
 }
 
 self.addEventListener('fetch', function (event) {
@@ -484,8 +553,7 @@ self.addEventListener('fetch', function (event) {
   var url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Always prefer fresh CSS so layout fixes are not stuck behind cache-first.
-  if (isStyleRequest(request, url)) {
+  if (isLocalOverlay(request, url)) {
     event.respondWith(
       fetch(request).then(function (response) {
         if (response && response.status === 200) {
@@ -544,11 +612,19 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?18`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?19`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?18"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?18"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?19"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?19"'
+  $indexChanged = $true
+}
+if ($indexHtml -notmatch 'kreftus-local\.js') {
+  $indexHtml = $indexHtml -replace '(<script type="text/javascript" src="main\.js[^"]*"></script>)', ('$1' + "`r`n`t<script type=`"text/javascript`" src=`"js/kreftus-local.js?19`"></script>")
+  $indexChanged = $true
+}
+elseif ($indexHtml -match 'src="js/kreftus-local\.js(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.js\?19"') {
+  $indexHtml = $indexHtml -replace 'src="js/kreftus-local\.js(\?[^"]*)?"', 'src="js/kreftus-local.js?19"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {

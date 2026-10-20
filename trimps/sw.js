@@ -1,11 +1,13 @@
-const CACHE_NAME = 'trimps-v18';
+const CACHE_NAME = 'trimps-v19';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?18',
+  'css/kreftus-local.css?19',
+  'js/kreftus-local.js',
+  'js/kreftus-local.js?19',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -35,8 +37,9 @@ self.addEventListener('activate', function (event) {
   );
 });
 
-function isStyleRequest(request, url) {
-  return request.destination === 'style' || /kreftus-local\.css/i.test(url.pathname + url.search);
+function isLocalOverlay(request, url) {
+  var path = url.pathname + url.search;
+  return request.destination === 'style' || request.destination === 'script' || /kreftus-local\.(css|js)/i.test(path);
 }
 
 self.addEventListener('fetch', function (event) {
@@ -45,8 +48,7 @@ self.addEventListener('fetch', function (event) {
   var url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Always prefer fresh CSS so layout fixes are not stuck behind cache-first.
-  if (isStyleRequest(request, url)) {
+  if (isLocalOverlay(request, url)) {
     event.respondWith(
       fetch(request).then(function (response) {
         if (response && response.status === 200) {
