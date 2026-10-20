@@ -1,49 +1,81 @@
 /* Local overlay - not from upstream; restored by updtrimps.ps1
- * Cap Spire Assault to the real window (innerHeight minus Save bar).
- * Do not force height: short tabs stay compact; long tabs scroll.
+ *
+ * Cap #autoItemsDiv to the pixels between its top edge and the Save bar.
+ * Do not size the tooltip: that stretches short tabs and still does not
+ * create a scrollport on the items list.
  */
 (function () {
-  function toolbarHeight() {
-    var row = document.getElementById('settingsRow');
-    if (!row) return 0;
-    var r = row.getBoundingClientRect();
-    return r.height > 0 ? Math.ceil(r.height) : 0;
-  }
+  var raf = 0;
 
   function sizeSpireAssault() {
-    var el = document.getElementById('tooltipDiv');
-    if (!el) return;
-    var isSa = el.className.indexOf('tooltipExtraBiggest') !== -1 && el.style.display !== 'none';
+    var tip = document.getElementById('tooltipDiv');
+    var items = document.getElementById('autoItemsDiv');
+    var bar = document.getElementById('settingsRow');
+    if (!tip) return;
+
+    var isSa = tip.className.indexOf('tooltipExtraBiggest') !== -1 && tip.style.display === 'block';
     if (!isSa) {
-      if (el.getAttribute('data-sa-sized')) {
-        el.style.height = '';
-        el.style.maxHeight = '';
-        el.removeAttribute('data-sa-sized');
-      }
+      if (items) items.style.maxHeight = '';
       return;
     }
-    var h = window.innerHeight - toolbarHeight();
-    if (h < 80) h = 80;
-    var next = h + 'px';
-    if (el.style.maxHeight === next && !el.style.height) return;
-    el.style.top = '0px';
-    el.style.height = '';
-    el.style.maxHeight = next;
-    el.setAttribute('data-sa-sized', '1');
+    if (!items || !bar) return;
+
+    var barTop = bar.getBoundingClientRect().top;
+    var itemsRect = items.getBoundingClientRect();
+    var tipRect = tip.getBoundingClientRect();
+    if (itemsRect.height === 0) return;
+
+    var belowItems = Math.max(0, tipRect.bottom - itemsRect.bottom);
+    var itemsMax = Math.floor(barTop - itemsRect.top - belowItems - 4);
+    if (itemsMax < 64) itemsMax = 64;
+
+    var scroll = items.scrollTop;
+    if (items.scrollHeight > itemsMax + 1) {
+      var next = itemsMax + 'px';
+      if (items.style.maxHeight !== next) items.style.maxHeight = next;
+    } else if (items.style.maxHeight !== 'none') {
+      items.style.maxHeight = 'none';
+    }
+    if (items.scrollTop !== scroll) items.scrollTop = scroll;
   }
 
-  window.addEventListener('resize', sizeSpireAssault);
+  function schedule() {
+    if (raf) return;
+    raf = window.requestAnimationFrame(function () {
+      raf = 0;
+      sizeSpireAssault();
+    });
+  }
+
+  function hookPopup() {
+    if (!window.autoBattle || !autoBattle.popup || autoBattle.popup._kreftus) return;
+    var orig = autoBattle.popup;
+    var wrapped = function () {
+      var ret = orig.apply(this, arguments);
+      schedule();
+      return ret;
+    };
+    wrapped._kreftus = true;
+    autoBattle.popup = wrapped;
+  }
+
+  window.addEventListener('resize', schedule);
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', sizeSpireAssault);
+    window.visualViewport.addEventListener('resize', schedule);
   }
 
   function bind() {
-    sizeSpireAssault();
-    var el = document.getElementById('tooltipDiv');
-    if (!el || !window.MutationObserver) return;
-    new MutationObserver(sizeSpireAssault).observe(el, {
+    hookPopup();
+    schedule();
+    var tip = document.getElementById('tooltipDiv');
+    if (!tip || !window.MutationObserver) return;
+    new MutationObserver(schedule).observe(tip, {
       attributes: true,
       attributeFilter: ['class', 'style']
+    });
+    new MutationObserver(schedule).observe(tip, {
+      childList: true,
+      subtree: true
     });
   }
 

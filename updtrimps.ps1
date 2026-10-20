@@ -161,42 +161,27 @@ $localCssContent = @'
 /* Local overrides - not from upstream; restored by updtrimps.ps1 */
 
 /*
- * SA popup tracks the window height (minus the Save toolbar). Header
- * stays a 2-column grid. The items list is the leftover row and scrolls.
+ * Do not flex-stretch the SA popup to the window. Short tabs must stay
+ * content-sized. #autoItemsDiv is the only scrollport; its pixel cap is
+ * set in js/kreftus-local.js from the Save bar's bounding box.
  */
 #tooltipDiv.tooltipExtraBiggest {
-  display: flex;
-  flex-direction: column;
   max-width: 100vw;
-  overflow: hidden;
   box-sizing: border-box;
 }
 
-#tooltipDiv.tooltipExtraBiggest > #tipTitle,
-#tooltipDiv.tooltipExtraBiggest > hr,
-#tooltipDiv.tooltipExtraBiggest > #tipCost {
-  flex: 0 0 auto;
-}
-
-#tooltipDiv.tooltipExtraBiggest > #tipText {
-  flex: 1 1 0%;
-  min-height: 0;
+#tooltipDiv.tooltipExtraBiggest #tipText {
   max-width: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  overflow-x: clip;
   box-sizing: border-box;
 }
 
 #tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
-  flex: 1 1 0%;
-  min-height: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow-x: clip;
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 2%;
-  grid-template-rows: repeat(8, max-content) minmax(0, 1fr);
   box-sizing: border-box;
 }
 
@@ -278,18 +263,15 @@ $localCssContent = @'
 }
 
 /*
- * Items list: last grid row is leftover window height. min-height:0 lets
- * it shrink on resize so overflow-y:auto can scroll.
+ * Beat style.css 11em/16em so short tabs size to content. No !important:
+ * JS sets an inline pixel max-height when the list would cover Save.
  */
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
-  grid-row: 9;
-  min-height: 0 !important;
-  max-height: none !important;
   max-width: 100%;
-  overflow-y: auto !important;
+  max-height: none;
   overflow-x: hidden;
-  align-self: stretch;
+  overflow-y: auto;
   box-sizing: border-box;
 }
 
@@ -362,51 +344,83 @@ if ($needWriteLocalCss) {
 
 $localJsContent = @'
 /* Local overlay - not from upstream; restored by updtrimps.ps1
- * Cap Spire Assault to the real window (innerHeight minus Save bar).
- * Do not force height: short tabs stay compact; long tabs scroll.
+ *
+ * Cap #autoItemsDiv to the pixels between its top edge and the Save bar.
+ * Do not size the tooltip: that stretches short tabs and still does not
+ * create a scrollport on the items list.
  */
 (function () {
-  function toolbarHeight() {
-    var row = document.getElementById('settingsRow');
-    if (!row) return 0;
-    var r = row.getBoundingClientRect();
-    return r.height > 0 ? Math.ceil(r.height) : 0;
-  }
+  var raf = 0;
 
   function sizeSpireAssault() {
-    var el = document.getElementById('tooltipDiv');
-    if (!el) return;
-    var isSa = el.className.indexOf('tooltipExtraBiggest') !== -1 && el.style.display !== 'none';
+    var tip = document.getElementById('tooltipDiv');
+    var items = document.getElementById('autoItemsDiv');
+    var bar = document.getElementById('settingsRow');
+    if (!tip) return;
+
+    var isSa = tip.className.indexOf('tooltipExtraBiggest') !== -1 && tip.style.display === 'block';
     if (!isSa) {
-      if (el.getAttribute('data-sa-sized')) {
-        el.style.height = '';
-        el.style.maxHeight = '';
-        el.removeAttribute('data-sa-sized');
-      }
+      if (items) items.style.maxHeight = '';
       return;
     }
-    var h = window.innerHeight - toolbarHeight();
-    if (h < 80) h = 80;
-    var next = h + 'px';
-    if (el.style.maxHeight === next && !el.style.height) return;
-    el.style.top = '0px';
-    el.style.height = '';
-    el.style.maxHeight = next;
-    el.setAttribute('data-sa-sized', '1');
+    if (!items || !bar) return;
+
+    var barTop = bar.getBoundingClientRect().top;
+    var itemsRect = items.getBoundingClientRect();
+    var tipRect = tip.getBoundingClientRect();
+    if (itemsRect.height === 0) return;
+
+    var belowItems = Math.max(0, tipRect.bottom - itemsRect.bottom);
+    var itemsMax = Math.floor(barTop - itemsRect.top - belowItems - 4);
+    if (itemsMax < 64) itemsMax = 64;
+
+    var scroll = items.scrollTop;
+    if (items.scrollHeight > itemsMax + 1) {
+      var next = itemsMax + 'px';
+      if (items.style.maxHeight !== next) items.style.maxHeight = next;
+    } else if (items.style.maxHeight !== 'none') {
+      items.style.maxHeight = 'none';
+    }
+    if (items.scrollTop !== scroll) items.scrollTop = scroll;
   }
 
-  window.addEventListener('resize', sizeSpireAssault);
+  function schedule() {
+    if (raf) return;
+    raf = window.requestAnimationFrame(function () {
+      raf = 0;
+      sizeSpireAssault();
+    });
+  }
+
+  function hookPopup() {
+    if (!window.autoBattle || !autoBattle.popup || autoBattle.popup._kreftus) return;
+    var orig = autoBattle.popup;
+    var wrapped = function () {
+      var ret = orig.apply(this, arguments);
+      schedule();
+      return ret;
+    };
+    wrapped._kreftus = true;
+    autoBattle.popup = wrapped;
+  }
+
+  window.addEventListener('resize', schedule);
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', sizeSpireAssault);
+    window.visualViewport.addEventListener('resize', schedule);
   }
 
   function bind() {
-    sizeSpireAssault();
-    var el = document.getElementById('tooltipDiv');
-    if (!el || !window.MutationObserver) return;
-    new MutationObserver(sizeSpireAssault).observe(el, {
+    hookPopup();
+    schedule();
+    var tip = document.getElementById('tooltipDiv');
+    if (!tip || !window.MutationObserver) return;
+    new MutationObserver(schedule).observe(tip, {
       attributes: true,
       attributeFilter: ['class', 'style']
+    });
+    new MutationObserver(schedule).observe(tip, {
+      childList: true,
+      subtree: true
     });
   }
 
@@ -505,16 +519,16 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v20';
+const CACHE_NAME = 'trimps-v22';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?20',
+  'css/kreftus-local.css?22',
   'js/kreftus-local.js',
-  'js/kreftus-local.js?20',
+  'js/kreftus-local.js?22',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -614,19 +628,19 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?20`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?22`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?20"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?20"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?22"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?22"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.js') {
-  $indexHtml = $indexHtml -replace '(<script type="text/javascript" src="main\.js[^"]*"></script>)', ('$1' + "`r`n`t<script type=`"text/javascript`" src=`"js/kreftus-local.js?20`"></script>")
+  $indexHtml = $indexHtml -replace '(<script type="text/javascript" src="main\.js[^"]*"></script>)', ('$1' + "`r`n`t<script type=`"text/javascript`" src=`"js/kreftus-local.js?22`"></script>")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'src="js/kreftus-local\.js(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.js\?20"') {
-  $indexHtml = $indexHtml -replace 'src="js/kreftus-local\.js(\?[^"]*)?"', 'src="js/kreftus-local.js?20"'
+elseif ($indexHtml -match 'src="js/kreftus-local\.js(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.js\?22"') {
+  $indexHtml = $indexHtml -replace 'src="js/kreftus-local\.js(\?[^"]*)?"', 'src="js/kreftus-local.js?22"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
