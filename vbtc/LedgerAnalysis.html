@@ -349,8 +349,8 @@
     .search svg { position: absolute; left: 10px; top: 8px; width: 16px; height: 16px; color: var(--faint); }
     .vt { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-2); }
     .vt-scroll { overflow: auto; height: min(60vh, 640px); position: relative; }
-    .vt-inner { min-width: 1200px; }
-    .vt-head, .tr { display: grid; grid-template-columns: 60px 196px 72px repeat(5, minmax(100px, 1fr)) minmax(110px, 1fr) 84px 120px; align-items: center; }
+    .vt-inner { min-width: 1100px; }
+    .vt-head, .tr { display: grid; grid-template-columns: 60px 196px 72px repeat(4, minmax(100px, 1fr)) minmax(110px, 1fr) 84px 120px; align-items: center; }
     .vt-head { position: sticky; top: 0; z-index: 2; background: var(--surface-solid); border-bottom: 1px solid var(--border); }
     .vt-head span { padding: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 650; cursor: pointer; user-select: none; text-align: right; white-space: nowrap; }
     .vt-head span:hover { color: var(--text); }
@@ -857,7 +857,6 @@
                     <span data-sort="USD">USD</span>
                     <span data-sort="BTC">BTC</span>
                     <span data-sort="rate">Rate</span>
-                    <span data-sort="price">Eff. price</span>
                     <span data-sort="userBtc">User BTC</span>
                     <span data-sort="realized">Realized</span>
                     <span data-sort="holdMs">Hold</span>
@@ -4235,7 +4234,6 @@
         '<span>' + usd(r.USD) + '</span>' +
         '<span>' + btc(r.BTC) + '</span>' +
         '<span>' + usd(r.rate) + '</span>' +
-        '<span>' + usd(r.price) + '</span>' +
         '<span>' + btc(r.userBtc) + '</span>' +
         '<span class="' + (r.realized != null ? sgn(r.realized) : '') + '">' + (r.realized != null ? usdS(r.realized) : '') + '</span>' +
         '<span>' + (r.holdMs != null ? dur(r.holdMs) : '') + '</span>' +
