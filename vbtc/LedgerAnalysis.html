@@ -1877,31 +1877,96 @@
   }
 
   /* ---- Sparkline ---- */
-  function drawSpark(canvas, pts, color) {
+  function drawSpark(canvas, pts, color, opts) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h || !pts || pts.length < 2) return;
+    opts = opts || {};
     const d = window.devicePixelRatio || 1;
     canvas.width = Math.round(w * d); canvas.height = Math.round(h * d);
     const ctx = canvas.getContext('2d');
     ctx.setTransform(d, 0, 0, d, 0, 0);
-    const N = 90, step = Math.max(1, Math.floor(pts.length / N)), s = [];
-    for (let i = 0; i < pts.length; i += step) s.push(pts[i]);
-    if (s[s.length - 1] !== pts[pts.length - 1]) s.push(pts[pts.length - 1]);
+
+    const x0 = opts.xMin != null && fin(opts.xMin) ? opts.xMin : pts[0].x;
+    const x1 = opts.xMax != null && fin(opts.xMax) ? opts.xMax : pts[pts.length - 1].x;
+    const span = Math.max(1, x1 - x0);
+    const N = Math.min(Math.max(w, 80), 160);
+    const s = [];
+    let tradeIdx = 0;
+    let lastY = opts.initY != null && fin(opts.initY) ? opts.initY : pts[0].y;
+
+    while (tradeIdx < pts.length && pts[tradeIdx].x < x0) {
+      if (pts[tradeIdx].y != null && fin(pts[tradeIdx].y)) lastY = pts[tradeIdx].y;
+      tradeIdx++;
+    }
+
+    for (let k = 0; k < N; k++) {
+      const tEnd = x0 + ((k + 1) / N) * span;
+      let bucketMax = -Infinity;
+      let bucketLast = null;
+      let count = 0;
+      const enteringY = lastY;
+
+      while (tradeIdx < pts.length && pts[tradeIdx].x <= tEnd) {
+        const y = pts[tradeIdx].y;
+        if (y != null && fin(y)) {
+          if (y > bucketMax) bucketMax = y;
+          bucketLast = y;
+          lastY = y;
+          count++;
+        }
+        tradeIdx++;
+      }
+
+      let effY;
+      if (opts.step) {
+        effY = count > 0 ? Math.max(bucketMax, enteringY != null ? enteringY : -Infinity) : enteringY;
+      } else {
+        effY = count > 0 ? bucketLast : lastY;
+      }
+      s.push({ x: tEnd, y: effY });
+    }
+
+    if (s.length > 0) {
+      s.unshift({ x: x0, y: s[0].y });
+    }
+
     let mn = Infinity, mx = -Infinity;
-    for (const p of s) { if (p.y == null) continue; mn = Math.min(mn, p.y); mx = Math.max(mx, p.y); }
+    for (const p of s) {
+      if (p.y == null || !fin(p.y)) continue;
+      mn = Math.min(mn, p.y);
+      mx = Math.max(mx, p.y);
+    }
     if (!fin(mn)) return;
-    if (mx === mn) { mx += 1; mn -= 1; }
-    const x0 = s[0].x, x1 = s[s.length - 1].x || x0 + 1;
-    const X = x => (x - x0) / ((x1 - x0) || 1) * w, Y = y => 4 + (1 - (y - mn) / (mx - mn)) * (h - 8);
+    if (opts.includeZero) mn = Math.min(0, mn);
+    if (mx === mn) { mx += 1; mn = opts.includeZero ? 0 : mn - 1; }
+
+    const X = x => (x - x0) / span * w;
+    const Y = y => 4 + (1 - (y - mn) / (mx - mn)) * (h - 8);
+
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, alpha(color, 0.28)); g.addColorStop(1, alpha(color, 0));
-    ctx.beginPath(); ctx.moveTo(0, h);
-    for (const p of s) if (p.y != null) ctx.lineTo(X(p.x), Y(p.y));
-    ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+    g.addColorStop(0, alpha(color, 0.28));
+    g.addColorStop(1, alpha(color, 0));
+
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (const p of s) {
+      if (p.y != null && fin(p.y)) ctx.lineTo(X(p.x), Y(p.y));
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fillStyle = g;
+    ctx.fill();
+
     ctx.beginPath();
     let first = true;
-    for (const p of s) { if (p.y == null) continue; if (first) { ctx.moveTo(X(p.x), Y(p.y)); first = false; } else ctx.lineTo(X(p.x), Y(p.y)); }
-    ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.stroke();
+    for (const p of s) {
+      if (p.y == null || !fin(p.y)) continue;
+      if (first) { ctx.moveTo(X(p.x), Y(p.y)); first = false; }
+      else ctx.lineTo(X(p.x), Y(p.y));
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
   }
 
   /* ======================================================================
@@ -2608,6 +2673,7 @@
     }
 
     Object.assign(S, {
+      initBtc,
       buyN, sellN, buyUSD, sellUSD, buyBTC, sellBTC, volume: buyUSD + sellUSD, realized, wins, losses, grossWin, grossLoss,
       largestWin, largestLoss, maxW, maxL, maxTrade,
       winRate: wins + losses ? wins / (wins + losses) : NaN,
@@ -3344,7 +3410,7 @@
     items.forEach((it, k) => {
       if (!it.spark) return;
       const cv = cards[k].querySelector('canvas.spark');
-      requestAnimationFrame(() => drawSpark(cv, it.spark, PAL[it.sparkColor || it.tone] || PAL.accent));
+      requestAnimationFrame(() => drawSpark(cv, it.spark, PAL[it.sparkColor || it.tone] || PAL.accent, it.sparkOpts));
     });
   }
   const pfTxt = v => v === Infinity ? '∞' : fin(v) ? v.toFixed(2) : '—';
@@ -3408,7 +3474,20 @@
       { label: 'Realized P/L', value: usdS(S.realized), cls: sgn(S.realized), tone: tone(S.realized), note: int(S.sellN) + ' sells · ' + bLabel + ' basis', spark: S.series.real },
       unRealItem,
       { label: 'Win rate', value: pct(S.winRate), tone: S.winRate >= 0.5 ? 'buy' : 'warn', note: S.wins + 'W · ' + S.losses + 'L · PF ' + pfTxt(S.profitFactor) },
-      { label: 'Holdings (User BTC)', value: btc(S.userBtc), tone: 'accent', note: '≈ ' + usd(S.holdValue) + ' at last rate', spark: S.series.userBtc },
+      {
+        label: 'Holdings (User BTC)',
+        value: btc(S.userBtc),
+        tone: 'accent',
+        note: '≈ ' + usd(S.holdValue) + ' at last rate',
+        spark: S.series.userBtc,
+        sparkOpts: {
+          step: true,
+          includeZero: true,
+          initY: S.initBtc != null ? S.initBtc : (state.base && state.base.rows && state.base.rows[S.i0] ? state.base.rows[S.i0].prevUser : null),
+          xMin: S.from != null ? S.from : S.first,
+          xMax: S.to != null ? S.to : S.last
+        }
+      },
       { label: 'Avg cost basis', value: S.openBtc > 0 ? usd(S.avgCost) : '—', tone: 'info', note: S.openBtc > 0 ? pctS(S.rate / S.avgCost - 1) + ' vs rate · ' + int(S.openLots.length) + ' lot' + (S.openLots.length === 1 ? '' : 's') : 'No open position', spark: S.series.rate },
       { label: 'Max drawdown', value: usdS(S.maxDD), cls: S.maxDD < 0 ? 'neg' : '', tone: 'sell', note: S.maxDDt ? 'bottom ' + fmtDate(S.maxDDt) + (S.maxDDDur > 0 ? ' · ' + dur(S.maxDDDur) + ' uw' : '') : 'No drawdown', spark: S.series.dd },
     ]);
