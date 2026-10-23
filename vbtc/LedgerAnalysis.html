@@ -1036,6 +1036,7 @@
     theme: 'dark', tab: 'overview', series: 'equity', preset: 'all', utc: false, heat: 'count', cal: 'pnl', period: 'auto',
     basis: 'fifo', bench: true, rollMetric: 'winrate', rollWin: 20,
     scaleOverrides: {},
+    live: false,
     lcwKey: '',
   }, (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (_) { return {}; } })());
   if (!prefs.lcwKey) {
@@ -3066,6 +3067,7 @@
     if (btnLive) {
       btnLive.disabled = !enabled;
       if (!enabled && state.live) stopLive(true);
+      btnLive.classList.toggle('active', !!(state.live || (!enabled && prefs.live)));
     }
   }
   async function setFiles(files, label, opts) {
@@ -3081,6 +3083,13 @@
     }
     showApp(true);
     await runAnalysis();
+    if (prefs.live && !state.live) {
+      const hasFolder = !!state.dirHandle;
+      const hasHandles = !!(state.files && state.files.some(f => f.handle));
+      if (hasFolder || hasHandles) {
+        toggleLive(true, { restore: true });
+      }
+    }
     if (prefs.lcwKey) {
       fetchLiveBtcPrice();
       const now = Date.now();
@@ -3290,7 +3299,15 @@
      Live polling (auto-check every 20s)
      ====================================================================== */
   function stopLive(silent) {
-    if (!state.live && !state.liveTimer) return;
+    if (!silent) {
+      prefs.live = false;
+      savePrefs();
+    }
+    if (!state.live && !state.liveTimer) {
+      const btn = $('#btnLive');
+      if (btn && !silent) btn.classList.remove('active');
+      return;
+    }
     state.live = false;
     const btn = $('#btnLive');
     if (btn) {
@@ -3304,16 +3321,19 @@
     if (!silent) toast('Live mode paused', 'info');
   }
 
-  function toggleLive(enable) {
+  function toggleLive(enable, opts) {
+    opts = opts || {};
     if (enable === undefined) enable = !state.live;
     if (enable) {
       const hasFolder = !!state.dirHandle;
       const hasHandles = !!(state.files && state.files.some(f => f.handle));
       if (!hasFolder && !hasHandles) {
-        toast('Live mode requires file handles — choose folder or pick files', 'warn');
+        if (!opts.restore) toast('Live mode requires file handles — choose folder or pick files', 'warn');
         return;
       }
       state.live = true;
+      prefs.live = true;
+      savePrefs();
       const btn = $('#btnLive');
       if (btn) {
         btn.classList.add('active');
@@ -3321,15 +3341,17 @@
       }
       if (state.liveTimer) clearInterval(state.liveTimer);
       state.liveTimer = setInterval(pollLiveSources, 20000);
-      if (prefs.lcwKey) {
-        fetchLiveBtcPrice(true);
-        const now = Date.now();
-        if (!state.lcwHistoryTime || (now - state.lcwHistoryTime >= LCW_HISTORY_CADENCE_MS)) {
-          fetchLcwHistory();
+      if (!opts.restore) {
+        if (prefs.lcwKey) {
+          fetchLiveBtcPrice(true);
+          const now = Date.now();
+          if (!state.lcwHistoryTime || (now - state.lcwHistoryTime >= LCW_HISTORY_CADENCE_MS)) {
+            fetchLcwHistory();
+          }
         }
+        toast('Live mode active · checking every 20s', 'ok');
+        pollLiveSources();
       }
-      toast('Live mode active · checking every 20s', 'ok');
-      pollLiveSources();
     } else {
       stopLive(false);
     }
