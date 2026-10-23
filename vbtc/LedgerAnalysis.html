@@ -308,6 +308,8 @@
       grid-template-rows: 16px repeat(7, auto);
       gap: var(--cal-gap, 3px);
       width: 100%;
+      padding: 2px 3px 2px 0;
+      box-sizing: border-box;
       align-items: center;
       transition: gap 0.15s ease;
     }
@@ -754,6 +756,7 @@
                 <button type="button" data-cal="pnl">Realized P/L</button>
                 <button type="button" data-cal="count">Trades</button>
                 <button type="button" data-cal="volume">Volume</button>
+                <button type="button" data-cal="accum">Accumulation</button>
               </div>
             </div>
           </div>
@@ -764,7 +767,7 @@
           <div class="card-b">
             <div class="tbl-wrap">
               <table class="tbl" id="monthTable">
-                <thead><tr><th>Month</th><th>Trades</th><th>Buys</th><th>Sells</th><th>Volume</th><th>Avg trade</th><th>Win rate</th><th>Realized P/L</th></tr></thead>
+                <thead><tr><th>Month</th><th>Trades</th><th>Buys</th><th>Sells</th><th>Volume</th><th>Avg trade</th><th>Win rate</th><th>Accumulation</th><th>Realized P/L</th></tr></thead>
                 <tbody></tbody>
               </table>
             </div>
@@ -777,12 +780,13 @@
         <div class="kpis compact" id="kpisAct"></div>
         <div class="card">
           <div class="card-h">
-            <h3>Hour × weekday</h3><span class="sub" id="heatSub"></span>
+            <h3>Hour × Weekday</h3><span class="sub" id="heatSub"></span>
             <div class="actions">
               <div class="seg alt" id="heatSeg">
                 <button type="button" data-heat="count">Trades</button>
                 <button type="button" data-heat="volume">Volume</button>
                 <button type="button" data-heat="pnl">Realized P/L</button>
+                <button type="button" data-heat="accum">Accumulation</button>
               </div>
             </div>
           </div>
@@ -1099,11 +1103,13 @@
     return s + '$' + a.toFixed(2);
   }
   function btc(n) { return fin(n) ? n.toFixed(8) : '—'; }
+  function btcS(n) { return fin(n) ? (n > 1e-9 ? '+' : n < -1e-9 ? '-' : '') + Math.abs(n).toFixed(8) + ' BTC' : '—'; }
   function btcC(n) { if (!fin(n)) return '—'; const a = Math.abs(n); return a >= 10 ? n.toFixed(1) : a >= 1 ? n.toFixed(2) : n === 0 ? '0' : n.toFixed(4); }
   function int(n) { return fin(n) ? nf0.format(n) : '—'; }
   function pct(n, d) { return fin(n) ? (n * 100).toFixed(d == null ? 1 : d) + '%' : '—'; }
   function pctS(n, d) { return fin(n) ? (n > 0 ? '+' : '') + (n * 100).toFixed(d == null ? 2 : d) + '%' : '—'; }
   function sgn(n) { return n > 0.004 ? 'pos' : n < -0.004 ? 'neg' : ''; }
+  function sgnBtc(n) { return n > 1e-9 ? 'pos' : n < -1e-9 ? 'neg' : ''; }
   function dur(ms) {
     if (!fin(ms) || ms < 0) return '—';
     const s = Math.round(ms / 1000);
@@ -2456,6 +2462,90 @@
         else if (r.realized < -0.005) allClosedSells.push({ t: r.t, realized: r.realized, win: 0, i });
       }
     }
+    // Settle USD-paired Sell & Buy trades so straddling pairs record only the net BTC
+    // result (buy.BTC - sell.BTC) upon settlement instead of individual principal swings.
+    const openSellLots = [];
+    let settledUsdPairs = 0;
+    for (let i = 0; i < rows.length; i++) {
+      rows[i].accum = 0;
+      rows[i]._unmatchedBuyUsd = 0;
+      rows[i]._unmatchedBuyBtc = 0;
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.TX === 'Sell') {
+        openSellLots.push({ idx: i, remUsd: r.USD, remBtc: r.BTC });
+      } else if (r.TX === 'Buy') {
+        let remUsd = r.USD;
+        const tol = u => Math.max(0.02, u * 1e-5);
+        const exactIdx = openSellLots.findIndex(l => l.remUsd > 0.005 && Math.abs(l.remUsd - remUsd) <= tol(remUsd));
+        if (exactIdx >= 0) {
+          const lot = openSellLots[exactIdx];
+          r.accum = +(r.BTC - lot.remBtc).toFixed(8);
+          lot.remUsd = 0;
+          lot.remBtc = 0;
+          remUsd = 0;
+          settledUsdPairs++;
+        } else {
+          for (let k = 0; k < openSellLots.length && remUsd > 0.005; k++) {
+            const lot = openSellLots[k];
+            if (lot.remUsd <= 0.005) continue;
+            if (Math.abs(lot.remUsd - remUsd) <= tol(remUsd)) {
+              const buyPartBtc = r.USD > 0 ? r.BTC * (remUsd / r.USD) : 0;
+              r.accum = +(r.accum + (buyPartBtc - lot.remBtc)).toFixed(8);
+              lot.remUsd = 0;
+              lot.remBtc = 0;
+              remUsd = 0;
+              settledUsdPairs++;
+            } else if (remUsd < lot.remUsd) {
+              const frac = remUsd / lot.remUsd;
+              const soldPartBtc = lot.remBtc * frac;
+              const buyPartBtc = r.USD > 0 ? r.BTC * (remUsd / r.USD) : 0;
+              r.accum = +(r.accum + (buyPartBtc - soldPartBtc)).toFixed(8);
+              lot.remUsd -= remUsd;
+              lot.remBtc -= soldPartBtc;
+              remUsd = 0;
+              settledUsdPairs++;
+            } else {
+              const usedUsd = lot.remUsd;
+              const buyPartBtc = r.USD > 0 ? r.BTC * (usedUsd / r.USD) : 0;
+              r.accum = +(r.accum + (buyPartBtc - lot.remBtc)).toFixed(8);
+              remUsd -= usedUsd;
+              lot.remUsd = 0;
+              lot.remBtc = 0;
+              settledUsdPairs++;
+            }
+          }
+        }
+        if (remUsd > 0.005) {
+          r._unmatchedBuyUsd = remUsd;
+          r._unmatchedBuyBtc = r.USD > 0 ? r.BTC * (remUsd / r.USD) : r.BTC;
+        }
+      }
+    }
+    for (let i = 0; i < openSellLots.length; i++) {
+      const lot = openSellLots[i];
+      if (lot.remUsd <= 0.005) continue;
+      const tol = Math.max(0.02, lot.remUsd * 1e-5);
+      for (let j = 0; j < lot.idx; j++) {
+        const b = rows[j];
+        if (b.TX === 'Buy' && b._unmatchedBuyUsd > 0.005 && Math.abs(b._unmatchedBuyUsd - lot.remUsd) <= tol) {
+          rows[lot.idx].accum = +(rows[lot.idx].accum + (b._unmatchedBuyBtc - lot.remBtc)).toFixed(8);
+          b._unmatchedBuyUsd = 0;
+          b._unmatchedBuyBtc = 0;
+          lot.remUsd = 0;
+          lot.remBtc = 0;
+          settledUsdPairs++;
+          break;
+        }
+      }
+    }
+    if (settledUsdPairs === 0) {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        r.accum = r.TX === 'Buy' ? r.BTC : -r.BTC;
+      }
+    }
     // Floor to 1 decimal place so even a single gap keeps score below 100%
     const integrity = rows.length ? Math.max(0, Math.floor(1000 * (1 - gaps.length / rows.length)) / 10) : 100;
     return Object.assign({}, parsed, { gaps, integrity, unmatchedBtc, unmatchedN, basis: mode, allClosedSells });
@@ -2514,7 +2604,7 @@
     const initBtc = rows[i0].prevUser, firstRate = rows[i0].rate;
     let hodlBtc = initBtc, hodlCost = initBtc * firstRate, netCash = 0, maxCash = 0;
     const sizes = [], reals = [], holds = [], inter = [], closedSells = [], dayMap = new Map(), monMap = new Map();
-    const heatN = mat(), heatV = mat(), heatP = mat();
+    const heatN = mat(), heatV = mat(), heatP = mat(), heatA = mat();
     const hourB = new Array(24).fill(0), hourS = new Array(24).fill(0), dowB = new Array(7).fill(0), dowS = new Array(7).fill(0);
     const ser = { eq: [], real: [], rate: [], avgCost: [], userBtc: [], value: [], dd: [], hodl: [] };
     const markers = [];
@@ -2570,19 +2660,21 @@
       const dk = dayKey(t);
       let dm = dayMap.get(dk);
       if (!dm) {
-        dm = { key: dk, t: dayStart(t), n: 0, buys: 0, sells: 0, buyUSD: 0, sellUSD: 0, realized: 0, wins: 0, closed: 0, startEq: i > 0 ? rows[i - 1].totalPl : 0, endEq: eq };
+        dm = { key: dk, t: dayStart(t), n: 0, buys: 0, sells: 0, buyUSD: 0, sellUSD: 0, buyBTC: 0, sellBTC: 0, accum: 0, realized: 0, wins: 0, closed: 0, startEq: i > 0 ? rows[i - 1].totalPl : 0, endEq: eq };
         dayMap.set(dk, dm);
       }
       dm.endEq = eq;
       const mkk = monthKey(t);
       let mm = monMap.get(mkk);
-      if (!mm) { mm = { key: mkk, t: mk(p.y, p.m, 1), n: 0, buys: 0, sells: 0, buyUSD: 0, sellUSD: 0, realized: 0, wins: 0, closed: 0 }; monMap.set(mkk, mm); }
+      if (!mm) { mm = { key: mkk, t: mk(p.y, p.m, 1), n: 0, buys: 0, sells: 0, buyUSD: 0, sellUSD: 0, buyBTC: 0, sellBTC: 0, accum: 0, realized: 0, wins: 0, closed: 0 }; monMap.set(mkk, mm); }
+      const rowAccum = fin(r.accum) ? r.accum : (isBuy ? r.BTC : -r.BTC);
       for (const o of [dm, mm]) {
         o.n++;
-        if (isBuy) { o.buys++; o.buyUSD += r.USD; }
-        else { o.sells++; o.sellUSD += r.USD; o.realized += r.realized; if (r.realized > 0.005) { o.wins++; o.closed++; } else if (r.realized < -0.005) o.closed++; }
+        if (isBuy) { o.buys++; o.buyUSD += r.USD; o.buyBTC += r.BTC; }
+        else { o.sells++; o.sellUSD += r.USD; o.sellBTC += r.BTC; o.realized += r.realized; if (r.realized > 0.005) { o.wins++; o.closed++; } else if (r.realized < -0.005) o.closed++; }
+        o.accum = +(o.accum + rowAccum).toFixed(8);
       }
-      heatN[dw][p.h]++; heatV[dw][p.h] += r.USD; if (!isBuy) heatP[dw][p.h] += r.realized;
+      heatN[dw][p.h]++; heatV[dw][p.h] += r.USD; heatA[dw][p.h] = +(heatA[dw][p.h] + rowAccum).toFixed(8); if (!isBuy) heatP[dw][p.h] += r.realized;
       ser.eq.push({ x: t, y: eq });
       ser.real.push({ x: t, y: r.cumRealized });
       ser.hodl.push({ x: t, y: prevEq + hodlPl });
@@ -2690,7 +2782,7 @@
       avgSellPrice: sellBTC > 0 ? sellUSD / sellBTC : NaN,
       maxDD, maxDDt, maxDDDur, ddStartT, ddEndT, ddRecovered,
       series: ser, markers, closedSells, allClosedSells: base.allClosedSells || [],
-      heatN, heatV, heatP, hourB, hourS, dowB, dowS, dayMap,
+      heatN, heatV, heatP, heatA, hourB, hourS, dowB, dowS, dayMap,
       isTerminal,
     });
     const asOfT = isTerminal ? Date.now() : (rgTo || last.t);
@@ -3163,6 +3255,7 @@
         }
       }
       toast('Live mode active · checking every 20s', 'ok');
+      pollLiveSources();
     } else {
       stopLive(false);
     }
@@ -3777,14 +3870,15 @@
     const clipped = start > firstDay;
     let g = 0;
     while (P(start).dow !== 1 && g++ < 8) start = addDays(start, -1);
-    const val = dm => !dm ? 0 : metric === 'pnl' ? dm.realized : metric === 'count' ? dm.n : dm.buyUSD + dm.sellUSD;
+    const isSigned = metric === 'pnl' || metric === 'accum';
+    const val = dm => !dm ? 0 : metric === 'pnl' ? dm.realized : metric === 'accum' ? dm.accum : metric === 'count' ? dm.n : dm.buyUSD + dm.sellUSD;
     let maxAbs = 0;
     for (const dm of S.days) if (dm.t >= start) maxAbs = Math.max(maxAbs, Math.abs(val(dm)));
     const colorOf = (v, dm) => {
       if (!dm) return '';
-      if (!v) return alpha(PAL.muted, 0.28);
+      if (!v || (metric === 'accum' && Math.abs(v) < 1e-9) || (metric === 'pnl' && Math.abs(v) < 0.004)) return alpha(PAL.muted, 0.28);
       const k = 0.2 + 0.8 * Math.sqrt(Math.abs(v) / (maxAbs || 1));
-      if (metric === 'pnl') return alpha(v > 0 ? PAL.buy : PAL.sell, k.toFixed(3));
+      if (isSigned) return alpha(v > 0 ? PAL.buy : PAL.sell, k.toFixed(3));
       return alpha(metric === 'count' ? PAL.accent : PAL.violet, k.toFixed(3));
     };
     let html = '<span></span>';
@@ -3810,10 +3904,10 @@
     el.dataset.cols = numCols;
     layoutCalendar();
     $('#calSub').textContent = (clipped ? 'last 53 weeks of range · ' : '') + S.activeDays + ' active days · click a day to focus';
-    const sw = metric === 'pnl'
+    const sw = isSigned
       ? [alpha(PAL.sell, 1), alpha(PAL.sell, 0.45), alpha(PAL.muted, 0.28), alpha(PAL.buy, 0.45), alpha(PAL.buy, 1)]
       : [0.2, 0.4, 0.6, 0.8, 1].map(a => alpha(metric === 'count' ? PAL.accent : PAL.violet, a));
-    $('#calLegend').innerHTML = '<span>' + (metric === 'pnl' ? 'Loss' : 'Less') + '</span>' + sw.map(c => '<span class="sw" style="background:' + c + '"></span>').join('') + '<span>' + (metric === 'pnl' ? 'Gain' : 'More') + '</span>';
+    $('#calLegend').innerHTML = '<span>' + (isSigned ? 'Loss' : 'Less') + '</span>' + sw.map(c => '<span class="sw" style="background:' + c + '"></span>').join('') + '<span>' + (isSigned ? 'Gain' : 'More') + '</span>';
   }
 
   function layoutCalendar() {
@@ -3828,15 +3922,16 @@
     const labelW = avail < 600 ? 22 : avail < 900 ? 26 : 28;
     const gap = avail < 800 ? 2 : avail < 1200 ? 3 : 4;
     const totalGaps = cols * gap;
+    const padX = 3;
 
-    let cellW = (avail - labelW - totalGaps) / cols;
+    let cellW = (avail - labelW - totalGaps - padX) / cols;
     const minCell = 9;
     const maxCell = 34;
 
     if (cellW > maxCell) cellW = maxCell;
     else if (cellW < minCell) cellW = minCell;
 
-    const totalW = Math.round(labelW + cols * cellW + totalGaps);
+    const totalW = Math.round(labelW + cols * cellW + totalGaps + padX);
 
     el.style.gap = gap + 'px';
     el.style.width = cellW <= minCell ? totalW + 'px' : '100%';
@@ -3850,12 +3945,15 @@
   }
   function renderMonths(S) {
     const tb = $('#monthTable tbody');
-    if (!S.count) { tb.innerHTML = '<tr><td colspan="8" class="muted">No trades in range</td></tr>'; return; }
+    if (!S.count) { tb.innerHTML = '<tr><td colspan="9" class="muted">No trades in range</td></tr>'; return; }
     const maxAbs = Math.max(1e-9, ...S.months.map(m => Math.abs(m.realized)));
+    const maxAccumAbs = Math.max(1e-9, ...S.months.map(m => Math.abs(m.accum || 0)));
     tb.innerHTML = S.months.slice().reverse().map(m => {
       const vol = m.buyUSD + m.sellUSD;
       const w = Math.round(60 * Math.abs(m.realized) / maxAbs);
+      const wa = Math.round(60 * Math.abs(m.accum || 0) / maxAccumAbs);
       return '<tr data-t="' + m.t + '"><td>' + fmtDate(m.t, { month: 'long', year: 'numeric' }) + '</td><td>' + int(m.n) + '</td><td>' + int(m.buys) + '</td><td>' + int(m.sells) + '</td><td>' + usd(vol) + '</td><td>' + usd(vol / m.n) + '</td><td>' + (m.closed ? pct(m.wins / m.closed) : '—') + '</td>' +
+        '<td class="' + sgnBtc(m.accum) + '">' + btcS(m.accum) + '<span class="mbar" style="width:' + wa + 'px;background:' + (m.accum >= 0 ? 'var(--buy)' : 'var(--sell)') + '"></span></td>' +
         '<td class="' + sgn(m.realized) + '">' + usdS(m.realized) + '<span class="mbar" style="width:' + w + 'px;background:' + (m.realized >= 0 ? 'var(--buy)' : 'var(--sell)') + '"></span></td></tr>';
     }).join('');
   }
@@ -3912,7 +4010,8 @@
     const el = $('#heat'), metric = prefs.heat;
     $$('#heatSeg button').forEach(b => b.classList.toggle('active', b.dataset.heat === metric));
     if (!S.count) { el.innerHTML = '<div class="empty-note" style="grid-column:1/-1">No trades in range</div>'; return; }
-    const M = metric === 'count' ? S.heatN : metric === 'volume' ? S.heatV : S.heatP;
+    const M = metric === 'count' ? S.heatN : metric === 'volume' ? S.heatV : metric === 'accum' ? S.heatA : S.heatP;
+    const isSigned = metric === 'pnl' || metric === 'accum';
     let maxAbs = 0;
     for (const r of M) for (const v of r) maxAbs = Math.max(maxAbs, Math.abs(v));
     let html = '<span></span>';
@@ -3922,9 +4021,9 @@
       for (let h = 0; h < 24; h++) {
         const v = M[d][h];
         let bg = '';
-        if (v) {
+        if (v && !(metric === 'accum' && Math.abs(v) < 1e-9) && !(metric === 'pnl' && Math.abs(v) < 0.004)) {
           const k = (0.15 + 0.85 * Math.sqrt(Math.abs(v) / (maxAbs || 1))).toFixed(3);
-          bg = metric === 'pnl' ? alpha(v > 0 ? PAL.buy : PAL.sell, k) : alpha(metric === 'count' ? PAL.accent : PAL.violet, k);
+          bg = isSigned ? alpha(v > 0 ? PAL.buy : PAL.sell, k) : alpha(metric === 'count' ? PAL.accent : PAL.violet, k);
         }
         html += '<span class="hc" data-d="' + d + '" data-h="' + h + '"' + (bg ? ' style="background:' + bg + '"' : '') + '></span>';
       }
@@ -4299,12 +4398,12 @@
       }
       download('vbtc-trades-' + stamp() + '.csv', csv(out));
     } else if (kind === 'daily') {
-      const out = [['Date', 'Trades', 'Buys', 'Sells', 'BuyUSD', 'SellUSD', 'RealizedPL', 'WinRate']];
-      for (const d of S.days || []) out.push([d.key, d.n, d.buys, d.sells, d.buyUSD.toFixed(2), d.sellUSD.toFixed(2), d.realized.toFixed(2), d.closed ? (d.wins / d.closed).toFixed(4) : '']);
+      const out = [['Date', 'Trades', 'Buys', 'Sells', 'BuyUSD', 'SellUSD', 'AccumulationBTC', 'RealizedPL', 'WinRate']];
+      for (const d of S.days || []) out.push([d.key, d.n, d.buys, d.sells, d.buyUSD.toFixed(2), d.sellUSD.toFixed(2), (d.accum || 0).toFixed(8), d.realized.toFixed(2), d.closed ? (d.wins / d.closed).toFixed(4) : '']);
       download('vbtc-daily-' + stamp() + '.csv', csv(out));
     } else if (kind === 'monthly') {
-      const out = [['Month', 'Trades', 'Buys', 'Sells', 'BuyUSD', 'SellUSD', 'RealizedPL', 'WinRate']];
-      for (const m of S.months || []) out.push([m.key, m.n, m.buys, m.sells, m.buyUSD.toFixed(2), m.sellUSD.toFixed(2), m.realized.toFixed(2), m.closed ? (m.wins / m.closed).toFixed(4) : '']);
+      const out = [['Month', 'Trades', 'Buys', 'Sells', 'BuyUSD', 'SellUSD', 'AccumulationBTC', 'RealizedPL', 'WinRate']];
+      for (const m of S.months || []) out.push([m.key, m.n, m.buys, m.sells, m.buyUSD.toFixed(2), m.sellUSD.toFixed(2), (m.accum || 0).toFixed(8), m.realized.toFixed(2), m.closed ? (m.wins / m.closed).toFixed(4) : '']);
       download('vbtc-monthly-' + stamp() + '.csv', csv(out));
     } else if (kind === 'gaps') {
       const out = [['Row', 'Time', 'TX', 'Kind', 'PrevUserBTC', 'TxBTC', 'UserBTC', 'ExpectedBTC', 'DiffSats', 'Source']];
@@ -4582,7 +4681,10 @@
     if (!c) { hideTip(); return; }
     const d = +c.dataset.d, h = +c.dataset.h, S = state.sum;
     showTip('<div class="tt">' + DOW[d] + ' ' + pad2(h) + ':00–' + pad2((h + 1) % 24) + ':00 ' + tzName() + '</div>' +
-      tipRow('Trades', int(S.heatN[d][h])) + tipRow('Volume', usd(S.heatV[d][h])) + tipRow('Realized', usdS(S.heatP[d][h]), null, sgn(S.heatP[d][h])), e.clientX, e.clientY);
+      tipRow('Trades', int(S.heatN[d][h])) +
+      tipRow('Volume', usd(S.heatV[d][h])) +
+      tipRow('Accumulation', btcS(S.heatA[d][h]), null, sgnBtc(S.heatA[d][h])) +
+      tipRow('Realized', usdS(S.heatP[d][h]), null, sgn(S.heatP[d][h])), e.clientX, e.clientY);
   });
   $('#heat').addEventListener('mouseleave', hideTip);
   // calendar
@@ -4591,7 +4693,12 @@
     if (!c) { hideTip(); return; }
     const t = +c.dataset.t, dm = state.sum.dayMap.get(dayKey(t));
     let html = '<div class="tt">' + fmtDate(t, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + '</div>';
-    html += dm ? tipRow('Trades', int(dm.n)) + tipRow('Volume', usd(dm.buyUSD + dm.sellUSD)) + tipRow('Realized', usdS(dm.realized), null, sgn(dm.realized)) : tipRow('Trades', '0');
+    html += dm
+      ? tipRow('Trades', int(dm.n)) +
+        tipRow('Volume', usd(dm.buyUSD + dm.sellUSD)) +
+        tipRow('Accumulation', btcS(dm.accum), null, sgnBtc(dm.accum)) +
+        tipRow('Realized', usdS(dm.realized), null, sgn(dm.realized))
+      : tipRow('Trades', '0');
     showTip(html, e.clientX, e.clientY);
   });
   $('#cal').addEventListener('mouseleave', hideTip);
