@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spire Assault Planner</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --bg2: #171b24;
+      --card: #222833;
+      --ink: #e8edf5;
+      --muted: #8b97aa;
+      --line: #3d4658;
+      --accent: #7eb0ff;
+      --ok: #3d8b6e;
+      --warn: #c4922a;
+      --lock: #6b5b8a;
+      --bad: #c45c5c;
+      --shadow: 0 10px 28px rgba(0,0,0,.38);
+    }
+    [data-theme="light"] {
+      --bg: #eef1f6;
+      --bg2: #fff;
+      --card: #f7f8fb;
+      --ink: #1b2230;
+      --muted: #5b6677;
+      --line: #cfd6e3;
+      --accent: #2458c5;
+      --ok: #217a58;
+      --warn: #9a6d10;
+      --lock: #6a5a88;
+      --bad: #b33b3b;
+      --shadow: 0 8px 24px rgba(20,30,50,.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: Segoe UI, system-ui, sans-serif;
+      font-weight: 400;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.05rem 1.6rem; border-bottom: 1px solid var(--line); background: var(--bg2);
+    }
+    header h1 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+    button, select, textarea, input[type="text"] {
+      font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    }
+    button { padding: .5rem 1rem; cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    main { max-width: 1180px; margin: 0 auto; padding: 1.35rem 1.4rem 1.6rem; display: grid; gap: 1.35rem; }
+    #workspace:not([hidden]) { display: grid; gap: 1.35rem; }
+    textarea { width: 100%; min-height: 7.2rem; padding: .85rem 1rem; resize: vertical; }
+    .row { display: flex; gap: 1rem 1.5rem; flex-wrap: wrap; align-items: flex-start; }
+    .field { display: grid; gap: .4rem; font-size: .8rem; color: var(--muted); font-weight: 600; }
+    input[type="text"], select { padding: .55rem .75rem; min-width: 11rem; font-weight: 400; }
+    .dust-line { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem .85rem; }
+    .hint { font-size: .78rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
+    .section-head {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: .75rem 1.1rem; margin: 1.25rem 0 .85rem;
+    }
+    .section-head h2 { margin: 0; }
+    .section-head.board-head { margin: 1.85rem 0 .85rem; }
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem .85rem; }
+    .filters-label { font-size: .8rem; color: var(--muted); font-weight: 600; }
+    .filter-pills { display: flex; flex-wrap: wrap; gap: .75rem; }
+    .check {
+      position: relative;
+      display: inline-flex; align-items: center; gap: .6rem;
+      margin: 0; padding: .55rem 1.05rem .55rem .8rem;
+      background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+      color: var(--ink); font-size: .86rem; font-weight: 400; cursor: pointer; user-select: none;
+      line-height: 1.2;
+    }
+    .check input[type="checkbox"] {
+      position: absolute; inset: 0; opacity: 0; margin: 0; pointer-events: none;
+    }
+    .check .box {
+      width: 1.1rem; height: 1.1rem; flex: 0 0 1.1rem;
+      border: 1.5px solid var(--line); border-radius: 5px;
+      background: var(--card); display: grid; place-content: center;
+    }
+    .check .box::after {
+      content: ""; width: .28rem; height: .5rem;
+      border: solid transparent; border-width: 0 2px 2px 0;
+      transform: rotate(45deg) translate(-1px, -1px);
+    }
+    .check input:checked + .box { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--card)); }
+    .check input:checked + .box::after { border-color: var(--ink); }
+    .check:hover { border-color: var(--accent); }
+    .check:hover .box { border-color: var(--accent); }
+    .check:has(input:not(:checked)) { color: var(--muted); }
+    .chips { display: flex; flex-wrap: wrap; gap: .55rem; margin-bottom: 1.15rem; }
+    .chip {
+      background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+      padding: .38rem .85rem; display: flex; gap: .45rem; align-items: baseline;
+    }
+    .chip span { color: var(--muted); font-size: .75rem; font-weight: 600; }
+    .chip b { font-weight: 600; }
+    .err { color: var(--bad); background: rgba(196,92,92,.12); padding: .75rem 1rem; border-radius: 10px; }
+    .panel { background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 1.2rem 1.3rem; box-shadow: var(--shadow); }
+    .panel h2 { margin: 0 0 .85rem; font-size: 1.05rem; font-weight: 600; }
+    .empty, .notes, .sub { color: var(--muted); }
+    .panel > .empty { margin: 0 0 .85rem; }
+    .rec {
+      background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+      padding: 1rem 1.1rem; display: grid; gap: .4rem;
+    }
+    .rec-head { font-size: 1.02rem; }
+    .rec-meta, .rec-items { font-size: .9rem; color: var(--muted); }
+    .next {
+      background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+      padding: 1rem 1.1rem; display: grid; gap: .35rem; margin-top: 1rem;
+    }
+    .next-kicker { font-size: .75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .next-head { font-size: 1.02rem; }
+    .next-meta, .next-why { font-size: .88rem; color: var(--muted); }
+    .step-item { color: var(--accent); }
+    .step-contract { color: #c4b3ee; }
+    .step-limb { color: #e0b45a; }
+    .step-ring { color: #6ec4b0; }
+    .step-missing { color: var(--muted); }
+    tr.unreachable { background: rgba(196, 92, 92, .12); }
+    tr.unreachable td { color: color-mix(in srgb, var(--ink) 78%, var(--bad)); }
+    [data-theme="light"] .step-contract { color: #6a5a88; }
+    [data-theme="light"] .step-limb { color: #9a6d10; }
+    [data-theme="light"] .step-ring { color: #217a58; }
+    .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: .85rem; }
+    .card {
+      position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .85rem .9rem;
+      min-height: 8.4rem;
+    }
+    .card h3 { margin: 0 0 .4rem; font-size: .92rem; font-weight: 600; }
+    .card .lv { font-weight: 600; }
+    .card .cost, .card .time, .card .mods, .card .gapcost { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+    .card .gap { color: var(--warn); }
+    .card.ok { border-color: var(--ok); }
+    .card.warn { border-color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+    .card.locked { border-color: var(--lock); opacity: .92; }
+    .card.rec { background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+    .card .flag { font-size: .75rem; margin-top: .3rem; }
+    .card .flag.bad { color: var(--bad); }
+    .card .tip {
+      display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 5;
+      background: var(--bg2); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+      padding: .7rem .75rem; font-size: .78rem; box-shadow: var(--shadow); width: max(100%, 220px);
+    }
+    .card:hover { z-index: 6; }
+    .card:hover .tip { display: block; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: .65rem .55rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: .78rem; }
+    .steps div + div { margin-top: .25rem; }
+    .save-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+    .save-bar h2 { margin: 0; }
+    .save-facts { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .55rem; }
+    .fact {
+      background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+      padding: .35rem .8rem; font-size: .82rem; color: var(--ink);
+    }
+    .fact span { color: var(--muted); font-weight: 600; font-size: .75rem; margin-right: .35rem; }
+    footer { color: var(--muted); font-size: .8rem; padding: .2rem 0 .9rem; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Spire Assault Planner</h1>
+    <button type="button" id="themeBtn" onclick="window.saTheme&&saTheme()">Light</button>
+  </header>
+  <main>
+    <section class="panel" id="savePanel">
+      <div id="saveEditor">
+        <h2>Save</h2>
+        <p class="empty">Paste a Trimps export string. The planner reads Spire Assault items, limbs, ring, and dust from it.</p>
+        <textarea id="saveBox" placeholder="N4Ig..." spellcheck="false" onpaste="setTimeout(function(){window.saLoad&&saLoad();},0)"></textarea>
+      </div>
+      <div id="saveSummary" hidden>
+        <div class="save-bar">
+          <div>
+            <h2>Save loaded</h2>
+            <div class="save-facts" id="saveFacts"></div>
+          </div>
+          <button type="button" id="updateBtn" onclick="window.saUpdate&&saUpdate()">Update</button>
+        </div>
+      </div>
+      <p id="err" class="err" hidden></p>
+    </section>
+    <div id="workspace" hidden>
+      <section class="panel" id="controls" hidden>
+        <div class="chips" id="chips"></div>
+        <div class="row">
+          <label class="field">SA level
+            <select id="levelSelect" onchange="window.saRender&&saRender()"></select>
+          </label>
+          <label class="field">Your dust/s
+            <span class="dust-line">
+              <input id="dustOverride" type="text" inputmode="decimal" placeholder="override sheet estimate" oninput="window.saDust&&saDust()">
+              <span class="hint" id="dustEstimate"></span>
+            </span>
+          </label>
+        </div>
+      </section>
+      <section class="panel" id="results" hidden>
+        <h2>Recommended build</h2>
+        <div id="recommend"></div>
+        <div id="nextUpgrade"></div>
+        <div class="section-head board-head">
+          <h2>Upgrade board</h2>
+          <label class="check"><input type="checkbox" id="filtHideUnused" onchange="window.saFilter&&saFilter()"><span class="box" aria-hidden="true"></span><span>Hide unused</span></label>
+        </div>
+        <div class="board" id="board"></div>
+        <div class="section-head">
+          <h2>Better builds</h2>
+          <div class="filters" role="group" aria-labelledby="filtLabel">
+            <span class="filters-label" id="filtLabel">Include</span>
+            <div class="filter-pills">
+              <label class="check"><input type="checkbox" id="filtRing" checked onchange="window.saFilter&&saFilter()"><span class="box" aria-hidden="true"></span><span>Ring upgrades</span></label>
+              <label class="check"><input type="checkbox" id="filtContract" checked onchange="window.saFilter&&saFilter()"><span class="box" aria-hidden="true"></span><span>Contracts</span></label>
+              <label class="check"><input type="checkbox" id="filtLimb" checked onchange="window.saFilter&&saFilter()"><span class="box" aria-hidden="true"></span><span>Limb</span></label>
+            </div>
+          </div>
+        </div>
+        <div id="better"></div>
+      </section>
+    </div>
+    <footer>
+      Build data from the
+      <a href="https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs" target="_blank" rel="noopener">community Spire Assault spreadsheet</a>.
+    </footer>
+  </main>
+  <script>
+/*__LZ__*/
+  </script>
+  <script>
+var SA_DATA = /*__DATA__*/;
+  </script>
+  <script>
+/*__APP__*/
+  </script>
+</body>
+</html>

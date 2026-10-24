@@ -91,7 +91,8 @@ try {
     New-Item -ItemType Directory -Path $trimpsPath -Force | Out-Null
   }
   # --- Copy only files that are new or changed (skip .git, .vscode); skip local-owned files when they already exist ---
-  # Do not overwrite index.html, manifest.json, sw.js, or css/kreftus-local.css when they already exist - we own them and restore below
+  # Do not overwrite local-owned files when they already exist. Overlay CSS/JS are
+  # rewritten from here-strings below; sa.html is the self-contained planner (not a here-string).
   $localOwnedFiles = @{
     'index.html' = $true
     'manifest.json' = $true
@@ -100,6 +101,7 @@ try {
     'css/kreftus-local.css' = $true
     'js\kreftus-local.js' = $true
     'js/kreftus-local.js' = $true
+    'sa.html' = $true
     'icons\192.png' = $true
     'icons/192.png' = $true
     'icons\512.png' = $true
@@ -111,7 +113,9 @@ try {
   Get-ChildItem -Path $cloneDir -Recurse -File -Force | Where-Object { $_.FullName -notmatch '\.(git|vscode)\\' } | ForEach-Object {
     $rel = $_.FullName.Substring($cloneBaseLen)
     $dest = Join-Path $trimpsPath $rel
-    if ($localOwnedFiles.ContainsKey($rel) -and (Test-Path -LiteralPath $dest)) {
+    $relNorm = $rel -replace '\\', '/'
+    $saBuildOwned = $relNorm -eq 'sa-build' -or $relNorm.StartsWith('sa-build/')
+    if (($localOwnedFiles.ContainsKey($rel) -or $saBuildOwned) -and (Test-Path -LiteralPath $dest)) {
       Write-Verbose "Skipped (local owned): $rel"
       $skipCount++
       return 
