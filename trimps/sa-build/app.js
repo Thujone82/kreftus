@@ -6,6 +6,59 @@
     Doppelganger_Diadem: "Can Bleed for 10s. 2x Attack if Signet is equipped, x2 again if Doppelganger is alive. Doppelganger has 50% more health and can resurrect once per fight."
   };
 
+  var ICONS = {
+    spire: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L5 12h4.5l-2 7h9l-2-7H19L12 2zm-4.5 18.5h9V22h-9v-1.5z"/></svg>',
+    sword: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/></svg>',
+    dagger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5L19.5 9.5 7 22H2v-5L14.5 4.5z"/><path d="M12 7l5 5"/></svg>',
+    axe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 12l-8.5 8.5a2.12 2.12 0 0 1-3-3L11 9"/><path d="M15 13L9 7l4-4 6 6h3a8 8 0 0 1-7 7z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+    flask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v6.5L4 19a2 2 0 0 0 1.7 3h12.6A2 2 0 0 0 20 19l-6-9.5V3"/><path d="M7.5 15h9"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    boots: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h6v9l5 2a3 3 0 0 1 2 2.8V20H4v-5l3-2V3z"/><line x1="4" y1="17" x2="20" y2="17"/></svg>',
+    coat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3L3 7l3 4 2-2v12h8V9l2 2 3-4-5-4-2 2h-4L8 3z"/></svg>',
+    gem: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 18 3 22 9 12 22 2 9"/><polyline points="2 9 12 14 22 9"/><line x1="12" y1="3" x2="12" y2="22"/></svg>',
+    medkit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/></svg>',
+    glove: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v4"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M6 12a2 2 0 0 0-4 0v3a7 7 0 0 0 14 0v-4"/></svg>',
+    mask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v7a8 8 0 0 1-16 0V4z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M9 15c1.5 1 4.5 1 6 0"/></svg>',
+    crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="2 18 5 6 9.5 12 12 4 14.5 12 19 6 22 18"/><line x1="2" y1="21" x2="22" y2="21"/></svg>',
+    ring: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"/><polygon points="9 3 15 3 14 6 10 6"/><circle cx="12" cy="13" r="3"/></svg>',
+    limb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+    contract: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',
+    dust: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M3 12h3M18 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="3"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+
+  function iconForItem(key) {
+    if (!key) return ICONS.sword;
+    if (key === "Menacing_Mask") return ICONS.mask;
+    if (key === "Grounded_Crown" || key === "Doppelganger_Diadem") return ICONS.crown;
+    if (key === "Doppelganger_Signet" || key === "Mood_Bracelet") return ICONS.ring;
+    if (key === "Bad_Medkit") return ICONS.medkit;
+    if (key === "Lifegiving_Gem" || key === "Unlucky_Coin" || key === "Recycler" || key === "Omni_Enhancer" || key === "The_Doomspring" || key === "Basket_of_Souls") return ICONS.gem;
+    if (/Sword|Blade/.test(key)) return ICONS.sword;
+    if (/Dagger|Shank|Piercer|Nails/.test(key)) return ICONS.dagger;
+    if (/Cleaver|Hatchet|Greataxe|Scythe|Harpoon/.test(key)) return ICONS.axe;
+    if (/Armor|Suit|Protector|Aegis/.test(key)) return ICONS.shield;
+    if (/Goo|Pouch|Chemistry|Mold|Snimp|Globulator|Plague|Slime|Golem|Spores|Myco/.test(key)) return ICONS.flask;
+    if (/Battery|Shock|Wired|Eelimp|Goggles|Stormbringer|Fibrillator/.test(key)) return ICONS.bolt;
+    if (/Boots/.test(key)) return ICONS.boots;
+    if (/Pants|Raincoat|Labcoat|Wraps/.test(key)) return ICONS.coat;
+    if (/Gloves|Paw|Mitts/.test(key)) return ICONS.glove;
+    return ICONS.sword;
+  }
+
+  function iconForStep(s) {
+    if (!s) return ICONS.bolt;
+    if (s.kind === "contract" || s.kind === "missing") return ICONS.contract;
+    if (s.kind === "limbs") return ICONS.limb;
+    if (s.kind === "ring" || s.kind === "ringUnlock") return ICONS.ring;
+    if (s.kind === "level") return iconForItem(s.key);
+    return ICONS.bolt;
+  }
+
   var state = {
     save: null,
     ab: null,
@@ -17,6 +70,18 @@
   };
 
   function $(id) { return document.getElementById(id); }
+
+  function toast(msg) {
+    var wrap = $("toasts");
+    if (!wrap) return;
+    var d = document.createElement("div");
+    d.className = "toast";
+    d.textContent = msg;
+    wrap.appendChild(d);
+    setTimeout(function () {
+      if (d.parentNode) d.parentNode.removeChild(d);
+    }, 3200);
+  }
 
   function prettify(n) {
     if (n == null || !isFinite(n)) return "—";
@@ -193,13 +258,6 @@
     return false;
   }
 
-  function itemForZone(zone) {
-    for (var key in SA_DATA.items) {
-      if (SA_DATA.items[key].zone === zone) return key;
-    }
-    return null;
-  }
-
   function decodeSave(raw) {
     var s = String(raw || "").replace(/\s+/g, "");
     if (!s) throw new Error("Paste a Trimps export string.");
@@ -359,7 +417,13 @@
   function setTheme(theme) {
     state.theme = theme === "light" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", state.theme);
-    $("themeBtn").textContent = state.theme === "dark" ? "Light" : "Dark";
+    var sun = $("icoSun"), moon = $("icoMoon"), lbl = $("themeLbl");
+    if (sun && moon) {
+      sun.classList.toggle("hidden", state.theme === "light");
+      moon.classList.toggle("hidden", state.theme === "dark");
+    }
+    if (lbl) lbl.textContent = state.theme === "dark" ? "Light" : "Dark";
+    else if ($("themeBtn")) $("themeBtn").textContent = state.theme === "dark" ? "Light" : "Dark";
     try { localStorage.setItem("saPlanner.theme", state.theme); } catch (e) {}
   }
 
@@ -400,20 +464,61 @@
     state.level = Number(sel.value);
   }
 
-  function renderChips() {
-    var ab = state.ab;
-    $("chips").innerHTML = [
-      chip("Max SA", ab.maxEnemyLevel),
-      chip("Fighting", ab.enemyLevel),
-      chip("Dust", prettify(ab.dust)),
-      chip("Shards", prettify(ab.shards)),
-      chip("Limbs", maxSlots() + " slots"),
-      chip("Ring", hasRing() ? "Lv " + ringLevel() : "locked")
-    ].join("");
+  function stepLevel(delta) {
+    var sel = $("levelSelect");
+    if (!sel || !sel.options.length) return;
+    var nextIdx = Math.max(0, Math.min(sel.options.length - 1, sel.selectedIndex + delta));
+    if (nextIdx !== sel.selectedIndex) {
+      sel.selectedIndex = nextIdx;
+      render();
+    }
   }
 
-  function chip(label, value) {
-    return '<div class="chip"><span>' + esc(label) + '</span><b>' + esc(String(value)) + '</b></div>';
+  function selectLevel(lv) {
+    var sel = $("levelSelect");
+    if (!sel) return;
+    if (SA_DATA.builds[String(lv)]) {
+      sel.value = String(lv);
+      render();
+    }
+  }
+
+  function renderQuickLevels() {
+    var el = $("quickLevels");
+    if (!el || !state.ab) return;
+    var fight = state.ab.enemyLevel;
+    var max = state.ab.maxEnemyLevel;
+    var html = "";
+    if (fight && SA_DATA.builds[String(fight)]) {
+      html += '<button type="button" class="btn sm ' + (state.level === fight ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + fight + ')">Fighting (SA ' + fight + ')</button>';
+    }
+    if (max && max !== fight && SA_DATA.builds[String(max)]) {
+      html += '<button type="button" class="btn sm ' + (state.level === max ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + max + ')">Max (SA ' + max + ')</button>';
+    }
+    el.innerHTML = html;
+  }
+
+  function kpi(label, value, note, tone, icon) {
+    return '<div class="kpi ' + (tone || 'tone-accent') + '">' +
+      '<div class="kpi-label">' + (icon || '') + '<span>' + esc(label) + '</span></div>' +
+      '<div class="kpi-value">' + esc(String(value)) + '</div>' +
+      (note ? '<div class="kpi-note">' + esc(note) + '</div>' : '') +
+      '</div>';
+  }
+
+  function renderChips(rec, rate) {
+    var ab = state.ab;
+    var owned = ownedItemKeys();
+    var equipped = owned.filter(function (k) { return userItem(k) && userItem(k).equipped; }).length;
+    var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
+    $("chips").innerHTML = [
+      kpi("Enemy Level", "SA " + (ab.enemyLevel || "—"), "Max unlocked: SA " + (ab.maxEnemyLevel || "—"), "tone-accent", ICONS.spire),
+      kpi("Dust Bank", prettify(ab.dust), rate ? ("Active rate: " + prettify(rate) + "/s") : "No active rate", "tone-buy", ICONS.dust),
+      kpi("Shard Bank", prettify(ab.shards), "= " + prettify((ab.shards || 0) * SHARD_DUST) + " dust", "tone-teal", ICONS.gem),
+      kpi("Huffy Limbs", maxSlots() + " slots", equipped + " equipped · " + owned.length + "/" + SA_DATA.itemOrder.length + " owned", "tone-warn", ICONS.limb),
+      kpi("The Ring", hasRing() ? ("Lv " + ringLevel()) : "Locked", hasRing() ? (mods || "No custom mods") : ("Unlock: " + prettify(oneTimerRingCost()) + " shards"), "tone-info", ICONS.ring),
+      kpi("U2 Progress", "Z" + (state.radon + 1), ab.activeContract ? ("Active: " + itemName(ab.activeContract)) : "No active contract", "tone-violet", ICONS.contract)
+    ].join("");
   }
 
   function esc(s) {
@@ -575,10 +680,15 @@
     var rec = bestRunnable(level);
     var rate = activeDustPs(rec);
     var est = sheetDustPs(rec);
-    $("dustEstimate").textContent = rec ? ("sheet " + prettify(est) + "/s") : "no runnable build";
+    $("dustEstimate").textContent = rec ? ("Sheet: " + prettify(est) + "/s") : "No runnable build";
     $("controls").hidden = false;
     $("results").hidden = false;
-    renderChips();
+    if ($("sourceStatus")) {
+      $("sourceStatus").className = "pill ok";
+      $("sourceStatus").textContent = "U2 Z" + (state.radon + 1) + " · SA " + (state.ab.enemyLevel || level) + "/" + (state.ab.maxEnemyLevel || level);
+    }
+    renderQuickLevels();
+    renderChips(rec, rate);
     renderRecommended(rec, rate);
     renderNext(rec, rate);
     renderBoard(rec, rate);
@@ -588,22 +698,36 @@
   function renderRecommended(rec, rate) {
     var el = $("recommend");
     if (!rec) {
-      el.innerHTML = "<p class='empty rec'>No sheet build on this level is fully runnable with your current items, levels, limbs, and ring. See better builds below for the cheapest unlock path.</p>";
+      el.innerHTML = "<div class='rec'><p class='empty'>No sheet build on SA " + state.level + " is fully runnable with your current items, levels, limbs, and ring. Check the Next Upgrade Advisor and Better Builds below for the fastest unlock path.</p></div>";
       return;
     }
     var mods = (rec.r && rec.r.m || []).map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
-    var items = Object.keys(rec.i).map(function (k) { return esc(itemName(k)) + " " + rec.i[k]; }).join(", ");
+    var itemCards = Object.keys(rec.i).map(function (k) {
+      var sh = isShards(k);
+      var myLv = userLevel(k);
+      return "<div class='loadout-item" + (sh ? " shards" : "") + "' title='Your level: Lv " + myLv + "'>" +
+        "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
+        "<span class='li-lv'>Lv " + rec.i[k] + "</span>" +
+        "</div>";
+    }).join("");
+
+    var metrics = [];
+    metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(rec.d) + "/s</span>");
+    if (rec.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + rec.k + "s kills</span>");
+    if (rec.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((rec.wr <= 1 ? rec.wr : rec.wr / 100) * 100) + "% WR</span>");
+    metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (rec.l || "?") + " Limbs</span>");
+    if (rec.r) metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + rec.r.lv + (mods ? " (" + esc(mods) + ")" : "") + "</span>");
+    if (rec.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + rec.c + "</span>");
+
     el.innerHTML =
-      "<div class='rec'><div class='rec-head'><strong>" + esc(rec.n) + "</strong> · " + prettify(rec.d) + "/s · " +
-      (rec.k != null ? rec.k + "s kills" : "") +
-      (rec.wr != null ? " · " + Math.round((rec.wr <= 1 ? rec.wr : rec.wr / 100) * 100) + "% WR" : "") +
+      "<div class='rec'>" +
+      "<div class='rec-top'>" +
+      "<div class='rec-head'><span>" + esc(rec.n) + "</span></div>" +
+      "<span class='pill sm buy'>" + ICONS.check + " Runnable Now</span>" +
       "</div>" +
-      "<div class='rec-meta'>Limbs " + (rec.l || "?") +
-      (rec.r ? " · Ring " + rec.r.lv + (mods ? " (" + esc(mods) + ")" : "") : "") +
-      (rec.c ? " · highest contract Z" + rec.c : "") +
-      "</div>" +
-      "<div class='rec-items'>" + items + "</div>" +
-      (rec.note ? "<p class='notes'>" + esc(rec.note) + "</p>" : "") +
+      "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
+      "<div class='loadout-grid'>" + itemCards + "</div>" +
+      (rec.note ? "<div class='notes'>" + ICONS.info + "<span>" + esc(rec.note) + "</span></div>" : "") +
       "</div>";
   }
 
@@ -612,28 +736,41 @@
     var pick = bestNextUpgrade(rec);
     if (!pick) {
       el.innerHTML = rec
-        ? "<div class='next'><div class='next-kicker'>Next upgrade</div><div class='empty'>You already match the strongest sheet farm on this level.</div></div>"
-        : "<div class='next'><div class='next-kicker'>Next upgrade</div><div class='empty'>No single upgrade on this tab beats your current setup with the current filters.</div></div>";
+        ? "<div class='next'><div class='next-kicker'>" + ICONS.check + " Peak Build Reached</div><p class='empty'>You already match the strongest sheet farm on SA " + state.level + ".</p></div>"
+        : "<div class='next'><div class='next-kicker'>" + ICONS.info + " Next Upgrade</div><p class='empty'>No upgrade on this level matches the current filters.</p></div>";
       return;
     }
     var s = pick.step;
     var bnk = bank();
-    var wait = timeForCost(pick.cost, !!s.shards, rate, s.shards ? 0 : bnk.dust, s.shards ? bnk.shards : 0);
-    var costTxt = pick.cost ? (prettify(s.shards ? pick.cost : pick.cost) + (s.shards ? " shards" : " dust")) : "";
-    if (s.shards && pick.cost) costTxt = prettify(pick.cost) + " shards";
-    else if (pick.cost) costTxt = prettify(pick.cost) + " dust";
+    var rawCost = s.cost || 0;
+    var wait = timeForCost(rawCost, !!s.shards, rate, s.shards ? 0 : bnk.dust, s.shards ? bnk.shards : 0);
+    var costTxt = rawCost ? (prettify(rawCost) + (s.shards ? " shards" : " dust")) : "";
     var why = pick.mode === "unlocks"
-      ? "Highest dust/s gain per cost among upgrades that immediately unlock a better sheet farm."
-      : "First step on the fewest-gap path to a better sheet farm (no one-step unlock on this tab).";
+      ? "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build."
+      : "First step on the fewest-gap path to a stronger sheet build (no single-step unlock available on this level).";
+    var badgeHtml = pick.mode === "unlocks"
+      ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
+      : "<span class='pill sm info'>" + ICONS.clock + " Step 1 of " + pick.remaining + "</span>";
+    var waitBadge = wait === 0
+      ? "<span class='pill sm buy'>" + ICONS.check + " Ready now</span>"
+      : (wait != null ? "<span class='pill sm'>" + ICONS.clock + " " + fmtTime(wait) + "</span>" : "");
+
     el.innerHTML =
-      "<div class='next'><div class='next-kicker'>Next upgrade</div>" +
-      "<div class='next-head'><span class='" + stepClass(s) + "'>" + esc(stepLabel(s)) + "</span></div>" +
-      "<div class='next-meta'>" + (costTxt ? esc(costTxt) + " · " : "") +
-      (wait != null ? fmtTime(wait) + " · " : "") +
-      (pick.mode === "unlocks"
-        ? "unlocks " + esc(pick.build.n) + " (" + prettify(pick.build.d) + "/s, +" + prettify(pick.gain) + "/s)"
-        : "toward " + esc(pick.build.n) + " (" + prettify(pick.build.d) + "/s, +" + prettify(pick.gain) + "/s after " + pick.remaining + " steps)") +
-      "</div><div class='next-why'>" + why + "</div></div>";
+      "<div class='next'>" +
+      "<div class='next-top'>" +
+      "<div class='next-kicker'>Recommended Next Action</div>" +
+      badgeHtml +
+      "</div>" +
+      "<div class='next-action-box'>" +
+      "<div class='next-head " + stepClass(s) + "'>" + iconForStep(s) + "<span>" + esc(stepLabel(s)) + "</span></div>" +
+      "<div class='next-meta'>" +
+      (costTxt ? "<span class='pill sm accent'>" + (s.shards ? ICONS.gem : ICONS.dust) + " " + esc(costTxt) + "</span>" : "") +
+      waitBadge +
+      "<span class='pill sm buy'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + " (" + prettify(pick.build.d) + "/s)</span>" +
+      "</div>" +
+      "</div>" +
+      "<div class='next-why'>" + esc(why) + "</div>" +
+      "</div>";
   }
 
   function cardTooltip(title, lines) {
@@ -653,18 +790,30 @@
     var order = SA_DATA.itemOrder.filter(function (k) { return keys[k]; });
     var bnk = bank();
     var html = "";
+    var readyCount = 0, warnCount = 0, lockCount = 0;
 
     order.forEach(function (k) {
+      var owned = userOwns(k);
+      var need = recItems[k] || 0;
+      var lv = owned ? userLevel(k) : 0;
+      if (!owned) lockCount++;
+      else if (need && lv < need) warnCount++;
+      else if (need && lv >= need) readyCount++;
       html += itemCard(k, recItems[k], rate, bnk);
     });
     if (!hide || (rec && rec.r)) html += ringCard(rec && rec.r, rate, bnk);
     if (rec && rec.l && rec.l > maxSlots()) html += limbsCard(rec.l, rate, bnk);
     $("board").innerHTML = html;
+    if ($("boardMeta")) {
+      $("boardMeta").textContent = "· " + order.length + " items shown" + (rec ? (" (" + readyCount + " build-ready)") : "");
+    }
   }
 
   function itemCard(key, recLv, rate, bnk) {
     var cat = itemCat(key);
     var owned = userOwns(key);
+    var uItem = userItem(key);
+    var equipped = !!(uItem && uItem.equipped);
     var lv = owned ? userLevel(key) : 0;
     var need = recLv || 0;
     var cls = "card";
@@ -673,45 +822,59 @@
     else if (need && lv < need) cls += " warn";
     else if (need && lv >= need) cls += " ok";
 
+    var badge = "";
+    if (!owned) badge = "<span class='card-badge lock'>Locked</span>";
+    else if (need && lv < need) badge = "<span class='card-badge warn'>Need Lv " + need + "</span>";
+    else if (need && lv >= need) badge = "<span class='card-badge ok'>Build Ready</span>";
+    else if (equipped) badge = "<span class='card-badge eq'>Equipped</span>";
+
+    var pct = !owned ? 0 : (need ? Math.min(100, Math.round((lv / need) * 100)) : 100);
     var lines = [];
-    var body = "";
+    var topLv = "";
+    var meta = "";
+
     if (!owned) {
+      topLv = "<div class='lv'><span>Locked</span>" + (cat && cat.zone ? "<span class='muted' style='font-size:12px;'>Z" + cat.zone + "</span>" : "") + "</div>";
       if (cat && cat.zone) {
         var active = state.ab.activeContract === key;
         var reach = (state.radon + 1) >= cat.zone;
-        body += "<div class='lv'>Locked</div>";
-        body += "<div class='cost'>Z" + cat.zone + " contract · " + prettify(contractPrice(key)) + " " + currencyName(key) + "</div>";
-        var tUnlock = timeForCost(contractPrice(key), isShards(key), rate, bnk.dust, bnk.shards);
-        body += "<div class='time'>" + fmtTime(tUnlock) + "</div>";
-        if (active) body += "<div class='flag'>Accepted, not finished</div>";
-        if (!reach) body += "<div class='flag bad'>Void map not reachable yet</div>";
+        var cPrice = contractPrice(key);
+        var tUnlock = timeForCost(cPrice, isShards(key), rate, bnk.dust, bnk.shards);
+        meta += "<div class='cost'><span>Contract</span><span>" + prettify(cPrice) + " " + currencyName(key) + "</span></div>";
+        meta += "<div class='time'><span>Wait</span><span>" + fmtTime(tUnlock) + "</span></div>";
+        if (active) meta += "<div class='flag'>" + ICONS.info + " Accepted, not finished</div>";
+        if (!reach) meta += "<div class='flag bad'>" + ICONS.warn + " Void map unreachable</div>";
         lines.push("Complete the Z" + cat.zone + " contract to unlock " + itemName(key) + ".");
-      } else {
-        body += "<div class='lv'>Locked</div>";
       }
     } else {
-      body += "<div class='lv'>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</div>";
+      topLv = "<div class='lv'><span>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</span>" +
+        (equipped ? "<span class='muted' style='font-size:11px;font-weight:500;'>Equipped</span>" : "") + "</div>";
       if (cat && !cat.noUp) {
         var next = upgradeCostAt(key, lv);
         var tNext = timeForCost(next, isShards(key), rate, bnk.dust, bnk.shards);
-        body += "<div class='cost'>Next: " + prettify(next) + " " + currencyName(key) + "</div>";
-        body += "<div class='time'>" + fmtTime(tNext) + "</div>";
+        meta += "<div class='cost'><span>Next (Lv " + (lv + 1) + ")</span><span>" + prettify(next) + " " + currencyName(key) + "</span></div>";
+        meta += "<div class='time'><span>Wait</span><span>" + fmtTime(tNext) + "</span></div>";
         lines.push("Next upgrade: " + (cat.upgrade || "—") + ".");
         lines.push("Cost " + prettify(next) + " " + currencyName(key) + " (" + fmtTime(tNext) + ").");
         if (need > lv) {
           var gap = upgradeCostRange(key, lv, need);
           var tGap = timeForCost(gap, isShards(key), rate, bnk.dust, bnk.shards);
-          body += "<div class='gapcost'>To Lv " + need + ": " + prettify(gap) + " · " + fmtTime(tGap) + "</div>";
+          meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " · " + fmtTime(tGap) + "</span></div>";
           lines.push("To reach the build: Lv " + lv + " → Lv " + need + ".");
         }
       } else {
-        body += "<div class='cost'>Unupgradable</div>";
+        meta += "<div class='cost'><span>Upgrade</span><span>Unupgradable</span></div>";
       }
       lines.unshift(describeItem(key, lv));
     }
 
     return "<article class='" + cls + "' title='" + esc([itemName(key)].concat(lines).join(" — ")) + "'>" +
-      "<h3>" + esc(itemName(key)) + "</h3>" + body +
+      "<div>" +
+      "<div class='card-head-row'><h3>" + iconForItem(key) + "<span>" + esc(itemName(key)) + "</span></h3>" + badge + "</div>" +
+      topLv +
+      "<div class='lv-bar'><span style='width:" + pct + "%'></span></div>" +
+      "</div>" +
+      "<div class='card-meta-rows'>" + meta + "</div>" +
       cardTooltip(itemName(key), lines) +
       "</article>";
   }
@@ -720,33 +883,57 @@
     var cls = "card ring";
     var need = recRing ? recRing.lv : 0;
     var lines = [];
-    var body = "";
+    var badge = "";
+    var topLv = "";
+    var meta = "";
+    var pct = 100;
+
     if (!hasRing()) {
       cls += " locked";
+      pct = 0;
+      badge = "<span class='card-badge lock'>Locked</span>";
       var cost = oneTimerRingCost();
       var t = timeForCost(cost, true, rate, bnk.dust, bnk.shards);
-      body = "<div class='lv'>Locked</div><div class='cost'>One-timer · " + prettify(cost) + " shards</div><div class='time'>" + fmtTime(t) + "</div>";
+      topLv = "<div class='lv'><span>Locked</span><span class='muted' style='font-size:11px;'>One-timer</span></div>";
+      meta = "<div class='cost'><span>Unlock</span><span>" + prettify(cost) + " shards</span></div>" +
+        "<div class='time'><span>Wait</span><span>" + fmtTime(t) + "</span></div>";
       lines.push("Unlock The Ring (one-timer, not a contract).");
       lines.push(nextRingSlotNote(1));
     } else {
       var lv = ringLevel();
-      if (need && lv < need) cls += " warn rec";
-      else if (need) cls += " ok rec";
+      if (need && lv < need) {
+        cls += " warn rec";
+        badge = "<span class='card-badge warn'>Need Lv " + need + "</span>";
+        pct = Math.min(100, Math.round((lv / need) * 100));
+      } else if (need) {
+        cls += " ok rec";
+        badge = "<span class='card-badge ok'>Build Ready</span>";
+      } else {
+        badge = "<span class='card-badge eq'>" + ringSlots(lv) + " Slots</span>";
+      }
       var next = ringLevelCost(lv);
       var tNext = timeForCost(next, true, rate, bnk.dust, bnk.shards);
       var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
-      body = "<div class='lv'>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</div>";
-      body += "<div class='mods'>" + esc(mods || "no custom mods") + "</div>";
-      body += "<div class='cost'>Next: " + prettify(next) + " shards</div><div class='time'>" + fmtTime(tNext) + "</div>";
+      topLv = "<div class='lv'><span>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</span></div>";
+      meta += "<div class='mods'>" + esc(mods || "no custom mods") + "</div>";
+      meta += "<div class='cost'><span>Next (Lv " + (lv + 1) + ")</span><span>" + prettify(next) + " shards</span></div>";
+      meta += "<div class='time'><span>Wait</span><span>" + fmtTime(tNext) + "</span></div>";
       if (need > lv) {
         var gap = ringCostRange(lv, need);
-        body += "<div class='gapcost'>To Lv " + need + ": " + prettify(gap) + " shards · " + fmtTime(timeForCost(gap, true, rate, bnk.dust, bnk.shards)) + "</div>";
+        meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " shards · " + fmtTime(timeForCost(gap, true, rate, bnk.dust, bnk.shards)) + "</span></div>";
         lines.push("To reach the build: Ring Lv " + lv + " → Lv " + need + ".");
       }
       lines.unshift(describeRing(lv, ringMods()));
       lines.push("Next level: all ring stats scale. " + nextRingSlotNote(lv + 1));
     }
-    return "<article class='" + cls + "' title='" + esc(["The Ring"].concat(lines).join(" — ")) + "'><h3>The Ring</h3>" + body + cardTooltip("The Ring", lines) + "</article>";
+    return "<article class='" + cls + "' title='" + esc(["The Ring"].concat(lines).join(" — ")) + "'>" +
+      "<div>" +
+      "<div class='card-head-row'><h3>" + ICONS.ring + "<span>The Ring</span></h3>" + badge + "</div>" +
+      topLv +
+      "<div class='lv-bar'><span style='width:" + pct + "%'></span></div>" +
+      "</div>" +
+      "<div class='card-meta-rows'>" + meta + "</div>" +
+      cardTooltip("The Ring", lines) + "</article>";
   }
 
   function limbsCard(needSlots, rate, bnk) {
@@ -754,9 +941,17 @@
     var to = needSlots - 4;
     var cost = extraLimbCost(from, to);
     var t = timeForCost(cost, false, rate, bnk.dust, bnk.shards);
-    return "<article class='card warn rec'><h3>Extra Limbs</h3>" +
-      "<div class='lv'>" + maxSlots() + " slots <span class='gap'>→ " + needSlots + "</span></div>" +
-      "<div class='cost'>" + prettify(cost) + " dust</div><div class='time'>" + fmtTime(t) + "</div>" +
+    var pct = Math.min(100, Math.round((maxSlots() / needSlots) * 100));
+    return "<article class='card warn rec'>" +
+      "<div>" +
+      "<div class='card-head-row'><h3>" + ICONS.limb + "<span>Extra Limbs</span></h3><span class='card-badge warn'>Need " + needSlots + "</span></div>" +
+      "<div class='lv'><span>" + maxSlots() + " slots <span class='gap'>→ " + needSlots + "</span></span></div>" +
+      "<div class='lv-bar'><span style='width:" + pct + "%'></span></div>" +
+      "</div>" +
+      "<div class='card-meta-rows'>" +
+      "<div class='cost'><span>Cost</span><span>" + prettify(cost) + " dust</span></div>" +
+      "<div class='time'><span>Wait</span><span>" + fmtTime(t) + "</span></div>" +
+      "</div>" +
       cardTooltip("Extra Limbs", ["Huffy can equip 1 additional item per level.", "Need " + from + " → " + to + "."]) +
       "</article>";
   }
@@ -778,28 +973,29 @@
         : "<p class='empty'>No builds on this tab match the current filters.</p>";
       return;
     }
-    var bnk = bank();
     var rows = list.map(function (b) {
       var steps = gapSteps(b);
       var cost = stepsCostDust(steps);
       var pay = timeForCost(cost.combined, false, rate, 0, 0);
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
-      return "<tr" + (blocked ? " class='unreachable'" : "") + "><td><strong>" + esc(b.n) + "</strong><div class='sub'>" + prettify(b.d) + "/s" +
-        (b.k != null ? " · " + b.k + "s" : "") + "</td>" +
-        "<td class='steps'>" + steps.map(function (s) {
-          return "<div class='" + stepClass(s) + "'>" + esc(stepLabel(s)) + "</div>";
-        }).join("") + "</td>" +
-        "<td>" + (cost.dust ? prettify(cost.dust) + " dust" : "") +
+      return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
+        "<td><strong>" + esc(b.n) + "</strong>" +
+        (blocked ? " <span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + (b.c || "?") + "</span>" : "") +
+        "<div class='sub mono' style='margin-top:2px;'>" + prettify(b.d) + "/s" + (b.k != null ? " · " + b.k + "s" : "") + "</div></td>" +
+        "<td><div class='steps'>" + steps.map(function (s) {
+          return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) + "<span>" + esc(stepLabel(s)) + "</span></span>";
+        }).join("") + "</div></td>" +
+        "<td class='mono'>" + (cost.dust ? prettify(cost.dust) + " dust" : "") +
         (cost.dust && cost.shards ? "<br>" : "") +
         (cost.shards ? prettify(cost.shards) + " shards" : "") + "</td>" +
-        "<td>" + prettify((b.d || 0) - cur) + "/s</td>" +
-        "<td>" + fmtTime(pay) + "</td></tr>";
+        "<td class='mono pos'>+" + prettify((b.d || 0) - cur) + "/s</td>" +
+        "<td class='mono'>" + fmtTime(pay) + "</td></tr>";
     }).join("");
-    $("better").innerHTML = "<table><thead><tr><th>Build</th><th>Missing</th><th>Cost</th><th>Δ d/s</th><th>Payback</th></tr></thead><tbody>" + rows + "</tbody></table>";
+    $("better").innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Payback</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
   }
 
-  function fact(label, value) {
-    return '<div class="fact"><span>' + esc(label) + '</span>' + esc(String(value)) + '</div>';
+  function fact(label, value, icon) {
+    return '<div class="fact">' + (icon || '') + '<span>' + esc(label) + '</span>' + esc(String(value)) + '</div>';
   }
 
   function ownedItemKeys() {
@@ -819,19 +1015,28 @@
     var contract = state.ab.activeContract;
     var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
     $("saveFacts").innerHTML = [
-      fact("Highest Zone U2", state.radon + 1),
-      fact("Void maps", "to Z" + (state.radon + 1)),
-      fact("Contract", contract ? itemName(contract) : "none"),
-      fact("Items", owned.length + "/" + SA_DATA.itemOrder.length),
-      fact("Equipped", equipped),
-      fact("Contracts", contracts + "/" + contractItems),
-      fact("Ring mods", hasRing() ? (mods || "none") : "locked")
+      fact("Highest Zone U2", state.radon + 1, ICONS.spire),
+      fact("Void maps", "to Z" + (state.radon + 1), ICONS.shield),
+      fact("Contract", contract ? itemName(contract) : "none", ICONS.contract),
+      fact("Items", owned.length + "/" + SA_DATA.itemOrder.length, ICONS.sword),
+      fact("Equipped", equipped + "/" + maxSlots(), ICONS.limb),
+      fact("Contracts", contracts + "/" + contractItems, ICONS.check),
+      fact("Ring mods", hasRing() ? (mods || "none") : "locked", ICONS.ring)
     ].join("");
   }
 
   function setSaveCollapsed(collapsed) {
     $("saveEditor").hidden = collapsed;
     $("saveSummary").hidden = !collapsed;
+    if ($("savePanel")) {
+      $("savePanel").classList.toggle("hero-mode", !collapsed && !state.ab);
+    }
+    if ($("cancelEditBtn")) {
+      $("cancelEditBtn").classList.toggle("hidden", !state.ab);
+    }
+    if ($("heroFeats")) {
+      $("heroFeats").classList.toggle("hidden", !!state.ab);
+    }
   }
 
   function onUpdate() {
@@ -840,6 +1045,62 @@
     var box = $("saveBox");
     box.focus();
     box.select();
+  }
+
+  function onCancelEdit() {
+    if (state.ab) {
+      $("err").hidden = true;
+      setSaveCollapsed(true);
+    }
+  }
+
+  function onPasteClipboard() {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (txt) {
+        if (txt && txt.trim()) {
+          $("saveBox").value = txt.trim();
+          onLoad();
+        } else {
+          onUpdate();
+        }
+      }).catch(function () {
+        onUpdate();
+      });
+    } else {
+      onUpdate();
+    }
+  }
+
+  function isBlockedByContract(build) {
+    return gapSteps(build).some(function (s) { return s.kind === "contract" && !s.reach; });
+  }
+
+  function shouldDisableContractsOnLoad(level) {
+    var rec = bestRunnable(level);
+    var cur = rec ? rec.d || 0 : 0;
+    var allBetter = buildsFor(level).filter(function (b) {
+      return (b.d || 0) > cur + 1e-9 && !runnable(b);
+    });
+    if (!allBetter.length) return false;
+    var contractBetter = allBetter.filter(function (b) {
+      return stepsNeed(gapSteps(b), "contract");
+    });
+    if (!contractBetter.length) return false;
+    if (contractBetter.every(isBlockedByContract)) return true;
+
+    var savedContract = state.filters.contract;
+    state.filters.contract = true;
+    var visible = betterBuilds(rec);
+    state.filters.contract = savedContract;
+    visible.sort(function (a, b) {
+      var ca = stepsCostDust(gapSteps(a)).combined;
+      var cb = stepsCostDust(gapSteps(b)).combined;
+      var ra = ca > 0 ? ((a.d || 0) - cur) / ca : 0;
+      var rb = cb > 0 ? ((b.d || 0) - cur) / cb : 0;
+      return rb - ra;
+    });
+    var top8 = visible.slice(0, 8);
+    return top8.length > 0 && top8.every(isBlockedByContract);
   }
 
   function onLoad() {
@@ -852,10 +1113,13 @@
       var pick = decoded.ab.enemyLevel || decoded.ab.maxEnemyLevel || 4;
       if (pick > (decoded.ab.maxEnemyLevel || pick)) pick = decoded.ab.maxEnemyLevel;
       fillLevels(pick);
+      state.filters.contract = !shouldDisableContractsOnLoad(state.level);
+      applyFilterBoxes();
       $("workspace").hidden = false;
       renderSaveFacts();
       setSaveCollapsed(true);
       render();
+      toast("Save loaded · SA Lv " + state.level + " (U2 Z" + (state.radon + 1) + ")");
     } catch (e) {
       $("err").hidden = false;
       $("err").textContent = e.message || String(e);
@@ -890,6 +1154,32 @@
     ["filtRing", "filtContract", "filtLimb", "filtHideUnused"].forEach(function (id) {
       $(id).addEventListener("change", onFilterChange);
     });
+    if ($("btnHelp") && $("helpDlg")) {
+      $("btnHelp").addEventListener("click", function () { $("helpDlg").showModal(); });
+      $("btnCloseHelp").addEventListener("click", function () { $("helpDlg").close(); });
+      $("helpDlg").addEventListener("click", function (ev) {
+        if (ev.target === $("helpDlg")) $("helpDlg").close();
+      });
+    }
+    document.addEventListener("keydown", function (ev) {
+      var tag = (ev.target && ev.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      if (ev.key === "t" || ev.key === "T") { ev.preventDefault(); toggleTheme(); }
+      else if (ev.key === "u" || ev.key === "U") { ev.preventDefault(); onUpdate(); }
+      else if (ev.key === "v" || ev.key === "V") { ev.preventDefault(); onPasteClipboard(); }
+      else if (ev.key === "h" || ev.key === "H") {
+        if ($("filtHideUnused") && state.ab) {
+          ev.preventDefault();
+          $("filtHideUnused").checked = !$("filtHideUnused").checked;
+          onFilterChange();
+        }
+      }
+      else if (ev.key === "[") { ev.preventDefault(); stepLevel(-1); }
+      else if (ev.key === "]") { ev.preventDefault(); stepLevel(1); }
+      else if (ev.key === "?") {
+        if ($("helpDlg")) { ev.preventDefault(); $("helpDlg").showModal(); }
+      }
+    });
     loadPrefs();
     setTheme(state.theme);
     if ($("saveBox") && !$("saveEditor").hidden) $("saveBox").focus();
@@ -897,6 +1187,10 @@
 
   window.saLoad = onLoad;
   window.saUpdate = onUpdate;
+  window.saCancelEdit = onCancelEdit;
+  window.saPaste = onPasteClipboard;
+  window.saStepLevel = stepLevel;
+  window.saSelectLevel = selectLevel;
   window.saTheme = toggleTheme;
   window.saRender = render;
   window.saDust = onDustInput;

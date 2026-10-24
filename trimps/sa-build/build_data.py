@@ -358,21 +358,23 @@ def compact_build(b: dict) -> dict:
 
 def main():
     fresh = "--fresh" in sys.argv
+    verbose = "--verbose" in sys.argv
     cache = ROOT / "_sa.xlsx"
     if (not fresh) and cache.exists() and cache.stat().st_size > 100000:
         xlsx = cache.read_bytes()
-        print(f"Using cached workbook ({len(xlsx)} bytes)")
+        print(f"Workbook : Using cached _sa.xlsx ({len(xlsx):,} bytes)")
     else:
-        print("Downloading workbook...")
+        print("Workbook : Downloading community sheet from Google Docs...")
         req = urllib.request.Request(XLSX_URL, headers={"User-Agent": "kreftus-sa-planner/1.0"})
         with urllib.request.urlopen(req, timeout=120) as resp:
             xlsx = resp.read()
         cache.write_bytes(xlsx)
-        print(f"  {len(xlsx)} bytes")
+        print(f"Workbook : Downloaded _sa.xlsx ({len(xlsx):,} bytes)")
     zf = zipfile.ZipFile(io.BytesIO(xlsx))
     shared = parse_shared_strings(zf)
     sheets = workbook_sheets(zf)
     builds = {}
+    total_builds = 0
     for name, path in sheets:
         if not name.isdigit():
             continue
@@ -381,19 +383,28 @@ def main():
         parsed = [compact_build(b) for b in parse_level_sheet(rows, level)]
         if parsed:
             builds[str(level)] = parsed
-            print(f"  SA {level}: {len(parsed)} builds")
+            total_builds += len(parsed)
+            if verbose:
+                print(f"  SA {level:>3}: {len(parsed)} builds")
+    level_nums = sorted(int(k) for k in builds.keys())
+    lvl_range = f"SA {level_nums[0]}..{level_nums[-1]}" if level_nums else "none"
+    print(f"Sheets   : {total_builds:,} builds across {len(builds)} levels ({lvl_range})")
     objects = (TRIMPS / "objects.js").read_text(encoding="utf-8", errors="replace")
     items = extract_items_from_objects(objects)
-    print(f"  items: {len(items)}")
+    print(f"Catalog  : {len(items)} items extracted from objects.js")
     out = {
         "sheet": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}",
         "items": items,
         "builds": builds,
         "itemOrder": list(DISPLAY_TO_KEY.values()),
     }
-    dest = ROOT / "_sa_data.json"
-    dest.write_text(json.dumps(out, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
-    print(f"Wrote {dest} ({dest.stat().st_size} bytes), levels={len(builds)}")
+    dest = ROOT / "data.json"
+    payload = json.dumps(out, separators=(",", ":"), ensure_ascii=False)
+    dest.write_bytes(payload.encode("utf-8"))
+    legacy = ROOT / "_sa_data.json"
+    if legacy.exists():
+        legacy.unlink()
+    print(f"Snapshot : Wrote data.json ({dest.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":
