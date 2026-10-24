@@ -725,19 +725,59 @@
     renderBetter(rec, rate);
   }
 
+  function formatModList(mods) {
+    return (mods || []).map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
+  }
+
+  function loadoutDelta(rec) {
+    if (!rec) return null;
+    var reqKeys = Object.keys(rec.i || {});
+    var eqKeys = ownedItemKeys().filter(function (k) {
+      return userItem(k) && userItem(k).equipped;
+    });
+    var toEquip = reqKeys.filter(function (k) {
+      return !(userItem(k) && userItem(k).equipped);
+    });
+    var toUnequip = eqKeys.filter(function (k) {
+      return !rec.i[k];
+    });
+    var reqMods = (rec.r && rec.r.m) ? rec.r.m : [];
+    var curMods = hasRing() ? ringMods() : [];
+    var missingMods = reqMods.filter(function (m) {
+      return curMods.indexOf(m) === -1;
+    });
+    var ringMismatch = missingMods.length > 0;
+    var aligned = toEquip.length === 0 && toUnequip.length === 0 && !ringMismatch;
+    return {
+      toEquip: toEquip,
+      toUnequip: toUnequip,
+      reqMods: reqMods,
+      curMods: curMods,
+      missingMods: missingMods,
+      ringMismatch: ringMismatch,
+      aligned: aligned
+    };
+  }
+
   function renderRecommended(rec, rate) {
     var el = $("recommend");
     if (!rec) {
       el.innerHTML = "<div class='rec'><p class='empty'>No sheet build on SA " + state.level + " is fully runnable with your current items, levels, limbs, and ring. Check the Next Upgrade Advisor and Better Builds below for the fastest unlock path.</p></div>";
       return;
     }
-    var mods = (rec.r && rec.r.m || []).map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
+    var delta = loadoutDelta(rec);
+    var mods = formatModList(rec.r && rec.r.m || []);
+    var curModTxt = formatModList(delta.curMods) || "None";
     var itemCards = Object.keys(rec.i).map(function (k) {
       var sh = isShards(k);
       var myLv = userLevel(k);
-      return "<div class='loadout-item" + (sh ? " shards" : "") + "' title='Your level: Lv " + myLv + "'>" +
+      var isEq = !!(userItem(k) && userItem(k).equipped);
+      var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "");
+      var tip = isEq ? ("Equipped · Your level: Lv " + myLv) : ("Not equipped — equip into loadout · Your level: Lv " + myLv);
+      var lvText = isEq ? ("Lv " + rec.i[k]) : ("Equip · Lv " + rec.i[k]);
+      return "<div class='" + cls + "' title='" + esc(tip) + "'>" +
         "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
-        "<span class='li-lv'>Lv " + rec.i[k] + "</span>" +
+        "<span class='li-lv'>" + esc(lvText) + "</span>" +
         "</div>";
     }).join("");
 
@@ -746,16 +786,51 @@
     if (rec.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + rec.k + "s kills</span>");
     if (rec.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((rec.wr <= 1 ? rec.wr : rec.wr / 100) * 100) + "% WR</span>");
     metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (rec.l || "?") + " Limbs</span>");
-    if (rec.r) metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + rec.r.lv + (mods ? " (" + esc(mods) + ")" : "") + "</span>");
+    if (rec.r) {
+      if (delta.ringMismatch) {
+        metrics.push("<span class='pill sm warn-pill' title='Your Ring is currently set to " + esc(curModTxt) + " — switch to " + esc(mods) + "'>" + ICONS.warn + " Ring " + rec.r.lv + " (" + esc(curModTxt) + " → " + esc(mods) + ")</span>");
+      } else {
+        metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + rec.r.lv + (mods ? " (" + esc(mods) + ")" : "") + "</span>");
+      }
+    }
     if (rec.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + rec.c + "</span>");
+
+    var statusHtml = delta.aligned
+      ? "<span class='pill sm buy'>" + ICONS.check + " Active &amp; Aligned</span>"
+      : "<div style='display:flex;gap:6px;flex-wrap:wrap;'><span class='pill sm warn-pill'>" + ICONS.warn + " Adjustments Needed</span><span class='pill sm buy'>" + ICONS.check + " Runnable</span></div>";
+
+    var deltaHtml = "";
+    if (!delta.aligned) {
+      var dRows = [];
+      if (delta.ringMismatch) {
+        dRows.push("<div class='delta-row'><span class='delta-lbl'>Ring Mod:</span><span class='pill sm warn-pill'>" + ICONS.ring + " " + esc(curModTxt) + " → " + esc(mods) + "</span></div>");
+      }
+      if (delta.toUnequip.length) {
+        var unPills = delta.toUnequip.map(function (k) {
+          return "<span class='pill sm sell'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
+        }).join("");
+        dRows.push("<div class='delta-row'><span class='delta-lbl'>Unequip:</span>" + unPills + "</div>");
+      }
+      if (delta.toEquip.length) {
+        var eqPills = delta.toEquip.map(function (k) {
+          return "<span class='pill sm buy'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
+        }).join("");
+        dRows.push("<div class='delta-row'><span class='delta-lbl'>Equip:</span>" + eqPills + "</div>");
+      }
+      deltaHtml = "<div class='delta-box'>" +
+        "<div class='delta-title'>" + ICONS.warn + "<span>Loadout Alignment Guide</span></div>" +
+        "<div class='delta-rows'>" + dRows.join("") + "</div>" +
+        "</div>";
+    }
 
     el.innerHTML =
       "<div class='rec'>" +
       "<div class='rec-top'>" +
       "<div class='rec-head'><span>" + esc(rec.n) + "</span></div>" +
-      "<span class='pill sm buy'>" + ICONS.check + " Runnable Now</span>" +
+      statusHtml +
       "</div>" +
       "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
+      deltaHtml +
       "<div class='loadout-grid'>" + itemCards + "</div>" +
       (rec.note ? "<div class='notes'>" + ICONS.info + "<span>" + esc(rec.note) + "</span></div>" : "") +
       "</div>";
@@ -939,13 +1014,15 @@
     if (need) cls += " rec";
     if (!owned) cls += " locked";
     else if (need && lv < need) cls += " warn";
+    else if (need && lv >= need && !equipped) cls += " warn";
     else if (need && lv >= need) cls += " ok";
 
     var badge = "";
     if (!owned) badge = "<span class='card-badge lock'>Locked</span>";
     else if (need && lv < need) badge = "<span class='card-badge warn'>Need Lv " + need + "</span>";
-    else if (need && lv >= need) badge = "<span class='card-badge ok'>Build Ready</span>";
-    else if (equipped) badge = "<span class='card-badge eq'>Equipped</span>";
+    else if (need && lv >= need && !equipped) badge = "<span class='card-badge warn'>Equip Item</span>";
+    else if (need && lv >= need) badge = "<span class='card-badge ok'>Equipped</span>";
+    else if (equipped) badge = "<span class='card-badge sell'>Unequip</span>";
 
     var pct = !owned ? 0 : (need ? Math.min(100, Math.round((lv / need) * 100)) : 100);
     var lines = [];
@@ -967,7 +1044,7 @@
       }
     } else {
       topLv = "<div class='lv'><span>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</span>" +
-        (equipped ? "<span class='muted' style='font-size:11px;font-weight:500;'>Equipped</span>" : "") + "</div>";
+        (equipped ? "<span class='muted' style='font-size:11px;font-weight:500;'>Equipped</span>" : (need ? "<span class='gap' style='font-size:11px;font-weight:600;'>Not equipped</span>" : "")) + "</div>";
       if (cat && !cat.noUp) {
         var next = upgradeCostAt(key, lv);
         var tNext = timeForCost(next, isShards(key), rate, bnk.dust, bnk.shards);
@@ -983,6 +1060,11 @@
         }
       } else {
         meta += "<div class='cost'><span>Upgrade</span><span>Unupgradable</span></div>";
+      }
+      if (need && !equipped) {
+        lines.push("Recommended build uses this item — equip it into your loadout.");
+      } else if (!need && equipped) {
+        lines.push("Currently equipped, but not used by the recommended build.");
       }
       lines.unshift(describeItem(key, lv));
     }
@@ -1001,6 +1083,10 @@
   function ringCard(recRing, rate, bnk) {
     var cls = "card ring";
     var need = recRing ? recRing.lv : 0;
+    var reqMods = (recRing && recRing.m) ? recRing.m : [];
+    var curMods = hasRing() ? ringMods() : [];
+    var missingMods = reqMods.filter(function (m) { return curMods.indexOf(m) === -1; });
+    var modMismatch = missingMods.length > 0;
     var lines = [];
     var badge = "";
     var topLv = "";
@@ -1024,6 +1110,9 @@
         cls += " warn rec";
         badge = "<span class='card-badge warn'>Need Lv " + need + "</span>";
         pct = Math.min(100, Math.round((lv / need) * 100));
+      } else if (need && modMismatch) {
+        cls += " warn rec";
+        badge = "<span class='card-badge warn'>Swap Mod</span>";
       } else if (need) {
         cls += " ok rec";
         badge = "<span class='card-badge ok'>Build Ready</span>";
@@ -1032,9 +1121,15 @@
       }
       var next = ringLevelCost(lv);
       var tNext = timeForCost(next, true, rate, bnk.dust, bnk.shards);
-      var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
+      var mods = formatModList(curMods);
+      var reqModTxt = formatModList(reqMods);
       topLv = "<div class='lv'><span>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</span></div>";
-      meta += "<div class='mods'>" + esc(mods || "no custom mods") + "</div>";
+      if (modMismatch) {
+        meta += "<div class='mods warn'>" + ICONS.warn + "<span>" + esc(mods || "none") + " → " + esc(reqModTxt) + "</span></div>";
+        lines.push("Ring mod out of alignment: switch " + (mods || "none") + " → " + reqModTxt + ".");
+      } else {
+        meta += "<div class='mods'>" + esc(mods || "no custom mods") + "</div>";
+      }
       meta += "<div class='cost'><span>Next (Lv " + (lv + 1) + ")</span><span>" + prettify(next) + " shards</span></div>";
       meta += "<div class='time'><span>Wait</span><span>" + fmtTime(tNext) + "</span></div>";
       if (need > lv) {

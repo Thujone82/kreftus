@@ -168,6 +168,7 @@
     .pill.teal { background: var(--teal-soft); color: var(--teal); border-color: rgba(45, 212, 191, 0.3); font-weight: 650; }
     .pill.buy { background: var(--buy-soft); color: var(--buy); border-color: rgba(34, 197, 94, 0.3); font-weight: 650; }
     .pill.sell { background: var(--sell-soft); color: var(--sell); border-color: rgba(244, 63, 94, 0.3); font-weight: 650; }
+    .pill.warn-pill { background: var(--warn-soft); color: var(--warn); border-color: rgba(251, 191, 36, 0.38); font-weight: 650; }
     .pill svg { width: 13px; height: 13px; flex: none; }
 
     .icon-btn {
@@ -448,6 +449,51 @@
       font-family: var(--mono); font-size: 11.5px; font-weight: 700;
       padding: 1px 6px; border-radius: 6px;
       background: var(--buy-soft); color: var(--buy); flex: none;
+      white-space: nowrap;
+    }
+    .loadout-item.unequipped {
+      border-color: rgba(251, 191, 36, 0.55);
+      background: color-mix(in srgb, var(--warn) 7%, var(--surface-solid));
+      box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.18);
+    }
+    .loadout-item.unequipped .li-lv {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+    .delta-box {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--warn) 6%, var(--surface-solid));
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      display: grid;
+      gap: 7px;
+      font-size: 12px;
+    }
+    .delta-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--warn);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .delta-title svg { width: 14px; height: 14px; flex: none; }
+    .delta-rows { display: grid; gap: 5px; }
+    .delta-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      line-height: 1.35;
+    }
+    .delta-lbl {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      min-width: 68px;
     }
     .notes {
       margin: 0; padding: 9px 12px; border-radius: 9px;
@@ -748,6 +794,10 @@
     .card-badge.warn { background: var(--warn-soft); color: var(--warn); }
     .card-badge.lock { background: var(--violet-soft); color: var(--violet); }
     .card-badge.eq { background: var(--info-soft); color: var(--info); }
+    .card-badge.sell { background: var(--sell-soft); color: var(--sell); }
+    .card .mods.warn { color: var(--warn); display: flex; align-items: center; gap: 5px; }
+    .card .mods.warn svg { width: 13px; height: 13px; flex: none; }
+    .card .flag.warn { color: var(--warn); }
 
     .card .lv {
       font-family: var(--mono); font-size: 15px; font-weight: 700;
