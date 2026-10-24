@@ -1066,6 +1066,7 @@
     base: null,         // enriched full dataset
     sum: null,          // summary for range
     range: { preset: prefs.preset, from: null, to: null },
+    rangeHistory: [],
     table: { q: '', type: 'all', flag: 'all', min: 0, sort: 'i', dir: 1, sel: -1, idx: [] },
     gapKind: 'all',
     scaleOverrides: prefs.scaleOverrides, // user scale override per series: 'linear' | 'log'
@@ -1434,7 +1435,14 @@
       this.view = (a <= F.min + 1 && b >= F.max - 1) ? null : { min: a, max: b };
       if (this.opts.onView) this.opts.onView(this.isZoomed());
     }
-    resetView() { this.view = null; this.focusT = null; if (this.opts.onView) this.opts.onView(false); this.schedule(); }
+    resetView() {
+      const wasZoomed = this.isZoomed();
+      this.view = null;
+      this.focusT = null;
+      if (this.opts.onView) this.opts.onView(false);
+      this.schedule();
+      if (!wasZoomed && this.opts.onResetRange) this.opts.onResetRange();
+    }
     setData(series, markers, opts) {
       opts = opts || {};
       this.series = series || [];
@@ -2333,7 +2341,7 @@
         .sort((a, b) => a.date - b.date);
       state.lcwHistoryTime = now;
       if (state.base && state.base.rows && state.base.rows.length) {
-        applyRange();
+        applyRange(true);
       }
       try {
         idbSet('lcwHistory', state.lcwHistory);
@@ -2357,7 +2365,7 @@
       state.liveBtcTime = Date.now();
       state.liveBtcError = null;
       if (state.base && state.base.rows && state.base.rows.length) {
-        applyRange();
+        applyRange(true);
       } else if (state.sum) {
         renderKpis(state.sum);
       }
@@ -2420,7 +2428,7 @@
         state.liveBtcError = null;
         $('#lcwDlg').close();
         toast('LiveCoinWatch connected! Spot: ' + usd(price), 'ok');
-        applyRange();
+        applyRange(true);
         // Fetch market history once on key setup to immediately enhance charts
         fetchLcwHistory(true);
       } else {
@@ -2859,7 +2867,7 @@
       heatN, heatV, heatP, heatA, hourB, hourS, dowB, dowS, dayMap,
       isTerminal,
     });
-    const asOfT = isTerminal ? Date.now() : (rgTo || last.t);
+    const asOfT = isTerminal ? Date.now() : (to || last.t);
     S.openLots = computeOpenLotsAt(rows, i1, mode, spotRate, asOfT);
     S.cadence = S.count > 1 ? S.span / (S.count - 1) : NaN;
     S.days = Array.from(dayMap.values()).sort((a, b) => a.t - b.t);
@@ -3081,7 +3089,7 @@
       return;
     }
     showApp(true);
-    await runAnalysis();
+    await runAnalysis(!!opts.keepView);
     if (prefs.live && !state.live) {
       const hasFolder = !!state.dirHandle;
       const hasHandles = !!(state.files && state.files.some(f => f.handle));
@@ -3214,7 +3222,7 @@
     try {
       if (state.dirHandle) {
         setStatus('Rescanning ' + (state.dirHandle.name || 'Folder') + '…', 'busy');
-        await setFiles(await scanDirectory(state.dirHandle), state.dirHandle.name || 'Folder', { keepSelection: true });
+        await setFiles(await scanDirectory(state.dirHandle), state.dirHandle.name || 'Folder', { keepSelection: true, keepView: true });
         toast('Folder rescanned', 'ok');
         return;
       }
@@ -3249,7 +3257,7 @@
       }
 
       if (refreshed > 0) {
-        await runAnalysis();
+        await runAnalysis(true);
         updateRescanState();
         if (missing.length > 0) {
           toast('Refreshed ' + refreshed + ' file(s) (' + missing.length + ' require re-selection)', 'warn');
@@ -3416,7 +3424,7 @@
           const newRows = parsed.rows.filter(r => !existingTimes.has(r.Time));
 
           state.base = enrich(parsed);
-          applyRange();
+          applyRange(true);
           renderSources();
           renderIntegrity();
           const n = state.base.rows.length;
@@ -3459,7 +3467,7 @@
           const newRows = parsed.rows.filter(r => !existingTimes.has(r.Time));
 
           state.base = enrich(parsed);
-          applyRange();
+          applyRange(true);
           renderSources();
           renderIntegrity();
           const n = state.base.rows.length;
@@ -3484,7 +3492,7 @@
      ====================================================================== */
   let analyzeTimer = 0;
   function scheduleAnalysis() { clearTimeout(analyzeTimer); analyzeTimer = setTimeout(runAnalysis, 180); }
-  async function runAnalysis() {
+  async function runAnalysis(keepView) {
     const sel = state.files.filter(f => f.selected);
     if (!sel.length) {
       state.base = enrich({ rows: [], fileStats: [], quality: { total: 0, used: 0, dup: 0, skipped: 0, badTime: 0, badHeader: 0 } });
@@ -3497,7 +3505,7 @@
     await new Promise(r => setTimeout(r, 16));
     const t0 = performance.now();
     state.base = enrich(parseFiles(sel));
-    applyRange();
+    applyRange(keepView);
     renderSources();
     renderIntegrity();
     const n = state.base.rows.length;
@@ -3527,17 +3535,34 @@
     if (btnBasis) btnBasis.setAttribute('aria-expanded', 'false');
     if (state.base && state.base.rows) {
       state.base = enrich({ rows: state.base.rows, fileStats: state.base.fileStats, quality: state.base.quality });
-      applyRange();
+      applyRange(true);
       renderIntegrity();
       toast('Cost basis: ' + lbl, 'info', 2200);
     }
   }
-  function setRange(preset, from, to) {
+  function setRange(preset, from, to, opts) {
+    opts = opts || {};
+    if (!opts.isRestore && preset === 'custom' && state.range) {
+      if (!state.rangeHistory) state.rangeHistory = [];
+      state.rangeHistory.push(Object.assign({}, state.range));
+    } else if (preset !== 'custom') {
+      state.rangeHistory = [];
+    }
     state.range = { preset, from: from == null ? null : from, to: to == null ? null : to };
     if (preset !== 'custom') { prefs.preset = preset; savePrefs(); }
     applyRange();
   }
-  function applyRange() {
+  function restorePrevRange() {
+    if (state.range && state.range.preset === 'custom') {
+      const prev = (state.rangeHistory && state.rangeHistory.length)
+        ? state.rangeHistory.pop()
+        : { preset: prefs.preset || 'all', from: null, to: null };
+      setRange(prev.preset || prefs.preset || 'all', prev.from, prev.to, { isRestore: true });
+      return true;
+    }
+    return false;
+  }
+  function applyRange(keepView) {
     const base = state.base;
     if (!base) return;
     const rg = computeRange();
@@ -3545,7 +3570,7 @@
     const i0 = lowerBound(rows, rg.from, 't'), i1 = upperBound(rows, rg.to, 't') - 1;
     state.sum = summarize(base, i0, i1, rg.from, rg.to);
     renderRangeControls(rg);
-    renderAll();
+    renderAll(keepView);
   }
 
   /* ======================================================================
@@ -3567,14 +3592,14 @@
     const S = state.sum;
     $('#rangeInfo').textContent = S.count ? int(S.count) + ' trades · ' + dur(S.span) : 'no trades in range';
   }
-  function renderAll() {
+  function renderAll(keepView) {
     const S = state.sum;
     renderKpis(S);
-    renderMain();
+    renderMain(keepView);
     renderInsights(S);
     renderPeriods(S);
     renderOpenLots(S);
-    renderPerformance(S);
+    renderPerformance(S, keepView);
     renderActivity(S);
     tableApply(true);
     renderDetail();
@@ -3886,7 +3911,7 @@
     }
   }, 10000);
 
-  function renderRolling(S) {
+  function renderRolling(S, keepView) {
     if (!charts.roll) return;
     const metric = prefs.rollMetric || 'winrate';
     const W = Math.max(2, parseInt(prefs.rollWin, 10) || 20);
@@ -3942,6 +3967,7 @@
       xMin: S.first,
       xMax: S.last,
       includeZero: true,
+      keepView: !!keepView,
     };
 
     if (metric === 'winrate') {
@@ -3962,7 +3988,7 @@
     }
   }
 
-  function renderPerformance(S) {
+  function renderPerformance(S, keepView) {
     if (!S.count) {
       renderKpiGrid($('#kpisPerf'), [{ label: 'No trades in range', value: '—', tone: 'warn' }]);
     } else {
@@ -3988,14 +4014,14 @@
     const ddShade = (S.count && S.maxDDDur > 0 && fin(S.ddStartT) && fin(S.ddEndT))
       ? { from: S.ddStartT, to: S.ddEndT, color: alpha(PAL.sell, 0.11) }
       : null;
-    charts.dd.setData(S.count ? [{ pts: S.series.dd, color: PAL.sell, fill: true, label: 'Drawdown', fmt: usdS }] : [], null, { yFmt: usdC, includeZero: true, shadeWindow: ddShade });
+    charts.dd.setData(S.count ? [{ pts: S.series.dd, color: PAL.sell, fill: true, label: 'Drawdown', fmt: usdS }] : [], null, { yFmt: usdC, includeZero: true, shadeWindow: ddShade, keepView: !!keepView });
     const d = S.dist || { labels: [], counts: [], mids: [] };
     charts.dist.setData({
       labels: d.labels,
       tipTitle: i => usdC(d.mids[i] - d.step / 2) + ' to ' + usdC(d.mids[i] + d.step / 2),
       datasets: [{ label: 'Sells', data: d.counts, colorFn: (v, i) => (d.mids[i] >= 0 ? (Math.abs(d.mids[i]) < d.step / 2 ? PAL.muted : PAL.buy) : PAL.sell) }],
     });
-    renderRolling(S);
+    renderRolling(S, keepView);
     renderCalendar(S);
     renderMonths(S);
   }
@@ -4582,7 +4608,7 @@
     $('#icoSun').classList.toggle('hidden', t === 'light');
     $('#icoMoon').classList.toggle('hidden', t !== 'light');
     readPalette();
-    if (state.sum) { renderAll(); renderIntegrity(); }
+    if (state.sum) { renderAll(true); renderIntegrity(); }
   }
   function applyTz(utc) {
     TZ.utc = !!utc;
@@ -4590,7 +4616,7 @@
     $('#tzLabel').textContent = TZ.utc ? 'UTC' : 'LOCAL';
     if (state.base) {
       for (const r of state.base.rows) r._s = null;
-      applyRange();
+      applyRange(true);
       renderIntegrity();
       renderSources();
     }
@@ -4624,7 +4650,12 @@
   }
 
   charts.main = new TimeChart($('#chartMain'), {
-    onView: z => { $('#btnResetZoom').classList.toggle('hidden', !z); $('#btnApplyZoom').classList.toggle('hidden', !z); },
+    onView: z => {
+      const isCustom = !!(state.range && state.range.preset === 'custom');
+      $('#btnResetZoom').classList.toggle('hidden', !z && !isCustom);
+      $('#btnApplyZoom').classList.toggle('hidden', !z);
+    },
+    onResetRange: restorePrevRange,
     markerTip: m => rowTip(state.base.rows[m.i]),
     onMarkerClick: m => openRow(m.i),
     getLinks: m => getLotLinks(m),
@@ -4640,8 +4671,8 @@
       return tipRow('Trade vs HODL', usdS(alphaDiff), alphaDiff >= 0 ? PAL.buy : PAL.sell, sgn(alphaDiff));
     },
   });
-  charts.dd = new TimeChart($('#chartDD'), { onHoverT: t => syncFromTime(charts.dd, t) });
-  charts.roll = new TimeChart($('#chartRoll'), { onHoverT: t => syncFromTime(charts.roll, t) });
+  charts.dd = new TimeChart($('#chartDD'), { onHoverT: t => syncFromTime(charts.dd, t), onResetRange: restorePrevRange });
+  charts.roll = new TimeChart($('#chartRoll'), { onHoverT: t => syncFromTime(charts.roll, t), onResetRange: restorePrevRange });
   charts.vol = new BarChart($('#chartVol'), { onClick: drillPeriod, onHoverI: i => syncFromBar(charts.vol, i) });
   charts.pnl = new BarChart($('#chartPnl'), { onClick: drillPeriod, onHoverI: i => syncFromBar(charts.pnl, i) });
   charts.dist = new BarChart($('#chartDist'), {});
@@ -4807,9 +4838,9 @@
   $('#btnApplyZoom').addEventListener('click', () => { const v = charts.main.view; if (v) setRange('custom', v.min, v.max); });
   $$('#heatSeg button').forEach(b => b.addEventListener('click', () => { prefs.heat = b.dataset.heat; savePrefs(); renderHeat(state.sum); }));
   $$('#calSeg button').forEach(b => b.addEventListener('click', () => { prefs.cal = b.dataset.cal; savePrefs(); renderCalendar(state.sum); }));
-  $$('#periodSeg button').forEach(b => b.addEventListener('click', () => { prefs.period = b.dataset.period; savePrefs(); applyRange(); }));
-  $$('#rollMetricSeg button').forEach(b => b.addEventListener('click', () => { prefs.rollMetric = b.dataset.rmetric; savePrefs(); renderRolling(state.sum); }));
-  $$('#rollWinSeg button').forEach(b => b.addEventListener('click', () => { prefs.rollWin = parseInt(b.dataset.rwin, 10) || 20; savePrefs(); renderRolling(state.sum); if (state.sum) renderKpis(state.sum); }));
+  $$('#periodSeg button').forEach(b => b.addEventListener('click', () => { prefs.period = b.dataset.period; savePrefs(); applyRange(true); }));
+  $$('#rollMetricSeg button').forEach(b => b.addEventListener('click', () => { prefs.rollMetric = b.dataset.rmetric; savePrefs(); renderRolling(state.sum, true); }));
+  $$('#rollWinSeg button').forEach(b => b.addEventListener('click', () => { prefs.rollWin = parseInt(b.dataset.rwin, 10) || 20; savePrefs(); renderRolling(state.sum, true); if (state.sum) renderKpis(state.sum); }));
 
   // open lots & detail lot chips click
   $('#openLotsBar').addEventListener('click', e => { const s = e.target.closest('span[data-i]'); if (s) openRow(+s.dataset.i); });
@@ -4966,7 +4997,7 @@
       const btnB = $('#btnBasis');
       if (btnB) btnB.setAttribute('aria-expanded', 'false');
       if (typing) { e.target.blur(); return; }
-      if (charts.main.isZoomed()) charts.main.resetView();
+      if (charts.main.isZoomed() || (state.range && state.range.preset === 'custom')) charts.main.resetView();
       return;
     }
     if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
