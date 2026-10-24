@@ -387,7 +387,30 @@
         else dust += s.after.cost || 0;
       }
     });
-    return { dust: dust, shards: shards, combined: dust + shards * SHARD_DUST };
+    return { dust: dust, shards: shards, combined: Math.max(dust, shards * SHARD_DUST) };
+  }
+
+  function stepsWaitInfo(steps, rate, bnk) {
+    var totals = stepsCostDust(steps);
+    var bDust = bnk ? (bnk.dust || 0) : 0;
+    var bShards = bnk ? (bnk.shards || 0) : 0;
+    var remDust = Math.max(0, totals.dust - bDust);
+    var remShards = Math.max(0, totals.shards - bShards);
+    var remDustEq = Math.max(remDust, remShards * SHARD_DUST);
+    var waitDust = remDust <= 0 ? 0 : (rate > 0 ? remDust / rate : Infinity);
+    var waitShards = remShards <= 0 ? 0 : (rate > 0 ? (remShards * SHARD_DUST) / rate : Infinity);
+    var wait = Math.max(waitDust, waitShards);
+    return {
+      dust: totals.dust,
+      shards: totals.shards,
+      combined: totals.combined,
+      remDust: remDust,
+      remShards: remShards,
+      remDustEq: remDustEq,
+      waitDust: waitDust,
+      waitShards: waitShards,
+      wait: wait
+    };
   }
 
   function sheetDustPs(build) { return build && build.d ? build.d : 0; }
@@ -624,6 +647,7 @@
 
   function bestNextUpgrade(rec) {
     var cur = rec ? rec.d || 0 : 0;
+    var bnk = bank();
     var list = betterBuilds(rec);
     var seen = {};
     var immediate = [];
@@ -636,8 +660,9 @@
         seen[id] = true;
         var unlocked = bestAfter(s);
         var gain = (unlocked ? unlocked.d || 0 : 0) - cur;
-        var cost = stepsCostDust([s]).combined;
-        if (gain > 0 && unlocked) immediate.push({ step: s, gain: gain, cost: cost, roi: cost > 0 ? gain / cost : gain, build: unlocked, mode: "unlocks" });
+        var wInfo = stepsWaitInfo([s], 1, bnk);
+        var effCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : Math.max(1, wInfo.combined * 1e-6);
+        if (gain > 0 && unlocked) immediate.push({ step: s, gain: gain, cost: wInfo.combined, roi: gain / effCost, build: unlocked, mode: "unlocks", remaining: 1, allSteps: [s], activeIndex: 0 });
       });
     });
     if (immediate.length) {
@@ -646,18 +671,21 @@
     }
     var paths = list.map(function (b) {
       var steps = gapSteps(b);
-      var cost = stepsCostDust(steps).combined;
+      var wInfo = stepsWaitInfo(steps, 1, bnk);
+      var effCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : Math.max(1, wInfo.combined * 1e-6);
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
-      return { build: b, steps: steps, cost: cost, remaining: steps.length, blocked: blocked, roi: cost > 0 ? ((b.d || 0) - cur) / cost : 0 };
+      return { build: b, steps: steps, cost: wInfo.combined, remaining: steps.length, blocked: blocked, roi: ((b.d || 0) - cur) / effCost };
     });
     paths.sort(function (a, b) { return (a.blocked - b.blocked) || a.remaining - b.remaining || b.roi - a.roi; });
     var p = null;
     var first = null;
+    var activeIdx = 0;
     for (var i = 0; i < paths.length; i++) {
       for (var j = 0; j < paths[i].steps.length; j++) {
         if (paths[i].steps[j].kind === "contract" && !paths[i].steps[j].reach) continue;
         first = atomicStep(paths[i].steps[j]);
         p = paths[i];
+        activeIdx = j;
         break;
       }
       if (first) break;
@@ -669,7 +697,9 @@
       cost: stepsCostDust([first]).combined,
       build: p.build,
       mode: "toward",
-      remaining: p.remaining
+      remaining: p.remaining,
+      allSteps: p.steps,
+      activeIndex: activeIdx
     };
   }
 
@@ -731,6 +761,94 @@
       "</div>";
   }
 
+  function stepFullCost(st) {
+    var c = st.cost || 0;
+    if (st.after && (!st.after.shards === !st.shards)) {
+      c += st.after.cost || 0;
+    }
+    return c;
+  }
+
+  function renderStepPopover(pick, rate, bnk) {
+    var steps = pick.allSteps && pick.allSteps.length ? pick.allSteps : [pick.step];
+    var activeIdx = pick.activeIndex || 0;
+    var availDust = bnk ? (bnk.dust || 0) : 0;
+    var availShards = bnk ? (bnk.shards || 0) : 0;
+    var itemsHtml = steps.map(function (st, idx) {
+      var isAct = idx === activeIdx;
+      var totalStepCost = stepFullCost(st);
+      var w;
+      if (st.shards) {
+        var usedS = Math.min(availShards, totalStepCost);
+        availShards -= usedS;
+        var needS = Math.max(0, totalStepCost - usedS);
+        w = needS <= 0 ? 0 : (rate > 0 ? (needS * SHARD_DUST) / rate : Infinity);
+      } else {
+        var usedD = Math.min(availDust, totalStepCost);
+        availDust -= usedD;
+        var needD = Math.max(0, totalStepCost - usedD);
+        w = needD <= 0 ? 0 : (rate > 0 ? needD / rate : Infinity);
+      }
+      var costStr = totalStepCost ? (prettify(totalStepCost) + (st.shards ? " shards" : " dust")) : "—";
+      var timeStr = w === 0 ? "Ready now" : (w != null ? fmtTime(w) : "—");
+      var subLines = [];
+      if (st.after && st.after.to > 1) {
+        subLines.push("+ Lv 1 → " + st.after.to + " (" + prettify(st.after.cost || 0) + (st.after.shards ? " shards" : " dust") + ")");
+      }
+      if (isAct && st.to > (st.from || 0) + 1 && pick.step) {
+        subLines.push("Now: Lv " + pick.step.from + " → " + pick.step.to + " (" + prettify(pick.step.cost || 0) + (pick.step.shards ? " shards" : " dust") + ")");
+      } else if (isAct) {
+        subLines.push("Current recommended step");
+      } else {
+        subLines.push("Step " + (idx + 1) + " of " + steps.length);
+      }
+      return "<li class='sp-item" + (isAct ? " active" : "") + "'>" +
+        "<span class='sp-num'>" + (idx + 1) + "</span>" +
+        "<div class='sp-main'>" +
+        "<div class='sp-label " + stepClass(st) + "'>" + iconForStep(st) + "<span>" + esc(stepLabel(st)) + "</span></div>" +
+        (subLines.length ? "<div class='sp-sub'>" + esc(subLines.join(" · ")) + "</div>" : "") +
+        "</div>" +
+        "<div class='sp-right'>" +
+        "<span class='sp-cost'>" + esc(costStr) + "</span>" +
+        "<span class='sp-time" + (w === 0 ? " ready" : "") + "'>" + esc(timeStr) + "</span>" +
+        "</div>" +
+        "</li>";
+    }).join("");
+
+    var wInfo = stepsWaitInfo(steps, rate, bnk);
+    var costParts = [];
+    if (wInfo.dust > 0) costParts.push(prettify(wInfo.dust) + " dust");
+    if (wInfo.shards > 0) costParts.push(prettify(wInfo.shards) + " shards");
+    var totalCostLabel = costParts.length ? costParts.join(" + ") : "0 dust";
+    var totalWaitStr = wInfo.wait === 0 ? "Ready now" : fmtTime(wInfo.wait);
+
+    var remParts = [];
+    if (wInfo.dust > 0) remParts.push(prettify(wInfo.remDust) + " dust");
+    if (wInfo.shards > 0) remParts.push(prettify(wInfo.remShards) + " shards");
+    var parHtml = "";
+    if (wInfo.dust > 0 && wInfo.shards > 0) {
+      var wdStr = wInfo.waitDust === 0 ? "0s" : fmtTime(wInfo.waitDust);
+      var wsStr = wInfo.waitShards === 0 ? "0s" : fmtTime(wInfo.waitShards);
+      parHtml = "<div class='sp-foot-sub'><span>Need: " + esc(remParts.join(" + ")) + "</span><span>Total: " + esc(wdStr) + " dust ∥ " + esc(wsStr) + " shards</span></div>";
+    } else if ((wInfo.dust > 0 && (bnk.dust || 0) > 0) || (wInfo.shards > 0 && (bnk.shards || 0) > 0)) {
+      parHtml = "<div class='sp-foot-sub'><span>Need after bank: " + esc(remParts.join(" + ")) + "</span><span></span></div>";
+    }
+
+    var titleTxt = steps.length === 1 ? "Single-Step Unlock" : ("Unlock Roadmap · " + steps.length + " Steps");
+    return "<div class='step-popover' role='tooltip'>" +
+      "<div class='sp-head'>" +
+      "<span class='sp-title'>" + ICONS.clock + "<span>" + esc(titleTxt) + "</span></span>" +
+      "<span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span>" +
+      "</div>" +
+      "<ol class='sp-list'>" + itemsHtml + "</ol>" +
+      "<div class='sp-foot'>" +
+      "<span>Total: <b>" + esc(totalCostLabel) + "</b></span>" +
+      "<span>Est. wait: <b>" + esc(totalWaitStr) + "</b></span>" +
+      parHtml +
+      "</div>" +
+      "</div>";
+  }
+
   function renderNext(rec, rate) {
     var el = $("nextUpgrade");
     var pick = bestNextUpgrade(rec);
@@ -748,9 +866,10 @@
     var why = pick.mode === "unlocks"
       ? "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build."
       : "First step on the fewest-gap path to a stronger sheet build (no single-step unlock available on this level).";
-    var badgeHtml = pick.mode === "unlocks"
+    var pillInner = pick.mode === "unlocks"
       ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
-      : "<span class='pill sm info'>" + ICONS.clock + " Step 1 of " + pick.remaining + "</span>";
+      : "<span class='pill sm info'>" + ICONS.clock + " Step " + ((pick.activeIndex || 0) + 1) + " of " + pick.remaining + "</span>";
+    var badgeHtml = "<div class='step-pill-wrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
     var waitBadge = wait === 0
       ? "<span class='pill sm buy'>" + ICONS.check + " Ready now</span>"
       : (wait != null ? "<span class='pill sm'>" + ICONS.clock + " " + fmtTime(wait) + "</span>" : "");
@@ -958,12 +1077,15 @@
 
   function renderBetter(rec, rate) {
     var cur = rec ? rec.d || 0 : 0;
+    var bnk = bank();
     var list = betterBuilds(rec);
     list.sort(function (a, b) {
-      var ca = stepsCostDust(gapSteps(a)).combined;
-      var cb = stepsCostDust(gapSteps(b)).combined;
-      var ra = ca > 0 ? ((a.d || 0) - cur) / ca : 0;
-      var rb = cb > 0 ? ((b.d || 0) - cur) / cb : 0;
+      var wa = stepsWaitInfo(gapSteps(a), 1, bnk);
+      var wb = stepsWaitInfo(gapSteps(b), 1, bnk);
+      var ca = wa.remDustEq > 0 ? wa.remDustEq : Math.max(1, wa.combined * 1e-6);
+      var cb = wb.remDustEq > 0 ? wb.remDustEq : Math.max(1, wb.combined * 1e-6);
+      var ra = ((a.d || 0) - cur) / ca;
+      var rb = ((b.d || 0) - cur) / cb;
       return rb - ra;
     });
     list = list.slice(0, 8);
@@ -976,7 +1098,8 @@
     var rows = list.map(function (b) {
       var steps = gapSteps(b);
       var cost = stepsCostDust(steps);
-      var pay = timeForCost(cost.combined, false, rate, 0, 0);
+      var wInfo = stepsWaitInfo(steps, rate, bnk);
+      var pay = wInfo.wait;
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><strong>" + esc(b.n) + "</strong>" +

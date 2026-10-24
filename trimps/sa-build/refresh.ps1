@@ -143,7 +143,7 @@ function Get-FileSnapshot {
         return @{ Exists = $false; Size = 0L; Hash = ''; Lines = 0 }
     }
     $item = Get-Item -LiteralPath $Path
-    $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.Substring(0, 10).ToLower()
+    $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.Substring(0, 8).ToLower()
     $raw  = [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
     $lines = ([regex]::Matches($raw, "`n")).Count + 1
     return @{
