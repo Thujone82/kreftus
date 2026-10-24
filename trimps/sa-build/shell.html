@@ -419,7 +419,34 @@
       align-content: start;
     }
     .rec-top, .next-top {
-      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    }
+    .next-top-actions {
+      display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .lock-plan-btn {
+      height: 26px; padding: 0 10px; font-size: 11.5px; border-radius: 999px; gap: 5px;
+    }
+    .lock-plan-btn svg { width: 13px; height: 13px; }
+    .lock-plan-btn.locked {
+      background: var(--accent-soft);
+      border-color: rgba(247, 147, 26, 0.45);
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .lock-plan-btn.locked:hover {
+      border-color: var(--accent);
+      background: rgba(247, 147, 26, 0.22);
+    }
+    .lock-row-btn {
+      height: 24px; padding: 0 8px; font-size: 11px; border-radius: 6px; gap: 4px; margin-top: 4px;
+    }
+    .lock-row-btn svg { width: 11px; height: 11px; }
+    .lock-row-btn.locked {
+      background: var(--accent-soft);
+      border-color: rgba(247, 147, 26, 0.45);
+      color: var(--accent);
+      font-weight: 700;
     }
     .rec-head {
       font-size: 16px; font-weight: 700; color: var(--text);
@@ -544,7 +571,7 @@
       right: 0;
       top: calc(100% + 8px);
       z-index: 45;
-      width: min(450px, calc(100vw - 36px));
+      width: min(465px, calc(100vw - 36px));
       background: var(--tip-bg);
       color: var(--text);
       border: 1px solid var(--border-strong);
@@ -554,10 +581,20 @@
       font-family: var(--font);
       font-size: 12px;
       line-height: 1.4;
-      pointer-events: none;
+      pointer-events: auto;
+      cursor: default;
+    }
+    .step-popover::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -12px;
+      height: 12px;
     }
     .step-pill-wrap:hover .step-popover,
-    .step-pill-wrap:focus-within .step-popover {
+    .step-pill-wrap:focus-within .step-popover,
+    .step-pill-wrap.open .step-popover {
       display: grid;
       gap: 9px;
       animation: fadein 0.12s ease;
@@ -570,6 +607,12 @@
       padding-bottom: 7px;
       border-bottom: 1px solid var(--border);
     }
+    .sp-head-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
     .sp-title {
       font-weight: 700;
       font-size: 12.5px;
@@ -580,6 +623,30 @@
       white-space: nowrap;
     }
     .sp-title svg { width: 14px; height: 14px; color: var(--info); flex: none; }
+    .sp-hint {
+      font-size: 10.5px;
+      font-weight: 500;
+      color: var(--faint);
+      margin-left: 2px;
+    }
+    .sp-reset-btn {
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .sp-reset-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+      background: var(--surface-3);
+    }
     .sp-target {
       font-family: var(--mono);
       font-size: 11px;
@@ -588,7 +655,7 @@
       background: var(--buy-soft);
       padding: 2px 7px;
       border-radius: 999px;
-      max-width: 180px;
+      max-width: 175px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -609,10 +676,40 @@
       border-radius: 8px;
       background: var(--surface-2);
       border: 1px solid var(--border);
+      transition: border-color 0.12s, background 0.12s, transform 0.12s, opacity 0.12s;
     }
+    .sp-item[draggable="true"] {
+      grid-template-columns: 14px 20px minmax(0, 1fr) auto;
+      cursor: grab;
+      user-select: none;
+    }
+    .sp-item[draggable="true"]:active {
+      cursor: grabbing;
+    }
+    .sp-grip {
+      width: 14px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      color: var(--faint);
+      transition: color 0.12s;
+    }
+    .sp-grip svg { width: 13px; height: 13px; }
+    .sp-item:hover .sp-grip { color: var(--muted); }
     .sp-item.active {
       border-color: rgba(96, 165, 250, 0.45);
       background: color-mix(in srgb, var(--info) 9%, var(--surface-2));
+    }
+    .sp-item.dragging {
+      opacity: 0.42;
+      border-style: dashed;
+      border-color: var(--accent);
+    }
+    .sp-item.drag-over {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+      box-shadow: 0 0 0 2px var(--accent-soft);
+      transform: translateY(-1px);
     }
     .sp-num {
       width: 20px;

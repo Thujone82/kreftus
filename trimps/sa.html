@@ -419,7 +419,34 @@
       align-content: start;
     }
     .rec-top, .next-top {
-      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    }
+    .next-top-actions {
+      display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .lock-plan-btn {
+      height: 26px; padding: 0 10px; font-size: 11.5px; border-radius: 999px; gap: 5px;
+    }
+    .lock-plan-btn svg { width: 13px; height: 13px; }
+    .lock-plan-btn.locked {
+      background: var(--accent-soft);
+      border-color: rgba(247, 147, 26, 0.45);
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .lock-plan-btn.locked:hover {
+      border-color: var(--accent);
+      background: rgba(247, 147, 26, 0.22);
+    }
+    .lock-row-btn {
+      height: 24px; padding: 0 8px; font-size: 11px; border-radius: 6px; gap: 4px; margin-top: 4px;
+    }
+    .lock-row-btn svg { width: 11px; height: 11px; }
+    .lock-row-btn.locked {
+      background: var(--accent-soft);
+      border-color: rgba(247, 147, 26, 0.45);
+      color: var(--accent);
+      font-weight: 700;
     }
     .rec-head {
       font-size: 16px; font-weight: 700; color: var(--text);
@@ -544,7 +571,7 @@
       right: 0;
       top: calc(100% + 8px);
       z-index: 45;
-      width: min(450px, calc(100vw - 36px));
+      width: min(465px, calc(100vw - 36px));
       background: var(--tip-bg);
       color: var(--text);
       border: 1px solid var(--border-strong);
@@ -554,10 +581,20 @@
       font-family: var(--font);
       font-size: 12px;
       line-height: 1.4;
-      pointer-events: none;
+      pointer-events: auto;
+      cursor: default;
+    }
+    .step-popover::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -12px;
+      height: 12px;
     }
     .step-pill-wrap:hover .step-popover,
-    .step-pill-wrap:focus-within .step-popover {
+    .step-pill-wrap:focus-within .step-popover,
+    .step-pill-wrap.open .step-popover {
       display: grid;
       gap: 9px;
       animation: fadein 0.12s ease;
@@ -570,6 +607,12 @@
       padding-bottom: 7px;
       border-bottom: 1px solid var(--border);
     }
+    .sp-head-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
     .sp-title {
       font-weight: 700;
       font-size: 12.5px;
@@ -580,6 +623,30 @@
       white-space: nowrap;
     }
     .sp-title svg { width: 14px; height: 14px; color: var(--info); flex: none; }
+    .sp-hint {
+      font-size: 10.5px;
+      font-weight: 500;
+      color: var(--faint);
+      margin-left: 2px;
+    }
+    .sp-reset-btn {
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .sp-reset-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+      background: var(--surface-3);
+    }
     .sp-target {
       font-family: var(--mono);
       font-size: 11px;
@@ -588,7 +655,7 @@
       background: var(--buy-soft);
       padding: 2px 7px;
       border-radius: 999px;
-      max-width: 180px;
+      max-width: 175px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -609,10 +676,40 @@
       border-radius: 8px;
       background: var(--surface-2);
       border: 1px solid var(--border);
+      transition: border-color 0.12s, background 0.12s, transform 0.12s, opacity 0.12s;
     }
+    .sp-item[draggable="true"] {
+      grid-template-columns: 14px 20px minmax(0, 1fr) auto;
+      cursor: grab;
+      user-select: none;
+    }
+    .sp-item[draggable="true"]:active {
+      cursor: grabbing;
+    }
+    .sp-grip {
+      width: 14px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      color: var(--faint);
+      transition: color 0.12s;
+    }
+    .sp-grip svg { width: 13px; height: 13px; }
+    .sp-item:hover .sp-grip { color: var(--muted); }
     .sp-item.active {
       border-color: rgba(96, 165, 250, 0.45);
       background: color-mix(in srgb, var(--info) 9%, var(--surface-2));
+    }
+    .sp-item.dragging {
+      opacity: 0.42;
+      border-style: dashed;
+      border-color: var(--accent);
+    }
+    .sp-item.drag-over {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+      box-shadow: 0 0 0 2px var(--accent-soft);
+      transform: translateY(-1px);
     }
     .sp-num {
       width: 20px;
@@ -1743,7 +1840,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
     warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+    grip: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
   };
 
   function iconForItem(key) {
@@ -1781,7 +1881,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     level: 0,
     theme: "dark",
     dustOverride: "",
-    filters: { ring: true, contract: true, limb: true, hideUnused: false }
+    filters: { ring: true, contract: true, limb: true, hideUnused: false },
+    stepOrder: {},
+    lockedPlans: {},
+    keepPopoverOpen: false
   };
 
   function $(id) { return document.getElementById(id); }
@@ -2185,7 +2288,92 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         };
         applyFilterBoxes();
       }
+      var so = localStorage.getItem("saPlanner.stepOrder");
+      if (so) {
+        var parsedSo = JSON.parse(so);
+        if (parsedSo && typeof parsedSo === "object") state.stepOrder = parsedSo;
+      }
+      var lp = localStorage.getItem("saPlanner.lockedPlans");
+      if (lp) {
+        var parsedLp = JSON.parse(lp);
+        if (parsedLp && typeof parsedLp === "object") state.lockedPlans = parsedLp;
+      }
     } catch (e) {}
+  }
+
+  function getLockedBuild(level) {
+    return (state.lockedPlans && state.lockedPlans[String(level)]) || null;
+  }
+
+  function setLockedBuild(level, name) {
+    if (!state.lockedPlans) state.lockedPlans = {};
+    state.lockedPlans[String(level)] = name;
+    try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+  }
+
+  function clearLockedBuild(level) {
+    if (state.lockedPlans && state.lockedPlans[String(level)]) {
+      delete state.lockedPlans[String(level)];
+      try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+    }
+  }
+
+  function toggleLockBuild(name) {
+    var cur = getLockedBuild(state.level);
+    if (cur === name) {
+      clearLockedBuild(state.level);
+      toast("Unlocked advisor for SA " + state.level);
+    } else {
+      setLockedBuild(state.level, name);
+      toast("Locked advisor to " + name);
+    }
+    var rec = bestRunnable(state.level);
+    var rate = activeDustPs(rec);
+    renderNext(rec, rate);
+    renderBetter(rec, rate);
+  }
+  window.saToggleLockBuild = toggleLockBuild;
+
+  function stepKey(st) {
+    return st.kind + ":" + (st.key || "");
+  }
+
+  function planOrderKey(level, build) {
+    return String(level) + "::" + (build && build.n ? build.n : "");
+  }
+
+  function hasCustomStepOrder(level, build) {
+    var k = planOrderKey(level, build);
+    return !!(state.stepOrder && state.stepOrder[k] && state.stepOrder[k].length);
+  }
+
+  function saveStepOrder(level, build, keys) {
+    var k = planOrderKey(level, build);
+    if (!state.stepOrder) state.stepOrder = {};
+    state.stepOrder[k] = keys;
+    try { localStorage.setItem("saPlanner.stepOrder", JSON.stringify(state.stepOrder)); } catch (e) {}
+  }
+
+  function resetStepOrder(level, build) {
+    var k = planOrderKey(level, build);
+    if (state.stepOrder && state.stepOrder[k]) {
+      delete state.stepOrder[k];
+      try { localStorage.setItem("saPlanner.stepOrder", JSON.stringify(state.stepOrder)); } catch (e) {}
+    }
+  }
+
+  function applyStepOrder(level, build, steps) {
+    if (!build || !steps || steps.length <= 1) return steps;
+    var k = planOrderKey(level, build);
+    var saved = state.stepOrder && state.stepOrder[k];
+    if (!saved || !saved.length) return steps;
+    var rankMap = {};
+    saved.forEach(function (id, idx) { rankMap[id] = idx; });
+    return steps.slice().sort(function (a, b) {
+      var ia = rankMap.hasOwnProperty(stepKey(a)) ? rankMap[stepKey(a)] : 999;
+      var ib = rankMap.hasOwnProperty(stepKey(b)) ? rankMap[stepKey(b)] : 999;
+      return ia - ib;
+    });
   }
 
   function fillLevels(selected) {
@@ -2363,6 +2551,52 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   function bestNextUpgrade(rec) {
     var cur = rec ? rec.d || 0 : 0;
     var bnk = bank();
+    var lockedName = getLockedBuild(state.level);
+    if (lockedName) {
+      var all = buildsFor(state.level);
+      var target = null;
+      for (var k = 0; k < all.length; k++) {
+        if (all[k].n === lockedName) { target = all[k]; break; }
+      }
+      if (target) {
+        if (runnable(target)) {
+          return {
+            mode: "completed",
+            build: target,
+            isLocked: true,
+            remaining: 0,
+            allSteps: [],
+            gain: (target.d || 0) - cur
+          };
+        }
+        var targetSteps = applyStepOrder(state.level, target, gapSteps(target));
+        var targetFirst = null;
+        var targetActiveIdx = 0;
+        for (var tj = 0; tj < targetSteps.length; tj++) {
+          if (targetSteps[tj].kind === "contract" && !targetSteps[tj].reach) continue;
+          targetFirst = atomicStep(targetSteps[tj]);
+          targetActiveIdx = tj;
+          break;
+        }
+        if (!targetFirst && targetSteps.length) {
+          targetFirst = atomicStep(targetSteps[0]);
+          targetActiveIdx = 0;
+        }
+        if (targetFirst) {
+          return {
+            step: targetFirst,
+            gain: (target.d || 0) - cur,
+            cost: stepsCostDust([targetFirst]).combined,
+            build: target,
+            mode: "locked",
+            remaining: targetSteps.length,
+            allSteps: targetSteps,
+            activeIndex: targetActiveIdx,
+            isLocked: true
+          };
+        }
+      }
+    }
     var list = betterBuilds(rec);
     var seen = {};
     var immediate = [];
@@ -2385,7 +2619,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       return immediate[0];
     }
     var paths = list.map(function (b) {
-      var steps = gapSteps(b);
+      var steps = applyStepOrder(state.level, b, gapSteps(b));
       var wInfo = stepsWaitInfo(steps, 1, bnk);
       var effCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : Math.max(1, wInfo.combined * 1e-6);
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
@@ -2562,6 +2796,8 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   function renderStepPopover(pick, rate, bnk) {
     var steps = pick.allSteps && pick.allSteps.length ? pick.allSteps : [pick.step];
     var activeIdx = pick.activeIndex || 0;
+    var canDrag = steps.length > 1;
+    var isCustom = canDrag && hasCustomStepOrder(state.level, pick.build);
     var availDust = bnk ? (bnk.dust || 0) : 0;
     var availShards = bnk ? (bnk.shards || 0) : 0;
     var itemsHtml = steps.map(function (st, idx) {
@@ -2592,7 +2828,9 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       } else {
         subLines.push("Step " + (idx + 1) + " of " + steps.length);
       }
-      return "<li class='sp-item" + (isAct ? " active" : "") + "'>" +
+      return "<li class='sp-item" + (isAct ? " active" : "") + "'" +
+        (canDrag ? " draggable='true' data-step-idx='" + idx + "' data-step-key='" + esc(stepKey(st)) + "' title='Drag to reorder step priority'" : "") + ">" +
+        (canDrag ? "<span class='sp-grip'>" + ICONS.grip + "</span>" : "") +
         "<span class='sp-num'>" + (idx + 1) + "</span>" +
         "<div class='sp-main'>" +
         "<div class='sp-label " + stepClass(st) + "'>" + iconForStep(st) + "<span>" + esc(stepLabel(st)) + "</span></div>" +
@@ -2625,18 +2863,107 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     }
 
     var titleTxt = steps.length === 1 ? "Single-Step Unlock" : ("Unlock Roadmap · " + steps.length + " Steps");
+    var hintHtml = canDrag ? (isCustom ? "<button type='button' class='sp-reset-btn' id='spResetOrderBtn' title='Restore default step order'>Reset order</button>" : "<span class='sp-hint'>(drag to reorder)</span>") : "";
     return "<div class='step-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
-      "<span class='sp-title'>" + ICONS.clock + "<span>" + esc(titleTxt) + "</span></span>" +
-      "<span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span>" +
+      "<span class='sp-title'>" + ICONS.clock + "<span>" + esc(titleTxt) + "</span>" + hintHtml + "</span>" +
+      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span></div>" +
       "</div>" +
-      "<ol class='sp-list'>" + itemsHtml + "</ol>" +
+      "<ol class='sp-list' id='spStepList'>" + itemsHtml + "</ol>" +
       "<div class='sp-foot'>" +
       "<span>Total: <b>" + esc(totalCostLabel) + "</b></span>" +
       "<span>Est. wait: <b>" + esc(totalWaitStr) + "</b></span>" +
       parHtml +
       "</div>" +
       "</div>";
+  }
+
+  function bindPlanDrag(pick, rec, rate) {
+    var wrap = $("stepPillWrap");
+    var listEl = $("spStepList");
+    var resetBtn = $("spResetOrderBtn");
+    if (wrap) {
+      wrap.addEventListener("mouseleave", function () {
+        if (state.keepPopoverOpen) {
+          state.keepPopoverOpen = false;
+          wrap.classList.remove("open");
+        }
+      });
+    }
+    if (resetBtn) {
+      resetBtn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        resetStepOrder(state.level, pick.build);
+        state.keepPopoverOpen = true;
+        renderNext(rec, rate);
+      });
+    }
+    if (!listEl || !pick.allSteps || pick.allSteps.length <= 1) return;
+    var items = Array.prototype.slice.call(listEl.querySelectorAll(".sp-item[draggable='true']"));
+    var dragFromIdx = null;
+
+    function closestItemIndex(clientY) {
+      var bestIdx = null;
+      var bestDist = Infinity;
+      items.forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        var mid = r.top + r.height / 2;
+        var d = Math.abs(clientY - mid);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = Number(el.getAttribute("data-step-idx"));
+        }
+      });
+      return bestIdx;
+    }
+
+    items.forEach(function (el) {
+      el.addEventListener("dragstart", function (ev) {
+        dragFromIdx = Number(el.getAttribute("data-step-idx"));
+        el.classList.add("dragging");
+        if (wrap) wrap.classList.add("open");
+        if (ev.dataTransfer) {
+          ev.dataTransfer.effectAllowed = "move";
+          try { ev.dataTransfer.setData("text/plain", String(dragFromIdx)); } catch (e) {}
+        }
+      });
+      el.addEventListener("dragend", function () {
+        el.classList.remove("dragging");
+        items.forEach(function (it) { it.classList.remove("drag-over"); });
+      });
+    });
+
+    listEl.addEventListener("dragover", function (ev) {
+      if (dragFromIdx == null) return;
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
+      var overIdx = closestItemIndex(ev.clientY);
+      items.forEach(function (it) {
+        var idx = Number(it.getAttribute("data-step-idx"));
+        it.classList.toggle("drag-over", idx === overIdx && idx !== dragFromIdx);
+      });
+    });
+
+    listEl.addEventListener("dragleave", function (ev) {
+      if (!listEl.contains(ev.relatedTarget)) {
+        items.forEach(function (it) { it.classList.remove("drag-over"); });
+      }
+    });
+
+    listEl.addEventListener("drop", function (ev) {
+      if (dragFromIdx == null) return;
+      ev.preventDefault();
+      var toIdx = closestItemIndex(ev.clientY);
+      items.forEach(function (it) { it.classList.remove("drag-over"); });
+      if (toIdx == null || toIdx === dragFromIdx) return;
+      var keys = pick.allSteps.map(stepKey);
+      var moved = keys.splice(dragFromIdx, 1)[0];
+      keys.splice(toIdx, 0, moved);
+      saveStepOrder(state.level, pick.build, keys);
+      state.keepPopoverOpen = true;
+      renderNext(rec, rate);
+    });
   }
 
   function renderNext(rec, rate) {
@@ -2648,38 +2975,93 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         : "<div class='next'><div class='next-kicker'>" + ICONS.info + " Next Upgrade</div><p class='empty'>No upgrade on this level matches the current filters.</p></div>";
       return;
     }
+    if (pick.mode === "completed") {
+      var btnUnlock = "<button type='button' class='btn sm accent lock-plan-btn locked' id='lockPlanBtn' title='Advisor is locked to this completed build. Click to unlock and allow advisor to recommend new builds.'>" + ICONS.lock + "<span>Locked (Done)</span></button>";
+      el.innerHTML =
+        "<div class='next'>" +
+        "<div class='next-top'>" +
+        "<div class='next-kicker' style='color:var(--buy);'>" + ICONS.check + " Plan Completed</div>" +
+        "<div class='next-top-actions'>" + btnUnlock + "</div>" +
+        "</div>" +
+        "<div class='next-action-box'>" +
+        "<div class='next-head' style='color:var(--buy);'>" + ICONS.check + "<span>" + esc(pick.build.n) + " is fully unlocked!</span></div>" +
+        "<div class='next-meta'><span class='pill sm buy'>" + ICONS.check + " Runnable now · " + prettify(pick.build.d) + "/s</span></div>" +
+        "</div>" +
+        "<div class='next-why'>You have reached your locked target build. Click <b>Locked (Done)</b> to unlock the advisor for new recommendations.</div>" +
+        "</div>";
+      var btnComp = $("lockPlanBtn");
+      if (btnComp) {
+        btnComp.addEventListener("click", function () {
+          clearLockedBuild(state.level);
+          toast("Unlocked advisor for SA " + state.level);
+          renderNext(rec, rate);
+          renderBetter(rec, rate);
+        });
+      }
+      return;
+    }
+
     var s = pick.step;
     var bnk = bank();
     var rawCost = s.cost || 0;
     var wait = timeForCost(rawCost, !!s.shards, rate, s.shards ? 0 : bnk.dust, s.shards ? bnk.shards : 0);
     var costTxt = rawCost ? (prettify(rawCost) + (s.shards ? " shards" : " dust")) : "";
-    var why = pick.mode === "unlocks"
-      ? "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build."
-      : "First step on the fewest-gap path to a stronger sheet build (no single-step unlock available on this level).";
+    var isCustom = pick.remaining > 1 && hasCustomStepOrder(state.level, pick.build);
+    var why;
+    if (pick.isLocked) {
+      why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (" + pick.remaining + " steps remaining). Mid-plan recommendations will not switch until you click Unlock.";
+    } else if (pick.mode === "unlocks") {
+      why = "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build (click Lock Plan to latch).";
+    } else if (isCustom) {
+      why = "Custom step order active — hover Step 1 of " + pick.remaining + " to drag and reorder your unlock plan.";
+    } else {
+      why = "First step on the fewest-gap path to a stronger sheet build (hover Step 1 of " + pick.remaining + " to reorder plan).";
+    }
+
+    var lockBtnHtml = pick.isLocked
+      ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='lockPlanBtn' title='Advisor is locked to " + esc(pick.build.n) + ". Click to unlock and re-enable automatic recommendations.'>" + ICONS.lock + "<span>Locked</span></button>"
+      : "<button type='button' class='btn sm ghost lock-plan-btn' id='lockPlanBtn' title='Lock advisor to " + esc(pick.build.n) + " so recommendations do not switch mid-plan.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
+
+    var kickerHtml = pick.isLocked
+      ? "<div class='next-kicker' style='color:var(--accent);'>" + ICONS.lock + " Locked Plan</div>"
+      : "<div class='next-kicker'>Recommended Next Action</div>";
+
     var pillInner = pick.mode === "unlocks"
       ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
       : "<span class='pill sm info'>" + ICONS.clock + " Step " + ((pick.activeIndex || 0) + 1) + " of " + pick.remaining + "</span>";
-    var badgeHtml = "<div class='step-pill-wrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
+    var badgeHtml = "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
     var waitBadge = wait === 0
       ? "<span class='pill sm buy'>" + ICONS.check + " Ready now</span>"
       : (wait != null ? "<span class='pill sm'>" + ICONS.clock + " " + fmtTime(wait) + "</span>" : "");
 
+    var metaLockPill = pick.isLocked ? ("<span class='pill sm accent' title='Advisor locked to this plan'>" + ICONS.lock + " Plan Locked</span>") : "";
+
     el.innerHTML =
       "<div class='next'>" +
       "<div class='next-top'>" +
-      "<div class='next-kicker'>Recommended Next Action</div>" +
-      badgeHtml +
+      kickerHtml +
+      "<div class='next-top-actions'>" + lockBtnHtml + badgeHtml + "</div>" +
       "</div>" +
       "<div class='next-action-box'>" +
       "<div class='next-head " + stepClass(s) + "'>" + iconForStep(s) + "<span>" + esc(stepLabel(s)) + "</span></div>" +
       "<div class='next-meta'>" +
       (costTxt ? "<span class='pill sm accent'>" + (s.shards ? ICONS.gem : ICONS.dust) + " " + esc(costTxt) + "</span>" : "") +
       waitBadge +
+      metaLockPill +
       "<span class='pill sm buy'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + " (" + prettify(pick.build.d) + "/s)</span>" +
       "</div>" +
       "</div>" +
-      "<div class='next-why'>" + esc(why) + "</div>" +
+      "<div class='next-why'>" + why + "</div>" +
       "</div>";
+
+    var lockBtn = $("lockPlanBtn");
+    if (lockBtn) {
+      lockBtn.addEventListener("click", function () {
+        toggleLockBuild(pick.build.n);
+      });
+    }
+
+    bindPlanDrag(pick, rec, rate);
   }
 
   function cardTooltip(title, lines) {
@@ -2922,9 +3304,22 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         (cost.dust && cost.shards ? "<br>" : "") +
         (cost.shards ? prettify(cost.shards) + " shards" : "") + "</td>" +
         "<td class='mono pos'>+" + prettify((b.d || 0) - cur) + "/s</td>" +
-        "<td class='mono'>" + fmtTime(pay) + "</td></tr>";
+        "<td class='mono'>" + fmtTime(pay) + "</td>" +
+        "<td>" + (function() {
+          var isRowLocked = getLockedBuild(state.level) === b.n;
+          return isRowLocked
+            ? "<button type='button' class='btn sm accent lock-row-btn locked' data-lock-build='" + esc(b.n) + "' title='Advisor is locked to this build. Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
+            : "<button type='button' class='btn sm ghost lock-row-btn' data-lock-build='" + esc(b.n) + "' title='Lock Next Upgrade Advisor to this build'>" + ICONS.unlock + "<span>Lock</span></button>";
+        })() + "</td></tr>";
     }).join("");
-    $("better").innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Payback</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    var betterEl = $("better");
+    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Payback</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    betterEl.onclick = function(ev) {
+      var btn = ev.target.closest("button[data-lock-build]");
+      if (!btn) return;
+      ev.preventDefault();
+      toggleLockBuild(btn.getAttribute("data-lock-build"));
+    };
   }
 
   function fact(label, value, icon) {
