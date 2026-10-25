@@ -342,13 +342,7 @@
         steps.push({ kind: "ring", from: ringLevel(), to: build.r.lv, cost: ringCostRange(ringLevel(), build.r.lv), shards: true });
       }
     }
-    var rank = { contract: 0, missing: 1, ringUnlock: 2, level: 3, limbs: 4, ring: 5 };
-    steps.sort(function (a, b) {
-      var ra = rank.hasOwnProperty(a.kind) ? rank[a.kind] : 9;
-      var rb = rank.hasOwnProperty(b.kind) ? rank[b.kind] : 9;
-      return ra - rb;
-    });
-    return steps;
+    return sortSmartSteps(build, steps);
   }
 
   function readFilters() {
@@ -626,6 +620,11 @@
           evaluated.push(evalStep(g));
         }
       });
+      if (!hasCustomStepOrder(level, target)) {
+        var done = evaluated.filter(function (s) { return s.completed; });
+        var pending = evaluated.filter(function (s) { return !s.completed; });
+        evaluated = done.concat(sortSmartSteps(target, pending));
+      }
       state.lockedPlans[String(level)] = { name: name, steps: evaluated };
       try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
       return evaluated;
@@ -768,11 +767,106 @@
     }
   }
 
+  function sortSmartSteps(build, steps) {
+    if (!steps || steps.length <= 1 || !state.ab) return steps || [];
+
+    var bnk = bank();
+    var rec = bestRunnable(state.level);
+    var rate = activeDustPs(rec);
+    var curSlots = maxSlots();
+    var limbStep = steps.find(function (s) { return s.kind === "limbs"; });
+
+    function isStepEquipped(s) {
+      if (s.kind === "level") {
+        var uItem = userItem(s.key);
+        return !!(uItem && uItem.equipped);
+      }
+      if (s.kind === "ring") return hasRing();
+      if (s.kind === "limbs") return true;
+      return false;
+    }
+
+    function stepWait(s) {
+      if (s.completed) return 0;
+      var c = stepFullCost(s);
+      var isS = !!s.shards;
+      var bD = bnk ? (bnk.dust || 0) : 0;
+      var bS = bnk ? (bnk.shards || 0) : 0;
+      if (isS) {
+        var needS = Math.max(0, c - bS);
+        return needS <= 0 ? 0 : (rate > 0 ? (needS * SHARD_DUST) / rate : (needS * SHARD_DUST));
+      } else {
+        var needD = Math.max(0, c - bD);
+        return needD <= 0 ? 0 : (rate > 0 ? needD / rate : needD);
+      }
+    }
+
+    var limbWait = limbStep ? stepWait(limbStep) : 0;
+
+    function stepScore(s) {
+      var w = stepWait(s);
+      var isEq = isStepEquipped(s);
+      var needsLimb = false;
+
+      if (limbStep && !isEq && (s.kind === "level" || s.kind === "contract" || s.kind === "missing")) {
+        needsLimb = true;
+      }
+
+      var effWait = needsLimb ? (limbWait + w) : w;
+
+      return {
+        step: s,
+        wait: w,
+        effWait: effWait,
+        isEq: isEq,
+        needsLimb: needsLimb,
+        cost: stepFullCost(s)
+      };
+    }
+
+    var scores = steps.map(stepScore);
+    var scoreMap = new Map();
+    scores.forEach(function (sc) { scoreMap.set(sc.step, sc); });
+
+    return steps.slice().sort(function (a, b) {
+      if (!!a.completed !== !!b.completed) return a.completed ? -1 : 1;
+
+      var sa = scoreMap.get(a) || { effWait: 0, cost: 0, isEq: false, needsLimb: false };
+      var sb = scoreMap.get(b) || { effWait: 0, cost: 0, isEq: false, needsLimb: false };
+
+      if (a.kind === "contract" && b.kind === "level" && a.key === b.key) return -1;
+      if (b.kind === "contract" && a.kind === "level" && a.key === b.key) return 1;
+
+      if (a.kind === "ringUnlock" && b.kind === "ring") return -1;
+      if (b.kind === "ringUnlock" && a.kind === "ring") return 1;
+
+      if (a.kind === "limbs" && sb.needsLimb) return -1;
+      if (b.kind === "limbs" && sa.needsLimb) return 1;
+
+      if (Math.abs(sa.effWait - sb.effWait) > 1e-6) {
+        return sa.effWait - sb.effWait;
+      }
+
+      if (sa.isEq !== sb.isEq) {
+        return sa.isEq ? -1 : 1;
+      }
+
+      if (sa.cost !== sb.cost) {
+        return sa.cost - sb.cost;
+      }
+
+      var rank = { contract: 0, ringUnlock: 1, level: 2, ring: 3, limbs: 4, missing: 5 };
+      var ra = rank.hasOwnProperty(a.kind) ? rank[a.kind] : 9;
+      var rb = rank.hasOwnProperty(b.kind) ? rank[b.kind] : 9;
+      return ra - rb;
+    });
+  }
+
   function applyStepOrder(level, build, steps) {
     if (!build || !steps || steps.length <= 1) return steps;
     var k = planOrderKey(level, build);
     var saved = state.stepOrder && state.stepOrder[k];
-    if (!saved || !saved.length) return steps;
+    if (!saved || !saved.length) return sortSmartSteps(build, steps);
     var rankMap = {};
     saved.forEach(function (id, idx) { rankMap[id] = idx; });
     return steps.slice().sort(function (a, b) {
@@ -1350,13 +1444,8 @@
           if (typeof entry === "object" && entry.steps) {
             var done = entry.steps.filter(function (s) { return s.completed; });
             var pending = entry.steps.filter(function (s) { return !s.completed; });
-            var rank = { contract: 0, missing: 1, ringUnlock: 2, level: 3, limbs: 4, ring: 5 };
-            pending.sort(function (a, b) {
-              var ra = rank.hasOwnProperty(a.kind) ? rank[a.kind] : 9;
-              var rb = rank.hasOwnProperty(b.kind) ? rank[b.kind] : 9;
-              return ra - rb;
-            });
-            entry.steps = done.concat(pending);
+            var sortedPending = sortSmartSteps(pick.build, pending);
+            entry.steps = done.concat(sortedPending);
             try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
           }
         }
