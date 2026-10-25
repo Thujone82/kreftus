@@ -711,6 +711,22 @@
       box-shadow: 0 0 0 2px var(--accent-soft);
       transform: translateY(-1px);
     }
+    .sp-item.completed {
+      opacity: 0.72;
+      background: color-mix(in srgb, var(--buy) 8%, var(--surface-2));
+      border-color: rgba(45, 206, 137, 0.28);
+    }
+    .sp-item.completed .sp-label {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+    .sp-item.completed .sp-label svg {
+      opacity: 0.65;
+    }
+    .sp-item.completed .sp-sub {
+      color: var(--buy);
+      font-weight: 600;
+    }
     .sp-num {
       width: 20px;
       height: 20px;
@@ -726,6 +742,14 @@
     .sp-item.active .sp-num {
       background: var(--info);
       color: #071326;
+    }
+    .sp-num.done {
+      background: var(--buy);
+      color: #062316;
+    }
+    .sp-num.done svg {
+      width: 12px;
+      height: 12px;
     }
     .sp-main {
       min-width: 0;

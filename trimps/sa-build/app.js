@@ -490,20 +490,238 @@
   }
 
   function getLockedBuild(level) {
-    return (state.lockedPlans && state.lockedPlans[String(level)]) || null;
+    var entry = (state.lockedPlans && state.lockedPlans[String(level)]) || null;
+    if (!entry) return null;
+    return typeof entry === "string" ? entry : (entry.name || null);
   }
 
   function setLockedBuild(level, name) {
     if (!state.lockedPlans) state.lockedPlans = {};
-    state.lockedPlans[String(level)] = name;
+    var all = buildsFor(level);
+    var target = null;
+    for (var k = 0; k < all.length; k++) {
+      if (all[k].n === name) { target = all[k]; break; }
+    }
+    var rawSteps = target ? gapSteps(target) : [];
+    var ordered = applyStepOrder(level, target, rawSteps);
+    var steps = ordered.map(function (s) {
+      return {
+        kind: s.kind,
+        key: s.key || null,
+        from: s.from,
+        to: s.to,
+        cost: s.cost,
+        shards: !!s.shards,
+        zone: s.zone,
+        after: s.after || null,
+        completed: false
+      };
+    });
+    state.lockedPlans[String(level)] = {
+      name: name,
+      steps: steps
+    };
     try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
   }
 
   function clearLockedBuild(level) {
     if (state.lockedPlans && state.lockedPlans[String(level)]) {
+      var entry = state.lockedPlans[String(level)];
+      var name = typeof entry === "string" ? entry : (entry && entry.name);
       delete state.lockedPlans[String(level)];
       try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+      if (name) resetStepOrder(level, { n: name });
     }
+  }
+
+  function syncLockedPlan(level, target) {
+    if (!state.lockedPlans || !target) return null;
+    var entry = state.lockedPlans[String(level)];
+    if (!entry) return null;
+    var name = typeof entry === "string" ? entry : entry.name;
+    if (!name || target.n !== name) return null;
+
+    var currentGaps = gapSteps(target);
+    var planSteps = (typeof entry === "object" && Array.isArray(entry.steps)) ? entry.steps : null;
+
+    function evalStep(s) {
+      var done = false;
+      var curFrom = s.from;
+      var curCost = s.cost;
+      var curShards = !!s.shards;
+      var reach = true;
+
+      if (s.kind === "level") {
+        var curLv = userLevel(s.key);
+        done = curLv >= s.to;
+        if (!done) {
+          curFrom = curLv;
+          curCost = upgradeCostRange(s.key, curLv, s.to);
+          curShards = isShards(s.key);
+        }
+      } else if (s.kind === "limbs") {
+        var curL = extraLimbs();
+        done = curL >= s.to;
+        if (!done) {
+          curFrom = curL;
+          curCost = extraLimbCost(curL, s.to);
+        }
+      } else if (s.kind === "ring") {
+        var curR = hasRing() ? ringLevel() : 0;
+        done = curR >= s.to;
+        if (!done) {
+          curFrom = Math.max(1, curR);
+          curCost = ringCostRange(curFrom, s.to);
+          curShards = true;
+        }
+      } else if (s.kind === "ringUnlock") {
+        done = hasRing();
+        if (!done) {
+          curCost = oneTimerRingCost();
+          curShards = true;
+        }
+      } else if (s.kind === "contract") {
+        var cat = itemCat(s.key);
+        var zone = (cat && cat.zone) || s.zone;
+        reach = (state.radon + 1) >= zone;
+        var owned = userOwns(s.key);
+        if (s.after && s.after.to > 1) {
+          var curLv = userLevel(s.key);
+          done = owned && curLv >= s.after.to;
+          if (!done && owned) {
+            curCost = upgradeCostRange(s.key, curLv, s.after.to);
+            curShards = isShards(s.key);
+          }
+        } else {
+          done = owned;
+          if (!done) {
+            curCost = contractPrice(s.key);
+            curShards = isShards(s.key);
+          }
+        }
+      } else if (s.kind === "missing") {
+        done = userOwns(s.key);
+      }
+
+      return {
+        kind: s.kind,
+        key: s.key || null,
+        from: curFrom,
+        to: s.to,
+        cost: done ? 0 : curCost,
+        shards: curShards,
+        zone: s.zone,
+        after: s.after || null,
+        reach: reach,
+        completed: done || !!s.completed
+      };
+    }
+
+    if (planSteps && planSteps.length) {
+      var evaluated = planSteps.map(evalStep);
+      var existingKeys = {};
+      evaluated.forEach(function (s) { existingKeys[stepKey(s)] = true; });
+      currentGaps.forEach(function (g) {
+        if (!existingKeys[stepKey(g)]) {
+          evaluated.push(evalStep(g));
+        }
+      });
+      state.lockedPlans[String(level)] = { name: name, steps: evaluated };
+      try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+      return evaluated;
+    }
+
+    var gapKeyMap = {};
+    currentGaps.forEach(function (g) { gapKeyMap[stepKey(g)] = g; });
+    var initial = [];
+
+    var savedKeys = state.stepOrder && state.stepOrder[planOrderKey(level, target)];
+    if (savedKeys && savedKeys.length > currentGaps.length) {
+      savedKeys.forEach(function (k) {
+        if (gapKeyMap[k]) {
+          initial.push(gapKeyMap[k]);
+        } else {
+          var parts = k.split(":");
+          var kind = parts[0];
+          var itemKey = parts[1] || "";
+          if (kind === "level" && target.i && target.i[itemKey]) {
+            var need = target.i[itemKey];
+            var curLv = userLevel(itemKey);
+            initial.push({
+              kind: "level",
+              key: itemKey,
+              from: Math.max(0, curLv - 1),
+              to: need,
+              cost: upgradeCostAt(itemKey, Math.max(0, curLv - 1)),
+              shards: isShards(itemKey),
+              completed: true
+            });
+          } else if (kind === "ring") {
+            var rLv = (target.r && target.r.lv) || 1;
+            initial.push({
+              kind: "ring",
+              from: Math.max(1, rLv - 1),
+              to: rLv,
+              cost: ringLevelCost(Math.max(1, rLv - 1)),
+              shards: true,
+              completed: true
+            });
+          } else if (kind === "limbs") {
+            var lSlots = (target.l || 4) - 4;
+            initial.push({
+              kind: "limbs",
+              from: Math.max(0, lSlots - 1),
+              to: lSlots,
+              cost: extraLimbCost(Math.max(0, lSlots - 1), lSlots),
+              shards: false,
+              completed: true
+            });
+          } else if (kind === "contract") {
+            var cZone = (itemCat(itemKey) && itemCat(itemKey).zone) || target.c;
+            initial.push({
+              kind: "contract",
+              key: itemKey,
+              zone: cZone,
+              completed: true
+            });
+          }
+        }
+      });
+    } else {
+      var completedCandidate = null;
+      if (target.i) {
+        var itemKeys = Object.keys(target.i);
+        for (var i = 0; i < itemKeys.length; i++) {
+          var ik = itemKeys[i];
+          if (!gapKeyMap["level:" + ik] && userOwns(ik) && userLevel(ik) === target.i[ik] && target.i[ik] > 1) {
+            completedCandidate = {
+              kind: "level",
+              key: ik,
+              from: target.i[ik] - 1,
+              to: target.i[ik],
+              cost: upgradeCostAt(ik, target.i[ik] - 1),
+              shards: isShards(ik),
+              completed: true
+            };
+            break;
+          }
+        }
+      }
+      if (completedCandidate) {
+        initial.push(completedCandidate);
+      }
+      currentGaps.forEach(function (g) {
+        if (!initial.some(function (it) { return stepKey(it) === stepKey(g); })) {
+          initial.push(g);
+        }
+      });
+    }
+
+    var ordered = applyStepOrder(level, target, initial);
+    var evaluatedInitial = ordered.map(evalStep);
+    state.lockedPlans[String(level)] = { name: name, steps: evaluatedInitial };
+    try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+    return evaluatedInitial;
   }
 
   function toggleLockBuild(name) {
@@ -747,39 +965,57 @@
         if (all[k].n === lockedName) { target = all[k]; break; }
       }
       if (target) {
-        if (runnable(target)) {
+        var planSteps = syncLockedPlan(state.level, target);
+        if (!planSteps || !planSteps.length) {
+          planSteps = applyStepOrder(state.level, target, gapSteps(target));
+        }
+        var completedCount = planSteps.filter(function (s) { return s.completed; }).length;
+        var pendingSteps = planSteps.filter(function (s) { return !s.completed; });
+        var totalSteps = planSteps.length;
+
+        if (pendingSteps.length === 0 || runnable(target)) {
           return {
             mode: "completed",
             build: target,
             isLocked: true,
             remaining: 0,
-            allSteps: [],
+            totalSteps: totalSteps,
+            completedCount: completedCount,
+            allSteps: planSteps,
             gain: (target.d || 0) - cur
           };
         }
-        var targetSteps = applyStepOrder(state.level, target, gapSteps(target));
-        var targetFirst = null;
-        var targetActiveIdx = 0;
-        for (var tj = 0; tj < targetSteps.length; tj++) {
-          if (targetSteps[tj].kind === "contract" && !targetSteps[tj].reach) continue;
-          targetFirst = atomicStep(targetSteps[tj]);
-          targetActiveIdx = tj;
+        var firstPending = null;
+        var activeIdxInPlan = 0;
+        for (var tj = 0; tj < planSteps.length; tj++) {
+          if (planSteps[tj].completed) continue;
+          if (planSteps[tj].kind === "contract" && !planSteps[tj].reach) continue;
+          firstPending = planSteps[tj];
+          activeIdxInPlan = tj;
           break;
         }
-        if (!targetFirst && targetSteps.length) {
-          targetFirst = atomicStep(targetSteps[0]);
-          targetActiveIdx = 0;
+        if (!firstPending) {
+          for (var tj = 0; tj < planSteps.length; tj++) {
+            if (!planSteps[tj].completed) {
+              firstPending = planSteps[tj];
+              activeIdxInPlan = tj;
+              break;
+            }
+          }
         }
-        if (targetFirst) {
+        if (firstPending) {
+          var targetFirst = atomicStep(firstPending);
           return {
             step: targetFirst,
             gain: (target.d || 0) - cur,
             cost: stepsCostDust([targetFirst]).combined,
             build: target,
             mode: "locked",
-            remaining: targetSteps.length,
-            allSteps: targetSteps,
-            activeIndex: targetActiveIdx,
+            remaining: pendingSteps.length,
+            totalSteps: totalSteps,
+            completedCount: completedCount,
+            allSteps: planSteps,
+            activeIndex: activeIdxInPlan,
             isLocked: true
           };
         }
@@ -984,11 +1220,28 @@
   function renderStepPopover(pick, rate, bnk) {
     var steps = pick.allSteps && pick.allSteps.length ? pick.allSteps : [pick.step];
     var activeIdx = pick.activeIndex || 0;
-    var canDrag = steps.length > 1;
+    var completedCount = pick.completedCount || 0;
+    var totalSteps = pick.totalSteps || steps.length;
+    var pendingSteps = steps.filter(function (s) { return !s.completed; });
+    var canDrag = pendingSteps.length > 1;
     var isCustom = canDrag && hasCustomStepOrder(state.level, pick.build);
     var availDust = bnk ? (bnk.dust || 0) : 0;
     var availShards = bnk ? (bnk.shards || 0) : 0;
     var itemsHtml = steps.map(function (st, idx) {
+      if (st.completed) {
+        var doneSub = "Step " + (idx + 1) + " of " + totalSteps + " · Completed";
+        return "<li class='sp-item completed' data-step-idx='" + idx + "' data-step-key='" + esc(stepKey(st)) + "'>" +
+          "<span class='sp-num done' title='Completed'>" + ICONS.check + "</span>" +
+          "<div class='sp-main'>" +
+          "<div class='sp-label " + stepClass(st) + "'>" + iconForStep(st) + "<span>" + esc(stepLabel(st)) + "</span></div>" +
+          "<div class='sp-sub'>" + esc(doneSub) + "</div>" +
+          "</div>" +
+          "<div class='sp-right'>" +
+          "<span class='sp-cost' style='color:var(--buy);'>Done</span>" +
+          "<span class='sp-time ready'>Completed</span>" +
+          "</div>" +
+          "</li>";
+      }
       var isAct = idx === activeIdx;
       var totalStepCost = stepFullCost(st);
       var w;
@@ -1014,7 +1267,7 @@
       } else if (isAct) {
         subLines.push("Current recommended step");
       } else {
-        subLines.push("Step " + (idx + 1) + " of " + steps.length);
+        subLines.push("Step " + (idx + 1) + " of " + totalSteps);
       }
       return "<li class='sp-item" + (isAct ? " active" : "") + "'" +
         (canDrag ? " draggable='true' data-step-idx='" + idx + "' data-step-key='" + esc(stepKey(st)) + "' title='Drag to reorder step priority'" : "") + ">" +
@@ -1031,7 +1284,7 @@
         "</li>";
     }).join("");
 
-    var wInfo = stepsWaitInfo(steps, rate, bnk);
+    var wInfo = stepsWaitInfo(pendingSteps.length ? pendingSteps : steps, rate, bnk);
     var costParts = [];
     if (wInfo.dust > 0) costParts.push(prettify(wInfo.dust) + " dust");
     if (wInfo.shards > 0) costParts.push(prettify(wInfo.shards) + " shards");
@@ -1050,7 +1303,16 @@
       parHtml = "<div class='sp-foot-sub'><span>Need after bank: " + esc(remParts.join(" + ")) + "</span><span></span></div>";
     }
 
-    var titleTxt = steps.length === 1 ? "Single-Step Unlock" : ("Unlock Roadmap · " + steps.length + " Steps");
+    var titleTxt;
+    if (steps.length === 1) {
+      titleTxt = "Single-Step Unlock";
+    } else if (completedCount > 0 && completedCount === totalSteps) {
+      titleTxt = "Unlock Roadmap · All " + totalSteps + " Steps Completed!";
+    } else if (completedCount > 0) {
+      titleTxt = "Unlock Roadmap · Step " + (completedCount + 1) + " of " + totalSteps + " (" + completedCount + " completed)";
+    } else {
+      titleTxt = "Unlock Roadmap · " + totalSteps + " Steps";
+    }
     var hintHtml = canDrag ? (isCustom ? "<button type='button' class='sp-reset-btn' id='spResetOrderBtn' title='Restore default step order'>Reset order</button>" : "<span class='sp-hint'>(drag to reorder)</span>") : "";
     return "<div class='step-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
@@ -1083,6 +1345,21 @@
         ev.preventDefault();
         ev.stopPropagation();
         resetStepOrder(state.level, pick.build);
+        if (state.lockedPlans && state.lockedPlans[String(state.level)]) {
+          var entry = state.lockedPlans[String(state.level)];
+          if (typeof entry === "object" && entry.steps) {
+            var done = entry.steps.filter(function (s) { return s.completed; });
+            var pending = entry.steps.filter(function (s) { return !s.completed; });
+            var rank = { contract: 0, missing: 1, ringUnlock: 2, level: 3, limbs: 4, ring: 5 };
+            pending.sort(function (a, b) {
+              var ra = rank.hasOwnProperty(a.kind) ? rank[a.kind] : 9;
+              var rb = rank.hasOwnProperty(b.kind) ? rank[b.kind] : 9;
+              return ra - rb;
+            });
+            entry.steps = done.concat(pending);
+            try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+          }
+        }
         state.keepPopoverOpen = true;
         renderNext(rec, rate);
       });
@@ -1145,10 +1422,18 @@
       var toIdx = closestItemIndex(ev.clientY);
       items.forEach(function (it) { it.classList.remove("drag-over"); });
       if (toIdx == null || toIdx === dragFromIdx) return;
-      var keys = pick.allSteps.map(stepKey);
-      var moved = keys.splice(dragFromIdx, 1)[0];
-      keys.splice(toIdx, 0, moved);
+      var stepsCopy = pick.allSteps.slice();
+      var moved = stepsCopy.splice(dragFromIdx, 1)[0];
+      stepsCopy.splice(toIdx, 0, moved);
+      var keys = stepsCopy.map(stepKey);
       saveStepOrder(state.level, pick.build, keys);
+      if (state.lockedPlans && state.lockedPlans[String(state.level)]) {
+        var entry = state.lockedPlans[String(state.level)];
+        if (typeof entry === "object") {
+          entry.steps = stepsCopy;
+          try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+        }
+      }
       state.keepPopoverOpen = true;
       renderNext(rec, rate);
     });
@@ -1165,17 +1450,23 @@
     }
     if (pick.mode === "completed") {
       var btnUnlock = "<button type='button' class='btn sm accent lock-plan-btn locked' id='lockPlanBtn' title='Advisor is locked to this completed build. Click to unlock and allow advisor to recommend new builds.'>" + ICONS.lock + "<span>Locked (Done)</span></button>";
+      var totalDone = pick.totalSteps || (pick.allSteps ? pick.allSteps.length : 1);
+      var donePill = "<span class='pill sm buy'>" + ICONS.check + " " + totalDone + " of " + totalDone + " Steps Complete</span>";
+      var bnk = bank();
+      var badgeHtml = (pick.allSteps && pick.allSteps.length)
+        ? "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + donePill + renderStepPopover(pick, rate, bnk) + "</div>"
+        : donePill;
       el.innerHTML =
         "<div class='next'>" +
         "<div class='next-top'>" +
         "<div class='next-kicker' style='color:var(--buy);'>" + ICONS.check + " Plan Completed</div>" +
-        "<div class='next-top-actions'>" + btnUnlock + "</div>" +
+        "<div class='next-top-actions'>" + btnUnlock + badgeHtml + "</div>" +
         "</div>" +
         "<div class='next-action-box'>" +
         "<div class='next-head' style='color:var(--buy);'>" + ICONS.check + "<span>" + esc(pick.build.n) + " is fully unlocked!</span></div>" +
         "<div class='next-meta'><span class='pill sm buy'>" + ICONS.check + " Runnable now · " + prettify(pick.build.d) + "/s</span></div>" +
         "</div>" +
-        "<div class='next-why'>You have reached your locked target build. Click <b>Locked (Done)</b> to unlock the advisor for new recommendations.</div>" +
+        "<div class='next-why'>You have reached your locked target build (" + totalDone + " of " + totalDone + " steps completed). Click <b>Locked (Done)</b> to unlock the advisor for new recommendations.</div>" +
         "</div>";
       var btnComp = $("lockPlanBtn");
       if (btnComp) {
@@ -1186,6 +1477,7 @@
           renderBetter(rec, rate);
         });
       }
+      bindPlanDrag(pick, rec, rate);
       return;
     }
 
@@ -1194,10 +1486,17 @@
     var rawCost = s.cost || 0;
     var wait = timeForCost(rawCost, !!s.shards, rate, s.shards ? 0 : bnk.dust, s.shards ? bnk.shards : 0);
     var costTxt = rawCost ? (prettify(rawCost) + (s.shards ? " shards" : " dust")) : "";
+    var totalPlanSteps = pick.totalSteps || (pick.allSteps ? pick.allSteps.length : pick.remaining);
+    var completedPlanSteps = pick.completedCount || 0;
+    var currentStepNum = completedPlanSteps + 1;
     var isCustom = pick.remaining > 1 && hasCustomStepOrder(state.level, pick.build);
     var why;
     if (pick.isLocked) {
-      why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (" + pick.remaining + " steps remaining). Mid-plan recommendations will not switch until you click Unlock.";
+      if (completedPlanSteps > 0) {
+        why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (Step " + currentStepNum + " of " + totalPlanSteps + " · " + pick.remaining + " steps remaining). Mid-plan recommendations will not switch until you click Unlock.";
+      } else {
+        why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (" + pick.remaining + " steps remaining). Mid-plan recommendations will not switch until you click Unlock.";
+      }
     } else if (pick.mode === "unlocks") {
       why = "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build (click Lock Plan to latch).";
     } else if (isCustom) {
@@ -1216,7 +1515,7 @@
 
     var pillInner = pick.mode === "unlocks"
       ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
-      : "<span class='pill sm info'>" + ICONS.clock + " Step " + ((pick.activeIndex || 0) + 1) + " of " + pick.remaining + "</span>";
+      : "<span class='pill sm info'>" + ICONS.clock + " Step " + currentStepNum + " of " + totalPlanSteps + "</span>";
     var badgeHtml = "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
     var waitBadge = wait === 0
       ? "<span class='pill sm buy'>" + ICONS.check + " Ready now</span>"
