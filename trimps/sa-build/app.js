@@ -9,7 +9,14 @@
   var ICONS = {
     spire: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L5 12h4.5l-2 7h9l-2-7H19L12 2zm-4.5 18.5h9V22h-9v-1.5z"/></svg>',
     sword: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/></svg>',
-    dagger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5L19.5 9.5 7 22H2v-5L14.5 4.5z"/><path d="M12 7l5 5"/></svg>',
+    dagger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4L13 15 9 11 20 4z"/><path d="M7 9l8 8"/><path d="M11 13l-5 5"/><circle cx="4.5" cy="19.5" r="1.5"/></svg>',
+    pants: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l1 18h-5l-2-9-2 9H5L6 3z"/><line x1="6" y1="7" x2="18" y2="7"/></svg>',
+    goggles: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="14" r="4"/><circle cx="17" cy="14" r="4"/><path d="M11 13h2"/><path d="M1 13h2M21 13h2"/><path d="M3.5 11.5C4.5 7 7.5 5 12 5s7.5 2 8.5 6.5"/></svg>',
+    spring: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12"/><path d="M7 3l10 4.5-10 4.5 10 4.5-10 4.5"/><path d="M6 21h12"/></svg>',
+    coin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.8 9a3.5 3.5 0 1 0 0 6"/><line x1="12" y1="6.5" x2="12" y2="17.5"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    bag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 4h-4L9 3z"/><path d="M8 7h8"/><path d="M8.5 7C5 9 4 13 4 16.5A4.5 4.5 0 0 0 8.5 21h7a4.5 4.5 0 0 0 4.5-4.5C20 13 19 9 15.5 7"/></svg>',
+    bottle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6"/><path d="M10 2v4l-3 3v11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9l-3-3V2"/><path d="M7 14h10"/></svg>',
     axe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 12l-8.5 8.5a2.12 2.12 0 0 1-3-3L11 9"/><path d="M15 13L9 7l4-4 6 6h3a8 8 0 0 1-7 7z"/></svg>',
     shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
     flask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v6.5L4 19a2 2 0 0 0 1.7 3h12.6A2 2 0 0 0 20 19l-6-9.5V3"/><path d="M7.5 15h9"/></svg>',
@@ -40,15 +47,22 @@
     if (key === "Grounded_Crown" || key === "Doppelganger_Diadem") return ICONS.crown;
     if (key === "Doppelganger_Signet" || key === "Mood_Bracelet") return ICONS.ring;
     if (key === "Bad_Medkit") return ICONS.medkit;
-    if (key === "Lifegiving_Gem" || key === "Unlucky_Coin" || key === "Recycler" || key === "Omni_Enhancer" || key === "The_Doomspring" || key === "Basket_of_Souls") return ICONS.gem;
+    if (key === "Unlucky_Coin") return ICONS.coin;
+    if (key === "The_Doomspring") return ICONS.spring;
+    if (key === "Nozzled_Goggles") return ICONS.goggles;
+    if (key === "Pants") return ICONS.pants;
+    if (key === "Recycler") return ICONS.gear;
+    if (key === "Bag_of_Nails" || key === "Putrid_Pouch") return ICONS.bag;
+    if (key === "Eelimp_in_a_Bottle") return ICONS.bottle;
+    if (key === "Lifegiving_Gem" || key === "Omni_Enhancer" || key === "Basket_of_Souls") return ICONS.gem;
     if (/Sword|Blade/.test(key)) return ICONS.sword;
-    if (/Dagger|Shank|Piercer|Nails/.test(key)) return ICONS.dagger;
+    if (/Dagger|Shank|Piercer/.test(key)) return ICONS.dagger;
     if (/Cleaver|Hatchet|Greataxe|Scythe|Harpoon/.test(key)) return ICONS.axe;
     if (/Armor|Suit|Protector|Aegis/.test(key)) return ICONS.shield;
-    if (/Goo|Pouch|Chemistry|Mold|Snimp|Globulator|Plague|Slime|Golem|Spores|Myco/.test(key)) return ICONS.flask;
-    if (/Battery|Shock|Wired|Eelimp|Goggles|Stormbringer|Fibrillator/.test(key)) return ICONS.bolt;
+    if (/Goo|Chemistry|Mold|Snimp|Globulator|Plague|Slime|Golem|Spores|Myco/.test(key)) return ICONS.flask;
+    if (/Battery|Shock|Wired|Stormbringer|Fibrillator/.test(key)) return ICONS.bolt;
     if (/Boots/.test(key)) return ICONS.boots;
-    if (/Pants|Raincoat|Labcoat|Wraps/.test(key)) return ICONS.coat;
+    if (/Raincoat|Labcoat|Wraps/.test(key)) return ICONS.coat;
     if (/Gloves|Paw|Mitts/.test(key)) return ICONS.glove;
     return ICONS.sword;
   }
