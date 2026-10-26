@@ -1927,6 +1927,115 @@
       "</article>";
   }
 
+  function renderBetterPopover(b, cur) {
+    var delta = loadoutDelta(b);
+    var reqMods = (b.r && b.r.m) ? b.r.m : [];
+    var curMods = hasRing() ? ringMods() : [];
+    var reqModTxt = formatModList(reqMods) || "None";
+    var curModTxt = hasRing() ? (formatModList(curMods) || "None") : "Locked";
+    var curRingLv = hasRing() ? ringLevel() : 0;
+    var reqRingLv = (b.r && b.r.lv) || 0;
+    var ringLvGap = reqRingLv > curRingLv;
+
+    var modsExactMatch = reqMods.length === curMods.length &&
+      reqMods.every(function (m) { return curMods.indexOf(m) !== -1; });
+    var hasRingModSwap = b.r && (!hasRing() || !modsExactMatch);
+    var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0);
+    var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap;
+
+    var dRows = [];
+    if (b.r) {
+      if (hasRingModSwap || ringLvGap) {
+        var rFrom = (hasRing() ? ("Lv " + curRingLv) : "Locked") + " (" + curModTxt + ")";
+        var rTo = "Lv " + reqRingLv + " (" + reqModTxt + ")";
+        dRows.push(
+          "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
+          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'>" + ICONS.ring + " " + esc(rFrom + " → " + rTo) + "</span></div>"
+        );
+      } else {
+        dRows.push(
+          "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
+          "<span class='pill sm buy'>" + ICONS.check + " Lv " + reqRingLv + " (" + esc(reqModTxt) + ") — Aligned</span></div>"
+        );
+      }
+    }
+    if (delta && delta.toUnequip.length) {
+      var unPills = delta.toUnequip.map(function (k) {
+        return "<span class='pill sm sell'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
+      }).join("");
+      dRows.push("<div class='delta-row'><span class='delta-lbl'>Unequip:</span>" + unPills + "</div>");
+    }
+    if (delta && delta.toEquip.length) {
+      var eqPills = delta.toEquip.map(function (k) {
+        var owned = userOwns(k);
+        var myLv = owned ? userLevel(k) : 0;
+        var needLv = b.i[k] || 1;
+        var lvSuffix = !owned ? " (Contract)" : (myLv < needLv ? (" (Lv " + myLv + "→" + needLv + ")") : (" (Lv " + needLv + ")"));
+        return "<span class='pill sm buy'>" + iconForItem(k) + " " + esc(itemName(k) + lvSuffix) + "</span>";
+      }).join("");
+      dRows.push("<div class='delta-row'><span class='delta-lbl'>Equip:</span>" + eqPills + "</div>");
+    }
+
+    var swapSectionHtml;
+    if (!hasItemSwaps && !hasRingModSwap) {
+      swapSectionHtml = "<div class='delta-box' style='border-color:rgba(45,206,137,0.35);background:color-mix(in srgb,var(--buy) 6%,var(--surface-solid));'>" +
+        "<div class='delta-title' style='color:var(--buy);'>" + ICONS.check + "<span>Active Loadout &amp; Ring Mods Aligned</span></div>" +
+        (dRows.length ? "<div class='delta-rows'>" + dRows.join("") + "</div>" : "<div style='color:var(--muted);font-size:11.5px;'>You already have the exact items and Ring mods equipped for this build.</div>") +
+        "</div>";
+    } else {
+      swapSectionHtml = "<div class='delta-box'>" +
+        "<div class='delta-title'>" + ICONS.warn + "<span>Loadout &amp; Ring Changes Needed</span></div>" +
+        "<div class='delta-rows'>" + dRows.join("") + "</div>" +
+        "</div>";
+    }
+
+    var itemKeys = Object.keys(b.i || {});
+    var loadoutItemsHtml = itemKeys.map(function (k) {
+      var needLv = b.i[k];
+      var owned = userOwns(k);
+      var myLv = owned ? userLevel(k) : 0;
+      var isEq = !!(userItem(k) && userItem(k).equipped);
+      var sh = isShards(k);
+      var cls = "bb-li" + (sh ? " shards" : "") + (!isEq ? " swap-in" : "") + (!owned ? " locked-item" : (myLv < needLv ? " need-up" : ""));
+      var lvBadge = !owned ? ("Z" + ((itemCat(k) && itemCat(k).zone) || "?") + " → Lv " + needLv) : (myLv < needLv ? ("Lv " + myLv + "→" + needLv) : ("Lv " + needLv));
+      return "<div class='" + cls + "'>" +
+        "<span class='bb-li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
+        "<span class='bb-li-lv'>" + esc(lvBadge) + "</span>" +
+        "</div>";
+    }).join("");
+
+    var metaPills = [];
+    metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(b.d) + "/s</span>");
+    if (b.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + b.k + "s</span>");
+    if (b.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((b.wr <= 1 ? b.wr : b.wr / 100) * 100) + "% WR</span>");
+    metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (b.l || itemKeys.length) + " Limbs</span>");
+    if (b.r) metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " R" + b.r.lv + (reqMods.length ? " (" + esc(reqModTxt) + ")" : "") + "</span>");
+
+    var swapCount = (delta ? delta.toEquip.length + delta.toUnequip.length : 0) + (hasRingModSwap ? 1 : 0);
+    var pillCls = "bb-info-pill " + (swapCount === 0 ? "aligned" : "has-swaps");
+    var pillTxt = swapCount === 0 ? "Aligned" : (swapCount + (swapCount === 1 ? " swap" : " swaps"));
+
+    var gain = (b.d || 0) - cur;
+    var popHtml = "<div class='bb-popover' role='tooltip'>" +
+      "<div class='sp-head'>" +
+      "<span class='sp-title'>" + ICONS.info + "<span>" + esc(b.n) + " · Build &amp; Swap Details</span></span>" +
+      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(gain) + "/s</span></div>" +
+      "</div>" +
+      "<div class='rec-metrics'>" + metaPills.join("") + "</div>" +
+      swapSectionHtml +
+      "<div class='bb-pop-sec'>" +
+      "<div class='bb-pop-kicker'><span>Target Loadout (" + itemKeys.length + " items)</span><span>Amber border = not currently equipped</span></div>" +
+      "<div class='bb-loadout-grid'>" + loadoutItemsHtml + "</div>" +
+      "</div>" +
+      (b.note ? "<div class='notes' style='padding:7px 10px;font-size:11.5px;'>" + ICONS.info + "<span>" + esc(b.note) + "</span></div>" : "") +
+      "</div>";
+
+    return "<div class='bb-info-wrap' tabindex='0'>" +
+      "<span class='" + pillCls + "' title='Hover for item swaps, Ring settings, and full build loadout'>" + ICONS.info + "<span>" + esc(pillTxt) + "</span></span>" +
+      popHtml +
+      "</div>";
+  }
+
   function renderBetter(rec, rate) {
     var cur = rec ? rec.d || 0 : 0;
     var bnk = bank();
@@ -1954,9 +2063,10 @@
       var pay = wInfo.wait;
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
-        "<td><strong>" + esc(b.n) + "</strong>" +
-        (blocked ? " <span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + (b.c || "?") + "</span>" : "") +
-        "<div class='sub mono' style='margin-top:2px;'>" + prettify(b.d) + "/s" + (b.k != null ? " · " + b.k + "s" : "") + "</div></td>" +
+        "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
+        renderBetterPopover(b, cur) +
+        (blocked ? "<span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + (b.c || "?") + "</span>" : "") +
+        "</div><div class='sub mono' style='margin-top:3px;'>" + prettify(b.d) + "/s" + (b.k != null ? " · " + b.k + "s" : "") + "</div></td>" +
         "<td><div class='steps'>" + steps.map(function (s) {
           return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) + "<span>" + esc(stepLabel(s)) + "</span></span>";
         }).join("") + "</div></td>" +
