@@ -3306,7 +3306,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var missingMods = reqMods.filter(function (m) {
       return curMods.indexOf(m) === -1;
     });
-    var ringMismatch = missingMods.length > 0;
+    var extraMods = curMods.filter(function (m) {
+      return reqMods.indexOf(m) === -1;
+    });
+    var ringMismatch = !!(rec.r && (missingMods.length > 0 || (reqMods.length > 0 && extraMods.length > 0)));
     var aligned = toEquip.length === 0 && toUnequip.length === 0 && !ringMismatch;
     return {
       toEquip: toEquip,
@@ -3633,11 +3636,56 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     if (pick.mode === "completed") {
       var btnUnlock = "<button type='button' class='btn sm accent lock-plan-btn locked' id='lockPlanBtn' title='Advisor is locked to this completed build. Click to unlock and allow advisor to recommend new builds.'>" + ICONS.lock + "<span>Locked (Done)</span></button>";
       var totalDone = pick.totalSteps || (pick.allSteps ? pick.allSteps.length : 1);
-      var donePill = "<span class='pill sm buy'>" + ICONS.check + " " + totalDone + " of " + totalDone + " Steps Complete</span>";
+      var stepWord = totalDone === 1 ? "Step" : "Steps";
+      var donePill = "<span class='pill sm buy'>" + ICONS.check + " " + totalDone + " of " + totalDone + " " + stepWord + " Complete</span>";
       var bnk = bank();
       var badgeHtml = (pick.allSteps && pick.allSteps.length)
         ? "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + donePill + renderStepPopover(pick, rate, bnk) + "</div>"
         : donePill;
+
+      var cDelta = loadoutDelta(pick.build);
+      var cReqMods = formatModList(pick.build.r && pick.build.r.m || []) || "None";
+      var cCurMods = formatModList(cDelta ? cDelta.curMods : []) || "None";
+      var cAligned = !cDelta || cDelta.aligned;
+
+      var alignStatusPill = cAligned
+        ? "<span class='pill sm buy'>" + ICONS.check + " Active &amp; Aligned</span>"
+        : "<span class='pill sm warn-pill'>" + ICONS.warn + " Alignment Needed to Activate</span>";
+
+      var alignGuideHtml = "";
+      if (!cAligned) {
+        var cRows = [];
+        if (cDelta.ringMismatch) {
+          cRows.push("<div class='delta-row'><span class='delta-lbl'>Ring Mod:</span><span class='pill sm warn-pill'>" + ICONS.ring + " " + esc(cCurMods) + " → " + esc(cReqMods) + "</span></div>");
+        }
+        if (cDelta.toUnequip.length) {
+          var cUnPills = cDelta.toUnequip.map(function (k) {
+            return "<span class='pill sm sell'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
+          }).join("");
+          cRows.push("<div class='delta-row'><span class='delta-lbl'>Unequip:</span>" + cUnPills + "</div>");
+        }
+        if (cDelta.toEquip.length) {
+          var cEqPills = cDelta.toEquip.map(function (k) {
+            var lv = pick.build.i && pick.build.i[k] ? (" (Lv " + pick.build.i[k] + ")") : "";
+            return "<span class='pill sm buy'>" + iconForItem(k) + " " + esc(itemName(k) + lv) + "</span>";
+          }).join("");
+          cRows.push("<div class='delta-row'><span class='delta-lbl'>Equip:</span>" + cEqPills + "</div>");
+        }
+        alignGuideHtml = "<div class='delta-box' style='margin-top:4px;'>" +
+          "<div class='delta-title'>" + ICONS.warn + "<span>Put " + esc(pick.build.n) + " in Play · Alignment Steps</span></div>" +
+          "<div class='delta-rows'>" + cRows.join("") + "</div>" +
+          "</div>";
+      } else {
+        alignGuideHtml = "<div class='delta-box' style='margin-top:4px;border-color:rgba(45,206,137,0.35);background:color-mix(in srgb,var(--buy) 6%,var(--surface-solid));'>" +
+          "<div class='delta-title' style='color:var(--buy);'>" + ICONS.check + "<span>Build In Play · Loadout &amp; Ring Aligned</span></div>" +
+          "<div style='color:var(--muted);font-size:12px;'>All required items and Ring mods (" + esc(cReqMods) + ") are equipped and active.</div>" +
+          "</div>";
+      }
+
+      var whyDone = cAligned
+        ? "Your locked target build is unlocked and fully aligned in play (" + totalDone + " of " + totalDone + " " + stepWord.toLowerCase() + " completed). Click <b>Locked (Done)</b> to unlock the advisor for new recommendations."
+        : "All upgrades for <b>" + esc(pick.build.n) + "</b> are complete (" + totalDone + " of " + totalDone + " " + stepWord.toLowerCase() + "). Apply the loadout and Ring changes above in Trimps to put this build into play, then click <b>Locked (Done)</b> for new recommendations.";
+
       el.innerHTML =
         "<div class='next'>" +
         "<div class='next-top'>" +
@@ -3646,9 +3694,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         "</div>" +
         "<div class='next-action-box'>" +
         "<div class='next-head' style='color:var(--buy);'>" + ICONS.check + "<span>" + esc(pick.build.n) + " is fully unlocked!</span></div>" +
-        "<div class='next-meta'><span class='pill sm buy'>" + ICONS.check + " Runnable now · " + prettify(pick.build.d) + "/s</span></div>" +
+        "<div class='next-meta'><span class='pill sm buy'>" + ICONS.check + " Runnable now · " + prettify(pick.build.d) + "/s</span>" + alignStatusPill + "</div>" +
+        alignGuideHtml +
         "</div>" +
-        "<div class='next-why'>You have reached your locked target build (" + totalDone + " of " + totalDone + " steps completed). Click <b>Locked (Done)</b> to unlock the advisor for new recommendations.</div>" +
+        "<div class='next-why'>" + whyDone + "</div>" +
         "</div>";
       var btnComp = $("lockPlanBtn");
       if (btnComp) {
