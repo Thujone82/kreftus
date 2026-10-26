@@ -1450,7 +1450,7 @@
         subLines.push("Step " + (idx + 1) + " of " + totalSteps);
       }
       return "<li class='sp-item" + (isAct ? " active" : "") + "'" +
-        (canDrag ? " draggable='true' data-step-idx='" + idx + "' data-step-key='" + esc(stepKey(st)) + "' title='Drag to reorder step priority'" : "") + ">" +
+        (canDrag ? " draggable='true' data-step-idx='" + idx + "' data-step-key='" + esc(stepKey(st)) + "' title='Drag or touch to reorder step priority'" : "") + ">" +
         (canDrag ? "<span class='sp-grip'>" + ICONS.grip + "</span>" : "") +
         "<span class='sp-num'>" + (idx + 1) + "</span>" +
         "<div class='sp-main'>" +
@@ -1512,6 +1512,7 @@
     var wrap = $("stepPillWrap");
     var listEl = $("spStepList");
     var resetBtn = $("spResetOrderBtn");
+
     if (wrap) {
       wrap.addEventListener("mouseleave", function () {
         if (state.keepPopoverOpen) {
@@ -1519,7 +1520,34 @@
           wrap.classList.remove("open");
         }
       });
+      // Toggle popover on mobile click/tap on pill
+      var pill = wrap.querySelector ? wrap.querySelector(".pill") : null;
+      if (pill) {
+        pill.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var isOpen = wrap.classList.contains("open");
+          if (isOpen) {
+            wrap.classList.remove("open");
+            state.keepPopoverOpen = false;
+          } else {
+            wrap.classList.add("open");
+            state.keepPopoverOpen = true;
+          }
+        });
+      }
+      if (!wrap._docClickBound) {
+        wrap._docClickBound = true;
+        document.addEventListener("click", function (ev) {
+          var w = $("stepPillWrap");
+          if (w && w.classList.contains("open") && !w.contains(ev.target)) {
+            w.classList.remove("open");
+            state.keepPopoverOpen = false;
+          }
+        });
+      }
     }
+
     if (resetBtn) {
       resetBtn.addEventListener("click", function (ev) {
         ev.preventDefault();
@@ -1539,9 +1567,28 @@
         renderNext(rec, rate);
       });
     }
+
     if (!listEl || !pick.allSteps || pick.allSteps.length <= 1) return;
     var items = Array.prototype.slice.call(listEl.querySelectorAll(".sp-item[draggable='true']"));
     var dragFromIdx = null;
+
+    function commitReorder(fromIdx, toIdx) {
+      if (fromIdx == null || toIdx == null || fromIdx === toIdx) return;
+      var stepsCopy = pick.allSteps.slice();
+      var moved = stepsCopy.splice(fromIdx, 1)[0];
+      stepsCopy.splice(toIdx, 0, moved);
+      var keys = stepsCopy.map(stepKey);
+      saveStepOrder(state.level, pick.build, keys);
+      if (state.lockedPlans && state.lockedPlans[String(state.level)]) {
+        var entry = state.lockedPlans[String(state.level)];
+        if (typeof entry === "object") {
+          entry.steps = stepsCopy;
+          try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+        }
+      }
+      state.keepPopoverOpen = true;
+      renderNext(rec, rate);
+    }
 
     function closestItemIndex(clientY) {
       var bestIdx = null;
@@ -1558,6 +1605,7 @@
       return bestIdx;
     }
 
+    // --- Desktop HTML5 Drag & Drop ---
     items.forEach(function (el) {
       el.addEventListener("dragstart", function (ev) {
         dragFromIdx = Number(el.getAttribute("data-step-idx"));
@@ -1596,22 +1644,119 @@
       ev.preventDefault();
       var toIdx = closestItemIndex(ev.clientY);
       items.forEach(function (it) { it.classList.remove("drag-over"); });
-      if (toIdx == null || toIdx === dragFromIdx) return;
-      var stepsCopy = pick.allSteps.slice();
-      var moved = stepsCopy.splice(dragFromIdx, 1)[0];
-      stepsCopy.splice(toIdx, 0, moved);
-      var keys = stepsCopy.map(stepKey);
-      saveStepOrder(state.level, pick.build, keys);
-      if (state.lockedPlans && state.lockedPlans[String(state.level)]) {
-        var entry = state.lockedPlans[String(state.level)];
-        if (typeof entry === "object") {
-          entry.steps = stepsCopy;
-          try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
+      commitReorder(dragFromIdx, toIdx);
+    });
+
+    // --- Touch Drag for Mobile Devices ---
+    var touchDragEl = null;
+    var touchFromIdx = null;
+    var touchOverIdx = null;
+    var touchStartY = 0;
+    var isTouchDragging = false;
+    var itemSlots = [];
+
+    function closestSlotIndex(clientY) {
+      if (!itemSlots.length) return closestItemIndex(clientY);
+      var bestIdx = null;
+      var bestDist = Infinity;
+      itemSlots.forEach(function (s) {
+        var d = Math.abs(clientY - s.mid);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = s.idx;
+        }
+      });
+      return bestIdx;
+    }
+
+    function cleanupTouch() {
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+      document.removeEventListener("touchcancel", onTouchCancel);
+      if (touchDragEl) {
+        touchDragEl.classList.remove("dragging");
+        touchDragEl.classList.remove("touch-active");
+        touchDragEl.style.transform = "";
+        touchDragEl.style.zIndex = "";
+        touchDragEl.style.boxShadow = "";
+      }
+      items.forEach(function (it) { it.classList.remove("drag-over"); });
+      touchDragEl = null;
+      touchFromIdx = null;
+      touchOverIdx = null;
+      isTouchDragging = false;
+      itemSlots = [];
+    }
+
+    function onTouchMove(e) {
+      if (!touchDragEl || touchFromIdx == null) return;
+      var touch = e.touches[0];
+      var dy = touch.clientY - touchStartY;
+
+      if (!isTouchDragging) {
+        if (Math.abs(dy) > 3) {
+          isTouchDragging = true;
+          touchDragEl.classList.add("dragging");
+          touchDragEl.classList.add("touch-active");
+          if (wrap) wrap.classList.add("open");
         }
       }
-      state.keepPopoverOpen = true;
-      renderNext(rec, rate);
-    });
+
+      if (isTouchDragging) {
+        if (e.cancelable) e.preventDefault();
+        touchDragEl.style.transform = "translateY(" + dy + "px)";
+        touchDragEl.style.zIndex = "40";
+        touchDragEl.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.55)";
+
+        var overIdx = closestSlotIndex(touch.clientY);
+        touchOverIdx = overIdx;
+        items.forEach(function (it) {
+          var idx = Number(it.getAttribute("data-step-idx"));
+          it.classList.toggle("drag-over", idx === overIdx && idx !== touchFromIdx);
+        });
+      }
+    }
+
+    function onTouchEnd(e) {
+      if (!touchDragEl) return;
+      var from = touchFromIdx;
+      var to = touchOverIdx;
+      var wasDragging = isTouchDragging;
+      cleanupTouch();
+      if (wasDragging && to != null && from != null && to !== from) {
+        if (e.cancelable) e.preventDefault();
+        commitReorder(from, to);
+      }
+    }
+
+    function onTouchCancel() {
+      cleanupTouch();
+    }
+
+    function onTouchStart(e) {
+      var itemEl = e.target.closest(".sp-item[draggable='true']");
+      if (!itemEl) return;
+      if (e.target.closest("button, a, input, select")) return;
+
+      var touch = e.touches[0];
+      touchStartY = touch.clientY;
+      touchFromIdx = Number(itemEl.getAttribute("data-step-idx"));
+      touchOverIdx = touchFromIdx;
+      touchDragEl = itemEl;
+      isTouchDragging = false;
+
+      // Capture resting midpoints of each draggable slot before any translation
+      itemSlots = items.map(function (it) {
+        var r = it.getBoundingClientRect();
+        return { idx: Number(it.getAttribute("data-step-idx")), mid: r.top + r.height / 2 };
+      });
+
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
+      document.addEventListener("touchend", onTouchEnd, { passive: false });
+      document.addEventListener("touchcancel", onTouchCancel, { passive: false });
+    }
+
+    listEl.addEventListener("touchstart", onTouchStart, { passive: true });
   }
 
   function renderNext(rec, rate) {
