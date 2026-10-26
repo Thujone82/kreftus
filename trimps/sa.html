@@ -354,6 +354,8 @@
       background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
       padding: 4px 11px; font-size: 12px; color: var(--text); font-family: var(--mono);
     }
+    .fact[onclick] { cursor: pointer; transition: border-color 0.15s, background-color 0.15s; }
+    .fact[onclick]:hover { border-color: var(--accent); background: var(--surface-3, var(--surface-2)); }
     .fact svg { width: 13px; height: 13px; color: var(--muted); flex: none; }
     .fact span { color: var(--muted); font-family: var(--font); font-weight: 600; font-size: 11.5px; }
     .err {
@@ -1543,7 +1545,7 @@
           <dt>Contracts</dt>
           <dd>Unlocked by completing a Void Map at or above the item's U2 Zone requirement after purchasing the contract in Spire Assault.</dd>
           <dt>Earn / Return</dt>
-          <dd>Earn is the time to farm all upgrades required for the plan at your current rate. Return is the remaining wait time taking your current dust and shard bank into account.</dd>
+          <dd>Earn is the remaining time to farm the required plan upgrades taking your current bank and active earning rate into account. Return is the payback duration for the build's extra dust/s to pay back the remaining cost.</dd>
         </dl>
       </div>
     </div>
@@ -2171,7 +2173,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     filters: { ring: true, contract: true, limb: true, hideUnused: false },
     stepOrder: {},
     lockedPlans: {},
-    keepPopoverOpen: false
+    keepPopoverOpen: false,
+    saveLoadedAt: null,
+    lastAdvisorStep: null,
+    lastPlanSteps: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -2514,9 +2519,23 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
 
   function sheetDustPs(build) { return build && build.d ? build.d : 0; }
 
+  function canEarnShards() {
+    if (!state.ab) return false;
+    var fLevel = state.ab.enemyLevel || state.level || state.ab.maxEnemyLevel || 0;
+    return fLevel > 50;
+  }
+
   function activeDustPs(recommended) {
     var over = parseNum(state.dustOverride);
     if (isFinite(over) && over > 0) return over;
+    if (recommended && recommended.d) return recommended.d;
+    if (state.ab) {
+      var fightLevel = state.ab.enemyLevel || state.ab.maxEnemyLevel;
+      if (fightLevel) {
+        var fightRec = bestRunnable(fightLevel);
+        if (fightRec && fightRec.d) return fightRec.d;
+      }
+    }
     return sheetDustPs(recommended) || 0;
   }
 
@@ -2529,10 +2548,32 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     return Math.max(0, cost - (bankDust || 0)) / rate;
   }
 
-  function bank() {
+  function bank(atTime) {
+    if (!state.ab) {
+      return { dust: 0, shards: 0, rawDust: 0, rawShards: 0, dustEarned: 0, shardsEarned: 0, elapsedSec: 0, rate: 0 };
+    }
+    var baseDust = Number(state.ab.dust) || 0;
+    var baseShards = Number(state.ab.shards) || 0;
+    var baseShardDust = Number(state.ab.shardDust) || 0;
+    var now = atTime || Date.now();
+    var loadedAt = state.saveLoadedAt || now;
+    var elapsedSec = Math.max(0, (now - loadedAt) / 1000);
+    if (elapsedSec > 7 * 86400) elapsedSec = 7 * 86400;
+    var rate = activeDustPs();
+    var dustEarned = rate > 0 ? (rate * elapsedSec) : 0;
+    var shardsEarned = 0;
+    if (canEarnShards() && rate > 0) {
+      shardsEarned = Math.floor((baseShardDust + dustEarned) / SHARD_DUST);
+    }
     return {
-      dust: (state.ab && state.ab.dust) || 0,
-      shards: (state.ab && state.ab.shards) || 0
+      dust: baseDust + dustEarned,
+      shards: baseShards + shardsEarned,
+      rawDust: baseDust,
+      rawShards: baseShards,
+      dustEarned: dustEarned,
+      shardsEarned: shardsEarned,
+      elapsedSec: elapsedSec,
+      rate: rate
     };
   }
 
@@ -2578,6 +2619,15 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       if (lp) {
         var parsedLp = JSON.parse(lp);
         if (parsedLp && typeof parsedLp === "object") state.lockedPlans = parsedLp;
+      }
+      var savedStr = localStorage.getItem("saPlanner.saveString");
+      var savedTime = localStorage.getItem("saPlanner.saveLoadedAt");
+      if (savedStr) {
+        $("saveBox").value = savedStr;
+        if (savedTime && !isNaN(Number(savedTime))) {
+          state.saveLoadedAt = Number(savedTime);
+        }
+        onLoad(true);
       }
     } catch (e) {}
   }
@@ -3102,8 +3152,8 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     el.innerHTML = html;
   }
 
-  function kpi(label, value, note, tone, icon) {
-    return '<div class="kpi ' + (tone || 'tone-accent') + '">' +
+  function kpi(label, value, note, tone, icon, extraAttr) {
+    return '<div class="kpi ' + (tone || 'tone-accent') + '"' + (extraAttr ? ' ' + extraAttr : '') + '>' +
       '<div class="kpi-label">' + (icon || '') + '<span>' + esc(label) + '</span></div>' +
       '<div class="kpi-value">' + esc(String(value)) + '</div>' +
       (note ? '<div class="kpi-note">' + esc(note) + '</div>' : '') +
@@ -3112,13 +3162,39 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
 
   function renderChips(rec, rate) {
     var ab = state.ab;
+    var bnk = bank();
     var owned = ownedItemKeys();
     var equipped = owned.filter(function (k) { return userItem(k) && userItem(k).equipped; }).length;
     var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
+
+    var dustVal = prettify(bnk.dust);
+    var dustNote = rate ? ("Active rate: " + prettify(rate) + "/s") : "No active rate";
+    if (bnk.dustEarned > 0) {
+      dustNote = "Base " + prettify(bnk.rawDust) + " · +" + prettify(bnk.dustEarned) + " earned (" + fmtTime(bnk.elapsedSec) + ")";
+    }
+
+    var shardVal = prettify(bnk.shards);
+    var shardNote = "= " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+    if (bnk.shardsEarned > 0) {
+      shardNote = "Base " + prettify(bnk.rawShards) + " · +" + prettify(bnk.shardsEarned) + " earned · = " + prettify(bnk.shards * SHARD_DUST) + " dust";
+    } else if (canEarnShards() && rate > 0) {
+      var curShardDust = ((ab.shardDust || 0) + bnk.dustEarned) % SHARD_DUST;
+      var pct = Math.min(99.9, (curShardDust / SHARD_DUST) * 100).toFixed(1);
+      shardNote = "Next: " + pct + "% · = " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+    }
+
+    var dustTitle = "Live estimated dust bank\nSnapshot from save: " + prettify(bnk.rawDust) +
+      (bnk.dustEarned > 0 ? ("\nEarned since load: +" + prettify(bnk.dustEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
+      (rate ? ("\nActive earning rate: " + prettify(rate) + "/s") : "");
+
+    var shardTitle = "Live estimated shard bank\nSnapshot from save: " + prettify(bnk.rawShards) + " shards" +
+      (bnk.shardsEarned > 0 ? ("\nEarned since load: +" + bnk.shardsEarned) : "") +
+      "\nDust equivalent: " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+
     $("chips").innerHTML = [
       kpi("Enemy Level", "SA " + (ab.enemyLevel || "—"), "Max unlocked: SA " + (ab.maxEnemyLevel || "—"), "tone-accent", ICONS.spire),
-      kpi("Dust Bank", prettify(ab.dust), rate ? ("Active rate: " + prettify(rate) + "/s") : "No active rate", "tone-buy", ICONS.dust),
-      kpi("Shard Bank", prettify(ab.shards), "= " + prettify((ab.shards || 0) * SHARD_DUST) + " dust", "tone-teal", ICONS.gem),
+      kpi("Dust Bank", dustVal, dustNote, "tone-buy", ICONS.dust, "id='kpiDustBank' title='" + esc(dustTitle) + "'"),
+      kpi("Shard Bank", shardVal, shardNote, "tone-teal", ICONS.gem, "id='kpiShardBank' title='" + esc(shardTitle) + "'"),
       kpi("Huffy Limbs", maxSlots() + " slots", equipped + " equipped · " + owned.length + "/" + SA_DATA.itemOrder.length + " owned", "tone-warn", ICONS.limb),
       kpi("The Ring", hasRing() ? ("Lv " + ringLevel()) : "Locked", hasRing() ? (mods || "No custom mods") : ("Unlock: " + prettify(oneTimerRingCost()) + " shards"), "tone-info", ICONS.ring),
       kpi("U2 Progress", "Z" + (state.radon + 1), ab.activeContract ? ("Active: " + itemName(ab.activeContract)) : "No active contract", "tone-violet", ICONS.contract)
@@ -3598,7 +3674,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       "<ol class='sp-list' id='spStepList'>" + itemsHtml + "</ol>" +
       "<div class='sp-foot'>" +
       "<span>Total: <b>" + esc(totalCostLabel) + "</b></span>" +
-      "<span>Est. wait: <b>" + esc(totalWaitStr) + "</b></span>" +
+      "<span>Est. wait: <b id='spTotalWait'>" + esc(totalWaitStr) + "</b></span>" +
       parHtml +
       "</div>" +
       "</div>";
@@ -3947,6 +4023,8 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     }
 
     var s = pick.step;
+    state.lastAdvisorStep = s;
+    state.lastPlanSteps = pick.allSteps || [s];
     var bnk = bank();
     var rawCost = s.cost || 0;
     var wait = timeForCost(rawCost, !!s.shards, rate, s.shards ? 0 : bnk.dust, s.shards ? bnk.shards : 0);
@@ -3984,8 +4062,8 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       : "<span class='pill sm info'>" + ICONS.clock + " Step " + currentStepNum + " of " + totalPlanSteps + "</span>";
     var badgeHtml = "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
     var waitBadge = wait === 0
-      ? "<span class='pill sm buy'>" + ICONS.check + " Ready now</span>"
-      : (wait != null ? "<span class='pill sm'>" + ICONS.clock + " " + fmtTime(wait) + "</span>" : "");
+      ? "<span class='pill sm buy' id='advisorWaitBadge'>" + ICONS.check + " Ready now</span>"
+      : (wait != null ? "<span class='pill sm' id='advisorWaitBadge'>" + ICONS.clock + " " + fmtTime(wait) + "</span>" : "");
 
     var metaLockPill = pick.isLocked ? ("<span class='pill sm accent' title='Advisor locked to this plan'>" + ICONS.lock + " Plan Locked</span>") : "";
 
@@ -4087,7 +4165,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         var cPrice = contractPrice(key);
         var tUnlock = timeForCost(cPrice, isShards(key), rate, bnk.dust, bnk.shards);
         meta += "<div class='cost'><span>Contract</span><span>" + prettify(cPrice) + " " + currencyName(key) + "</span></div>";
-        meta += "<div class='time'><span>Wait</span><span>" + fmtTime(tUnlock) + "</span></div>";
+        meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + cPrice + "' data-item-shards='" + (isShards(key) ? "1" : "0") + "'>" + fmtTime(tUnlock) + "</span></div>";
         if (active) meta += "<div class='flag'>" + ICONS.info + " Accepted, not finished</div>";
         if (!reach) meta += "<div class='flag bad'>" + ICONS.warn + " Void map unreachable</div>";
         lines.push("Complete the Z" + cat.zone + " contract to unlock " + itemName(key) + ".");
@@ -4099,13 +4177,13 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         var next = upgradeCostAt(key, lv);
         var tNext = timeForCost(next, isShards(key), rate, bnk.dust, bnk.shards);
         meta += "<div class='cost'><span>Next (Lv " + (lv + 1) + ")</span><span>" + prettify(next) + " " + currencyName(key) + "</span></div>";
-        meta += "<div class='time'><span>Wait</span><span>" + fmtTime(tNext) + "</span></div>";
+        meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + next + "' data-item-shards='" + (isShards(key) ? "1" : "0") + "'>" + fmtTime(tNext) + "</span></div>";
         lines.push("Next upgrade: " + (cat.upgrade || "—") + ".");
         lines.push("Cost " + prettify(next) + " " + currencyName(key) + " (" + fmtTime(tNext) + ").");
         if (need > lv) {
           var gap = upgradeCostRange(key, lv, need);
           var tGap = timeForCost(gap, isShards(key), rate, bnk.dust, bnk.shards);
-          meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " · " + fmtTime(tGap) + "</span></div>";
+          meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " · <span class='board-wait' data-item-cost='" + gap + "' data-item-shards='" + (isShards(key) ? "1" : "0") + "'>" + fmtTime(tGap) + "</span></span></div>";
           lines.push("To reach the build: Lv " + lv + " → Lv " + need + ".");
         }
       } else {
@@ -4151,7 +4229,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       var t = timeForCost(cost, true, rate, bnk.dust, bnk.shards);
       topLv = "<div class='lv'><span>Locked</span><span class='muted' style='font-size:11px;'>One-timer</span></div>";
       meta = "<div class='cost'><span>Unlock</span><span>" + prettify(cost) + " shards</span></div>" +
-        "<div class='time'><span>Wait</span><span>" + fmtTime(t) + "</span></div>";
+        "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + cost + "' data-item-shards='1'>" + fmtTime(t) + "</span></div>";
       lines.push("Unlock The Ring (one-timer, not a contract).");
       lines.push(nextRingSlotNote(1));
     } else {
@@ -4181,10 +4259,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         meta += "<div class='mods'>" + esc(mods || "no custom mods") + "</div>";
       }
       meta += "<div class='cost'><span>Next (Lv " + (lv + 1) + ")</span><span>" + prettify(next) + " shards</span></div>";
-      meta += "<div class='time'><span>Wait</span><span>" + fmtTime(tNext) + "</span></div>";
+      meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + next + "' data-item-shards='1'>" + fmtTime(tNext) + "</span></div>";
       if (need > lv) {
         var gap = ringCostRange(lv, need);
-        meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " shards · " + fmtTime(timeForCost(gap, true, rate, bnk.dust, bnk.shards)) + "</span></div>";
+        meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " shards · <span class='board-wait' data-item-cost='" + gap + "' data-item-shards='1'>" + fmtTime(timeForCost(gap, true, rate, bnk.dust, bnk.shards)) + "</span></span></div>";
         lines.push("To reach the build: Ring Lv " + lv + " → Lv " + need + ".");
       }
       lines.unshift(describeRing(lv, ringMods()));
@@ -4214,7 +4292,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       "</div>" +
       "<div class='card-meta-rows'>" +
       "<div class='cost'><span>Cost</span><span>" + prettify(cost) + " dust</span></div>" +
-      "<div class='time'><span>Wait</span><span>" + fmtTime(t) + "</span></div>" +
+      "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + cost + "' data-item-shards='0'>" + fmtTime(t) + "</span></div>" +
       "</div>" +
       cardTooltip("Extra Limbs", ["Huffy can equip 1 additional item per level.", "Need " + from + " → " + to + "."]) +
       "</article>";
@@ -4343,23 +4421,27 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       return rb - ra;
     });
     list = list.slice(0, 8);
+    state.lastBetterBuilds = list;
+    state.lastBetterCur = cur;
     if (!list.length) {
       $("better").innerHTML = rec
         ? "<p class='empty'>You already match the strongest runnable sheet build on this level, or nothing cheaper is listed with the current filters.</p>"
         : "<p class='empty'>No builds on this tab match the current filters.</p>";
       return;
     }
-    var rows = list.map(function (b) {
+    var rows = list.map(function (b, idx) {
       var steps = gapSteps(b);
       var cost = stepsCostDust(steps);
       var wInfo = stepsWaitInfo(steps, rate, bnk);
-      var pay = wInfo.wait;
+      var earn = wInfo.wait;
+      var gain = (b.d || 0) - cur;
+      var remCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : 0;
+      var ret = (gain > 0 && remCost > 0) ? (remCost / gain) : (gain > 0 ? 0 : Infinity);
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
-      var earnDust = cost.dust <= 0 ? 0 : (rate > 0 ? cost.dust / rate : Infinity);
-      var earnShards = cost.shards <= 0 ? 0 : (rate > 0 ? (cost.shards * SHARD_DUST) / rate : Infinity);
-      var earn = Math.max(earnDust, earnShards);
-      var earnReturnVal = fmtTime(earn) + "/" + fmtTime(pay);
-      var earnReturnTip = "Earn: " + fmtTime(earn) + " (farm all upgrades) · Return: " + fmtTime(pay) + " (remaining wait with bank)";
+      var earnStr = earn === 0 ? "ready" : fmtTime(earn);
+      var retStr = ret === 0 ? "0s" : fmtTime(ret);
+      var earnReturnVal = earnStr + "/" + retStr;
+      var earnReturnTip = "Earn: " + earnStr + " (remaining wait with bank) · Return: " + retStr + " (payback: remaining cost / Δ d/s)";
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
@@ -4371,8 +4453,8 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         "<td class='mono'>" + (cost.dust ? prettify(cost.dust) + " dust" : "") +
         (cost.dust && cost.shards ? "<br>" : "") +
         (cost.shards ? prettify(cost.shards) + " shards" : "") + "</td>" +
-        "<td class='mono pos'>+" + prettify((b.d || 0) - cur) + "/s</td>" +
-        "<td class='mono' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
+        "<td class='mono pos'>+" + prettify(gain) + "/s</td>" +
+        "<td class='mono bb-earn-return' data-build-idx='" + idx + "' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
         "<td>" + (function() {
           var isRowLocked = isSameLockedBuild(state.level, b);
           var bId = buildId(b);
@@ -4411,6 +4493,16 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var contractItems = Object.keys(SA_DATA.items).filter(function (k) { return SA_DATA.items[k].zone; }).length;
     var contract = state.ab.activeContract;
     var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
+    var bnk = bank();
+    var ago = bnk.elapsedSec < 5 ? "just now" : (fmtTime(bnk.elapsedSec) + " ago");
+    var loadedTimeStr = state.saveLoadedAt ? (new Date(state.saveLoadedAt).toLocaleTimeString()) : "";
+    var exportTimeStr = (state.save && state.save.global && state.save.global.lastOnline)
+      ? (new Date(state.save.global.lastOnline).toLocaleTimeString())
+      : "";
+    var factTitle = "Loaded in planner: " + (loadedTimeStr || "—");
+    if (exportTimeStr) factTitle += "\nExported from Trimps: " + exportTimeStr;
+    factTitle += "\nClick to reset live accumulation timer to now";
+
     $("saveFacts").innerHTML = [
       fact("Highest Zone U2", state.radon + 1, ICONS.spire),
       fact("Void maps", "to Z" + (state.radon + 1), ICONS.shield),
@@ -4418,7 +4510,9 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       fact("Items", owned.length + "/" + SA_DATA.itemOrder.length, ICONS.sword),
       fact("Equipped", equipped + "/" + maxSlots(), ICONS.limb),
       fact("Contracts", contracts + "/" + contractItems, ICONS.check),
-      fact("Ring mods", hasRing() ? (mods || "none") : "locked", ICONS.ring)
+      fact("Ring mods", hasRing() ? (mods || "none") : "locked", ICONS.ring),
+      '<div class="fact" title="' + esc(factTitle) + '" style="cursor:pointer;" onclick="window.saResetBankTimer&&saResetBankTimer()">' +
+        ICONS.clock + '<span>Loaded</span><b id="factLoadedTime">' + esc(ago) + '</b></div>'
     ].join("");
   }
 
@@ -4500,13 +4594,144 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     return top8.length > 0 && top8.every(isBlockedByContract);
   }
 
-  function onLoad() {
+  function updateLiveBank() {
+    if (!state.ab || !state.saveLoadedAt) return;
+    if ($("saveEditor") && !$("saveEditor").hidden) return;
+    if (document.activeElement === $("dustOverride")) return;
+
+    var rec = bestRunnable(state.level);
+    var rate = activeDustPs(rec);
+    var bnk = bank();
+
+    var dCard = $("kpiDustBank");
+    if (dCard) {
+      var dVal = dCard.querySelector(".kpi-value");
+      var dNote = dCard.querySelector(".kpi-note");
+      if (dVal) dVal.textContent = prettify(bnk.dust);
+      if (dNote) {
+        if (bnk.dustEarned > 0) {
+          dNote.textContent = "Base " + prettify(bnk.rawDust) + " · +" + prettify(bnk.dustEarned) + " earned (" + fmtTime(bnk.elapsedSec) + ")";
+        } else {
+          dNote.textContent = rate ? ("Active rate: " + prettify(rate) + "/s") : "No active rate";
+        }
+      }
+      dCard.title = "Live estimated dust bank\nSnapshot from save: " + prettify(bnk.rawDust) +
+        (bnk.dustEarned > 0 ? ("\nEarned since load: +" + prettify(bnk.dustEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
+        (rate ? ("\nActive earning rate: " + prettify(rate) + "/s") : "");
+    }
+
+    var sCard = $("kpiShardBank");
+    if (sCard) {
+      var sVal = sCard.querySelector(".kpi-value");
+      var sNote = sCard.querySelector(".kpi-note");
+      if (sVal) sVal.textContent = prettify(bnk.shards);
+      if (sNote) {
+        if (bnk.shardsEarned > 0) {
+          sNote.textContent = "Base " + prettify(bnk.rawShards) + " · +" + prettify(bnk.shardsEarned) + " earned · = " + prettify(bnk.shards * SHARD_DUST) + " dust";
+        } else if (canEarnShards() && rate > 0) {
+          var curShardDust = ((state.ab.shardDust || 0) + bnk.dustEarned) % SHARD_DUST;
+          var pct = Math.min(99.9, (curShardDust / SHARD_DUST) * 100).toFixed(1);
+          sNote.textContent = "Next: " + pct + "% · = " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+        } else {
+          sNote.textContent = "= " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+        }
+      }
+      sCard.title = "Live estimated shard bank\nSnapshot from save: " + prettify(bnk.rawShards) + " shards" +
+        (bnk.shardsEarned > 0 ? ("\nEarned since load: +" + bnk.shardsEarned) : "") +
+        "\nDust equivalent: " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+    }
+
+    var fLoaded = $("factLoadedTime");
+    if (fLoaded) {
+      var ago = bnk.elapsedSec < 5 ? "just now" : (fmtTime(bnk.elapsedSec) + " ago");
+      fLoaded.textContent = ago;
+    }
+
+    var badge = $("advisorWaitBadge");
+    if (badge && state.lastAdvisorStep) {
+      var st = state.lastAdvisorStep;
+      var rawCost = st.cost || 0;
+      var wait = timeForCost(rawCost, !!st.shards, rate, bnk.dust, bnk.shards);
+      if (wait === 0) {
+        if (!badge.classList.contains("buy")) {
+          badge.className = "pill sm buy";
+          badge.innerHTML = ICONS.check + " Ready now";
+          renderNext(rec, rate);
+        }
+      } else if (wait != null && isFinite(wait)) {
+        badge.className = "pill sm";
+        badge.innerHTML = ICONS.clock + " " + fmtTime(wait);
+      }
+    }
+
+    var totalWaitEl = $("spTotalWait");
+    if (totalWaitEl && state.lastPlanSteps && state.lastPlanSteps.length) {
+      var wInfo = stepsWaitInfo(state.lastPlanSteps, rate, bnk);
+      totalWaitEl.textContent = wInfo.wait === 0 ? "Ready now" : fmtTime(wInfo.wait);
+    }
+
+    if (state.lastBetterBuilds && state.lastBetterBuilds.length) {
+      var cells = document.querySelectorAll("#better .bb-earn-return");
+      for (var ci = 0; ci < cells.length; ci++) {
+        var cell = cells[ci];
+        var idx = parseInt(cell.getAttribute("data-build-idx"), 10);
+        var b = state.lastBetterBuilds[idx];
+        if (b) {
+          var bSteps = gapSteps(b);
+          var bWInfo = stepsWaitInfo(bSteps, rate, bnk);
+          var bEarn = bWInfo.wait;
+          var bGain = (b.d || 0) - (state.lastBetterCur || 0);
+          var bRemCost = bWInfo.remDustEq > 0 ? bWInfo.remDustEq : 0;
+          var bRet = (bGain > 0 && bRemCost > 0) ? (bRemCost / bGain) : (bGain > 0 ? 0 : Infinity);
+          var bEarnStr = bEarn === 0 ? "ready" : fmtTime(bEarn);
+          var bRetStr = bRet === 0 ? "0s" : fmtTime(bRet);
+          var bEarnReturnVal = bEarnStr + "/" + bRetStr;
+          var bEarnReturnTip = "Earn: " + bEarnStr + " (remaining wait with bank) · Return: " + bRetStr + " (payback: remaining cost / Δ d/s)";
+          if (cell.textContent !== bEarnReturnVal) cell.textContent = bEarnReturnVal;
+          if (cell.title !== bEarnReturnTip) cell.title = bEarnReturnTip;
+        }
+      }
+    }
+
+    var bWaitEls = document.querySelectorAll("#board .board-wait");
+    for (var bi = 0; bi < bWaitEls.length; bi++) {
+      var el = bWaitEls[bi];
+      var c = parseFloat(el.getAttribute("data-item-cost")) || 0;
+      var sh = el.getAttribute("data-item-shards") === "1";
+      var w = timeForCost(c, sh, rate, bnk.dust, bnk.shards);
+      var txt = fmtTime(w);
+      if (el.textContent !== txt) el.textContent = txt;
+    }
+  }
+
+  var liveBankTimer = null;
+  function startLiveBankTimer() {
+    if (liveBankTimer) clearInterval(liveBankTimer);
+    liveBankTimer = setInterval(updateLiveBank, 1000);
+  }
+
+  function resetBankTimer() {
+    state.saveLoadedAt = Date.now();
+    try { localStorage.setItem("saPlanner.saveLoadedAt", String(state.saveLoadedAt)); } catch (e) {}
+    toast("Live accumulation timer reset to now");
+    render();
+  }
+
+  function onLoad(isRestore) {
     $("err").hidden = true;
     try {
-      var decoded = decodeSave($("saveBox").value);
+      var rawVal = $("saveBox").value;
+      var decoded = decodeSave(rawVal);
       state.save = decoded.save;
       state.ab = decoded.ab;
       state.radon = decoded.radon;
+      if (!isRestore || !state.saveLoadedAt) {
+        state.saveLoadedAt = Date.now();
+      }
+      try {
+        localStorage.setItem("saPlanner.saveString", rawVal);
+        localStorage.setItem("saPlanner.saveLoadedAt", String(state.saveLoadedAt));
+      } catch (e) {}
       var pick = decoded.ab.enemyLevel || decoded.ab.maxEnemyLevel || 4;
       if (pick > (decoded.ab.maxEnemyLevel || pick)) pick = decoded.ab.maxEnemyLevel;
       fillLevels(pick);
@@ -4516,7 +4741,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       renderSaveFacts();
       setSaveCollapsed(true);
       render();
-      toast("Save loaded · SA Lv " + state.level + " (U2 Z" + (state.radon + 1) + ")");
+      startLiveBankTimer();
+      if (!isRestore) {
+        toast("Save loaded · SA Lv " + state.level + " (U2 Z" + (state.radon + 1) + ")");
+      }
     } catch (e) {
       $("err").hidden = false;
       $("err").textContent = e.message || String(e);
@@ -4592,6 +4820,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   window.saRender = render;
   window.saDust = onDustInput;
   window.saFilter = onFilterChange;
+  window.saResetBankTimer = resetBankTimer;
   try {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
     else bind();
