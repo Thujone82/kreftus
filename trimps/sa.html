@@ -2333,20 +2333,72 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     } catch (e) {}
   }
 
+  function buildId(b) {
+    if (!b) return "";
+    var items = Object.keys(b.i || {}).sort().map(function (k) { return k + ":" + b.i[k]; }).join(",");
+    var rLv = (b.r && b.r.lv) || 0;
+    var rMods = (b.r && b.r.m) ? b.r.m.join("+") : "";
+    return (b.n || "") + "|" + (b.d || 0) + "|" + (b.l || 0) + "|" + rLv + ":" + rMods + "|" + items;
+  }
+
+  function findLockedTarget(level, entry) {
+    if (!entry) return null;
+    var all = buildsFor(level);
+    var id = typeof entry === "object" ? entry.id : null;
+    var name = typeof entry === "string" ? entry : entry.name;
+    var d = typeof entry === "object" ? entry.d : null;
+    var k;
+    if (id) {
+      for (k = 0; k < all.length; k++) {
+        if (buildId(all[k]) === id) return all[k];
+      }
+    }
+    if (name && d != null) {
+      for (k = 0; k < all.length; k++) {
+        if (all[k].n === name && all[k].d === d) return all[k];
+      }
+    }
+    if (name) {
+      for (k = 0; k < all.length; k++) {
+        if (buildId(all[k]) === name) return all[k];
+      }
+      var candidates = all.filter(function (b) { return b.n === name; });
+      if (candidates.length === 1) return candidates[0];
+      if (candidates.length > 1) {
+        var allowed = candidates.filter(function (b) { return !runnable(b) && allowedUpgrade(b); });
+        if (allowed.length) {
+          allowed.sort(function (a, b) { return gapSteps(a).length - gapSteps(b).length; });
+          return allowed[0];
+        }
+        return candidates[0];
+      }
+    }
+    return null;
+  }
+
+  function isSameLockedBuild(level, b) {
+    if (!b || !state.lockedPlans) return false;
+    var entry = state.lockedPlans[String(level)];
+    if (!entry) return false;
+    var target = findLockedTarget(level, entry);
+    return !!(target && buildId(target) === buildId(b));
+  }
+
   function getLockedBuild(level) {
     var entry = (state.lockedPlans && state.lockedPlans[String(level)]) || null;
     if (!entry) return null;
-    return typeof entry === "string" ? entry : (entry.name || null);
+    var target = findLockedTarget(level, entry);
+    if (target) return buildId(target);
+    return typeof entry === "string" ? entry : (entry.id || entry.name || null);
   }
 
-  function setLockedBuild(level, name) {
+  function setLockedBuild(level, buildOrId) {
     if (!state.lockedPlans) state.lockedPlans = {};
-    var all = buildsFor(level);
-    var target = null;
-    for (var k = 0; k < all.length; k++) {
-      if (all[k].n === name) { target = all[k]; break; }
-    }
-    var rawSteps = target ? gapSteps(target) : [];
+    var target = (buildOrId && typeof buildOrId === "object")
+      ? buildOrId
+      : findLockedTarget(level, { id: String(buildOrId), name: String(buildOrId) });
+    if (!target) return;
+    var rawSteps = gapSteps(target);
     var ordered = applyStepOrder(level, target, rawSteps);
     var steps = ordered.map(function (s) {
       return {
@@ -2362,7 +2414,9 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       };
     });
     state.lockedPlans[String(level)] = {
-      name: name,
+      id: buildId(target),
+      name: target.n,
+      d: target.d || 0,
       steps: steps
     };
     try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
@@ -2371,10 +2425,14 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   function clearLockedBuild(level) {
     if (state.lockedPlans && state.lockedPlans[String(level)]) {
       var entry = state.lockedPlans[String(level)];
-      var name = typeof entry === "string" ? entry : (entry && entry.name);
+      var target = findLockedTarget(level, entry);
       delete state.lockedPlans[String(level)];
       try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
-      if (name) resetStepOrder(level, { n: name });
+      if (target) resetStepOrder(level, target);
+      else if (entry) {
+        var name = typeof entry === "string" ? entry : entry.name;
+        if (name) resetStepOrder(level, { n: name });
+      }
     }
   }
 
@@ -2382,8 +2440,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     if (!state.lockedPlans || !target) return null;
     var entry = state.lockedPlans[String(level)];
     if (!entry) return null;
-    var name = typeof entry === "string" ? entry : entry.name;
-    if (!name || target.n !== name) return null;
+    var lockedTarget = findLockedTarget(level, entry);
+    if (!lockedTarget || buildId(lockedTarget) !== buildId(target)) return null;
+    var name = target.n;
+    var id = buildId(target);
 
     var currentGaps = gapSteps(target);
     var planSteps = (typeof entry === "object" && Array.isArray(entry.steps)) ? entry.steps : null;
@@ -2475,7 +2535,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         var pending = evaluated.filter(function (s) { return !s.completed; });
         evaluated = done.concat(sortSmartSteps(target, pending));
       }
-      state.lockedPlans[String(level)] = { name: name, steps: evaluated };
+      state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluated };
       try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
       return evaluated;
     }
@@ -2568,19 +2628,24 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
 
     var ordered = applyStepOrder(level, target, initial);
     var evaluatedInitial = ordered.map(evalStep);
-    state.lockedPlans[String(level)] = { name: name, steps: evaluatedInitial };
+    state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluatedInitial };
     try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
     return evaluatedInitial;
   }
 
-  function toggleLockBuild(name) {
-    var cur = getLockedBuild(state.level);
-    if (cur === name) {
+  function toggleLockBuild(buildOrId) {
+    var target = (buildOrId && typeof buildOrId === "object")
+      ? buildOrId
+      : findLockedTarget(state.level, { id: String(buildOrId), name: String(buildOrId) });
+    if (target && isSameLockedBuild(state.level, target)) {
       clearLockedBuild(state.level);
       toast("Unlocked advisor for SA " + state.level);
+    } else if (target) {
+      setLockedBuild(state.level, target);
+      toast("Locked advisor to " + target.n + (target.d ? " (" + prettify(target.d) + "/s)" : ""));
     } else {
-      setLockedBuild(state.level, name);
-      toast("Locked advisor to " + name);
+      clearLockedBuild(state.level);
+      toast("Unlocked advisor for SA " + state.level);
     }
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
@@ -2594,12 +2659,20 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   }
 
   function planOrderKey(level, build) {
-    return String(level) + "::" + (build && build.n ? build.n : "");
+    return String(level) + "::" + (build ? (buildId(build) || build.n || "") : "");
+  }
+
+  function getSavedStepOrder(level, build) {
+    if (!state.stepOrder || !build) return null;
+    var k = planOrderKey(level, build);
+    if (state.stepOrder[k] && state.stepOrder[k].length) return state.stepOrder[k];
+    var legacyK = String(level) + "::" + (build.n || "");
+    if (state.stepOrder[legacyK] && state.stepOrder[legacyK].length) return state.stepOrder[legacyK];
+    return null;
   }
 
   function hasCustomStepOrder(level, build) {
-    var k = planOrderKey(level, build);
-    return !!(state.stepOrder && state.stepOrder[k] && state.stepOrder[k].length);
+    return !!getSavedStepOrder(level, build);
   }
 
   function saveStepOrder(level, build, keys) {
@@ -2610,11 +2683,12 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   }
 
   function resetStepOrder(level, build) {
+    if (!state.stepOrder || !build) return;
     var k = planOrderKey(level, build);
-    if (state.stepOrder && state.stepOrder[k]) {
-      delete state.stepOrder[k];
-      try { localStorage.setItem("saPlanner.stepOrder", JSON.stringify(state.stepOrder)); } catch (e) {}
-    }
+    var legacyK = String(level) + "::" + (build.n || "");
+    delete state.stepOrder[k];
+    delete state.stepOrder[legacyK];
+    try { localStorage.setItem("saPlanner.stepOrder", JSON.stringify(state.stepOrder)); } catch (e) {}
   }
 
   function sortSmartSteps(build, steps) {
@@ -2714,8 +2788,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
 
   function applyStepOrder(level, build, steps) {
     if (!build || !steps || steps.length <= 1) return steps;
-    var k = planOrderKey(level, build);
-    var saved = state.stepOrder && state.stepOrder[k];
+    var saved = getSavedStepOrder(level, build);
     if (!saved || !saved.length) return sortSmartSteps(build, steps);
     var rankMap = {};
     saved.forEach(function (id, idx) { rankMap[id] = idx; });
@@ -2901,13 +2974,9 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   function bestNextUpgrade(rec) {
     var cur = rec ? rec.d || 0 : 0;
     var bnk = bank();
-    var lockedName = getLockedBuild(state.level);
-    if (lockedName) {
-      var all = buildsFor(state.level);
-      var target = null;
-      for (var k = 0; k < all.length; k++) {
-        if (all[k].n === lockedName) { target = all[k]; break; }
-      }
+    var lockedEntry = state.lockedPlans && state.lockedPlans[String(state.level)];
+    if (lockedEntry) {
+      var target = findLockedTarget(state.level, lockedEntry);
       if (target) {
         var planSteps = syncLockedPlan(state.level, target);
         if (!planSteps || !planSteps.length) {
@@ -3431,10 +3500,11 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var isCustom = pick.remaining > 1 && hasCustomStepOrder(state.level, pick.build);
     var why;
     if (pick.isLocked) {
+      var remWord = pick.remaining === 1 ? "step" : "steps";
       if (completedPlanSteps > 0) {
-        why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (Step " + currentStepNum + " of " + totalPlanSteps + " · " + pick.remaining + " steps remaining). Mid-plan recommendations will not switch until you click Unlock.";
+        why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (Step " + currentStepNum + " of " + totalPlanSteps + " · " + pick.remaining + " " + remWord + " remaining). Mid-plan recommendations will not switch until you click Unlock.";
       } else {
-        why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (" + pick.remaining + " steps remaining). Mid-plan recommendations will not switch until you click Unlock.";
+        why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (" + pick.remaining + " " + remWord + " remaining). Mid-plan recommendations will not switch until you click Unlock.";
       }
     } else if (pick.mode === "unlocks") {
       why = "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build (click Lock Plan to latch).";
@@ -3452,7 +3522,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       ? "<div class='next-kicker' style='color:var(--accent);'>" + ICONS.lock + " Locked Plan</div>"
       : "<div class='next-kicker'>Recommended Next Action</div>";
 
-    var pillInner = pick.mode === "unlocks"
+    var pillInner = (pick.mode === "unlocks" || totalPlanSteps === 1)
       ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
       : "<span class='pill sm info'>" + ICONS.clock + " Step " + currentStepNum + " of " + totalPlanSteps + "</span>";
     var badgeHtml = "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
@@ -3483,7 +3553,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var lockBtn = $("lockPlanBtn");
     if (lockBtn) {
       lockBtn.addEventListener("click", function () {
-        toggleLockBuild(pick.build.n);
+        toggleLockBuild(pick.build);
       });
     }
 
@@ -3732,10 +3802,11 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         "<td class='mono pos'>+" + prettify((b.d || 0) - cur) + "/s</td>" +
         "<td class='mono'>" + fmtTime(pay) + "</td>" +
         "<td>" + (function() {
-          var isRowLocked = getLockedBuild(state.level) === b.n;
+          var isRowLocked = isSameLockedBuild(state.level, b);
+          var bId = buildId(b);
           return isRowLocked
-            ? "<button type='button' class='btn sm accent lock-row-btn locked' data-lock-build='" + esc(b.n) + "' title='Advisor is locked to this build. Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
-            : "<button type='button' class='btn sm ghost lock-row-btn' data-lock-build='" + esc(b.n) + "' title='Lock Next Upgrade Advisor to this build'>" + ICONS.unlock + "<span>Lock</span></button>";
+            ? "<button type='button' class='btn sm accent lock-row-btn locked' data-lock-build='" + esc(bId) + "' title='Advisor is locked to this build. Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
+            : "<button type='button' class='btn sm ghost lock-row-btn' data-lock-build='" + esc(bId) + "' title='Lock Next Upgrade Advisor to this build'>" + ICONS.unlock + "<span>Lock</span></button>";
         })() + "</td></tr>";
     }).join("");
     var betterEl = $("better");
