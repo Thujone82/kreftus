@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Spire Assault Planner — Trimps</title>
   <meta name="description" content="Self-contained Spire Assault build advisor, upgrade ROI calculator, and item progression board for Trimps.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffc061'/%3E%3Cstop offset='0.55' stop-color='%23f7931a'/%3E%3Cstop offset='1' stop-color='%23d86f00'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 10L18 28h9l-4 14h18l-4-14h9L32 10zm-9 35h18v4H23v-4zm-3 6h24v3H20v-3z' fill='%231a1000'/%3E%3C/svg%3E">
@@ -90,7 +90,14 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
     body {
       font-family: var(--font);
       font-size: 14px;
@@ -215,17 +222,18 @@
     .btn.sm svg { width: 13.5px; height: 13.5px; }
 
     /* ---------- layout ---------- */
-    main { max-width: 1480px; margin: 0 auto; padding: 18px 20px 44px; display: grid; gap: 16px; }
-    #workspace:not([hidden]) { display: grid; gap: 16px; animation: fadein 0.22s ease; }
-    .grid { display: grid; gap: 16px; }
+    main { max-width: 1480px; width: 100%; margin: 0 auto; padding: 18px 20px 44px; display: grid; gap: 16px; min-width: 0; }
+    #workspace:not([hidden]) { display: grid; gap: 16px; animation: fadein 0.22s ease; min-width: 0; }
+    .grid { display: grid; gap: 16px; min-width: 0; }
     .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .g-rec { grid-template-columns: minmax(0, 1.85fr) minmax(300px, 1fr); }
+    .g-rec { grid-template-columns: minmax(0, 1.85fr) minmax(300px, 1fr); min-width: 0; }
     .panel, .surface-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       min-width: 0;
+      max-width: 100%;
     }
     .panel { padding: 16px 18px; }
     .card-h {
@@ -998,8 +1006,16 @@
     .card:hover .tip { display: block; animation: fadein 0.1s ease; }
 
     /* ---------- tables ---------- */
-    .tbl-wrap { overflow: visible; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
-    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .tbl-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+      width: 100%;
+      max-width: 100%;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 680px; }
     th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--border); vertical-align: top; }
     tbody tr:last-child td { border-bottom: 0; }
     th {
@@ -1014,6 +1030,36 @@
     tr.unreachable { background: rgba(244, 63, 94, 0.08); }
     tr.unreachable:hover { background: rgba(244, 63, 94, 0.13); }
     .steps { display: flex; flex-wrap: wrap; gap: 5px; }
+    .table-scroll-hint {
+      display: none;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+      margin-left: 6px;
+    }
+    .sp-close-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-3);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      padding: 0;
+      margin-left: 4px;
+      flex: none;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .sp-close-btn:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background: var(--surface-2);
+    }
 
     /* ---------- better builds info hover popover ---------- */
     .bb-build-cell {
@@ -1232,14 +1278,91 @@
       .g2, .g-rec { grid-template-columns: 1fr; }
     }
     @media (max-width: 820px) {
-      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .hero-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .brand-text small, #sourceStatus { display: none; }
       .keys { grid-template-columns: 1fr; }
+      .table-scroll-hint { display: inline-block; }
     }
-    @media (max-width: 520px) {
-      .bar { padding: 10px 12px; }
-      main { padding: 12px; }
+    @media (max-width: 680px) {
+      .bar { padding: 10px 12px; gap: 8px; }
+      .brand { font-size: 14px; gap: 8px; }
+      .brand-logo, .logo { width: 28px; height: 28px; }
+      .brand-logo svg, .logo svg { width: 16px; height: 16px; }
+      .brand-text b { font-size: 14px; }
+      .icon-btn { height: 30px; min-width: 30px; padding: 0 7px; gap: 4px; }
+      .icon-btn .lbl { font-size: 11px; }
+      .icon-btn svg { width: 14px; height: 14px; }
+
+      main { padding: 10px 10px 36px; gap: 12px; }
+      .panel { padding: 12px 10px; border-radius: 12px; }
+      .card-h { margin-bottom: 8px; }
+      .section-head { margin: 2px 0 10px; gap: 8px; }
+      .filters { gap: 6px 8px; }
+      .filter-pills { gap: 6px; }
+      .check { padding: 4px 10px 4px 8px; font-size: 12px; }
+
+      .controls-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+      .control-group { width: 100%; gap: 10px; }
+      .field { width: 100%; flex-wrap: wrap; gap: 6px; }
+      .dust-line { width: 100%; flex-wrap: wrap; gap: 6px; }
+      .input-wrap { flex: 1; min-width: 140px; }
+      .input-wrap input[type="text"] { width: 100%; min-width: 0; }
+
+      .rec, .next { padding: 12px 10px; gap: 10px; }
+      .rec-head { font-size: 15px; }
+      .next-head { font-size: 14px; }
+      .next-top-actions { gap: 6px; }
+      .next-action-box { padding: 10px; }
+      .loadout-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+      .loadout-item { padding: 6px 8px; font-size: 11.5px; }
+      .loadout-item .li-name { gap: 5px; }
+      .loadout-item .li-name svg { width: 13px; height: 13px; }
+      .loadout-item .li-lv { font-size: 10.5px; padding: 1px 4px; }
+
+      .board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .card { padding: 10px 10px; min-height: 110px; border-radius: 10px; }
+      .card h3 { font-size: 12px; gap: 5px; }
+      .card h3 svg { width: 13px; height: 13px; }
+      .card-badge { font-size: 9.5px; padding: 1px 5px; }
+      .card .lv { font-size: 13.5px; }
+      .card .cost, .card .time, .card .mods, .card .gapcost { font-size: 10.5px; }
+
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .kpi { padding: 10px 10px 9px; }
+      .kpi-label { font-size: 10px; letter-spacing: 0.02em; }
+      .kpi-value { font-size: 17px; }
+      .kpi-note { font-size: 10.5px; }
+
+      .step-popover,
+      .bb-popover {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        right: auto;
+        bottom: auto;
+        width: calc(100vw - 24px);
+        max-width: 420px;
+        max-height: 85vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
+        border: 1px solid var(--border-strong);
+        z-index: 120;
+      }
+      .step-popover::before,
+      .bb-popover::after {
+        display: none;
+      }
+
+      dl.gloss { grid-template-columns: 1fr; gap: 4px 0; }
+      dl.gloss dt { margin-top: 8px; }
+    }
+    @media (max-width: 380px) {
+      .board { grid-template-columns: 1fr; }
+      .loadout-grid { grid-template-columns: 1fr; }
+      .kpis { grid-template-columns: 1fr; }
       .hero-feats { grid-template-columns: 1fr; }
     }
   </style>
@@ -1428,6 +1551,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>
               Better builds
               <span class="sub" style="font-weight:500;">Sorted by Δ dust/s per cost</span>
+              <span class="table-scroll-hint">↔ scrollable</span>
             </h2>
             <div class="filters" role="group" aria-labelledby="filtLabel">
               <span class="filters-label" id="filtLabel">Include</span>
@@ -3543,7 +3667,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     return "<div class='step-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.clock + "<span>" + esc(titleTxt) + "</span>" + hintHtml + "</span>" +
-      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span></div>" +
+      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span><button type='button' class='sp-close-btn' id='spCloseBtn' title='Close popover'>✕</button></div>" +
       "</div>" +
       "<ol class='sp-list' id='spStepList'>" + itemsHtml + "</ol>" +
       "<div class='sp-foot'>" +
@@ -3558,6 +3682,19 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var wrap = $("stepPillWrap");
     var listEl = $("spStepList");
     var resetBtn = $("spResetOrderBtn");
+    var closeBtn = $("spCloseBtn");
+
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (wrap) {
+          wrap.classList.remove("open");
+          wrap.blur();
+        }
+        state.keepPopoverOpen = false;
+      });
+    }
 
     if (wrap) {
       wrap.addEventListener("mouseleave", function () {
@@ -4259,7 +4396,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var popHtml = "<div class='bb-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.info + "<span>" + esc(b.n) + " · Build &amp; Swap Details</span></span>" +
-      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(gain) + "/s</span></div>" +
+      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(gain) + "/s</span><button type='button' class='sp-close-btn' title='Close popover'>✕</button></div>" +
       "</div>" +
       "<div class='rec-metrics'>" + metaPills.join("") + "</div>" +
       swapSectionHtml +
@@ -4326,6 +4463,14 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var betterEl = $("better");
     betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Payback</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
+      var closeBtn = ev.target.closest(".sp-close-btn");
+      if (closeBtn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var pop = closeBtn.closest(".bb-info-wrap");
+        if (pop) pop.blur();
+        return;
+      }
       var btn = ev.target.closest("button[data-lock-build]");
       if (!btn) return;
       ev.preventDefault();

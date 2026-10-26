@@ -1497,7 +1497,7 @@
     return "<div class='step-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.clock + "<span>" + esc(titleTxt) + "</span>" + hintHtml + "</span>" +
-      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span></div>" +
+      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span><button type='button' class='sp-close-btn' id='spCloseBtn' title='Close popover'>✕</button></div>" +
       "</div>" +
       "<ol class='sp-list' id='spStepList'>" + itemsHtml + "</ol>" +
       "<div class='sp-foot'>" +
@@ -1512,6 +1512,19 @@
     var wrap = $("stepPillWrap");
     var listEl = $("spStepList");
     var resetBtn = $("spResetOrderBtn");
+    var closeBtn = $("spCloseBtn");
+
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (wrap) {
+          wrap.classList.remove("open");
+          wrap.blur();
+        }
+        state.keepPopoverOpen = false;
+      });
+    }
 
     if (wrap) {
       wrap.addEventListener("mouseleave", function () {
@@ -2213,7 +2226,7 @@
     var popHtml = "<div class='bb-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.info + "<span>" + esc(b.n) + " · Build &amp; Swap Details</span></span>" +
-      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(gain) + "/s</span></div>" +
+      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(gain) + "/s</span><button type='button' class='sp-close-btn' title='Close popover'>✕</button></div>" +
       "</div>" +
       "<div class='rec-metrics'>" + metaPills.join("") + "</div>" +
       swapSectionHtml +
@@ -2280,6 +2293,14 @@
     var betterEl = $("better");
     betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Payback</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
+      var closeBtn = ev.target.closest(".sp-close-btn");
+      if (closeBtn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var pop = closeBtn.closest(".bb-info-wrap");
+        if (pop) pop.blur();
+        return;
+      }
       var btn = ev.target.closest("button[data-lock-build]");
       if (!btn) return;
       ev.preventDefault();
