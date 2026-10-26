@@ -2779,10 +2779,12 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
           evaluated.push(evalStep(g));
         }
       });
+      var done = evaluated.filter(function (s) { return s.completed; });
+      var pending = evaluated.filter(function (s) { return !s.completed; });
       if (!hasCustomStepOrder(level, target)) {
-        var done = evaluated.filter(function (s) { return s.completed; });
-        var pending = evaluated.filter(function (s) { return !s.completed; });
         evaluated = done.concat(sortSmartSteps(target, pending));
+      } else {
+        evaluated = done.concat(pending);
       }
       state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluated };
       try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
@@ -2877,6 +2879,9 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
 
     var ordered = applyStepOrder(level, target, initial);
     var evaluatedInitial = ordered.map(evalStep);
+    var doneInit = evaluatedInitial.filter(function (s) { return s.completed; });
+    var pendingInit = evaluatedInitial.filter(function (s) { return !s.completed; });
+    evaluatedInitial = doneInit.concat(pendingInit);
     state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluatedInitial };
     try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
     return evaluatedInitial;
@@ -3042,6 +3047,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var rankMap = {};
     saved.forEach(function (id, idx) { rankMap[id] = idx; });
     return steps.slice().sort(function (a, b) {
+      if (!!a.completed !== !!b.completed) return a.completed ? -1 : 1;
       var ia = rankMap.hasOwnProperty(stepKey(a)) ? rankMap[stepKey(a)] : 999;
       var ib = rankMap.hasOwnProperty(stepKey(b)) ? rankMap[stepKey(b)] : 999;
       return ia - ib;
@@ -3231,8 +3237,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         if (!planSteps || !planSteps.length) {
           planSteps = applyStepOrder(state.level, target, gapSteps(target));
         }
-        var completedCount = planSteps.filter(function (s) { return s.completed; }).length;
+        var doneSteps = planSteps.filter(function (s) { return s.completed; });
         var pendingSteps = planSteps.filter(function (s) { return !s.completed; });
+        planSteps = doneSteps.concat(pendingSteps);
+        var completedCount = doneSteps.length;
         var totalSteps = planSteps.length;
 
         if (pendingSteps.length === 0 || runnable(target)) {
@@ -3248,7 +3256,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
           };
         }
         var firstPending = null;
-        var activeIdxInPlan = 0;
+        var activeIdxInPlan = doneSteps.length;
         for (var tj = 0; tj < planSteps.length; tj++) {
           if (planSteps[tj].completed) continue;
           if (planSteps[tj].kind === "contract" && !planSteps[tj].reach) continue;
@@ -3483,11 +3491,14 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   }
 
   function renderStepPopover(pick, rate, bnk) {
-    var steps = pick.allSteps && pick.allSteps.length ? pick.allSteps : [pick.step];
-    var activeIdx = pick.activeIndex || 0;
-    var completedCount = pick.completedCount || 0;
+    var rawSteps = pick.allSteps && pick.allSteps.length ? pick.allSteps : [pick.step];
+    var doneList = rawSteps.filter(function (s) { return s && s.completed; });
+    var pendingList = rawSteps.filter(function (s) { return !s || !s.completed; });
+    var steps = doneList.concat(pendingList);
+    var completedCount = doneList.length;
     var totalSteps = pick.totalSteps || steps.length;
-    var pendingSteps = steps.filter(function (s) { return !s.completed; });
+    var pendingSteps = pendingList;
+    var activeIdx = pick.activeIndex != null ? pick.activeIndex : completedCount;
     var canDrag = pendingSteps.length > 1;
     var isCustom = canDrag && hasCustomStepOrder(state.level, pick.build);
     var availDust = bnk ? (bnk.dust || 0) : 0;
@@ -3659,9 +3670,12 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
 
     function commitReorder(fromIdx, toIdx) {
       if (fromIdx == null || toIdx == null || fromIdx === toIdx) return;
-      var stepsCopy = pick.allSteps.slice();
+      var stepsCopy = (pick.allSteps || steps).slice();
       var moved = stepsCopy.splice(fromIdx, 1)[0];
       stepsCopy.splice(toIdx, 0, moved);
+      var done = stepsCopy.filter(function (s) { return s.completed; });
+      var pending = stepsCopy.filter(function (s) { return !s.completed; });
+      stepsCopy = done.concat(pending);
       var keys = stepsCopy.map(stepKey);
       saveStepOrder(state.level, pick.build, keys);
       if (state.lockedPlans && state.lockedPlans[String(state.level)]) {
