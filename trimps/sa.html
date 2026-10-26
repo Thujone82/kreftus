@@ -1352,7 +1352,7 @@
           </div>
           <div class="feat">
             <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg>ROI Comparison</b>
-            Ranks stronger builds on your current SA level by dust/s gain per cost and payback duration.
+            Ranks stronger builds on your current SA level by dust/s gain per cost and earn/return duration.
           </div>
         </div>
       </div>
@@ -1542,8 +1542,8 @@
           <dd>Late-game SA currency where 1 Shard = 1,000,000,000 (1B) Dust. Wait times convert Shards to Dust automatically against your active dust/s rate.</dd>
           <dt>Contracts</dt>
           <dd>Unlocked by completing a Void Map at or above the item's U2 Zone requirement after purchasing the contract in Spire Assault.</dd>
-          <dt>Payback</dt>
-          <dd>Total remaining upgrade cost divided by your current dust/s rate, showing how long it takes to farm the missing pieces for a better build.</dd>
+          <dt>Earn / Return</dt>
+          <dd>Earn is the time to farm all upgrades required for the plan at your current rate. Return is the remaining wait time taking your current dust and shard bank into account.</dd>
         </dl>
       </div>
     </div>
@@ -4341,6 +4341,11 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       var wInfo = stepsWaitInfo(steps, rate, bnk);
       var pay = wInfo.wait;
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
+      var earnDust = cost.dust <= 0 ? 0 : (rate > 0 ? cost.dust / rate : Infinity);
+      var earnShards = cost.shards <= 0 ? 0 : (rate > 0 ? (cost.shards * SHARD_DUST) / rate : Infinity);
+      var earn = Math.max(earnDust, earnShards);
+      var earnReturnVal = fmtTime(earn) + "/" + fmtTime(pay);
+      var earnReturnTip = "Earn: " + fmtTime(earn) + " (farm all upgrades) · Return: " + fmtTime(pay) + " (remaining wait with bank)";
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
@@ -4353,7 +4358,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         (cost.dust && cost.shards ? "<br>" : "") +
         (cost.shards ? prettify(cost.shards) + " shards" : "") + "</td>" +
         "<td class='mono pos'>+" + prettify((b.d || 0) - cur) + "/s</td>" +
-        "<td class='mono'>" + fmtTime(pay) + "</td>" +
+        "<td class='mono' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
         "<td>" + (function() {
           var isRowLocked = isSameLockedBuild(state.level, b);
           var bId = buildId(b);
@@ -4363,7 +4368,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         })() + "</td></tr>";
     }).join("");
     var betterEl = $("better");
-    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Payback</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Earn/Return</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
       var btn = ev.target.closest("button[data-lock-build]");
       if (!btn) return;

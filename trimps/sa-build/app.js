@@ -2256,6 +2256,11 @@
       var wInfo = stepsWaitInfo(steps, rate, bnk);
       var pay = wInfo.wait;
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
+      var earnDust = cost.dust <= 0 ? 0 : (rate > 0 ? cost.dust / rate : Infinity);
+      var earnShards = cost.shards <= 0 ? 0 : (rate > 0 ? (cost.shards * SHARD_DUST) / rate : Infinity);
+      var earn = Math.max(earnDust, earnShards);
+      var earnReturnVal = fmtTime(earn) + "/" + fmtTime(pay);
+      var earnReturnTip = "Earn: " + fmtTime(earn) + " (farm all upgrades) · Return: " + fmtTime(pay) + " (remaining wait with bank)";
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
@@ -2268,7 +2273,7 @@
         (cost.dust && cost.shards ? "<br>" : "") +
         (cost.shards ? prettify(cost.shards) + " shards" : "") + "</td>" +
         "<td class='mono pos'>+" + prettify((b.d || 0) - cur) + "/s</td>" +
-        "<td class='mono'>" + fmtTime(pay) + "</td>" +
+        "<td class='mono' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
         "<td>" + (function() {
           var isRowLocked = isSameLockedBuild(state.level, b);
           var bId = buildId(b);
@@ -2278,7 +2283,7 @@
         })() + "</td></tr>";
     }).join("");
     var betterEl = $("better");
-    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Payback</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Earn/Return</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
       var btn = ev.target.closest("button[data-lock-build]");
       if (!btn) return;
