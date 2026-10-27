@@ -2697,7 +2697,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       ? buildOrId
       : findLockedTarget(level, { id: String(buildOrId), name: String(buildOrId) });
     if (!target) return;
-    var rawSteps = gapSteps(target);
+    var rawSteps = expandSteps(gapSteps(target));
     var ordered = applyStepOrder(level, target, rawSteps);
     var steps = ordered.map(function (s) {
       return {
@@ -2744,41 +2744,39 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var name = target.n;
     var id = buildId(target);
 
-    var currentGaps = gapSteps(target);
+    var currentGaps = expandSteps(gapSteps(target));
     var planSteps = (typeof entry === "object" && Array.isArray(entry.steps)) ? entry.steps : null;
 
     function evalStep(s) {
       var done = false;
-      var curFrom = s.from;
+      var curFrom = s.from != null ? s.from : 0;
+      var curTo = s.to != null ? s.to : curFrom + 1;
       var curCost = s.cost;
       var curShards = !!s.shards;
       var reach = true;
 
       if (s.kind === "level") {
         var curLv = userLevel(s.key);
-        done = curLv >= s.to;
+        done = curLv >= curTo || !!s.completed;
         if (!done) {
-          curFrom = curLv;
-          curCost = upgradeCostRange(s.key, curLv, s.to);
+          curCost = upgradeCostRange(s.key, curFrom, curTo);
           curShards = isShards(s.key);
         }
       } else if (s.kind === "limbs") {
         var curL = extraLimbs();
-        done = curL >= s.to;
+        done = curL >= curTo || !!s.completed;
         if (!done) {
-          curFrom = curL;
-          curCost = extraLimbCost(curL, s.to);
+          curCost = extraLimbCost(curFrom, curTo);
         }
       } else if (s.kind === "ring") {
         var curR = hasRing() ? ringLevel() : 0;
-        done = curR >= s.to;
+        done = curR >= curTo || !!s.completed;
         if (!done) {
-          curFrom = Math.max(1, curR);
-          curCost = ringCostRange(curFrom, s.to);
+          curCost = ringCostRange(curFrom, curTo);
           curShards = true;
         }
       } else if (s.kind === "ringUnlock") {
-        done = hasRing();
+        done = hasRing() || !!s.completed;
         if (!done) {
           curCost = oneTimerRingCost();
           curShards = true;
@@ -2787,55 +2785,72 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
         var cat = itemCat(s.key);
         var zone = (cat && cat.zone) || s.zone;
         reach = (state.radon + 1) >= zone;
-        var owned = userOwns(s.key);
-        if (s.after && s.after.to > 1) {
-          var curLv = userLevel(s.key);
-          done = owned && curLv >= s.after.to;
-          if (!done && owned) {
-            curCost = upgradeCostRange(s.key, curLv, s.after.to);
-            curShards = isShards(s.key);
-          }
-        } else {
-          done = owned;
-          if (!done) {
-            curCost = contractPrice(s.key);
-            curShards = isShards(s.key);
-          }
+        done = userOwns(s.key) || !!s.completed;
+        if (!done) {
+          curCost = contractPrice(s.key);
+          curShards = isShards(s.key);
         }
       } else if (s.kind === "missing") {
-        done = userOwns(s.key);
+        done = userOwns(s.key) || !!s.completed;
       }
 
       return {
         kind: s.kind,
         key: s.key || null,
         from: curFrom,
-        to: s.to,
+        to: curTo,
         cost: done ? 0 : curCost,
         shards: curShards,
         zone: s.zone,
         after: s.after || null,
         reach: reach,
-        completed: done || !!s.completed
+        completed: done
       };
     }
 
     if (planSteps && planSteps.length) {
-      var evaluated = planSteps.map(evalStep);
-      var existingKeys = {};
-      evaluated.forEach(function (s) { existingKeys[stepKey(s)] = true; });
-      currentGaps.forEach(function (g) {
-        if (!existingKeys[stepKey(g)]) {
-          evaluated.push(evalStep(g));
+      var expandedPlan = expandSteps(planSteps);
+      var evaluatedPlan = expandedPlan.map(evalStep);
+
+      var currentGapMap = {};
+      currentGaps.forEach(function (g) { currentGapMap[stepKey(g)] = g; });
+
+      var seenDone = {};
+      var doneSteps = [];
+      var seenPending = {};
+      var pendingSteps = [];
+
+      evaluatedPlan.forEach(function (s) {
+        var k = stepKey(s);
+        if (s.completed) {
+          if (!seenDone[k]) {
+            seenDone[k] = true;
+            doneSteps.push(s);
+          }
+        } else {
+          if (currentGapMap[k] && !seenPending[k]) {
+            seenPending[k] = true;
+            pendingSteps.push(currentGapMap[k]);
+          }
         }
       });
-      var done = evaluated.filter(function (s) { return s.completed; });
-      var pending = evaluated.filter(function (s) { return !s.completed; });
+
+      currentGaps.forEach(function (g) {
+        var k = stepKey(g);
+        if (!seenPending[k]) {
+          seenPending[k] = true;
+          pendingSteps.push(g);
+        }
+      });
+
+      var sortedPending;
       if (!hasCustomStepOrder(level, target)) {
-        evaluated = done.concat(sortSmartSteps(target, pending));
+        sortedPending = sortSmartSteps(target, pendingSteps);
       } else {
-        evaluated = done.concat(pending);
+        sortedPending = applyStepOrder(level, target, pendingSteps);
       }
+
+      var evaluated = doneSteps.concat(sortedPending);
       state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluated };
       try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
       return evaluated;
@@ -2854,37 +2869,45 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
           var parts = k.split(":");
           var kind = parts[0];
           var itemKey = parts[1] || "";
+          var rangeParts = (parts[2] || "").split("->");
+          var fromLv = rangeParts[0] ? Number(rangeParts[0]) : null;
+          var toLv = rangeParts[1] ? Number(rangeParts[1]) : (fromLv != null ? fromLv + 1 : null);
           if (kind === "level" && target.i && target.i[itemKey]) {
-            var need = target.i[itemKey];
             var curLv = userLevel(itemKey);
+            var f = fromLv != null ? fromLv : Math.max(0, curLv - 1);
+            var t = toLv != null ? toLv : f + 1;
             initial.push({
               kind: "level",
               key: itemKey,
-              from: Math.max(0, curLv - 1),
-              to: need,
-              cost: upgradeCostAt(itemKey, Math.max(0, curLv - 1)),
+              from: f,
+              to: t,
+              cost: upgradeCostRange(itemKey, f, t),
               shards: isShards(itemKey),
-              completed: true
+              completed: curLv >= t
             });
           } else if (kind === "ring") {
-            var rLv = (target.r && target.r.lv) || 1;
+            var rLv = hasRing() ? ringLevel() : 0;
+            var rf = fromLv != null ? fromLv : Math.max(1, rLv - 1);
+            var rt = toLv != null ? toLv : rf + 1;
             initial.push({
               kind: "ring",
-              from: Math.max(1, rLv - 1),
-              to: rLv,
-              cost: ringLevelCost(Math.max(1, rLv - 1)),
+              from: rf,
+              to: rt,
+              cost: ringCostRange(rf, rt),
               shards: true,
-              completed: true
+              completed: rLv >= rt
             });
           } else if (kind === "limbs") {
-            var lSlots = (target.l || 4) - 4;
+            var curLimbs = extraLimbs();
+            var lf = fromLv != null ? fromLv : Math.max(0, curLimbs - 1);
+            var lt = toLv != null ? toLv : lf + 1;
             initial.push({
               kind: "limbs",
-              from: Math.max(0, lSlots - 1),
-              to: lSlots,
-              cost: extraLimbCost(Math.max(0, lSlots - 1), lSlots),
+              from: lf,
+              to: lt,
+              cost: extraLimbCost(lf, lt),
               shards: false,
-              completed: true
+              completed: curLimbs >= lt
             });
           } else if (kind === "contract") {
             var cZone = (itemCat(itemKey) && itemCat(itemKey).zone) || target.c;
@@ -2892,7 +2915,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
               kind: "contract",
               key: itemKey,
               zone: cZone,
-              completed: true
+              completed: userOwns(itemKey)
             });
           }
         }
@@ -2927,7 +2950,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       });
     }
 
-    var ordered = applyStepOrder(level, target, initial);
+    var ordered = applyStepOrder(level, target, expandSteps(initial));
     var evaluatedInitial = ordered.map(evalStep);
     var doneInit = evaluatedInitial.filter(function (s) { return s.completed; });
     var pendingInit = evaluatedInitial.filter(function (s) { return !s.completed; });
@@ -2959,7 +2982,109 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   window.saToggleLockBuild = toggleLockBuild;
 
   function stepKey(st) {
-    return st.kind + ":" + (st.key || "");
+    if (!st) return "";
+    var f = st.from != null ? st.from : 0;
+    var t = st.to != null ? st.to : f + 1;
+    return st.kind + ":" + (st.key || "") + ":" + f + "->" + t;
+  }
+
+  function expandStep(s) {
+    if (!s) return [];
+    if (s.kind === "level") {
+      var from = s.from != null ? s.from : 0;
+      var to = s.to != null ? s.to : from + 1;
+      if (to <= from + 1) return [s];
+      var list = [];
+      for (var lv = from; lv < to; lv++) {
+        var isDone = userLevel(s.key) >= lv + 1 || (s.completed && lv + 1 <= to);
+        list.push({
+          kind: "level",
+          key: s.key,
+          from: lv,
+          to: lv + 1,
+          cost: upgradeCostAt(s.key, lv),
+          shards: isShards(s.key),
+          completed: isDone
+        });
+      }
+      return list;
+    }
+    if (s.kind === "ring") {
+      var fromR = s.from != null ? s.from : 1;
+      var toR = s.to != null ? s.to : fromR + 1;
+      if (toR <= fromR + 1) return [s];
+      var listR = [];
+      var curR = hasRing() ? ringLevel() : 0;
+      for (var r = Math.max(1, fromR); r < toR; r++) {
+        var isDoneR = curR >= r + 1 || (s.completed && r + 1 <= toR);
+        listR.push({
+          kind: "ring",
+          from: r,
+          to: r + 1,
+          cost: ringLevelCost(r),
+          shards: true,
+          completed: isDoneR
+        });
+      }
+      return listR;
+    }
+    if (s.kind === "limbs") {
+      var fromL = s.from != null ? s.from : 0;
+      var toL = s.to != null ? s.to : fromL + 1;
+      if (toL <= fromL + 1) return [s];
+      var listL = [];
+      var curL = extraLimbs();
+      for (var l = fromL; l < toL; l++) {
+        var isDoneL = curL >= l + 1 || (s.completed && l + 1 <= toL);
+        listL.push({
+          kind: "limbs",
+          from: l,
+          to: l + 1,
+          cost: extraLimbCost(l, l + 1),
+          shards: false,
+          completed: isDoneL
+        });
+      }
+      return listL;
+    }
+    if (s.kind === "contract" && s.after && s.after.to > 1) {
+      var listC = [];
+      var owned = userOwns(s.key);
+      listC.push({
+        kind: "contract",
+        key: s.key,
+        zone: s.zone,
+        active: s.active,
+        reach: s.reach,
+        cost: s.cost,
+        shards: !!s.shards,
+        completed: owned || !!s.completed
+      });
+      for (var alv = 1; alv < s.after.to; alv++) {
+        var isDoneA = (owned && userLevel(s.key) >= alv + 1) || !!s.completed;
+        listC.push({
+          kind: "level",
+          key: s.key,
+          from: alv,
+          to: alv + 1,
+          cost: upgradeCostAt(s.key, alv),
+          shards: isShards(s.key),
+          completed: isDoneA
+        });
+      }
+      return listC;
+    }
+    return [s];
+  }
+
+  function expandSteps(steps) {
+    if (!steps || !steps.length) return [];
+    var res = [];
+    steps.forEach(function (s) {
+      var expanded = expandStep(s);
+      expanded.forEach(function (item) { res.push(item); });
+    });
+    return res;
   }
 
   function planOrderKey(level, build) {
@@ -3071,6 +3196,10 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       if (a.kind === "limbs" && sb.needsLimb) return -1;
       if (b.kind === "limbs" && sa.needsLimb) return 1;
 
+      if (a.key === b.key && a.kind === b.kind && (a.from != null && b.from != null)) {
+        return a.from - b.from;
+      }
+
       if (Math.abs(sa.effWait - sb.effWait) > 1e-6) {
         return sa.effWait - sb.effWait;
       }
@@ -3098,9 +3227,17 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     saved.forEach(function (id, idx) { rankMap[id] = idx; });
     return steps.slice().sort(function (a, b) {
       if (!!a.completed !== !!b.completed) return a.completed ? -1 : 1;
-      var ia = rankMap.hasOwnProperty(stepKey(a)) ? rankMap[stepKey(a)] : 999;
-      var ib = rankMap.hasOwnProperty(stepKey(b)) ? rankMap[stepKey(b)] : 999;
-      return ia - ib;
+      var ka = stepKey(a);
+      var kb = stepKey(b);
+      var legacyKa = a.kind + ":" + (a.key || "");
+      var legacyKb = b.kind + ":" + (b.key || "");
+      var ia = rankMap.hasOwnProperty(ka) ? rankMap[ka] : (rankMap.hasOwnProperty(legacyKa) ? rankMap[legacyKa] : 999);
+      var ib = rankMap.hasOwnProperty(kb) ? rankMap[kb] : (rankMap.hasOwnProperty(legacyKb) ? rankMap[legacyKb] : 999);
+      if (ia !== ib) return ia - ib;
+      if (a.key === b.key && a.kind === b.kind && (a.from != null && b.from != null)) {
+        return a.from - b.from;
+      }
+      return 0;
     });
   }
 
@@ -3311,7 +3448,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       if (target) {
         var planSteps = syncLockedPlan(state.level, target);
         if (!planSteps || !planSteps.length) {
-          planSteps = applyStepOrder(state.level, target, gapSteps(target));
+          planSteps = applyStepOrder(state.level, target, expandSteps(gapSteps(target)));
         }
         var doneSteps = planSteps.filter(function (s) { return s.completed; });
         var pendingSteps = planSteps.filter(function (s) { return !s.completed; });
@@ -3389,7 +3526,7 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       return immediate[0];
     }
     var paths = list.map(function (b) {
-      var steps = applyStepOrder(state.level, b, gapSteps(b));
+      var steps = applyStepOrder(state.level, b, expandSteps(gapSteps(b)));
       var wInfo = stepsWaitInfo(steps, 1, bnk);
       var effCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : Math.max(1, wInfo.combined * 1e-6);
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
@@ -3579,6 +3716,8 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     var isCustom = canDrag && hasCustomStepOrder(state.level, pick.build);
     var availDust = bnk ? (bnk.dust || 0) : 0;
     var availShards = bnk ? (bnk.shards || 0) : 0;
+    var cumDustSec = 0;
+    var cumShardSec = 0;
     var itemsHtml = steps.map(function (st, idx) {
       if (st.completed) {
         var doneSub = "Step " + (idx + 1) + " of " + totalSteps + " · Completed";
@@ -3598,25 +3737,35 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
       var totalStepCost = stepFullCost(st);
       var w;
       if (st.shards) {
-        var usedS = Math.min(availShards, totalStepCost);
-        availShards -= usedS;
-        var needS = Math.max(0, totalStepCost - usedS);
-        w = needS <= 0 ? 0 : (rate > 0 ? (needS * SHARD_DUST) / rate : Infinity);
+        if (availShards >= totalStepCost) {
+          availShards -= totalStepCost;
+          w = cumShardSec;
+        } else {
+          var needS = totalStepCost - availShards;
+          availShards = 0;
+          var farmSec = (canEarnShards() && rate > 0) ? (needS * SHARD_DUST) / rate : Infinity;
+          cumShardSec += farmSec;
+          w = cumShardSec;
+        }
       } else {
-        var usedD = Math.min(availDust, totalStepCost);
-        availDust -= usedD;
-        var needD = Math.max(0, totalStepCost - usedD);
-        w = needD <= 0 ? 0 : (rate > 0 ? needD / rate : Infinity);
+        if (availDust >= totalStepCost) {
+          availDust -= totalStepCost;
+          w = cumDustSec;
+        } else {
+          var needD = totalStepCost - availDust;
+          availDust = 0;
+          var farmSec = rate > 0 ? (needD / rate) : Infinity;
+          cumDustSec += farmSec;
+          w = cumDustSec;
+        }
       }
       var costStr = totalStepCost ? (prettify(totalStepCost) + (st.shards ? " shards" : " dust")) : "—";
-      var timeStr = w === 0 ? "Ready now" : (w != null ? fmtTime(w) : "—");
+      var timeStr = w === 0 ? "Ready now" : (w != null && isFinite(w) ? fmtTime(w) : "—");
       var subLines = [];
       if (st.after && st.after.to > 1) {
         subLines.push("+ Lv 1 → " + st.after.to + " (" + prettify(st.after.cost || 0) + (st.after.shards ? " shards" : " dust") + ")");
       }
-      if (isAct && st.to > (st.from || 0) + 1 && pick.step) {
-        subLines.push("Now: Lv " + pick.step.from + " → " + pick.step.to + " (" + prettify(pick.step.cost || 0) + (pick.step.shards ? " shards" : " dust") + ")");
-      } else if (isAct) {
+      if (isAct) {
         subLines.push("Current recommended step");
       } else {
         subLines.push("Step " + (idx + 1) + " of " + totalSteps);
@@ -4668,6 +4817,53 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     if (totalWaitEl && state.lastPlanSteps && state.lastPlanSteps.length) {
       var wInfo = stepsWaitInfo(state.lastPlanSteps, rate, bnk);
       totalWaitEl.textContent = wInfo.wait === 0 ? "Ready now" : fmtTime(wInfo.wait);
+    }
+
+    var listEl = $("spStepList");
+    if (listEl && state.lastPlanSteps && state.lastPlanSteps.length) {
+      var timeEls = listEl.querySelectorAll(".sp-time");
+      var pSteps = state.lastPlanSteps;
+      var availD = bnk.dust || 0;
+      var availS = bnk.shards || 0;
+      var cD = 0;
+      var cS = 0;
+      for (var pi = 0; pi < pSteps.length; pi++) {
+        var pst = pSteps[pi];
+        var tEl = timeEls[pi];
+        if (!tEl || pst.completed) continue;
+        var pCost = stepFullCost(pst);
+        var pw = 0;
+        if (pst.shards) {
+          if (availS >= pCost) {
+            availS -= pCost;
+            pw = cS;
+          } else {
+            var nS = pCost - availS;
+            availS = 0;
+            var fS = (canEarnShards() && rate > 0) ? (nS * SHARD_DUST) / rate : Infinity;
+            cS += fS;
+            pw = cS;
+          }
+        } else {
+          if (availD >= pCost) {
+            availD -= pCost;
+            pw = cD;
+          } else {
+            var nD = pCost - availD;
+            availD = 0;
+            var fD = rate > 0 ? (nD / rate) : Infinity;
+            cD += fD;
+            pw = cD;
+          }
+        }
+        var pStr = pw === 0 ? "Ready now" : (pw != null && isFinite(pw) ? fmtTime(pw) : "—");
+        if (tEl.textContent !== pStr) tEl.textContent = pStr;
+        if (pw === 0) {
+          if (!tEl.classList.contains("ready")) tEl.classList.add("ready");
+        } else {
+          if (tEl.classList.contains("ready")) tEl.classList.remove("ready");
+        }
+      }
     }
 
     if (state.lastBetterBuilds && state.lastBetterBuilds.length) {
