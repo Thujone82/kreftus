@@ -1054,6 +1054,19 @@
       return false;
     }
 
+    function isStepInCurrentBuild(s) {
+      if (s.kind === "level") {
+        var inRec = !!(rec && rec.i && rec.i[s.key] != null);
+        var uItem = userItem(s.key);
+        var isEq = !!(uItem && uItem.equipped);
+        return inRec || isEq;
+      }
+      if (s.kind === "ring") {
+        return hasRing();
+      }
+      return false;
+    }
+
     function stepWait(s) {
       if (s.completed) return 0;
       var c = stepFullCost(s);
@@ -1073,10 +1086,11 @@
 
     function stepScore(s) {
       var w = stepWait(s);
+      var inCur = isStepInCurrentBuild(s);
       var isEq = isStepEquipped(s);
       var needsLimb = false;
 
-      if (limbStep && !isEq && (s.kind === "level" || s.kind === "contract" || s.kind === "missing")) {
+      if (limbStep && !inCur && (s.kind === "level" || s.kind === "contract" || s.kind === "missing")) {
         needsLimb = true;
       }
 
@@ -1086,6 +1100,7 @@
         step: s,
         wait: w,
         effWait: effWait,
+        inCurrentBuild: inCur,
         isEq: isEq,
         needsLimb: needsLimb,
         cost: stepFullCost(s)
@@ -1115,12 +1130,14 @@
         return a.from - b.from;
       }
 
-      if (Math.abs(sa.effWait - sb.effWait) > 1e-6) {
-        return sa.effWait - sb.effWait;
+      // Prioritize items in current build ahead of items only in the next build,
+      // increasing the player's earning rate immediately while progressing
+      if (sa.inCurrentBuild !== sb.inCurrentBuild) {
+        return sa.inCurrentBuild ? -1 : 1;
       }
 
-      if (sa.isEq !== sb.isEq) {
-        return sa.isEq ? -1 : 1;
+      if (Math.abs(sa.effWait - sb.effWait) > 1e-6) {
+        return sa.effWait - sb.effWait;
       }
 
       if (sa.cost !== sb.cost) {
@@ -1902,6 +1919,7 @@
           }
         }
         state.keepPopoverOpen = true;
+        renderChips(rec, rate);
         renderNext(rec, rate);
       });
     }
