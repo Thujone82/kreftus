@@ -396,6 +396,50 @@
       font-size: 11.5px; color: var(--muted); margin-top: 3px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    .kpi-value.val-sm {
+      font-size: clamp(13px, 1.15vw, 15.5px);
+      letter-spacing: -0.01em;
+    }
+    .kpi-note.kpi-note-prog {
+      white-space: normal;
+      overflow: visible;
+    }
+    .kpi-bar {
+      height: 4px;
+      border-radius: 999px;
+      background: var(--surface-3);
+      overflow: hidden;
+      margin-top: 4px;
+      width: 100%;
+    }
+    .kpi-bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--tone, var(--accent));
+      transition: width 0.25s ease;
+    }
+    .kpi-prog-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 4px;
+      line-height: 1.25;
+    }
+    .kpi-prog-action {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 11px;
+    }
+    .kpi-prog-pct {
+      font-family: var(--mono);
+      font-size: 10px;
+      flex: none;
+      color: var(--muted);
+    }
     .tone-buy { --tone: var(--buy); }
     .tone-sell { --tone: var(--sell); }
     .tone-accent { --tone: var(--accent); }
@@ -470,6 +514,9 @@
     }
     .rec-top, .next-top {
       display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    }
+    .next-top {
+      position: relative;
     }
     .next-top-actions {
       display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -581,10 +628,11 @@
     .notes svg { width: 15px; height: 15px; color: var(--accent); flex: none; margin-top: 1px; }
 
     .next-kicker {
-      font-size: 11px; font-weight: 700; color: var(--muted);
+      font-size: 14px; font-weight: 800; color: var(--muted);
       text-transform: uppercase; letter-spacing: 0.06em;
-      display: inline-flex; align-items: center; gap: 6px;
+      display: inline-flex; align-items: center; gap: 8px;
     }
+    .next-kicker svg { width: 20px; height: 20px; flex: none; }
     .next-action-box {
       padding: 12px 14px; border-radius: 10px;
       background: var(--surface-solid); border: 1px solid var(--border-strong);
@@ -601,7 +649,6 @@
 
     /* ---------- step roadmap hover popover ---------- */
     .step-pill-wrap {
-      position: relative;
       display: inline-flex;
       align-items: center;
       cursor: help;
@@ -618,11 +665,13 @@
     .step-popover {
       display: none;
       position: absolute;
+      left: 0;
       right: 0;
       top: calc(100% + 8px);
-      z-index: 45;
-      width: min(465px, calc(100vw - 36px));
-      max-width: calc(100vw - 28px);
+      z-index: 50;
+      width: auto;
+      max-width: 100%;
+      min-width: 0;
       background: var(--tip-bg);
       color: var(--text);
       border: 1px solid var(--border-strong);
@@ -658,24 +707,26 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 6px 8px;
       padding-bottom: 7px;
       border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
     }
     .sp-head-right {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       min-width: 0;
+      margin-left: auto;
     }
     .sp-title {
       font-weight: 700;
-      font-size: 12.5px;
+      font-size: 12px;
       color: var(--text);
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      white-space: nowrap;
+      gap: 5px;
+      flex-wrap: wrap;
     }
     .sp-title svg { width: 14px; height: 14px; color: var(--info); flex: none; }
     .sp-hint {
@@ -704,13 +755,13 @@
     }
     .sp-target {
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       color: var(--buy);
       background: var(--buy-soft);
       padding: 2px 7px;
       border-radius: 999px;
-      max-width: 175px;
+      max-width: 150px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -721,6 +772,9 @@
       margin: 0;
       padding: 0;
       list-style: none;
+      max-height: 380px;
+      overflow-y: auto;
+      overflow-x: hidden;
       -webkit-user-select: none;
       -moz-user-select: none;
       user-select: none;
@@ -848,13 +902,20 @@
       display: flex;
       align-items: center;
       gap: 5px;
-      word-break: break-word;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .sp-label svg { width: 13px; height: 13px; flex: none; }
     .sp-sub {
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--muted);
       font-family: var(--mono);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .sp-right {
       text-align: right;

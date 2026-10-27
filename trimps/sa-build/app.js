@@ -38,7 +38,8 @@
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
     grip: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>',
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
-    unlock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
+    unlock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>',
+    target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>'
   };
 
   function iconForItem(key) {
@@ -889,6 +890,7 @@
     }
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
+    renderChips(rec, rate);
     renderNext(rec, rate);
     renderBetter(rec, rate);
   }
@@ -1210,6 +1212,103 @@
       '</div>';
   }
 
+  function fmtLocalEta(secFromNow) {
+    if (!isFinite(secFromNow) || secFromNow == null) return "--";
+    if (secFromNow <= 0) return "Ready now";
+    var now = new Date();
+    var eta = new Date(now.getTime() + secFromNow * 1000);
+    var isSameDay = eta.getFullYear() === now.getFullYear() &&
+                    eta.getMonth() === now.getMonth() &&
+                    eta.getDate() === now.getDate();
+    var tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    var isTomorrow = eta.getFullYear() === tomorrow.getFullYear() &&
+                     eta.getMonth() === tomorrow.getMonth() &&
+                     eta.getDate() === tomorrow.getDate();
+    var timeStr = eta.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (isSameDay) return timeStr;
+    if (isTomorrow) return "Tomorrow " + timeStr;
+    if (secFromNow < 6 * 86400) {
+      var dayName = eta.toLocaleDateString([], { weekday: "short" });
+      return dayName + " " + timeStr;
+    }
+    return eta.toLocaleDateString([], { month: "numeric", day: "numeric" }) + " " + timeStr;
+  }
+
+  function nextActionNote(s) {
+    if (!s) return "";
+    if (s.kind === "contract") return "Z" + s.zone + " " + itemName(s.key);
+    if (s.kind === "level") return itemName(s.key) + " " + s.from + " → " + s.to;
+    if (s.kind === "limbs") return "Extra Limbs " + s.from + " → " + s.to;
+    if (s.kind === "ringUnlock") return "Unlock The Ring";
+    if (s.kind === "ring") return "Ring " + s.from + " → " + s.to;
+    return stepLabel(s);
+  }
+
+  function renderNextActionKpi(pick, rate, bnk) {
+    if (pick.mode === "completed") {
+      var titleComp = "All steps in active plan (" + esc(pick.build.n) + ") are fully unlocked!";
+      return '<div class="kpi tone-buy" id="kpiNextAction" title="' + esc(titleComp) + '">' +
+        '<div class="kpi-label">' + ICONS.check + '<span>Next Action</span></div>' +
+        '<div class="kpi-value val-sm" style="color:var(--buy);">Plan Completed</div>' +
+        '<div class="kpi-note kpi-note-prog">' +
+          '<div class="kpi-prog-row">' +
+            '<span class="kpi-prog-action">' + esc(pick.build.n) + '</span>' +
+            '<span class="kpi-prog-pct" style="color:var(--buy);">100%</span>' +
+          '</div>' +
+          '<div class="kpi-bar"><span style="width:100%; background:var(--buy);"></span></div>' +
+        '</div>' +
+        '</div>';
+    }
+    var s = pick.step;
+    if (!s) return "";
+    var actNote = nextActionNote(s);
+    var rawCost = s.cost || 0;
+    var isSh = !!s.shards;
+    var curFunds = isSh ? (bnk.shards || 0) : (bnk.dust || 0);
+    var wait = timeForCost(rawCost, isSh, rate, bnk.dust, bnk.shards);
+    var isReady = (wait === 0) || (rawCost <= 0) || (curFunds >= rawCost);
+
+    var pct = rawCost > 0 ? Math.min(100, Math.max(0, (curFunds / rawCost) * 100)) : 100;
+    var pctTxt = (isReady || pct >= 99.95) ? "100%" : (pct.toFixed(pct >= 10 ? 0 : 1) + "%");
+
+    if (isReady) {
+      var titleReady = "Next Action Ready!\nAction: " + actNote +
+        (rawCost > 0 ? ("\nCost: " + prettify(rawCost) + (isSh ? " shards" : " dust")) : "") +
+        "\nAffordable now with your bank!";
+      return '<div class="kpi tone-buy" id="kpiNextAction" title="' + esc(titleReady) + '">' +
+        '<div class="kpi-label">' + ICONS.check + '<span>Next Action</span></div>' +
+        '<div class="kpi-value val-sm" id="kpiNextActionVal" style="color:var(--buy);">Next Action Ready</div>' +
+        '<div class="kpi-note kpi-note-prog">' +
+          '<div class="kpi-prog-row">' +
+            '<span class="kpi-prog-action" title="' + esc(actNote) + '">' + esc(actNote) + '</span>' +
+            '<span class="kpi-prog-pct" id="kpiNextActionPct" style="color:var(--buy);">100%</span>' +
+          '</div>' +
+          '<div class="kpi-bar"><span id="kpiNextActionBar" style="width:100%; background:var(--buy);"></span></div>' +
+        '</div>' +
+        '</div>';
+    }
+
+    var etaStr = fmtLocalEta(wait);
+    var tone = isSh ? "tone-teal" : "tone-accent";
+    var barBg = isSh ? "var(--teal)" : "var(--accent)";
+    var titleWait = "Next Action: " + actNote +
+      "\nCost: " + prettify(rawCost) + (isSh ? " shards" : " dust") +
+      "\nCurrent bank: " + prettify(curFunds) + (isSh ? " shards" : " dust") + " (" + pctTxt + ")" +
+      "\nAvailable at: " + etaStr + " (" + fmtTime(wait) + " at " + prettify(rate) + "/s)";
+
+    return '<div class="kpi ' + tone + '" id="kpiNextAction" title="' + esc(titleWait) + '">' +
+      '<div class="kpi-label">' + ICONS.clock + '<span>Next Action</span></div>' +
+      '<div class="kpi-value" id="kpiNextActionVal">' + esc(etaStr) + '</div>' +
+      '<div class="kpi-note kpi-note-prog">' +
+        '<div class="kpi-prog-row">' +
+          '<span class="kpi-prog-action" title="' + esc(actNote) + '">' + esc(actNote) + '</span>' +
+          '<span class="kpi-prog-pct" id="kpiNextActionPct">' + esc(pctTxt) + '</span>' +
+        '</div>' +
+        '<div class="kpi-bar"><span id="kpiNextActionBar" style="width:' + pct.toFixed(1) + '%; background:' + barBg + ';"></span></div>' +
+      '</div>' +
+      '</div>';
+  }
+
   function renderChips(rec, rate) {
     var ab = state.ab;
     var bnk = bank();
@@ -1241,13 +1340,18 @@
       (bnk.shardsEarned > 0 ? ("\nEarned since load: +" + bnk.shardsEarned) : "") +
       "\nDust equivalent: " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
 
+    var pick = bestNextUpgrade(rec);
+    var lastKpiHtml = (pick && pick.isLocked)
+      ? renderNextActionKpi(pick, rate, bnk)
+      : kpi("U2 Progress", "Z" + (state.radon + 1), ab.activeContract ? ("Active: " + itemName(ab.activeContract)) : "No active contract", "tone-violet", ICONS.contract, "id='kpiU2Progress'");
+
     $("chips").innerHTML = [
       kpi("Enemy Level", "SA " + (ab.enemyLevel || "—"), "Max unlocked: SA " + (ab.maxEnemyLevel || "—"), "tone-accent", ICONS.spire),
       kpi("Dust Bank", dustVal, dustNote, "tone-buy", ICONS.dust, "id='kpiDustBank' title='" + esc(dustTitle) + "'"),
       kpi("Shard Bank", shardVal, shardNote, "tone-teal", ICONS.gem, "id='kpiShardBank' title='" + esc(shardTitle) + "'"),
       kpi("Huffy Limbs", maxSlots() + " slots", equipped + " equipped · " + owned.length + "/" + SA_DATA.itemOrder.length + " owned", "tone-warn", ICONS.limb),
       kpi("The Ring", hasRing() ? ("Lv " + ringLevel()) : "Locked", hasRing() ? (mods || "No custom mods") : ("Unlock: " + prettify(oneTimerRingCost()) + " shards"), "tone-info", ICONS.ring),
-      kpi("U2 Progress", "Z" + (state.radon + 1), ab.activeContract ? ("Active: " + itemName(ab.activeContract)) : "No active contract", "tone-violet", ICONS.contract)
+      lastKpiHtml
     ].join("");
   }
 
@@ -2076,6 +2180,7 @@
         btnComp.addEventListener("click", function () {
           clearLockedBuild(state.level);
           toast("Unlocked advisor for SA " + state.level);
+          renderChips(rec, rate);
           renderNext(rec, rate);
           renderBetter(rec, rate);
         });
@@ -2116,7 +2221,7 @@
       : "<button type='button' class='btn sm ghost lock-plan-btn' id='lockPlanBtn' title='Lock advisor to " + esc(pick.build.n) + " so recommendations do not switch mid-plan.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
 
     var kickerHtml = pick.isLocked
-      ? "<div class='next-kicker' style='color:var(--accent);'>" + ICONS.lock + " Locked Plan</div>"
+      ? "<div class='next-kicker' style='color:var(--accent);'>" + ICONS.target + " Active Plan</div>"
       : "<div class='next-kicker'>Recommended Next Action</div>";
 
     var pillInner = (pick.mode === "unlocks" || totalPlanSteps === 1)
@@ -2723,6 +2828,47 @@
       } else if (wait != null && isFinite(wait)) {
         badge.className = "pill sm";
         badge.innerHTML = ICONS.clock + " " + fmtTime(wait);
+      }
+    }
+
+    var naCard = $("kpiNextAction");
+    if (naCard) {
+      var pick = bestNextUpgrade(rec);
+      if (pick && pick.isLocked) {
+        if (pick.mode === "completed") {
+          // completed
+        } else if (pick.step) {
+          var s = pick.step;
+          var actNote = nextActionNote(s);
+          var rawCost = s.cost || 0;
+          var isSh = !!s.shards;
+          var curFunds = isSh ? (bnk.shards || 0) : (bnk.dust || 0);
+          var wait = timeForCost(rawCost, isSh, rate, bnk.dust, bnk.shards);
+          var isReady = (wait === 0) || (rawCost <= 0) || (curFunds >= rawCost);
+          var pct = rawCost > 0 ? Math.min(100, Math.max(0, (curFunds / rawCost) * 100)) : 100;
+          var pctTxt = (isReady || pct >= 99.95) ? "100%" : (pct.toFixed(pct >= 10 ? 0 : 1) + "%");
+
+          if (isReady) {
+            var valEl = $("kpiNextActionVal");
+            if (!valEl || valEl.textContent !== "Next Action Ready") {
+              renderChips(rec, rate);
+            }
+          } else {
+            var valEl = $("kpiNextActionVal");
+            var pctEl = $("kpiNextActionPct");
+            var barEl = $("kpiNextActionBar");
+            if (valEl) valEl.textContent = fmtLocalEta(wait);
+            if (pctEl) pctEl.textContent = pctTxt;
+            if (barEl) barEl.style.width = pct.toFixed(1) + "%";
+            var titleWait = "Next Action: " + actNote +
+              "\nCost: " + prettify(rawCost) + (isSh ? " shards" : " dust") +
+              "\nCurrent bank: " + prettify(curFunds) + (isSh ? " shards" : " dust") + " (" + pctTxt + ")" +
+              "\nAvailable at: " + fmtLocalEta(wait) + " (" + fmtTime(wait) + " at " + prettify(rate) + "/s)";
+            naCard.title = titleWait;
+          }
+        }
+      } else {
+        renderChips(rec, rate);
       }
     }
 
