@@ -1224,13 +1224,13 @@
     }
 
     var shardVal = prettify(bnk.shards);
-    var shardNote = "= " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+    var shardNote = "";
     if (bnk.shardsEarned > 0) {
-      shardNote = "Base " + prettify(bnk.rawShards) + " · +" + prettify(bnk.shardsEarned) + " earned · = " + prettify(bnk.shards * SHARD_DUST) + " dust";
+      shardNote = "Base " + prettify(bnk.rawShards) + " · +" + prettify(bnk.shardsEarned) + " earned";
     } else if (canEarnShards() && rate > 0) {
       var curShardDust = ((ab.shardDust || 0) + bnk.dustEarned) % SHARD_DUST;
       var pct = Math.min(99.9, (curShardDust / SHARD_DUST) * 100).toFixed(1);
-      shardNote = "Next: " + pct + "% · = " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+      shardNote = "Next: " + pct + "%";
     }
 
     var dustTitle = "Live estimated dust bank\nSnapshot from save: " + prettify(bnk.rawDust) +
@@ -2689,13 +2689,13 @@
       if (sVal) sVal.textContent = prettify(bnk.shards);
       if (sNote) {
         if (bnk.shardsEarned > 0) {
-          sNote.textContent = "Base " + prettify(bnk.rawShards) + " · +" + prettify(bnk.shardsEarned) + " earned · = " + prettify(bnk.shards * SHARD_DUST) + " dust";
+          sNote.textContent = "Base " + prettify(bnk.rawShards) + " · +" + prettify(bnk.shardsEarned) + " earned";
         } else if (canEarnShards() && rate > 0) {
           var curShardDust = ((state.ab.shardDust || 0) + bnk.dustEarned) % SHARD_DUST;
           var pct = Math.min(99.9, (curShardDust / SHARD_DUST) * 100).toFixed(1);
-          sNote.textContent = "Next: " + pct + "% · = " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+          sNote.textContent = "Next: " + pct + "%";
         } else {
-          sNote.textContent = "= " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
+          sNote.textContent = "";
         }
       }
       sCard.title = "Live estimated shard bank\nSnapshot from save: " + prettify(bnk.rawShards) + " shards" +
