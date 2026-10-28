@@ -1966,6 +1966,7 @@
         }
       }
       state.keepPopoverOpen = true;
+      renderChips(rec, rate);
       renderNext(rec, rate);
     }
 
@@ -2874,7 +2875,11 @@
       var pick = bestNextUpgrade(rec);
       if (pick && pick.isLocked) {
         if (pick.mode === "completed") {
-          // completed
+          var valEl = $("kpiNextActionVal");
+          if (!valEl || valEl.textContent !== "Plan Completed") {
+            renderChips(rec, rate);
+            return;
+          }
         } else if (pick.step) {
           var s = pick.step;
           var actNote = nextActionNote(s);
@@ -2886,30 +2891,32 @@
           var pct = rawCost > 0 ? Math.min(100, Math.max(0, (curFunds / rawCost) * 100)) : 100;
           var pctTxt = (isReady || pct >= 99.95) ? "100%" : (pct.toFixed(pct >= 10 ? 0 : 1) + "%");
 
-          if (isReady) {
-            var valEl = $("kpiNextActionVal");
-            if (!valEl || valEl.textContent !== "Next Action Ready") {
-              renderChips(rec, rate);
-            }
-          } else {
-            var valEl = $("kpiNextActionVal");
-            var pctEl = $("kpiNextActionPct");
-            var barEl = $("kpiNextActionBar");
-            if (valEl) {
-              var newEta = fmtLocalEta(wait);
-              if (valEl.textContent !== newEta) {
-                valEl.textContent = newEta;
-                fitKpiValue(valEl);
-              }
-            }
-            if (pctEl) pctEl.textContent = pctTxt;
-            if (barEl) barEl.style.width = pct.toFixed(1) + "%";
-            var titleWait = "Next Action: " + actNote +
-              "\nCost: " + prettify(rawCost) + (isSh ? " shards" : " dust") +
-              "\nCurrent bank: " + prettify(curFunds) + (isSh ? " shards" : " dust") + " (" + pctTxt + ")" +
-              "\nAvailable at: " + fmtLocalEta(wait) + " (" + fmtTime(wait) + " at " + prettify(rate) + "/s)";
-            naCard.title = titleWait;
+          var valEl = $("kpiNextActionVal");
+          var actEl = naCard.querySelector(".kpi-prog-action");
+          var currentActNote = actEl ? actEl.textContent : "";
+          var curIsReady = valEl && valEl.textContent === "Next Action Ready";
+
+          if (currentActNote !== actNote || curIsReady !== isReady) {
+            renderChips(rec, rate);
+            return;
           }
+
+          var pctEl = $("kpiNextActionPct");
+          var barEl = $("kpiNextActionBar");
+          if (valEl) {
+            var newEta = fmtLocalEta(wait);
+            if (valEl.textContent !== newEta) {
+              valEl.textContent = newEta;
+              fitKpiValue(valEl);
+            }
+          }
+          if (pctEl) pctEl.textContent = pctTxt;
+          if (barEl) barEl.style.width = pct.toFixed(1) + "%";
+          var titleWait = "Next Action: " + actNote +
+            "\nCost: " + prettify(rawCost) + (isSh ? " shards" : " dust") +
+            "\nCurrent bank: " + prettify(curFunds) + (isSh ? " shards" : " dust") + " (" + pctTxt + ")" +
+            "\nAvailable at: " + fmtLocalEta(wait) + " (" + fmtTime(wait) + " at " + prettify(rate) + "/s)";
+          naCard.title = titleWait;
         }
       } else {
         renderChips(rec, rate);
