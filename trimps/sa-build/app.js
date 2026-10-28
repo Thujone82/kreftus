@@ -1241,7 +1241,8 @@
     var isTomorrow = eta.getFullYear() === tomorrow.getFullYear() &&
                      eta.getMonth() === tomorrow.getMonth() &&
                      eta.getDate() === tomorrow.getDate();
-    var timeStr = eta.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var timeStr = pad(eta.getHours()) + ":" + pad(eta.getMinutes());
     if (isSameDay) return timeStr;
     if (isTomorrow) return "Tomorrow " + timeStr;
     if (secFromNow < 6 * 86400) {
@@ -1261,12 +1262,30 @@
     return stepLabel(s);
   }
 
+  function fitKpiValue(el) {
+    if (!el || el.clientWidth === 0) return;
+    el.style.fontSize = "";
+    var avail = el.clientWidth - 2;
+    if (avail > 0 && el.scrollWidth > avail) {
+      var computed = window.getComputedStyle ? parseFloat(window.getComputedStyle(el).fontSize) : 18;
+      if (!computed || isNaN(computed)) computed = 18;
+      var ratio = avail / el.scrollWidth;
+      var target = Math.max(9, Math.floor(computed * ratio * 10) / 10);
+      el.style.fontSize = target + "px";
+      var guard = 15;
+      while (el.scrollWidth > avail && target > 8.5 && guard-- > 0) {
+        target -= 0.5;
+        el.style.fontSize = target + "px";
+      }
+    }
+  }
+
   function renderNextActionKpi(pick, rate, bnk) {
     if (pick.mode === "completed") {
       var titleComp = "All steps in active plan (" + esc(pick.build.n) + ") are fully unlocked!";
       return '<div class="kpi tone-buy" id="kpiNextAction" title="' + esc(titleComp) + '">' +
         '<div class="kpi-label">' + ICONS.check + '<span>Next Action</span></div>' +
-        '<div class="kpi-value val-sm" style="color:var(--buy);">Plan Completed</div>' +
+        '<div class="kpi-value val-sm" id="kpiNextActionVal" style="color:var(--buy);">Plan Completed</div>' +
         '<div class="kpi-note kpi-note-prog">' +
           '<div class="kpi-prog-row">' +
             '<span class="kpi-prog-action">' + esc(pick.build.n) + '</span>' +
@@ -1370,6 +1389,7 @@
       kpi("The Ring", hasRing() ? ("Lv " + ringLevel()) : "Locked", hasRing() ? (mods || "No custom mods") : ("Unlock: " + prettify(oneTimerRingCost()) + " shards"), "tone-info", ICONS.ring),
       lastKpiHtml
     ].join("");
+    fitKpiValue($("kpiNextActionVal"));
   }
 
   function esc(s) {
@@ -2875,7 +2895,13 @@
             var valEl = $("kpiNextActionVal");
             var pctEl = $("kpiNextActionPct");
             var barEl = $("kpiNextActionBar");
-            if (valEl) valEl.textContent = fmtLocalEta(wait);
+            if (valEl) {
+              var newEta = fmtLocalEta(wait);
+              if (valEl.textContent !== newEta) {
+                valEl.textContent = newEta;
+                fitKpiValue(valEl);
+              }
+            }
             if (pctEl) pctEl.textContent = pctTxt;
             if (barEl) barEl.style.width = pct.toFixed(1) + "%";
             var titleWait = "Next Action: " + actNote +
@@ -3078,6 +3104,23 @@
         if ($("helpDlg")) { ev.preventDefault(); $("helpDlg").showModal(); }
       }
     });
+    window.addEventListener("resize", function () {
+      fitKpiValue($("kpiNextActionVal"));
+    });
+    if (typeof ResizeObserver !== "undefined") {
+      var chipsEl = $("chips");
+      if (chipsEl) {
+        var ro = new ResizeObserver(function () {
+          fitKpiValue($("kpiNextActionVal"));
+        });
+        ro.observe(chipsEl);
+      }
+    }
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () {
+        fitKpiValue($("kpiNextActionVal"));
+      });
+    }
     loadPrefs();
     setTheme(state.theme);
     if ($("saveBox") && !$("saveEditor").hidden) $("saveBox").focus();
