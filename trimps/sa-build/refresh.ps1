@@ -236,13 +236,30 @@ function Compare-SaDataJson {
     return $result
 }
 
+$script:LastWasProgress = $false
+
 function Write-StreamLine {
     param(
         [string]$Text,
         [string]$Color = 'White'
     )
+    if ($script:LastWasProgress) {
+        Write-Host ("`r" + (" " * ($BoxWidth - 2)) + "`r") -NoNewline
+        $script:LastWasProgress = $false
+    }
     Write-Host "│ " -NoNewline -ForegroundColor DarkCyan
     Write-Host $Text -ForegroundColor $Color
+}
+
+function Write-StreamProgress {
+    param(
+        [string]$Text,
+        [string]$Color = 'Cyan'
+    )
+    $script:LastWasProgress = $true
+    $content = "│       " + $Text
+    $padded = $content.PadRight($BoxWidth - 4)
+    Write-Host ("`r" + $padded) -NoNewline -ForegroundColor $Color
 }
 
 # --- Explicit Help Intercept ---
@@ -307,24 +324,48 @@ try {
             Write-StreamLine "[1/3] Snapshot : Extracting SA sheet & item catalog (build_data.py)..." "Yellow"
         }
 
-        $buildArgs = @((Join-Path $Here 'build_data.py'))
+        $buildArgs = @('-u', (Join-Path $Here 'build_data.py'))
         if ($Fresh) { $buildArgs += '--fresh' }
         if ($VerboseSheets) { $buildArgs += '--verbose' }
 
+        $isInteractiveConsole = (-not [Console]::IsOutputRedirected -and $Host.UI.RawUI)
+        $lastReportedPct = -1
+
         & python @buildArgs 2>&1 | ForEach-Object {
             $line = $_.ToString()
-            $color = 'White'
-            if ($line -match '^(Workbook|Sheets|Catalog)\s*:') {
-                $color = 'Gray'
-            } elseif ($line -match '^Snapshot\s*:') {
-                $color = 'Green'
-            } elseif ($line -match '^\s+SA\s+\d+:') {
-                $color = 'DarkGray'
-            } elseif ($line -match '(?i)(error|traceback|exception)') {
-                $color = 'Red'
+            if ($line -match '^PROGRESS:(\d+):(\d+):(\d+):(\d+):(\d+)') {
+                $curr = [int]$Matches[1]
+                $total = [int]$Matches[2]
+                $lvl = [int]$Matches[3]
+                $bld = [int]$Matches[4]
+                $pct = [int]$Matches[5]
+
+                Write-Progress -Activity "Extracting SA Sheet Builds" -Status "SA $lvl/160 ($pct%) · $bld builds" -PercentComplete $pct
+
+                if ($isInteractiveConsole) {
+                    $filled = [Math]::Floor($pct / 5)
+                    $bar = [string]::new([char]0x2588, $filled) + [string]::new([char]0x2591, 20 - $filled)
+                    $txt = "Parsing  : [{0}] {1,3}% (SA {2,3}/160 · {3,4} builds)" -f $bar, $pct, $lvl, $bld
+                    Write-StreamProgress $txt "Cyan"
+                } elseif ($pct -ge ($lastReportedPct + 25) -or $pct -eq 100) {
+                    $lastReportedPct = [Math]::Floor($pct / 25) * 25
+                    Write-StreamLine "      Parsing  : $pct% (SA $lvl/160 · $bld builds)" "DarkCyan"
+                }
+            } else {
+                $color = 'White'
+                if ($line -match '^(Workbook|Sheets|Catalog)\s*:') {
+                    $color = 'Gray'
+                } elseif ($line -match '^Snapshot\s*:') {
+                    $color = 'Green'
+                } elseif ($line -match '^\s+SA\s+\d+:') {
+                    $color = 'DarkGray'
+                } elseif ($line -match '(?i)(error|traceback|exception)') {
+                    $color = 'Red'
+                }
+                Write-StreamLine "      $line" $color
             }
-            Write-StreamLine "      $line" $color
         }
+        Write-Progress -Activity "Extracting SA Sheet Builds" -Completed
         if ($LASTEXITCODE -ne 0) {
             throw "build_data.py failed with exit code $LASTEXITCODE"
         }

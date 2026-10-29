@@ -17,7 +17,14 @@ TRIMPS = HERE.parent
 ROOT = HERE
 SHEET_ID = "17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs"
 XLSX_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=xlsx"
-NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+NS_URI = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+NS = {"m": NS_URI}
+C_TAG = f"{{{NS_URI}}}c"
+V_TAG = f"{{{NS_URI}}}v"
+IS_TAG = f"{{{NS_URI}}}is"
+T_TAG = f"{{{NS_URI}}}t"
+ROW_TAG = f"{{{NS_URI}}}row"
+SD_TAG = f"{{{NS_URI}}}sheetData"
 
 ITEM_ORDER_DISPLAY = [
     "Menacing Mask", "Sword", "Armor", "Rusty Dagger", "Fists of Goo", "Battery Stick",
@@ -112,7 +119,10 @@ RING_MOD_MAP = {
 def col_letter_to_index(col: str) -> int:
     n = 0
     for ch in col:
-        n = n * 26 + (ord(ch) - 64)
+        if "A" <= ch <= "Z":
+            n = n * 26 + (ord(ch) - 64)
+        else:
+            break
     return n - 1
 
 
@@ -126,41 +136,50 @@ def parse_shared_strings(zf: zipfile.ZipFile) -> list[str]:
     return out
 
 
-def cell_value(cell, shared: list[str]):
-    ref = cell.attrib.get("r", "")
-    m = re.match(r"([A-Z]+)", ref)
-    if not m:
-        return None, None
-    col = col_letter_to_index(m.group(1))
-    t = cell.attrib.get("t")
-    v = cell.find("m:v", NS)
-    is_elem = cell.find("m:is", NS)
-    if t == "s" and v is not None and v.text is not None:
-        return col, shared[int(v.text)]
-    if t == "inlineStr" and is_elem is not None:
-        texts = [t.text or "" for t in is_elem.findall(".//m:t", NS)]
-        return col, "".join(texts)
-    if v is not None and v.text is not None:
-        raw = v.text
-        try:
-            if "." in raw or "e" in raw.lower():
-                return col, float(raw)
-            return col, int(raw)
-        except ValueError:
-            return col, raw
-    return col, ""
-
-
 def sheet_rows(zf: zipfile.ZipFile, path: str, shared: list[str]) -> list[list]:
     root = ET.fromstring(zf.read(path))
+    sd = root.find(SD_TAG)
+    if sd is None:
+        return []
     rows = []
-    for row in root.findall(".//m:sheetData/m:row", NS):
+    for row in sd:
+        if row.tag != ROW_TAG:
+            continue
         cells = {}
         max_c = -1
-        for cell in row.findall("m:c", NS):
-            col, val = cell_value(cell, shared)
-            if col is None:
+        for cell in row:
+            if cell.tag != C_TAG:
                 continue
+            ref = cell.attrib.get("r", "")
+            col = col_letter_to_index(ref)
+            if col < 0:
+                continue
+            t = cell.attrib.get("t")
+            v = None
+            is_elem = None
+            for child in cell:
+                if child.tag == V_TAG:
+                    v = child
+                elif child.tag == IS_TAG:
+                    is_elem = child
+            val = ""
+            if t == "s" and v is not None and v.text is not None:
+                val = shared[int(v.text)]
+            elif t == "inlineStr" and is_elem is not None:
+                texts = [ch.text or "" for ch in is_elem if ch.tag == T_TAG]
+                val = "".join(texts)
+            elif v is not None and v.text is not None:
+                raw = v.text
+                if "." in raw or "e" in raw.lower():
+                    try:
+                        val = float(raw)
+                    except ValueError:
+                        val = raw
+                else:
+                    try:
+                        val = int(raw)
+                    except ValueError:
+                        val = raw
             cells[col] = val
             if col > max_c:
                 max_c = col
@@ -168,8 +187,8 @@ def sheet_rows(zf: zipfile.ZipFile, path: str, shared: list[str]) -> list[list]:
             rows.append([])
             continue
         line = [""] * (max_c + 1)
-        for i, v in cells.items():
-            line[i] = v
+        for i, val in cells.items():
+            line[i] = val
         rows.append(line)
     return rows
 
@@ -362,22 +381,24 @@ def main():
     cache = ROOT / "_sa.xlsx"
     if (not fresh) and cache.exists() and cache.stat().st_size > 100000:
         xlsx = cache.read_bytes()
-        print(f"Workbook : Using cached _sa.xlsx ({len(xlsx):,} bytes)")
+        print(f"Workbook : Using cached _sa.xlsx ({len(xlsx):,} bytes)", flush=True)
     else:
-        print("Workbook : Downloading community sheet from Google Docs...")
+        print("Workbook : Downloading community sheet from Google Docs...", flush=True)
         req = urllib.request.Request(XLSX_URL, headers={"User-Agent": "kreftus-sa-planner/1.0"})
         with urllib.request.urlopen(req, timeout=120) as resp:
             xlsx = resp.read()
         cache.write_bytes(xlsx)
-        print(f"Workbook : Downloaded _sa.xlsx ({len(xlsx):,} bytes)")
+        print(f"Workbook : Downloaded _sa.xlsx ({len(xlsx):,} bytes)", flush=True)
     zf = zipfile.ZipFile(io.BytesIO(xlsx))
     shared = parse_shared_strings(zf)
     sheets = workbook_sheets(zf)
+    numeric_sheets = [(name, path) for name, path in sheets if name.isdigit()]
+    total_sheets = len(numeric_sheets)
     builds = {}
     total_builds = 0
-    for name, path in sheets:
-        if not name.isdigit():
-            continue
+    is_tty = sys.stdout.isatty()
+
+    for idx, (name, path) in enumerate(numeric_sheets):
         level = int(name)
         rows = sheet_rows(zf, path, shared)
         parsed = [compact_build(b) for b in parse_level_sheet(rows, level)]
@@ -385,13 +406,28 @@ def main():
             builds[str(level)] = parsed
             total_builds += len(parsed)
             if verbose:
-                print(f"  SA {level:>3}: {len(parsed)} builds")
+                print(f"  SA {level:>3}: {len(parsed)} builds", flush=True)
+
+        if not verbose and ((idx + 1) % 3 == 0 or idx == total_sheets - 1 or idx == 0):
+            pct = int((idx + 1) / total_sheets * 100)
+            if is_tty:
+                filled = pct // 5
+                bar = "█" * filled + "░" * (20 - filled)
+                sys.stdout.write(f"\r  Parsing  : [{bar}] {pct:>3}% (SA {level:>3}/160 · {total_builds:,} builds)")
+                sys.stdout.flush()
+            else:
+                print(f"PROGRESS:{idx+1}:{total_sheets}:{level}:{total_builds}:{pct}", flush=True)
+
+    if not verbose and is_tty:
+        sys.stdout.write("\r" + " " * 75 + "\r")
+        sys.stdout.flush()
+
     level_nums = sorted(int(k) for k in builds.keys())
     lvl_range = f"SA {level_nums[0]}..{level_nums[-1]}" if level_nums else "none"
-    print(f"Sheets   : {total_builds:,} builds across {len(builds)} levels ({lvl_range})")
+    print(f"Sheets   : {total_builds:,} builds across {len(builds)} levels ({lvl_range})", flush=True)
     objects = (TRIMPS / "objects.js").read_text(encoding="utf-8", errors="replace")
     items = extract_items_from_objects(objects)
-    print(f"Catalog  : {len(items)} items extracted from objects.js")
+    print(f"Catalog  : {len(items)} items extracted from objects.js", flush=True)
     out = {
         "sheet": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}",
         "items": items,
@@ -404,7 +440,7 @@ def main():
     legacy = ROOT / "_sa_data.json"
     if legacy.exists():
         legacy.unlink()
-    print(f"Snapshot : Wrote data.json ({dest.stat().st_size:,} bytes)")
+    print(f"Snapshot : Wrote data.json ({dest.stat().st_size:,} bytes)", flush=True)
 
 
 if __name__ == "__main__":
