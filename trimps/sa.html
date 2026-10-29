@@ -418,6 +418,20 @@
       color: var(--text);
       font-size: 11px;
     }
+    .kpi-prog-txt {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .kpi-prog-eta {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
     .kpi-prog-pct {
       font-family: var(--mono);
       font-size: 10px;
@@ -2411,6 +2425,24 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
     return "100y+";
   }
 
+  function fmtDuration(sec) {
+    if (!isFinite(sec) || sec <= 0) return "--";
+    if (sec < 60) return Math.ceil(sec) + "s";
+    if (sec < 3600) {
+      var m = Math.floor(sec / 60);
+      var s = Math.floor(sec % 60);
+      return m + "m" + (s > 0 ? " " + s + "s" : "");
+    }
+    if (sec < 86400) {
+      var h = Math.floor(sec / 3600);
+      var remM = Math.floor((sec % 3600) / 60);
+      return h + "h " + (remM < 10 ? "0" : "") + remM + "m";
+    }
+    var d = Math.floor(sec / 86400);
+    var remH = Math.floor((sec % 86400) / 3600);
+    return d + "d " + remH + "h";
+  }
+
   function itemCat(key) { return SA_DATA.items[key] || null; }
   function itemName(key) { var c = itemCat(key); return c ? c.name : key.replace(/__/g, "-").replace(/_/g, " "); }
   function isShards(key) { var c = itemCat(key); return c && c.dust === "shards"; }
@@ -2603,15 +2635,110 @@ var ONE_TIMER_MILESTONES = [
     return { next: next, list: list };
   }
 
+  function saLevelReq(lvl) {
+    var l = Number(lvl) || 1;
+    if (l < 20) return 10 * l;
+    return 190 + (15 * (l - 19));
+  }
+
   function combatDiagnostics() {
     var ab = state.ab || {};
-    var totalKills = ab.enemiesKilled || 0;
+    var saveStats = (state.save && state.save.stats) || {};
+    var saKills = saveStats.saKills || {};
+
+    var curKills = ab.enemiesKilled || 0;
+    var enemyLvl = ab.enemyLevel || state.level || 1;
+    var maxLvl = ab.maxEnemyLevel || enemyLvl;
+    var needed = saLevelReq(enemyLvl);
+    var remaining = Math.max(0, needed - curKills);
+    var progressPct = needed > 0 ? Math.min(100, (curKills / needed) * 100) : 0;
+
+    var s = ab.settings || {};
+    var isPractice = (s.practice && typeof s.practice.enabled !== 'undefined') ? (s.practice.enabled === 1) : (s.practice === 1);
+    var isMaxCleared = Boolean(ab.sealed || ab.canSeal || enemyLvl > 160);
+    var autoLevel = ab.autoLevel !== false;
+
+    var mode = "farming";
+    var modeLabel = "Farming";
+    if (isPractice) {
+      mode = "practice";
+      modeLabel = "Practicing (Rewards Paused)";
+    } else if (isMaxCleared || (enemyLvl >= maxLvl && (ab.canSeal || ab.sealed))) {
+      mode = "max";
+      modeLabel = "Farming (Max Level Cleared)";
+    } else if (enemyLvl >= maxLvl) {
+      mode = "pushing";
+      modeLabel = "Completing SA " + enemyLvl + " (Pushing)";
+    } else {
+      mode = "farming";
+      modeLabel = "Farming SA " + enemyLvl;
+    }
+
+    var totalKillsAllTime = (typeof saKills.valueTotal === 'number' && saKills.valueTotal > 0)
+      ? saKills.valueTotal
+      : ((typeof saKills.value === 'number' && saKills.value > 0) ? saKills.value : curKills);
+    var totalKillsPortal = (typeof saKills.value === 'number') ? saKills.value : 0;
+
     var sKills = ab.sessionEnemiesKilled || 0;
     var sDeaths = ab.sessionTrimpsKilled || 0;
     var sTotal = sKills + sDeaths;
     var winRate = sTotal > 0 ? (sKills / sTotal * 100) : 100;
+
+    var secPerKill = null;
+    var etaSec = null;
+    if (mode === "pushing" && remaining > 0) {
+      var curRec = bestRunnable(enemyLvl);
+      if (curRec && curRec.k && curRec.k > 0) {
+        secPerKill = curRec.k;
+        var userRate = (typeof userDustRate === "function") ? userDustRate() : 0;
+        if (userRate > 0 && curRec.d && curRec.d > 0) {
+          var ratio = curRec.d / userRate;
+          if (ratio >= 0.2 && ratio <= 5.0) {
+            secPerKill = curRec.k * ratio;
+          }
+        }
+      } else {
+        var anyBuilds = buildsFor(enemyLvl);
+        for (var bIdx = 0; bIdx < anyBuilds.length; bIdx++) {
+          if (anyBuilds[bIdx].k && anyBuilds[bIdx].k > 0) {
+            secPerKill = anyBuilds[bIdx].k;
+            break;
+          }
+        }
+      }
+
+      if (!secPerKill) {
+        var userRate = (typeof userDustRate === "function") ? userDustRate() : 0;
+        if (userRate > 0) {
+          var baseReward = (1 + ((enemyLvl - 1) * 5)) * Math.pow(1.19, enemyLvl - 1);
+          if (enemyLvl >= 50) baseReward *= Math.pow(1.1, enemyLvl - 49);
+          secPerKill = Math.max(1, baseReward / userRate);
+        }
+      }
+
+      if (secPerKill && secPerKill > 0) {
+        etaSec = remaining * secPerKill;
+      }
+    }
+
     return {
-      totalKills: totalKills,
+      mode: mode,
+      modeLabel: modeLabel,
+      isPushing: mode === "pushing",
+      isFarming: mode === "farming",
+      isPractice: isPractice,
+      isMax: mode === "max",
+      autoLevel: autoLevel,
+      enemyLevel: enemyLvl,
+      maxEnemyLevel: maxLvl,
+      curKills: curKills,
+      neededKills: needed,
+      remainingKills: remaining,
+      progressPct: progressPct,
+      secPerKill: secPerKill,
+      etaSec: etaSec,
+      totalKillsAllTime: totalKillsAllTime,
+      totalKillsPortal: totalKillsPortal,
       sessionKills: sKills,
       sessionDeaths: sDeaths,
       sessionTotal: sTotal,
@@ -2635,12 +2762,18 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function saSettingsAudit() {
-    var s = (state.ab && state.ab.settings) || {};
+    var ab = state.ab || {};
+    var s = ab.settings || {};
+    var practiceVal = (s.practice && typeof s.practice.enabled !== 'undefined') ? s.practice.enabled : s.practice;
+    var loadRingVal = (s.loadRing && typeof s.loadRing.enabled !== 'undefined') ? s.loadRing.enabled : (typeof s.loadRing !== 'undefined' ? s.loadRing : 1);
+    var loadLevelVal = (s.loadLevel && typeof s.loadLevel.enabled !== 'undefined') ? s.loadLevel.enabled : (typeof s.loadLevel !== 'undefined' ? s.loadLevel : 1);
+    var loadHideVal = (s.loadHide && typeof s.loadHide.enabled !== 'undefined') ? s.loadHide.enabled : (typeof s.loadHide !== 'undefined' ? s.loadHide : 0);
     return {
-      practiceActive: !!(s.practice && s.practice.enabled === 1),
-      loadRingDisabled: !!(s.loadRing && s.loadRing.enabled === 0),
-      loadLevelDisabled: !!(s.loadLevel && s.loadLevel.enabled === 0),
-      loadHideDisabled: !!(s.loadHide && s.loadHide.enabled === 0)
+      autoLevel: ab.autoLevel !== false,
+      practiceActive: practiceVal === 1,
+      loadRingDisabled: loadRingVal === 0,
+      loadLevelDisabled: loadLevelVal === 0,
+      loadHideDisabled: loadHideVal === 1
     };
   }
 
@@ -3655,7 +3788,8 @@ var ONE_TIMER_MILESTONES = [
     var max = state.ab.maxEnemyLevel;
     var html = "";
     if (fight && SA_DATA.builds[String(fight)]) {
-      html += '<button type="button" class="btn sm ' + (state.level === fight ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + fight + ')">Fighting (SA ' + fight + ')</button>';
+      var fightTag = (fight === max) ? "Pushing" : "Farming";
+      html += '<button type="button" class="btn sm ' + (state.level === fight ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + fight + ')">Fighting (SA ' + fight + ' · ' + fightTag + ')</button>';
     }
     if (max && max !== fight && SA_DATA.builds[String(max)]) {
       html += '<button type="button" class="btn sm ' + (state.level === max ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + max + ')">Max (SA ' + max + ')</button>';
@@ -3818,19 +3952,72 @@ var ONE_TIMER_MILESTONES = [
       (bnk.shardsEarned > 0 ? ("\nEarned since load: +" + bnk.shardsEarned) : "") +
       "\nDust equivalent: " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
 
-    // Item 4: Kill & Death Diagnostics
+    // Item 4: Kill & Death Diagnostics + Level Mode
     var diag = combatDiagnostics();
-    var enemyVal = "SA " + (ab.enemyLevel || "—");
-    var enemyNote = (diag.sessionTotal > 0)
-      ? ("Max: SA " + (ab.maxEnemyLevel || "—") + " · Win: " + diag.winRateStr)
-      : ("Max unlocked: SA " + (ab.maxEnemyLevel || "—"));
-    var enemyTitle = "Enemy Level: SA " + (ab.enemyLevel || "—") +
-      "\nMax Unlocked: SA " + (ab.maxEnemyLevel || "—") +
-      "\n\nCombat Diagnostics:" +
-      (diag.sessionTotal > 0
-        ? ("\n• Session Win Rate: " + diag.winRateStr + " (" + prettify(diag.sessionKills) + "W / " + prettify(diag.sessionDeaths) + "L in " + prettify(diag.sessionTotal) + " fights)")
-        : "\n• No session combat recorded in save") +
-      "\n• Total Enemies Slain (All-Time): " + prettify(diag.totalKills);
+    var enemyVal = 'SA ' + (diag.enemyLevel || '—');
+    var enemyNote = '';
+    var enemyTone = 'tone-accent';
+    var enemyKpiHtml = '';
+
+    if (diag.isPushing) {
+      var etaDuration = diag.etaSec ? ('~' + fmtDuration(diag.etaSec)) : '';
+      var etaClock = diag.etaSec ? fmtLocalEta(diag.etaSec) : '';
+      var etaCombined = etaDuration ? (etaDuration + (etaClock ? ' (ETA ' + etaClock + ')' : '')) : '';
+
+      var enemyTitle = 'Enemy Level: SA ' + diag.enemyLevel +
+        '\nStatus: ' + diag.modeLabel +
+        '\n• Progress: ' + prettify(diag.curKills) + ' / ' + prettify(diag.neededKills) + ' kills (' + diag.progressPct.toFixed(1) + '%)' +
+        '\n• Remaining: ' + prettify(diag.remainingKills) + ' kills to clear SA ' + diag.enemyLevel +
+        (diag.etaSec ? ('\n• Estimated Completion: ' + etaCombined +
+                        (diag.secPerKill ? ('\n• Speed: ~' + diag.secPerKill.toFixed(1) + 's per kill') : '')) : '') +
+        '\n• AutoLevel: ' + (diag.autoLevel ? 'ON (Auto-advances when cleared)' : 'OFF (Will NOT advance when cleared!)') +
+        '\n\nCombat Statistics:' +
+        (diag.sessionTotal > 0
+          ? ('\n• Session Win Rate: ' + diag.winRateStr + ' (' + prettify(diag.sessionKills) + 'W / ' + prettify(diag.sessionDeaths) + 'L in ' + prettify(diag.sessionTotal) + ' fights)')
+          : '') +
+        '\n• Total Enemies Slain: ' + prettify(diag.totalKillsAllTime) + ' (All-Time)' +
+        (diag.totalKillsPortal > 0 ? ('\n• Kills This Portal: ' + prettify(diag.totalKillsPortal)) : '') +
+        '\n\nClick to inspect Presets, Settings & Diagnostics';
+
+      enemyKpiHtml = '<div class="kpi tone-accent" id="kpiEnemyLevel" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()" title="' + esc(enemyTitle) + '">' +
+        '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span></div>' +
+        '<div class="kpi-value">' + esc(enemyVal) + '</div>' +
+        '<div class="kpi-note kpi-note-prog">' +
+          '<div class="kpi-prog-row">' +
+            '<span class="kpi-prog-txt">Pushing · ' + prettify(diag.remainingKills) + ' to go (' + diag.progressPct.toFixed(0) + '%)</span>' +
+            (etaDuration ? ('<span class="kpi-prog-eta mono" style="color:var(--accent); font-weight:650;" title="Estimated completion time' + (etaClock ? ' (' + etaClock + ')' : '') + '">' + esc(etaDuration) + '</span>') : '') +
+          '</div>' +
+          '<div class="kpi-bar"><span style="width:' + Math.max(2, diag.progressPct).toFixed(1) + '%; background:var(--accent);"></span></div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      if (diag.isFarming) {
+        enemyNote = 'Farming · Max SA ' + diag.maxEnemyLevel;
+        enemyTone = 'tone-info';
+      } else if (diag.isMax) {
+        enemyNote = 'Max Cleared · SA ' + diag.maxEnemyLevel;
+        enemyTone = 'tone-buy';
+      } else if (diag.isPractice) {
+        enemyNote = 'Practice Mode Active';
+        enemyTone = 'tone-sell';
+      } else {
+        enemyNote = 'Max unlocked: SA ' + (diag.maxEnemyLevel || '—');
+      }
+
+      var enemyTitleNonPush = 'Enemy Level: SA ' + diag.enemyLevel +
+        '\nStatus: ' + diag.modeLabel +
+        '\n• Highest Unlocked: SA ' + diag.maxEnemyLevel +
+        '\n• AutoLevel: ' + (diag.autoLevel ? 'ON (Auto-advances when cleared)' : 'OFF (Will NOT advance when cleared!)') +
+        '\n\nCombat Statistics:' +
+        (diag.sessionTotal > 0
+          ? ('\n• Session Win Rate: ' + diag.winRateStr + ' (' + prettify(diag.sessionKills) + 'W / ' + prettify(diag.sessionDeaths) + 'L in ' + prettify(diag.sessionTotal) + ' fights)')
+          : '') +
+        '\n• Total Enemies Slain: ' + prettify(diag.totalKillsAllTime) + ' (All-Time)' +
+        (diag.totalKillsPortal > 0 ? ('\n• Kills This Portal: ' + prettify(diag.totalKillsPortal)) : '') +
+        '\n\nClick to inspect Presets, Settings & Diagnostics';
+
+      enemyKpiHtml = kpi('Enemy Level', enemyVal, enemyNote, enemyTone, ICONS.spire, "id='kpiEnemyLevel' style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='" + esc(enemyTitleNonPush) + "'");
+    }
 
     // Item 2: One-Timer Milestones
     var msInfo = nextMilestoneInfo(owned.length);
@@ -3876,7 +4063,7 @@ var ONE_TIMER_MILESTONES = [
       : kpi("U2 Progress", "Z" + (state.radon + 1), ab.activeContract ? ("Active: " + itemName(ab.activeContract)) : "No active contract", "tone-violet", ICONS.contract, "id='kpiU2Progress'");
 
     $("chips").innerHTML = [
-      kpi("Enemy Level", enemyVal, enemyNote, "tone-accent", ICONS.spire, "title='" + esc(enemyTitle) + "'"),
+      enemyKpiHtml,
       kpi("Dust Bank", dustVal, dustNote, "tone-buy", ICONS.dust, "id='kpiDustBank' title='" + esc(dustTitle) + "'"),
       kpi("Shard Bank", shardVal, shardNote, "tone-teal", ICONS.gem, "id='kpiShardBank' title='" + esc(shardTitle) + "'"),
       kpi("Huffy Limbs", limbVal, limbNote, "tone-warn", ICONS.limb, "style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='" + esc(limbTitle) + "'"),
@@ -4119,8 +4306,10 @@ var ONE_TIMER_MILESTONES = [
     $("results").hidden = false;
     if ($("sourceStatus")) {
       $("sourceStatus").className = "pill ok";
-      $("sourceStatus").innerHTML = ICONS.check + " <span>Save Loaded · U2 Z" + (state.radon + 1) + " · SA " + (state.ab.enemyLevel || level) + "/" + (state.ab.maxEnemyLevel || level) + "</span>";
-      $("sourceStatus").title = "Save loaded successfully\nHighest U2 Zone: Z" + (state.radon + 1) + "\nCurrent SA Level: " + (state.ab.enemyLevel || level) + " (Max: " + (state.ab.maxEnemyLevel || level) + ")";
+      var hDiag = combatDiagnostics();
+      var saTag = "SA " + hDiag.enemyLevel + (hDiag.isPushing ? (" (Pushing " + hDiag.progressPct.toFixed(0) + "%)") : (hDiag.isFarming ? (" (Farming / Max " + hDiag.maxEnemyLevel + ")") : ""));
+      $("sourceStatus").innerHTML = ICONS.check + " <span>Save Loaded · U2 Z" + (state.radon + 1) + " · " + saTag + "</span>";
+      $("sourceStatus").title = "Save loaded successfully\nHighest U2 Zone: Z" + (state.radon + 1) + "\nSA Status: " + hDiag.modeLabel + (hDiag.isPushing ? ("\nLevel Progress: " + prettify(hDiag.curKills) + " / " + prettify(hDiag.neededKills) + " (" + hDiag.remainingKills + " remaining)") : "") + "\nAutoLevel: " + (hDiag.autoLevel ? "ON" : "OFF");
     }
     renderQuickLevels();
     renderChips(rec, rate);
@@ -5281,6 +5470,12 @@ var ONE_TIMER_MILESTONES = [
         ICONS.warn + '<b>Practice Mode (0 Dust)</b></div>'
       );
     }
+    if (!audit.autoLevel) {
+      warningFacts.push(
+        '<div class="fact fact-warn" style="border-color:rgba(251,191,36,0.5); background:var(--warn-soft); color:var(--warn);" title="Trimps setting \'AutoLevel\' is OFF. Huffy will NOT automatically advance to the next level when current kill requirement is met.">' +
+        ICONS.warn + '<b>AutoLevel OFF</b></div>'
+      );
+    }
     if (audit.loadRingDisabled) {
       warningFacts.push(
         '<div class="fact fact-warn" style="border-color:rgba(251,191,36,0.5); background:var(--warn-soft); color:var(--warn);" title="Trimps setting \'Load Ring\' is OFF. Loading a preset in-game will NOT change your Ring mods.">' +
@@ -5393,6 +5588,28 @@ var ONE_TIMER_MILESTONES = [
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
     var bnk = bank();
+
+    var eCard = $("kpiEnemyLevel");
+    if (eCard) {
+      var eDiag = combatDiagnostics();
+      if (eDiag.isPushing && eDiag.etaSec > 0) {
+        var liveRemSec = Math.max(0, eDiag.etaSec - bnk.elapsedSec);
+        var liveEtaDur = "~" + fmtDuration(liveRemSec);
+        var liveKillsEarned = (eDiag.secPerKill && eDiag.secPerKill > 0)
+          ? Math.min(eDiag.remainingKills, Math.floor(bnk.elapsedSec / eDiag.secPerKill))
+          : 0;
+        var liveRemaining = Math.max(0, eDiag.remainingKills - liveKillsEarned);
+        var liveKillsTotal = eDiag.curKills + liveKillsEarned;
+        var livePct = Math.min(100, (liveKillsTotal / eDiag.neededKills) * 100);
+
+        var txtEl = eCard.querySelector(".kpi-prog-txt");
+        var etaEl = eCard.querySelector(".kpi-prog-eta");
+        var barEl = eCard.querySelector(".kpi-bar > span");
+        if (txtEl) txtEl.textContent = "Pushing · " + prettify(liveRemaining) + " to go (" + livePct.toFixed(0) + "%)";
+        if (etaEl) etaEl.textContent = liveEtaDur;
+        if (barEl) barEl.style.width = Math.max(2, livePct).toFixed(1) + "%";
+      }
+    }
 
     var dCard = $("kpiDustBank");
     if (dCard) {
@@ -5723,6 +5940,11 @@ function renderPresetsModal() {
     } else {
       settingsBadges.push("<span class='pill sm buy'>" + ICONS.check + " Practice Mode Off (Normal)</span>");
     }
+    if (audit.autoLevel) {
+      settingsBadges.push("<span class='pill sm buy'>" + ICONS.check + " AutoLevel ON</span>");
+    } else {
+      settingsBadges.push("<span class='pill sm warn-pill' title='Huffy will not automatically advance to the next level when current level kill requirement is met'>" + ICONS.warn + " AutoLevel OFF</span>");
+    }
     if (audit.loadRingDisabled) {
       settingsBadges.push("<span class='pill sm warn-pill'>" + ICONS.warn + " Load Ring OFF (Won't change mods)</span>");
     } else {
@@ -5766,11 +5988,35 @@ function renderPresetsModal() {
         "</div>" +
         "<div class='audit-card'>" +
           "<div class='audit-row'><span class='audit-lbl'>SA In-Game Settings:</span><div class='audit-pills'>" + settingsBadges.join("") + "</div></div>" +
-          "<div class='audit-row'><span class='audit-lbl'>Combat Session:</span><span class='audit-val'>" +
+          "<div class='audit-row'><span class='audit-lbl'>Level Combat Status:</span><div class='audit-val' style='display:grid;gap:6px;width:100%;'>" +
+            (diag.isPushing
+              ? (function () {
+                  var etaDuration = diag.etaSec ? ("~" + fmtDuration(diag.etaSec)) : "";
+                  var etaClock = diag.etaSec ? fmtLocalEta(diag.etaSec) : "";
+                  var etaStr = etaDuration ? (etaDuration + (etaClock ? " (ETA " + etaClock + ")" : "")) : "";
+                  return "<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;width:100%;'>" +
+                    "<div>" +
+                      "<span class='pill sm accent'>" + ICONS.target + " Completing SA " + diag.enemyLevel + " (Pushing)</span> " +
+                      "<span><b>" + prettify(diag.curKills) + " / " + prettify(diag.neededKills) + "</b> kills (" + diag.progressPct.toFixed(1) + "%) · " +
+                      "<b style='color:var(--accent);'>" + prettify(diag.remainingKills) + " kills to clear</b></span>" +
+                    "</div>" +
+                    (etaStr ? ("<div class='mono' style='color:var(--accent);font-weight:650;font-size:12px;'>" + esc(etaStr) + "</div>") : "") +
+                  "</div>" +
+                  "<div class='kpi-bar' style='height:6px;width:100%;margin-top:2px;'><span style='width:" + Math.max(2, diag.progressPct).toFixed(1) + "%;background:var(--accent);'></span></div>";
+                })()
+              : (diag.isFarming
+                ? ("<span class='pill sm muted'>" + ICONS.spire + " Farming SA " + diag.enemyLevel + "</span> " +
+                   "<span>Farming lower level for dust &amp; shards (Highest unlocked: SA " + diag.maxEnemyLevel + ")</span>")
+                : (diag.isMax
+                  ? ("<span class='pill sm buy'>" + ICONS.check + " SA Conquered</span> <span>Highest SA level completed (SA " + diag.maxEnemyLevel + ")</span>")
+                  : ("<span class='pill sm sell'>" + ICONS.warn + " Practice Mode</span> <span>Combat rewards and level progression paused</span>")))) +
+          "</div></div>" +
+          "<div class='audit-row'><span class='audit-lbl'>Combat Statistics:</span><span class='audit-val'>" +
             (diag.sessionTotal > 0
-              ? (diag.winRateStr + " Win Rate · " + prettify(diag.sessionKills) + " Wins / " + prettify(diag.sessionDeaths) + " Losses (" + prettify(diag.sessionTotal) + " encounters)")
-              : "No session encounters recorded") +
-            " · Total Kills: " + prettify(diag.totalKills) +
+              ? (diag.winRateStr + " Win Rate · " + prettify(diag.sessionKills) + " Wins / " + prettify(diag.sessionDeaths) + " Losses · ")
+              : "") +
+            "Total Enemies Slain: <b>" + prettify(diag.totalKillsAllTime) + "</b> (All-Time)" +
+            (diag.totalKillsPortal > 0 ? (" · <b>" + prettify(diag.totalKillsPortal) + "</b> (This Portal)") : "") +
           "</span></div>" +
           "<div class='audit-row'><span class='audit-lbl'>Macro Buffs (U2):</span><span class='audit-val'>+" +
             mb.radonPct + "% Radon (Lv " + mb.radonLvl + "/50) · +" +
