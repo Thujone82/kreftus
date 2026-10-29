@@ -425,6 +425,30 @@ def main():
     level_nums = sorted(int(k) for k in builds.keys())
     lvl_range = f"SA {level_nums[0]}..{level_nums[-1]}" if level_nums else "none"
     print(f"Sheets   : {total_builds:,} builds across {len(builds)} levels ({lvl_range})", flush=True)
+
+    farm_levels = []
+    index_sheets = [path for name, path in sheets if "index" in name.lower()]
+    if index_sheets:
+        sh_tree = ET.fromstring(zf.read(index_sheets[0]))
+        for row in sh_tree.findall(".//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row"):
+            for c in row.findall("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c"):
+                ref = c.attrib.get("r", "")
+                col = "".join([ch for ch in ref if ch.isalpha()])
+                if col == "N":
+                    t = c.attrib.get("t")
+                    v = c.find("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v")
+                    val = ""
+                    if v is not None and v.text:
+                        val = shared[int(v.text)] if t == "s" else v.text
+                    val = str(val).strip()
+                    if val and val != "Farming Levels":
+                        try:
+                            farm_levels.append(int(float(val)))
+                        except ValueError:
+                            pass
+        farm_levels = sorted(list(set(farm_levels)))
+    print(f"Index    : {len(farm_levels)} farming levels extracted from community Index", flush=True)
+
     objects = (TRIMPS / "objects.js").read_text(encoding="utf-8", errors="replace")
     items = extract_items_from_objects(objects)
     print(f"Catalog  : {len(items)} items extracted from objects.js", flush=True)
@@ -432,6 +456,7 @@ def main():
         "sheet": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}",
         "items": items,
         "builds": builds,
+        "farmLevels": farm_levels,
         "itemOrder": list(DISPLAY_TO_KEY.values()),
     }
     dest = ROOT / "data.json"

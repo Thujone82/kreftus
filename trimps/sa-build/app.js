@@ -1,6 +1,22 @@
 (function () {
   var SHARD_DUST = 1e9;
   var RING_MOD_NAMES = { attack: "Attack", health: "Health", defense: "Defense", lifesteal: "Lifesteal", dustMult: "Dust" };
+
+  var FARM_LEVELS_FALLBACK = [4, 5, 6, 7, 8, 10, 11, 13, 14, 15, 22, 25, 27, 28, 29, 35, 38, 40, 42, 43, 45, 50, 54, 59, 65, 70, 71, 74, 75, 76, 80, 83, 84, 85, 98, 104, 109, 113, 116, 117, 119, 121, 122, 123, 125, 127, 130, 131, 133, 134, 139, 142, 146, 147, 148, 153, 156, 159];
+  var FARM_LEVELS_SET = {};
+  FARM_LEVELS_FALLBACK.forEach(function (lv) { FARM_LEVELS_SET[lv] = true; });
+
+  function isFarmLevel(level) {
+    var l = Number(level);
+    if (typeof SA_DATA !== "undefined" && Array.isArray(SA_DATA.farmLevels) && SA_DATA.farmLevels.length) {
+      return SA_DATA.farmLevels.indexOf(l) !== -1;
+    }
+    return !!FARM_LEVELS_SET[l];
+  }
+
+  function levelTag(level) {
+    return isFarmLevel(level) ? "Farm" : "Push";
+  }
   var EXTRA_DESC = {
     Doppelganger_Signet: "Summon a Doppelganger: 50% damage reduction, 2x Attack, +1 Poison Stack Rate while alive. Explodes after taking your Max Health in damage or if it would kill, redealing fight damage and shredding 50% Enemy Defense.",
     Doppelganger_Diadem: "Can Bleed for 10s. 2x Attack if Signet is equipped, x2 again if Doppelganger is alive. Doppelganger has 50% more health and can resurrect once per fight."
@@ -1491,7 +1507,8 @@ var ONE_TIMER_MILESTONES = [
     sheetLevels().forEach(function (lv) {
       var o = document.createElement("option");
       o.value = String(lv);
-      o.textContent = "SA " + lv;
+      var tag = isFarmLevel(lv) ? "Farm" : "Push";
+      o.textContent = "SA " + lv + " · " + tag;
       sel.appendChild(o);
     });
     if (selected && SA_DATA.builds[String(selected)]) sel.value = String(selected);
@@ -1525,11 +1542,14 @@ var ONE_TIMER_MILESTONES = [
     var max = state.ab.maxEnemyLevel;
     var html = "";
     if (fight && SA_DATA.builds[String(fight)]) {
-      var fightTag = (fight === max) ? "Pushing" : "Farming";
-      html += '<button type="button" class="btn sm ' + (state.level === fight ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + fight + ')">Fighting (SA ' + fight + ' · ' + fightTag + ')</button>';
+      var fTag = isFarmLevel(fight) ? "Farm" : "Push";
+      var isCur = state.level === fight;
+      html += '<button type="button" class="btn sm ' + (isCur ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + fight + ')" title="Fighting SA ' + fight + ' (' + fTag + ' Level)">Fighting (SA ' + fight + ' · ' + fTag + ')</button>';
     }
     if (max && max !== fight && SA_DATA.builds[String(max)]) {
-      html += '<button type="button" class="btn sm ' + (state.level === max ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + max + ')">Max (SA ' + max + ')</button>';
+      var mTag = isFarmLevel(max) ? "Farm" : "Push";
+      var isMax = state.level === max;
+      html += '<button type="button" class="btn sm ' + (isMax ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + max + ')" title="Highest cleared SA ' + max + ' (' + mTag + ' Level)">Max (SA ' + max + ' · ' + mTag + ')</button>';
     }
     el.innerHTML = html;
   }
@@ -1709,7 +1729,8 @@ var ONE_TIMER_MILESTONES = [
       var etaClock = curEtaSec > 0 ? fmtLocalEta(curEtaSec) : "";
       var etaCombined = etaDuration + (etaClock ? " (ETA " + etaClock + ")" : "");
 
-      var enemyTitle = "Enemy Level: SA " + diag.enemyLevel +
+      var enemyLvlTag = diag.enemyLevel ? (isFarmLevel(diag.enemyLevel) ? " (Farm Level)" : " (Push Level)") : "";
+      var enemyTitle = "Enemy Level: SA " + diag.enemyLevel + enemyLvlTag +
         "\nStatus: " + diag.modeLabel +
         "\n• Progress: " + prettify(curKills) + " / " + prettify(diag.neededKills) + " kills (" + curPct.toFixed(1) + "%)" +
         (killsEarned > 0 ? ("\n• Estimated Kills Since Load: +" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
@@ -2044,6 +2065,15 @@ var ONE_TIMER_MILESTONES = [
     if (!state.ab) return;
     var level = Number($("levelSelect").value);
     state.level = level;
+    var tagEl = $("levelTagPill");
+    if (tagEl) {
+      var isFarm = isFarmLevel(level);
+      tagEl.className = "pill sm " + (isFarm ? "buy" : "accent");
+      tagEl.innerHTML = (isFarm ? ICONS.dust : ICONS.spire) + " <span>" + (isFarm ? "Farm Level" : "Push Level") + "</span>";
+      tagEl.title = isFarm
+        ? "Community Sheet: SA " + level + " is a designated Farming Level (highest or above-average dust/s)."
+        : "Community Sheet: SA " + level + " is a Push Level (a progression milestone to clear through to reach the next farming level).";
+    }
     var rec = bestRunnable(level);
     var rate = activeDustPs(rec);
     var est = sheetDustPs(rec);
@@ -2258,11 +2288,15 @@ var ONE_TIMER_MILESTONES = [
         "Targeting the closest recommended build <b>" + esc(target.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). " +
         "Follow the Next Upgrade Advisor on the right to progress toward this build.";
 
+      var isFarm = isFarmLevel(state.level);
+      var lvlTagPill = "<span class='pill sm " + (isFarm ? "buy" : "accent") + "' title='Community sheet " + (isFarm ? "Farming Level" : "Push Level") + "'>" +
+        (isFarm ? ICONS.dust + " Farm Level" : ICONS.spire + " Push Level") + "</span>";
+
       el.innerHTML =
         "<div class='rec'>" +
         "<div class='rec-top'>" +
         "<div class='rec-head'><span style='color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'>Target Build:</span> <span>" + esc(target.n) + "</span></div>" +
-        "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" + stepPill + lockBtn + "</div>" +
+        "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" + lvlTagPill + stepPill + lockBtn + "</div>" +
         "</div>" +
         timingBox +
         "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
@@ -2294,7 +2328,12 @@ var ONE_TIMER_MILESTONES = [
         "</div>";
     }).join("");
 
+    var isFarm = isFarmLevel(state.level);
+    var lvlTagPill = "<span class='pill sm " + (isFarm ? "buy" : "accent") + "' title='Community sheet " + (isFarm ? "Farming Level (high dust/s)" : "Push Level (progression hurdle)") + "'>" +
+      (isFarm ? ICONS.dust + " Farm Level" : ICONS.spire + " Push Level") + "</span>";
+
     var metrics = [];
+    metrics.push(lvlTagPill);
     metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(rec.d) + "/s</span>");
     if (rec.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + rec.k + "s kills</span>");
     if (rec.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((rec.wr <= 1 ? rec.wr : rec.wr / 100) * 100) + "% WR</span>");
