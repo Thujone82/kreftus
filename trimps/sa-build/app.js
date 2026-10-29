@@ -101,6 +101,7 @@
     level: 0,
     theme: "dark",
     dustOverride: "",
+    customDustRates: {},
     filters: { ring: true, contract: true, limb: true, hideUnused: false },
     stepOrder: {},
     lockedPlans: {},
@@ -760,6 +761,54 @@ var ONE_TIMER_MILESTONES = [
 
   function sheetDustPs(build) { return build && build.d ? build.d : 0; }
 
+  function getLoadoutSignature() {
+    if (!state.ab) return "";
+    var eq = [];
+    var allItems = state.ab.items || {};
+    for (var k in allItems) {
+      if (allItems[k] && allItems[k].equipped) {
+        eq.push(k + "=" + (allItems[k].level || 1));
+      }
+    }
+    eq.sort();
+    var r = hasRing() ? (ringLevel() + "[" + ringMods().slice().sort().join(",") + "]") : "noRing";
+    var fightLvl = state.ab.enemyLevel || 0;
+    var slots = maxSlots();
+    var contract = state.ab.activeContract || "";
+    return "fight:" + fightLvl + "|slots:" + slots + "|contract:" + contract + "|ring:" + r + "|eq:" + eq.join(";");
+  }
+
+  function syncCustomDustRate(level) {
+    if (!state.ab) return;
+    var curSig = getLoadoutSignature();
+    var lvlKey = String(level);
+    var entry = state.customDustRates && state.customDustRates[lvlKey];
+
+    if (entry && entry.sig === curSig && entry.rate) {
+      state.dustOverride = entry.rate;
+      if ($("dustOverride") && document.activeElement !== $("dustOverride") && $("dustOverride").value !== entry.rate) {
+        $("dustOverride").value = entry.rate;
+      }
+      if ($("dustOverride")) {
+        $("dustOverride").title = "Custom rate locked to SA " + level + " and current loadout. Reverts to estimate if loadout changes.";
+      }
+    } else {
+      state.dustOverride = "";
+      if ($("dustOverride") && document.activeElement !== $("dustOverride") && $("dustOverride").value !== "") {
+        $("dustOverride").value = "";
+      }
+      if ($("dustOverride")) {
+        $("dustOverride").title = "Enter your in-game dust/s to override the sheet estimate for SA " + level;
+      }
+      if (entry && entry.sig !== curSig) {
+        delete state.customDustRates[lvlKey];
+        try {
+          localStorage.setItem("saPlanner.customRates", JSON.stringify(state.customDustRates));
+        } catch (e) {}
+      }
+    }
+  }
+
   function canEarnShards() {
     if (!state.ab) return false;
     var fLevel = state.ab.enemyLevel || state.level || state.ab.maxEnemyLevel || 0;
@@ -835,11 +884,14 @@ var ONE_TIMER_MILESTONES = [
     try {
       var t = localStorage.getItem("saPlanner.theme");
       if (t) setTheme(t);
-      var d = localStorage.getItem("saPlanner.dustPs");
-      if (d) {
-        state.dustOverride = d;
-        $("dustOverride").value = d;
+      var cr = localStorage.getItem("saPlanner.customRates");
+      if (cr) {
+        try {
+          var parsedCr = JSON.parse(cr);
+          if (parsedCr && typeof parsedCr === "object") state.customDustRates = parsedCr;
+        } catch (e) {}
       }
+      try { localStorage.removeItem("saPlanner.dustPs"); } catch (e) {}
       var f = localStorage.getItem("saPlanner.filters");
       if (f) {
         var parsed = JSON.parse(f);
@@ -2065,15 +2117,7 @@ var ONE_TIMER_MILESTONES = [
     if (!state.ab) return;
     var level = Number($("levelSelect").value);
     state.level = level;
-    var tagEl = $("levelTagPill");
-    if (tagEl) {
-      var isFarm = isFarmLevel(level);
-      tagEl.className = "pill sm " + (isFarm ? "buy" : "accent");
-      tagEl.innerHTML = (isFarm ? ICONS.dust : ICONS.spire) + " <span>" + (isFarm ? "Farm Level" : "Push Level") + "</span>";
-      tagEl.title = isFarm
-        ? "Community Sheet: SA " + level + " is a designated Farming Level (highest or above-average dust/s)."
-        : "Community Sheet: SA " + level + " is a Push Level (a progression milestone to clear through to reach the next farming level).";
-    }
+    syncCustomDustRate(level);
     var rec = bestRunnable(level);
     var rate = activeDustPs(rec);
     var est = sheetDustPs(rec);
@@ -3807,6 +3851,21 @@ var ONE_TIMER_MILESTONES = [
       var pick = decoded.ab.enemyLevel || decoded.ab.maxEnemyLevel || 4;
       if (pick > (decoded.ab.maxEnemyLevel || pick)) pick = decoded.ab.maxEnemyLevel;
       fillLevels(pick);
+      var curSig = getLoadoutSignature();
+      if (state.customDustRates && typeof state.customDustRates === "object") {
+        var changed = false;
+        for (var k in state.customDustRates) {
+          if (state.customDustRates[k] && state.customDustRates[k].sig !== curSig) {
+            delete state.customDustRates[k];
+            changed = true;
+          }
+        }
+        if (changed) {
+          try {
+            localStorage.setItem("saPlanner.customRates", JSON.stringify(state.customDustRates));
+          } catch (e) {}
+        }
+      }
       state.filters.contract = !shouldDisableContractsOnLoad(state.level);
       applyFilterBoxes();
       $("workspace").hidden = false;
@@ -3828,8 +3887,25 @@ var ONE_TIMER_MILESTONES = [
   function toggleTheme() { setTheme(state.theme === "dark" ? "light" : "dark"); }
 
   function onDustInput() {
-    state.dustOverride = $("dustOverride").value;
-    try { localStorage.setItem("saPlanner.dustPs", state.dustOverride); } catch (e) {}
+    var raw = $("dustOverride") ? $("dustOverride").value : "";
+    var trimmed = raw.trim();
+    state.dustOverride = trimmed;
+    var curSig = getLoadoutSignature();
+    var lvlKey = String(state.level);
+
+    if (!state.customDustRates) state.customDustRates = {};
+    if (trimmed) {
+      state.customDustRates[lvlKey] = {
+        rate: trimmed,
+        sig: curSig
+      };
+    } else {
+      delete state.customDustRates[lvlKey];
+    }
+    try {
+      localStorage.setItem("saPlanner.customRates", JSON.stringify(state.customDustRates));
+    } catch (e) {}
+
     if (state.ab) {
       render();
       var dlg = $("presetsDlg");

@@ -229,6 +229,7 @@
       color: var(--text);
       font-weight: 650; font-size: 13px;
       cursor: pointer;
+      white-space: nowrap; flex-shrink: 0;
       transition: transform 0.12s, background 0.15s, border-color 0.15s, filter 0.15s;
     }
     .btn:hover { border-color: var(--accent); background: var(--surface-3); }
@@ -477,40 +478,41 @@
     .top-loaded-fact {
       font-size: 11.5px; padding: 4px 9px;
     }
-    .control-group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+    .control-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 12px; flex: 0 0 auto; }
     .field {
       display: flex; align-items: center; gap: 8px;
       font-size: 12.5px; color: var(--muted); font-weight: 650;
+      white-space: nowrap; flex-wrap: nowrap;
     }
-    .field-label { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .field-label { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0; }
     .field-label svg { width: 14px; height: 14px; color: var(--accent); }
     .level-stepper {
-      display: inline-flex; align-items: center;
+      display: inline-flex; align-items: center; flex-shrink: 0;
       background: var(--surface-2); border: 1px solid var(--border-strong);
       border-radius: 10px; padding: 2px; gap: 2px;
     }
     .level-stepper select {
       border: 0; background: transparent; color: var(--text);
       font-family: var(--mono); font-weight: 700; font-size: 13px;
-      padding: 5px 10px; min-width: 92px; cursor: pointer;
+      padding: 5px 8px; min-width: 100px; cursor: pointer;
       border-radius: 7px;
     }
     .level-stepper select:focus { outline: none; background: var(--surface-3); }
     .level-stepper select option { background: var(--surface-solid); color: var(--text); }
     .step-btn {
-      width: 28px; height: 28px; border: 0; border-radius: 7px;
+      width: 28px; height: 28px; border: 0; border-radius: 7px; flex-shrink: 0;
       background: transparent; color: var(--muted);
       display: grid; place-items: center; cursor: pointer;
       transition: background 0.12s, color 0.12s;
     }
     .step-btn:hover { background: var(--surface-3); color: var(--text); }
     .step-btn svg { width: 14px; height: 14px; }
-    .dust-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .dust-line { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0; }
     .input-wrap {
-      position: relative; display: inline-flex; align-items: center;
+      position: relative; display: inline-flex; align-items: center; flex-shrink: 0;
     }
     .input-wrap input[type="text"] {
-      height: 34px; padding: 0 34px 0 11px; min-width: 185px;
+      height: 34px; padding: 0 32px 0 10px; width: 120px; min-width: 110px;
       font-family: var(--mono); font-size: 12.5px; font-weight: 500;
       background: var(--surface-2); border: 1px solid var(--border-strong);
       border-radius: 10px; color: var(--text);
@@ -1607,8 +1609,7 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
               </div>
-              <span id="levelTagPill" class="pill sm" style="font-weight:650;"></span>
-              <div id="quickLevels" style="display:inline-flex;gap:5px;flex-wrap:wrap;"></div>
+              <div id="quickLevels" style="display:inline-flex;gap:5px;flex-wrap:nowrap;align-items:center;"></div>
             </div>
           </div>
 
