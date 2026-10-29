@@ -12,15 +12,22 @@ import (
 )
 
 func TestMouseInputPacketSize(t *testing.T) {
-	got := unsafe.Sizeof(mouseInputPacket{})
+	gotMouse := unsafe.Sizeof(mouseInputPacket{})
+	gotKeybd := unsafe.Sizeof(keybdInputPacket{})
 	switch unsafe.Sizeof(uintptr(0)) {
 	case 8:
-		if got != 40 {
-			t.Fatalf("INPUT size = %d, want 40", got)
+		if gotMouse != 40 {
+			t.Fatalf("mouse INPUT size = %d, want 40", gotMouse)
+		}
+		if gotKeybd != 40 {
+			t.Fatalf("keybd INPUT size = %d, want 40", gotKeybd)
 		}
 	case 4:
-		if got != 28 {
-			t.Fatalf("INPUT size = %d, want 28", got)
+		if gotMouse != 28 {
+			t.Fatalf("mouse INPUT size = %d, want 28", gotMouse)
+		}
+		if gotKeybd != 28 {
+			t.Fatalf("keybd INPUT size = %d, want 28", gotKeybd)
 		}
 	default:
 		t.Fatalf("unexpected pointer size %d", unsafe.Sizeof(uintptr(0)))
@@ -59,6 +66,10 @@ func hitWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 }
 
 func TestPlaybackClickReachesWindow(t *testing.T) {
+	var probe point
+	if r, _, _ := procGetCursorPos.Call(uintptr(unsafe.Pointer(&probe))); r == 0 {
+		t.Skip("GetCursorPos unavailable in non-interactive session")
+	}
 	runtime.LockOSThread()
 	enableDPI()
 	if hitCallback == 0 {

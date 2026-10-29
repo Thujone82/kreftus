@@ -4,13 +4,16 @@ package main
 
 import (
 	"errors"
+	"math"
 	"runtime"
 	"time"
+	"unicode/utf16"
 	"unsafe"
 )
 
 const (
-	inputMouse = 0
+	inputMouse    = 0
+	inputKeyboard = 1
 
 	mouseEventMove        = 0x0001
 	mouseEventLeftDown    = 0x0002
@@ -22,6 +25,11 @@ const (
 	mouseEventWheel       = 0x0800
 	mouseEventVirtualDesk = 0x4000
 	mouseEventAbsolute    = 0x8000
+
+	keyEventExtendedKey = 0x0001
+	keyEventKeyUp       = 0x0002
+	keyEventUnicode     = 0x0004
+	keyEventScancode    = 0x0008
 
 	smXVirtualScreen  = 76
 	smYVirtualScreen  = 77
@@ -52,6 +60,23 @@ type mouseInputPacket struct {
 	mi  mouseInput
 }
 
+// keybdInput matches Win32 KEYBDINPUT, padded to the size of MOUSEINPUT
+// (28 bytes on 386, 32 bytes on amd64) so keybdInputPacket has the exact
+// same size and alignment as mouseInputPacket on both architectures.
+type keybdInput struct {
+	wVk     uint16
+	wScan   uint16
+	dwFlags uint32
+	time    uint32
+	dwExtra uintptr
+	pad     [8]byte
+}
+
+type keybdInputPacket struct {
+	typ uint32
+	ki  keybdInput
+}
+
 var errAborted = errors.New("aborted")
 
 func playEvents(events []Event, abort <-chan struct{}) error {
@@ -80,11 +105,298 @@ func playEvents(events []Event, abort <-chan struct{}) error {
 		}
 		if ev.Kind != Move {
 			playOne(ev)
+			if isButtonDown(ev.Kind) {
+				held = ev.Kind
+				heldAt = time.Now()
+			}
 		}
 		fromX, fromY = ev.X, ev.Y
 		prev = ev.Offset
 	}
 	return nil
+}
+
+// playSteps executes a slice of high-level Steps with optional speed scaling
+// and step-index progress reporting. On abort or return, any buttons or modifiers
+// pressed during playback are guaranteed to be released.
+func playSteps(steps []Step, speed float64, abort <-chan struct{}, onStep func(idx int)) error {
+	if len(steps) == 0 {
+		return nil
+	}
+	if speed <= 0 {
+		speed = 1.0
+	}
+	procTimeBeginPeriod.Call(1)
+	defer procTimeEndPeriod.Call(1)
+
+	scaleDur := func(ms int64) time.Duration {
+		if ms <= 0 {
+			return 0
+		}
+		scaled := float64(ms) / speed
+		return time.Duration(math.Round(scaled)) * time.Millisecond
+	}
+
+	var (
+		heldBtns = make(map[Button]bool)
+		heldVKs  = make(map[uint16]bool)
+	)
+	defer func() {
+		// Safety release: ensure no mouse button or modifier key remains stuck down.
+		cx, cy, _ := cursorPos()
+		for btn, down := range heldBtns {
+			if down {
+				_, upFlag := buttonFlags(btn)
+				sendAbsolute(cx, cy, upFlag, 0)
+			}
+		}
+		for vk, down := range heldVKs {
+			if down {
+				sendKeyVK(vk, true)
+			}
+		}
+	}()
+
+	fromX, fromY, _ := cursorPos()
+
+	for idx, st := range steps {
+		if aborted(abort) {
+			return errAborted
+		}
+		if onStep != nil {
+			onStep(idx)
+		}
+		delay := scaleDur(st.DelayMs)
+		hold := scaleDur(st.HoldMs)
+		if hold < minClickHold {
+			hold = minClickHold
+		}
+
+		switch st.Type {
+		case StepWait:
+			waitDur := delay
+			if st.HoldMs > 0 {
+				waitDur += scaleDur(st.HoldMs)
+			}
+			if waitDur > 0 && !sleepAbort(waitDur, abort) {
+				return errAborted
+			}
+
+		case StepClick, StepDoubleClick:
+			if st.Glide {
+				now := time.Now()
+				if !glide(fromX, fromY, st.X, st.Y, now, now.Add(delay), abort) {
+					return errAborted
+				}
+			} else {
+				if delay > 0 && !sleepAbort(delay, abort) {
+					return errAborted
+				}
+				sendAbsolute(st.X, st.Y, 0, 0)
+			}
+			fromX, fromY = st.X, st.Y
+			downFlag, upFlag := buttonFlags(st.Button)
+			clicks := 1
+			if st.Type == StepDoubleClick {
+				clicks = 2
+			}
+			for c := 0; c < clicks; c++ {
+				heldBtns[st.Button] = true
+				sendAbsolute(st.X, st.Y, downFlag, 0)
+				tapHold := hold
+				if clicks == 2 && tapHold > 65*time.Millisecond {
+					tapHold = 50 * time.Millisecond
+				}
+				if !sleepAbort(tapHold, abort) {
+					return errAborted
+				}
+				sendAbsolute(st.X, st.Y, upFlag, 0)
+				heldBtns[st.Button] = false
+				if c == 0 && clicks == 2 {
+					if !sleepAbort(45*time.Millisecond, abort) {
+						return errAborted
+					}
+				}
+			}
+
+		case StepDrag:
+			if st.Glide {
+				now := time.Now()
+				if !glide(fromX, fromY, st.X, st.Y, now, now.Add(delay), abort) {
+					return errAborted
+				}
+			} else {
+				if delay > 0 && !sleepAbort(delay, abort) {
+					return errAborted
+				}
+				sendAbsolute(st.X, st.Y, 0, 0)
+			}
+			downFlag, upFlag := buttonFlags(st.Button)
+			heldBtns[st.Button] = true
+			sendAbsolute(st.X, st.Y, downFlag, 0)
+			if !sleepAbort(minClickHold, abort) {
+				return errAborted
+			}
+			dragSpan := hold
+			if dragSpan < 80*time.Millisecond {
+				dragSpan = 120 * time.Millisecond
+			}
+			now := time.Now()
+			if !glide(st.X, st.Y, st.X2, st.Y2, now, now.Add(dragSpan), abort) {
+				return errAborted
+			}
+			sendAbsolute(st.X2, st.Y2, upFlag, 0)
+			heldBtns[st.Button] = false
+			fromX, fromY = st.X2, st.Y2
+
+		case StepWheel:
+			targetX, targetY := st.X, st.Y
+			if targetX == 0 && targetY == 0 {
+				targetX, targetY = fromX, fromY
+			}
+			if st.Glide && (targetX != fromX || targetY != fromY) {
+				now := time.Now()
+				if !glide(fromX, fromY, targetX, targetY, now, now.Add(delay), abort) {
+					return errAborted
+				}
+			} else if delay > 0 {
+				if !sleepAbort(delay, abort) {
+					return errAborted
+				}
+			}
+			wheelVal := st.Wheel
+			if wheelVal == 0 {
+				wheelVal = -120
+			}
+			sendAbsolute(targetX, targetY, mouseEventWheel, wheelVal)
+			fromX, fromY = targetX, targetY
+
+		case StepKey:
+			if delay > 0 && !sleepAbort(delay, abort) {
+				return errAborted
+			}
+			vk := st.Key
+			if vk == 0 && st.KeyName != "" {
+				if resolved, ok := NameToVK(st.KeyName); ok {
+					vk = resolved
+				}
+			}
+			modVKs := expandModVKs(st.Mods)
+			for _, mvk := range modVKs {
+				heldVKs[mvk] = true
+				sendKeyVK(mvk, false)
+			}
+			if vk != 0 {
+				heldVKs[vk] = true
+				sendKeyVK(vk, false)
+				if !sleepAbort(hold, abort) {
+					return errAborted
+				}
+				sendKeyVK(vk, true)
+				heldVKs[vk] = false
+			}
+			for i := len(modVKs) - 1; i >= 0; i-- {
+				mvk := modVKs[i]
+				sendKeyVK(mvk, true)
+				heldVKs[mvk] = false
+			}
+
+		case StepText:
+			if delay > 0 && !sleepAbort(delay, abort) {
+				return errAborted
+			}
+			u16 := utf16.Encode([]rune(st.Text))
+			for _, code := range u16 {
+				if aborted(abort) {
+					return errAborted
+				}
+				sendUnicodeChar(code, false)
+				sendUnicodeChar(code, true)
+				if !sleepAbort(8*time.Millisecond, abort) {
+					return errAborted
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func buttonFlags(btn Button) (downFlag, upFlag uint32) {
+	switch btn {
+	case ButtonRight:
+		return mouseEventRightDown, mouseEventRightUp
+	case ButtonMiddle:
+		return mouseEventMiddleDown, mouseEventMiddleUp
+	default:
+		return mouseEventLeftDown, mouseEventLeftUp
+	}
+}
+
+func expandModVKs(mods Mods) []uint16 {
+	var out []uint16
+	if mods.Has(ModCtrl) {
+		out = append(out, vkLControl)
+	}
+	if mods.Has(ModAlt) {
+		out = append(out, vkLMenu)
+	}
+	if mods.Has(ModShift) {
+		out = append(out, vkLShift)
+	}
+	if mods.Has(ModWin) {
+		out = append(out, vkLWin)
+	}
+	return out
+}
+
+func isExtendedVK(vk uint16) bool {
+	switch vk {
+	case vkPrior, vkNext, vkEnd, vkHome, vkLeft, vkUp, vkRight, vkDown,
+		vkInsert, vkDelete, vkDivide, vkNumlock, vkRControl, vkRMenu, vkLWin, vkRWin, vkApps, vkSnapshot:
+		return true
+	default:
+		return false
+	}
+}
+
+func sendKeyVK(vk uint16, up bool) bool {
+	scan, _, _ := procMapVirtualKeyW.Call(uintptr(vk), 0) // MAPVK_VK_TO_VSC
+	flags := uint32(0)
+	if isExtendedVK(vk) {
+		flags |= keyEventExtendedKey
+	}
+	if up {
+		flags |= keyEventKeyUp
+	}
+	pkt := keybdInputPacket{
+		typ: inputKeyboard,
+		ki: keybdInput{
+			wVk:     vk,
+			wScan:   uint16(scan),
+			dwFlags: flags,
+		},
+	}
+	sent, _, _ := procSendInput.Call(1, uintptr(unsafe.Pointer(&pkt)), unsafe.Sizeof(pkt))
+	runtime.KeepAlive(&pkt)
+	return sent == 1
+}
+
+func sendUnicodeChar(ch uint16, up bool) bool {
+	flags := uint32(keyEventUnicode)
+	if up {
+		flags |= keyEventKeyUp
+	}
+	pkt := keybdInputPacket{
+		typ: inputKeyboard,
+		ki: keybdInput{
+			wVk:     0,
+			wScan:   ch,
+			dwFlags: flags,
+		},
+	}
+	sent, _, _ := procSendInput.Call(1, uintptr(unsafe.Pointer(&pkt)), unsafe.Sizeof(pkt))
+	runtime.KeepAlive(&pkt)
+	return sent == 1
 }
 
 func cursorPos() (x, y int32, ok bool) {

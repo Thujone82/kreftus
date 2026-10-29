@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Click</title>
+  <style>
+/*__INLINE_CSS__*/
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4l7.07 17 2.51-7.39L21 11.07z"></path>
+            <path d="M13.5 13.5L19 19"></path>
+          </svg>
+        </span>
+        <span class="brand-title">Click</span>
+      </div>
+
+      <div class="transport-bar">
+        <button id="btnRecord" class="btn btn-record" title="Start or stop macro recording (Alt+Shift+_)">
+          <span class="rec-dot"></span>
+          <span id="lblRecord">Record</span>
+        </button>
+
+        <div class="delay-group" title="Countdown before playback starts (e.g. 5s, 0, 1m30s)">
+          <label for="inpCountdown">Delay</label>
+          <input id="inpCountdown" type="text" value="5s" maxlength="24" />
+        </div>
+
+        <button id="btnPlay" class="btn btn-primary" title="Play selected macro after countdown (Alt+Shift+()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><polygon points="6,4 20,12 6,20"></polygon></svg>
+          <span>Play</span>
+        </button>
+
+        <button id="btnAbort" class="btn btn-ghost" disabled title="Cancel countdown or stop playback (Alt+Shift+))">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <span>Abort</span>
+        </button>
+      </div>
+
+      <div id="statusPill" class="status-pill" data-state="idle">
+        <span class="status-dot"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </header>
+
+    <!-- Main Body -->
+    <div class="workspace">
+      <!-- Left Icon Navigation Rail -->
+      <nav class="nav-rail" aria-label="Primary Navigation">
+        <button class="nav-item active" data-tab="macros" title="Macros &amp; Step Editor">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+          </svg>
+          <span>Macros</span>
+        </button>
+
+        <button class="nav-item" data-tab="scheduler" title="Macro Scheduler">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9">
+            <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+            <polyline points="12 14 12 17 14.5 17"></polyline>
+          </svg>
+          <span>Scheduler</span>
+        </button>
+
+        <button class="nav-item" data-tab="activity" title="Run History &amp; Activity Log">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          <span>Activity</span>
+        </button>
+
+        <div class="nav-spacer"></div>
+
+        <button class="nav-item" data-tab="settings" title="Settings &amp; Hotkeys">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1.02 1.41 1.09H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <!-- TAB 1: MACROS VIEW -->
+      <section id="tab-macros" class="tab-view active">
+        <!-- Left Column: Macro Panel -->
+        <aside class="macro-panel">
+          <div class="panel-header">
+            <h2>Macros</h2>
+            <div class="panel-header-actions">
+              <button id="btnImportMacro" class="icon-btn" title="Import macro from JSON">Import</button>
+              <button id="btnNewBlankMacro" class="icon-btn" title="Create an empty macro">+ Blank</button>
+            </div>
+          </div>
+
+          <div class="search-box">
+            <input id="inpSearchMacros" type="search" placeholder="Search macros…" />
+          </div>
+
+          <div id="macroList" class="macro-list"></div>
+
+          <button id="btnNewRecording" class="btn-dashed">
+            <span>+ New recording</span>
+          </button>
+        </aside>
+
+        <!-- Right Pane: Step Editor -->
+        <main class="editor-pane">
+          <div id="editorEmpty" class="empty-state">
+            <h3>No Macro Selected</h3>
+            <p>Press <strong>Record</strong> (or <code>Alt+Shift+_</code>) and perform mouse clicks or keystrokes in any window, or create a blank macro to build steps manually.</p>
+          </div>
+
+          <div id="editorContent" class="editor-content hidden">
+            <div class="editor-header">
+              <div class="editor-title-block">
+                <div class="title-row">
+                  <input id="inpMacroName" class="macro-title-input" type="text" maxlength="80" title="Click to rename macro" />
+                  <span id="dupNameWarn" class="badge badge-warn hidden" title="Another macro has this same name">Duplicate name</span>
+                </div>
+                <div id="editorSubtitle" class="editor-subtitle">0 steps · 0.0 s · Saved ✓</div>
+              </div>
+
+              <div class="editor-header-right">
+                <button id="btnScheduleThis" class="btn btn-secondary" title="Schedule this macro">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                  <span>Schedule</span>
+                </button>
+                <button id="btnExportMacro" class="btn btn-ghost" title="Export macro JSON">Export</button>
+              </div>
+            </div>
+
+            <div class="editor-toolbar">
+              <div class="dropdown-wrap">
+                <button id="btnInsertStep" class="btn btn-primary btn-sm">+ Insert step ▾</button>
+                <div id="menuInsertStep" class="dropdown-menu hidden">
+                  <button data-insert="click">🖱️ Mouse Click</button>
+                  <button data-insert="double_click">🖱️ Double Click</button>
+                  <button data-insert="drag">📐 Mouse Drag</button>
+                  <button data-insert="key">⌨️ Keystroke / Chord</button>
+                  <button data-insert="text">🔤 Type Text</button>
+                  <button data-insert="wheel">🧭 Scroll Wheel</button>
+                  <button data-insert="wait">⏱️ Wait / Delay</button>
+                </div>
+              </div>
+
+              <button id="btnAppendRec" class="btn btn-secondary btn-sm" title="Record and append steps to the end of this macro">
+                <span>Append recording</span>
+              </button>
+
+              <label class="speed-control" title="Playback speed multiplier for this macro">
+                <span>Speed</span>
+                <select id="selMacroSpeed">
+                  <option value="0.25">0.25×</option>
+                  <option value="0.5">0.5×</option>
+                  <option value="0.75">0.75×</option>
+                  <option value="1" selected>1.0×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2.0×</option>
+                  <option value="3">3.0×</option>
+                  <option value="4">4.0×</option>
+                </select>
+              </label>
+
+              <button id="btnTestFromHere" class="btn btn-secondary btn-sm" title="Play macro starting from the selected step">
+                <span>▷ Test from selected</span>
+              </button>
+
+              <div class="toolbar-spacer"></div>
+
+              <button id="btnUndo" class="icon-btn" title="Undo (Ctrl+Z)" disabled>↶</button>
+              <button id="btnRedo" class="icon-btn" title="Redo (Ctrl+Y)" disabled>↷</button>
+            </div>
+
+            <div id="stepList" class="step-list" role="list"></div>
+          </div>
+        </main>
+      </section>
+
+      <!-- TAB 2: SCHEDULER VIEW -->
+      <section id="tab-scheduler" class="tab-view">
+        <aside class="sched-list-panel">
+          <div class="panel-header">
+            <h2>Schedules</h2>
+            <button id="btnNewSchedule" class="btn btn-primary btn-sm">+ New Schedule</button>
+          </div>
+          <div id="scheduleList" class="schedule-list"></div>
+        </aside>
+
+        <main class="sched-form-pane">
+          <form id="formSchedule" class="sched-form">
+            <div class="form-header">
+              <h3 id="schedFormTitle">Create Schedule</h3>
+              <div class="form-header-actions">
+                <button type="button" id="btnRunSchedNow" class="btn btn-secondary btn-sm hidden">▶ Run Now</button>
+                <button type="button" id="btnDeleteSched" class="btn btn-danger btn-sm hidden">Delete</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save Schedule</button>
+              </div>
+            </div>
+
+            <input type="hidden" id="schedId" />
+
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="schedMacro">Target Macro</label>
+                <select id="schedMacro" required></select>
+              </div>
+
+              <div class="form-field">
+                <label for="schedName">Schedule Label</label>
+                <input type="text" id="schedName" placeholder="Defaults to macro name" />
+              </div>
+
+              <div class="form-field">
+                <label for="schedStart">First Run Date &amp; Time</label>
+                <input type="datetime-local" id="schedStart" step="1" required />
+                <div class="quick-chips">
+                  <button type="button" class="chip" data-plus-min="1">In 1 min</button>
+                  <button type="button" class="chip" data-plus-min="5">In 5 min</button>
+                  <button type="button" class="chip" data-plus-min="15">In 15 min</button>
+                  <button type="button" class="chip" data-plus-min="60">In 1 hr</button>
+                  <button type="button" class="chip" data-tomorrow="9">Tomorrow 9:00 AM</button>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label class="toggle-row">
+                  <input type="checkbox" id="schedEnabled" checked />
+                  <span>Schedule Enabled</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="advanced-box">
+              <h4>Repetition &amp; Advanced Timing</h4>
+
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="schedRepeat">Repeat Mode</label>
+                  <select id="schedRepeat">
+                    <option value="none">Run Once (No Repeat)</option>
+                    <option value="interval">Every Interval (e.g. 30s, 15m, 2h)</option>
+                    <option value="daily">Daily at Start Time</option>
+                    <option value="weekly">Weekly on Selected Days</option>
+                  </select>
+                </div>
+
+                <div id="fieldInterval" class="form-field hidden">
+                  <label for="schedInterval">Repeat Interval</label>
+                  <input type="text" id="schedInterval" value="15m" placeholder="e.g. 30s, 10m, 1h30m" />
+                </div>
+              </div>
+
+              <div id="fieldWeekdays" class="form-field hidden">
+                <label>Days of Week</label>
+                <div class="weekday-pills">
+                  <label><input type="checkbox" data-day="0" /><span>Sun</span></label>
+                  <label><input type="checkbox" data-day="1" /><span>Mon</span></label>
+                  <label><input type="checkbox" data-day="2" /><span>Tue</span></label>
+                  <label><input type="checkbox" data-day="3" /><span>Wed</span></label>
+                  <label><input type="checkbox" data-day="4" /><span>Thu</span></label>
+                  <label><input type="checkbox" data-day="5" /><span>Fri</span></label>
+                  <label><input type="checkbox" data-day="6" /><span>Sat</span></label>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="schedEnd">Stop / Duration Condition</label>
+                  <select id="schedEnd">
+                    <option value="never">Keep Repeating Indefinitely</option>
+                    <option value="after_runs">Stop After N Runs</option>
+                    <option value="for_duration">Run For a Duration (e.g. 2h)</option>
+                    <option value="until_time">Run Until Specific Date &amp; Time</option>
+                  </select>
+                </div>
+
+                <div id="fieldEndRuns" class="form-field hidden">
+                  <label for="schedEndRuns">Max Total Runs</label>
+                  <input type="number" id="schedEndRuns" min="1" max="100000" value="10" />
+                </div>
+
+                <div id="fieldEndDuration" class="form-field hidden">
+                  <label for="schedEndDuration">Active Duration</label>
+                  <input type="text" id="schedEndDuration" value="2h" placeholder="e.g. 45m, 4h" />
+                </div>
+
+                <div id="fieldEndUntil" class="form-field hidden">
+                  <label for="schedEndUntil">End Date &amp; Time</label>
+                  <input type="datetime-local" id="schedEndUntil" step="1" />
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="schedWinStart">Active Time-of-Day Window (Optional)</label>
+                  <div class="inline-pair">
+                    <input type="time" id="schedWinStart" />
+                    <span>to</span>
+                    <input type="time" id="schedWinEnd" />
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label for="schedPlaysPerRun">Plays Per Trigger &amp; Gap</label>
+                  <div class="inline-pair">
+                    <input type="number" id="schedPlaysPerRun" min="1" max="500" value="1" title="Number of back-to-back plays per trigger" />
+                    <span>× gap</span>
+                    <input type="text" id="schedPlayGap" value="1s" placeholder="1s" title="Pause between back-to-back plays" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="schedMissed">If Missed (PC Asleep / App Closed)</label>
+                  <select id="schedMissed">
+                    <option value="skip">Skip missed runs &amp; wait for next</option>
+                    <option value="run_once_asap">Run once immediately upon resume</option>
+                  </select>
+                </div>
+
+                <div class="form-field">
+                  <label for="schedOverlap">If Another Macro Is Already Playing</label>
+                  <select id="schedOverlap">
+                    <option value="skip">Skip this scheduled trigger</option>
+                    <option value="queue">Queue and play as soon as free</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="preview-box">
+              <div class="preview-title">Upcoming 5 Run Times Preview</div>
+              <ul id="schedPreviewList" class="preview-list"></ul>
+            </div>
+          </form>
+        </main>
+      </section>
+
+      <!-- TAB 3: ACTIVITY VIEW -->
+      <section id="tab-activity" class="tab-view">
+        <div class="full-pane">
+          <div class="panel-header">
+            <h2>Execution Activity Log</h2>
+            <button id="btnClearHistory" class="btn btn-secondary btn-sm">Clear Log</button>
+          </div>
+          <div id="historyList" class="history-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- TAB 4: SETTINGS VIEW -->
+      <section id="tab-settings" class="tab-view">
+        <div class="full-pane settings-pane">
+          <h2>Settings &amp; Preferences</h2>
+
+          <div class="settings-card">
+            <h3>Recording &amp; Playback</h3>
+            <label class="toggle-row">
+              <input type="checkbox" id="setRecordMouse" checked />
+              <span>Record mouse clicks, drags, and scroll wheel</span>
+            </label>
+            <label class="toggle-row">
+              <input type="checkbox" id="setRecordKeyboard" checked />
+              <span>Record keyboard keystrokes and modifier chords</span>
+            </label>
+            <label class="toggle-row">
+              <input type="checkbox" id="setMergeTyping" checked />
+              <span>Merge consecutive typed characters into editable "Type text" steps</span>
+            </label>
+            <label class="toggle-row">
+              <input type="checkbox" id="setHideWhilePlaying" checked />
+              <span>Hide the Click window during playback so underlying windows receive input</span>
+            </label>
+          </div>
+
+          <div class="settings-card">
+            <h3>Scheduler &amp; System</h3>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="setWarnSecs">Pre-run warning countdown before scheduled runs (seconds)</label>
+                <input type="number" id="setWarnSecs" min="0" max="60" value="5" />
+              </div>
+              <div class="form-field">
+                <label for="setTheme">Appearance Theme</label>
+                <select id="setTheme">
+                  <option value="dark">Dark (Fluent Mica)</option>
+                  <option value="light">Light</option>
+                </select>
+              </div>
+            </div>
+            <label class="toggle-row">
+              <input type="checkbox" id="setKeepAwake" />
+              <span>Prevent Windows from sleeping while schedules are active</span>
+            </label>
+            <label class="toggle-row">
+              <input type="checkbox" id="setStartWithWin" />
+              <span>Start Click automatically when I sign in to Windows</span>
+            </label>
+            <div class="storage-info">
+              Data files (<code>macros.json</code>, <code>schedules.json</code>, <code>settings.json</code>) saved in:
+              <code id="lblStorageDir"></code>
+            </div>
+          </div>
+
+          <div class="settings-actions">
+            <button id="btnSaveSettings" class="btn btn-primary">Save Settings</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Footer Status Line -->
+    <footer class="footer-bar">
+      <span id="footerHotkeys">Alt+Shift+_ record · Alt+Shift+( play · Alt+Shift+) stop</span>
+      <span id="footerRight">Portable JSON Storage</span>
+    </footer>
+  </div>
+
+  <!-- Modal for JSON Import / Export -->
+  <div id="jsonModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="jsonModalTitle">Macro JSON</h3>
+        <button id="btnCloseModal" class="icon-btn">✕</button>
+      </div>
+      <textarea id="txtModalJSON" rows="12" spellcheck="false"></textarea>
+      <div class="modal-footer">
+        <button id="btnModalCopy" class="btn btn-secondary btn-sm">Copy to Clipboard</button>
+        <button id="btnModalImportConfirm" class="btn btn-primary btn-sm hidden">Import Macro</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script>
+//__INLINE_JS__
+  </script>
+</body>
+</html>

@@ -10,7 +10,7 @@ import (
 	"unsafe"
 )
 
-// Recording polls the cursor and mouse buttons from a normal goroutine.
+// Recording polls the cursor, mouse buttons, and keyboard from a normal goroutine.
 // A low-level hook, and raw input handled inside the window procedure, both
 // stall this process: Windows calls back into Go from inside a message-loop
 // syscall, and the window is marked "Not Responding".
@@ -19,6 +19,8 @@ const (
 	vkLButton = 0x01
 	vkRButton = 0x02
 	vkMButton = 0x04
+	vkXButton1 = 0x05
+	vkXButton2 = 0x06
 )
 
 type recorder struct {
@@ -32,6 +34,9 @@ var (
 	rawSlots   [maxRecordEvents]RawEvent
 	rawN       int
 	recOn      bool
+	recMouse   = true
+	recKeys    = true
+	recHwnd    uintptr
 	recStart   time.Time
 	haveCursor bool
 	curX, curY int32
@@ -42,6 +47,10 @@ var (
 )
 
 func (r *recorder) start(hwnd uintptr) error {
+	return r.startWithOptions(hwnd, true, true)
+}
+
+func (r *recorder) startWithOptions(hwnd uintptr, captureMouse, captureKeys bool) error {
 	recMu.Lock()
 	if recOn {
 		recMu.Unlock()
@@ -52,12 +61,15 @@ func (r *recorder) start(hwnd uintptr) error {
 	recStart = time.Now()
 	r.started = recStart
 	recOn = true
+	recMouse = captureMouse
+	recKeys = captureKeys
+	recHwnd = hwnd
 	recMu.Unlock()
 	updateRecordedWindow(hwnd)
 
 	r.stopCh = make(chan struct{})
 	r.doneCh = make(chan struct{})
-	go pollMouse(r.stopCh, r.doneCh)
+	go pollInput(r.stopCh, r.doneCh)
 	return nil
 }
 
@@ -122,16 +134,47 @@ func (r *recorder) snapshot() (n int, length, elapsed time.Duration, on bool) {
 	return n, length, elapsed, on
 }
 
-func pollMouse(stop <-chan struct{}, done chan<- struct{}) {
+// isPolledVK reports whether vk should be polled as a keyboard key.
+// Generic Shift/Ctrl/Alt (0x10..0x12) are skipped in favor of their L/R variants (0xA0..0xA5)
+// so each modifier press produces a single KeyDown/KeyUp pair.
+func isPolledVK(vk uint16) bool {
+	if vk < 0x08 || vk > 0xFE {
+		return false
+	}
+	switch vk {
+	case vkShift, vkControl, vkMenu:
+		return false
+	case 0x0A, 0x0B, 0x0E, 0x0F, 0x16, 0x1A, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40:
+		return false
+	case 0x5E, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F:
+		return false
+	case 0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F:
+		return false
+	case 0xB8, 0xB9, 0xE0, 0xE1, 0xE3, 0xE4, 0xE6, 0xE8:
+		return false
+	default:
+		return true
+	}
+}
+
+func pollInput(stop <-chan struct{}, done chan<- struct{}) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	defer close(done)
 	procTimeBeginPeriod.Call(1)
 	defer procTimeEndPeriod.Call(1)
-	// Drop the "pressed since last call" bit from before recording started.
+	// Drop the "pressed since last call" bit from before recording started,
+	// and initialize current key states so held start-hotkey keys aren't recorded.
 	readKey(vkLButton)
 	readKey(vkRButton)
 	readKey(vkMButton)
+	var keyWas [256]bool
+	for vk := uint16(0x08); vk <= 0xFE; vk++ {
+		if isPolledVK(vk) {
+			ks := readKey(uintptr(vk))
+			keyWas[vk] = ks.down
+		}
+	}
 	var left, right, middle bool
 	ticker := time.NewTicker(4 * time.Millisecond)
 	defer ticker.Stop()
@@ -140,12 +183,12 @@ func pollMouse(stop <-chan struct{}, done chan<- struct{}) {
 		case <-stop:
 			return
 		case <-ticker.C:
-			left, right, middle = sampleMouse(left, right, middle)
+			left, right, middle = sampleInput(left, right, middle, &keyWas)
 		}
 	}
 }
 
-func sampleMouse(left, right, middle bool) (bool, bool, bool) {
+func sampleInput(left, right, middle bool, keyWas *[256]bool) (bool, bool, bool) {
 	var pt point
 	ret, _, _ := procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
 	if ret == 0 {
@@ -155,17 +198,63 @@ func sampleMouse(left, right, middle bool) (bool, bool, bool) {
 	r := readKey(vkRButton)
 	m := readKey(vkMButton)
 
+	fg, _, _ := procGetForegroundWindow.Call()
+
+	recMu.Lock()
+	if !recOn {
+		recMu.Unlock()
+		return left, right, middle
+	}
+	doMouse := recMouse
+	doKeys := recKeys
+	selfHwnd := recHwnd
+	tick := uint32(time.Since(recStart) / time.Millisecond)
+	curX, curY = pt.x, pt.y
+	haveCursor = true
+	if doMouse {
+		left = applyKey(left, l, LeftDown, LeftUp, pt.x, pt.y, tick)
+		right = applyKey(right, r, RightDown, RightUp, pt.x, pt.y, tick)
+		middle = applyKey(middle, m, MiddleDown, MiddleUp, pt.x, pt.y, tick)
+	}
+	recMu.Unlock()
+
+	if !doKeys {
+		return left, right, middle
+	}
+	// Ignore keystrokes typed while the Click window itself is in the foreground.
+	if selfHwnd != 0 && fg == selfHwnd {
+		for vk := uint16(0x08); vk <= 0xFE; vk++ {
+			if isPolledVK(vk) {
+				ks := readKey(uintptr(vk))
+				keyWas[vk] = ks.down
+			}
+		}
+		return left, right, middle
+	}
+
+	var kSamples [256]keySample
+	for vk := uint16(0x08); vk <= 0xFE; vk++ {
+		if isPolledVK(vk) {
+			kSamples[vk] = readKey(uintptr(vk))
+		}
+	}
+
 	recMu.Lock()
 	defer recMu.Unlock()
 	if !recOn {
 		return left, right, middle
 	}
-	tick := uint32(time.Since(recStart) / time.Millisecond)
-	curX, curY = pt.x, pt.y
-	haveCursor = true
-	left = applyKey(left, l, LeftDown, LeftUp, pt.x, pt.y, tick)
-	right = applyKey(right, r, RightDown, RightUp, pt.x, pt.y, tick)
-	middle = applyKey(middle, m, MiddleDown, MiddleUp, pt.x, pt.y, tick)
+	// Process modifiers first so chord state is up to date before non-modifier keys on the same tick.
+	for vk := uint16(0x08); vk <= 0xFE; vk++ {
+		if isPolledVK(vk) && isModifierVK(vk) {
+			keyWas[vk] = applyVK(keyWas[vk], kSamples[vk], vk, tick)
+		}
+	}
+	for vk := uint16(0x08); vk <= 0xFE; vk++ {
+		if isPolledVK(vk) && !isModifierVK(vk) {
+			keyWas[vk] = applyVK(keyWas[vk], kSamples[vk], vk, tick)
+		}
+	}
 	return left, right, middle
 }
 
@@ -189,6 +278,19 @@ func applyKey(was bool, k keySample, downKind, upKind Kind, x, y int32, tick uin
 	case !k.down && !was && k.pressed:
 		appendSample(downKind, x, y, 0, tick)
 		appendSample(upKind, x, y, 0, tick)
+	}
+	return k.down
+}
+
+func applyVK(was bool, k keySample, vk uint16, tick uint32) bool {
+	switch {
+	case k.down && !was:
+		appendKeySample(KeyDown, vk, tick)
+	case !k.down && was:
+		appendKeySample(KeyUp, vk, tick)
+	case !k.down && !was && k.pressed:
+		appendKeySample(KeyDown, vk, tick)
+		appendKeySample(KeyUp, vk, tick)
 	}
 	return k.down
 }
@@ -240,6 +342,48 @@ func appendSample(kind Kind, x, y, wheel int32, tick uint32) {
 	rawN++
 }
 
+func appendKeySample(kind Kind, vk uint16, tick uint32) {
+	if !recOn {
+		return
+	}
+	if rawN >= maxRecordEvents || time.Since(recStart) >= maxRecordDuration {
+		recOn = false
+		return
+	}
+	rawSlots[rawN] = RawEvent{Tick: tick, Kind: kind, VK: vk}
+	rawN++
+}
+
 func pointInRecordedWindow(x, y int32) bool {
 	return x >= winL && x < winR && y >= winT && y < winB
+}
+
+// PickNextClick waits until the user presses the left mouse button anywhere on screen
+// (or abort is closed / timeout expires) and returns the clicked physical screen pixel.
+func PickNextClick(abort <-chan struct{}, timeout time.Duration) (int32, int32, bool) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	readKey(vkLButton)
+	readKey(vkEscape)
+	deadline := time.Now().Add(timeout)
+	wasDown := readKey(vkLButton).down
+	ticker := time.NewTicker(8 * time.Millisecond)
+	defer ticker.Stop()
+	for time.Now().Before(deadline) {
+		select {
+		case <-abort:
+			return 0, 0, false
+		case <-ticker.C:
+			if readKey(vkEscape).down {
+				return 0, 0, false
+			}
+			ks := readKey(vkLButton)
+			if (ks.down && !wasDown) || (!ks.down && !wasDown && ks.pressed) {
+				x, y, ok := cursorPos()
+				return x, y, ok
+			}
+			wasDown = ks.down
+		}
+	}
+	return 0, 0, false
 }

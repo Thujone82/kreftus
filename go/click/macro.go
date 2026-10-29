@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Kind is one recorded mouse action.
+// Kind is one recorded mouse or keyboard action.
 type Kind int
 
 const (
@@ -18,10 +18,12 @@ const (
 	MiddleDown
 	MiddleUp
 	Wheel
+	KeyDown
+	KeyUp
 )
 
 const (
-	maxRecordDuration = 60 * time.Second
+	maxRecordDuration = 10 * time.Minute
 	maxRecordEvents   = 100000
 	maxCountdown      = 24 * time.Hour
 )
@@ -41,11 +43,13 @@ type Event struct {
 }
 
 // RawEvent is a hook sample. Tick is the millisecond timestamp from the hook.
+// VK is the virtual-key code for KeyDown and KeyUp samples.
 type RawEvent struct {
 	Tick  uint32
 	Kind  Kind
 	X, Y  int32
 	Wheel int32
+	VK    uint16
 }
 
 // parseDelay reads a countdown. A bare number is seconds. Otherwise the text
@@ -134,7 +138,7 @@ func Build(raw []RawEvent) []Event {
 	}
 	out := make([]Event, 0, len(raw))
 	for _, ev := range raw {
-		if ev.Kind == Move {
+		if ev.Kind == Move || ev.Kind == KeyDown || ev.Kind == KeyUp {
 			continue
 		}
 		out = append(out, Event{
