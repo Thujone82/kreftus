@@ -360,7 +360,7 @@ var ONE_TIMER_MILESTONES = [
     return 190 + (15 * (l - 19));
   }
 
-  function combatDiagnostics() {
+  function combatDiagnostics(rateOverride) {
     var ab = state.ab || {};
     var saveStats = (state.save && state.save.stats) || {};
     var saKills = saveStats.saKills || {};
@@ -403,35 +403,50 @@ var ONE_TIMER_MILESTONES = [
     var sTotal = sKills + sDeaths;
     var winRate = sTotal > 0 ? (sKills / sTotal * 100) : 100;
 
+    var curRec = bestRunnable(enemyLvl);
+    var userRate = (typeof rateOverride === "number" && rateOverride > 0)
+      ? rateOverride
+      : (typeof activeDustPs === "function" ? activeDustPs(curRec) : 0);
+
     var secPerKill = null;
     var etaSec = null;
     if (mode === "pushing" && remaining > 0) {
-      var curRec = bestRunnable(enemyLvl);
-      if (curRec && curRec.k && curRec.k > 0) {
-        secPerKill = curRec.k;
-        var userRate = (typeof userDustRate === "function") ? userDustRate() : 0;
-        if (userRate > 0 && curRec.d && curRec.d > 0) {
-          var ratio = curRec.d / userRate;
-          if (ratio >= 0.2 && ratio <= 5.0) {
-            secPerKill = curRec.k * ratio;
-          }
-        }
+      // 1. Determine dust reward per kill for this enemy level
+      var dustPerKill = 0;
+      if (curRec && curRec.d && curRec.k) {
+        dustPerKill = curRec.d * curRec.k;
       } else {
         var anyBuilds = buildsFor(enemyLvl);
         for (var bIdx = 0; bIdx < anyBuilds.length; bIdx++) {
-          if (anyBuilds[bIdx].k && anyBuilds[bIdx].k > 0) {
-            secPerKill = anyBuilds[bIdx].k;
-            break;
+          var b = anyBuilds[bIdx];
+          if (b.d && b.k) {
+            // If CubeSoldier (which uses end-game Gaseous Greataxe), prefer a standard build if available
+            if (b.n !== "CubeSoldier" && b.d < 600000000) {
+              dustPerKill = b.d * b.k;
+              break;
+            }
+            if (!dustPerKill) dustPerKill = b.d * b.k;
           }
         }
       }
 
-      if (!secPerKill) {
-        var userRate = (typeof userDustRate === "function") ? userDustRate() : 0;
-        if (userRate > 0) {
-          var baseReward = (1 + ((enemyLvl - 1) * 5)) * Math.pow(1.19, enemyLvl - 1);
-          if (enemyLvl >= 50) baseReward *= Math.pow(1.1, enemyLvl - 49);
-          secPerKill = Math.max(1, baseReward / userRate);
+      if (!dustPerKill) {
+        var baseReward = (1 + ((enemyLvl - 1) * 5)) * Math.pow(1.19, enemyLvl - 1);
+        if (enemyLvl >= 50) baseReward *= Math.pow(1.1, enemyLvl - 49);
+        dustPerKill = baseReward * 4.3; // Standard dust multiplier in SA ~4.3
+      }
+
+      // 2. Compute secPerKill from userRate or fall back to sheet build k
+      if (userRate > 0 && dustPerKill > 0) {
+        secPerKill = Math.max(0.05, dustPerKill / userRate);
+      } else if (curRec && curRec.k) {
+        secPerKill = curRec.k;
+      } else {
+        var anyBuilds2 = buildsFor(enemyLvl);
+        if (anyBuilds2[0] && anyBuilds2[0].k) {
+          secPerKill = anyBuilds2[0].k;
+        } else {
+          secPerKill = 15;
         }
       }
 
@@ -454,6 +469,7 @@ var ONE_TIMER_MILESTONES = [
       neededKills: needed,
       remainingKills: remaining,
       progressPct: progressPct,
+      dustPerKill: dustPerKill,
       secPerKill: secPerKill,
       etaSec: etaSec,
       totalKillsAllTime: totalKillsAllTime,
@@ -1672,41 +1688,50 @@ var ONE_TIMER_MILESTONES = [
       "\nDust equivalent: " + prettify((bnk.shards || 0) * SHARD_DUST) + " dust";
 
     // Item 4: Kill & Death Diagnostics + Level Mode
-    var diag = combatDiagnostics();
+    var diag = combatDiagnostics(rate);
     var enemyVal = 'SA ' + (diag.enemyLevel || '—');
     var enemyNote = '';
     var enemyTone = 'tone-accent';
     var enemyKpiHtml = '';
 
     if (diag.isPushing) {
-      var etaDuration = diag.etaSec ? ('~' + fmtDuration(diag.etaSec)) : '';
-      var etaClock = diag.etaSec ? fmtLocalEta(diag.etaSec) : '';
-      var etaCombined = etaDuration ? (etaDuration + (etaClock ? ' (ETA ' + etaClock + ')' : '')) : '';
+      var killsEarned = (diag.secPerKill && diag.secPerKill > 0 && bnk.elapsedSec > 0)
+        ? Math.min(diag.remainingKills, Math.floor(bnk.elapsedSec / diag.secPerKill))
+        : 0;
+      var curRemaining = Math.max(0, diag.remainingKills - killsEarned);
+      var curKills = diag.curKills + killsEarned;
+      var curPct = diag.neededKills > 0 ? Math.min(100, (curKills / diag.neededKills) * 100) : 0;
+      var curEtaSec = Math.max(0, (diag.etaSec || 0) - bnk.elapsedSec);
 
-      var enemyTitle = 'Enemy Level: SA ' + diag.enemyLevel +
-        '\nStatus: ' + diag.modeLabel +
-        '\n• Progress: ' + prettify(diag.curKills) + ' / ' + prettify(diag.neededKills) + ' kills (' + diag.progressPct.toFixed(1) + '%)' +
-        '\n• Remaining: ' + prettify(diag.remainingKills) + ' kills to clear SA ' + diag.enemyLevel +
-        (diag.etaSec ? ('\n• Estimated Completion: ' + etaCombined +
-                        (diag.secPerKill ? ('\n• Speed: ~' + diag.secPerKill.toFixed(1) + 's per kill') : '')) : '') +
-        '\n• AutoLevel: ' + (diag.autoLevel ? 'ON (Auto-advances when cleared)' : 'OFF (Will NOT advance when cleared!)') +
-        '\n\nCombat Statistics:' +
+      var etaDuration = curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear";
+      var etaClock = curEtaSec > 0 ? fmtLocalEta(curEtaSec) : "";
+      var etaCombined = etaDuration + (etaClock ? " (ETA " + etaClock + ")" : "");
+
+      var enemyTitle = "Enemy Level: SA " + diag.enemyLevel +
+        "\nStatus: " + diag.modeLabel +
+        "\n• Progress: " + prettify(curKills) + " / " + prettify(diag.neededKills) + " kills (" + curPct.toFixed(1) + "%)" +
+        (killsEarned > 0 ? ("\n• Estimated Kills Since Load: +" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
+        "\n• Remaining: " + prettify(curRemaining) + " kills to clear SA " + diag.enemyLevel +
+        (diag.secPerKill ? ("\n• Speed: ~" + diag.secPerKill.toFixed(1) + "s per kill" + (rate ? " (at " + prettify(rate) + "/s dust rate)" : "")) : "") +
+        "\n• Estimated Completion: " + etaCombined +
+        "\n• AutoLevel: " + (diag.autoLevel ? "ON (Auto-advances when cleared)" : "OFF (Will NOT advance when cleared!)") +
+        "\n\nCombat Statistics:" +
         (diag.sessionTotal > 0
-          ? ('\n• Session Win Rate: ' + diag.winRateStr + ' (' + prettify(diag.sessionKills) + 'W / ' + prettify(diag.sessionDeaths) + 'L in ' + prettify(diag.sessionTotal) + ' fights)')
-          : '') +
-        '\n• Total Enemies Slain: ' + prettify(diag.totalKillsAllTime) + ' (All-Time)' +
-        (diag.totalKillsPortal > 0 ? ('\n• Kills This Portal: ' + prettify(diag.totalKillsPortal)) : '') +
-        '\n\nClick to inspect Presets, Settings & Diagnostics';
+          ? ("\n• Session Win Rate: " + diag.winRateStr + " (" + prettify(diag.sessionKills) + "W / " + prettify(diag.sessionDeaths) + "L in " + prettify(diag.sessionTotal) + " fights)")
+          : "") +
+        "\n• Total Enemies Slain: " + prettify(diag.totalKillsAllTime) + " (All-Time)" +
+        (diag.totalKillsPortal > 0 ? ("\n• Kills This Portal: " + prettify(diag.totalKillsPortal)) : "") +
+        "\n\nClick to inspect Presets, Settings & Diagnostics";
 
       enemyKpiHtml = '<div class="kpi tone-accent" id="kpiEnemyLevel" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()" title="' + esc(enemyTitle) + '">' +
         '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span></div>' +
         '<div class="kpi-value">' + esc(enemyVal) + '</div>' +
         '<div class="kpi-note kpi-note-prog">' +
           '<div class="kpi-prog-row">' +
-            '<span class="kpi-prog-txt">Pushing · ' + prettify(diag.remainingKills) + ' to go (' + diag.progressPct.toFixed(0) + '%)</span>' +
-            (etaDuration ? ('<span class="kpi-prog-eta mono" style="color:var(--accent); font-weight:650;" title="Estimated completion time' + (etaClock ? ' (' + etaClock + ')' : '') + '">' + esc(etaDuration) + '</span>') : '') +
+            '<span class="kpi-prog-txt">Pushing · ' + prettify(curRemaining) + ' to go (' + curPct.toFixed(0) + '%)</span>' +
+            '<span class="kpi-prog-eta mono" style="color:var(--accent); font-weight:650;" title="Estimated completion time' + (etaClock ? ' (' + etaClock + ')' : '') + '">' + esc(etaDuration) + '</span>' +
           '</div>' +
-          '<div class="kpi-bar"><span style="width:' + Math.max(2, diag.progressPct).toFixed(1) + '%; background:var(--accent);"></span></div>' +
+          '<div class="kpi-bar"><span style="width:' + Math.max(2, curPct).toFixed(1) + '%; background:var(--accent);"></span></div>' +
         '</div>' +
       '</div>';
     } else {
@@ -3585,7 +3610,11 @@ var ONE_TIMER_MILESTONES = [
   function onDustInput() {
     state.dustOverride = $("dustOverride").value;
     try { localStorage.setItem("saPlanner.dustPs", state.dustOverride); } catch (e) {}
-    if (state.ab) render();
+    if (state.ab) {
+      render();
+      var dlg = $("presetsDlg");
+      if (dlg && dlg.open) renderPresetsModal();
+    }
   }
 
   function onFilterChange() {
