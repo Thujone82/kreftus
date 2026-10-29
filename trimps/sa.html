@@ -607,6 +607,35 @@
       background: var(--warn-soft);
       color: var(--warn);
     }
+    .loadout-item.underleveled {
+      border-color: rgba(247, 147, 26, 0.55);
+      background: color-mix(in srgb, var(--accent) 7%, var(--surface-solid));
+      box-shadow: inset 0 0 0 1px rgba(247, 147, 26, 0.15);
+    }
+    .loadout-item.underleveled .li-lv {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .rec-timing-banner {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      background: color-mix(in srgb, var(--surface-sunken) 70%, transparent);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 9px 13px;
+    }
+    .rec-timing-banner .time-stat {
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .rec-timing-banner .time-lbl {
+      color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .rec-timing-banner .time-lbl svg {
+      width: 13px; height: 13px; color: var(--accent);
+    }
+    .rec-timing-banner .time-sep {
+      width: 1px; height: 16px; background: var(--border-subtle);
+    }
     .delta-box {
       padding: 10px 12px;
       border-radius: 10px;
@@ -3482,6 +3511,7 @@ var ONE_TIMER_MILESTONES = [
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
     renderChips(rec, rate);
+    renderRecommended(rec, rate);
     renderNext(rec, rate);
     renderBetter(rec, rate);
   }
@@ -4326,7 +4356,19 @@ var ONE_TIMER_MILESTONES = [
     var rec = bestRunnable(level);
     var rate = activeDustPs(rec);
     var est = sheetDustPs(rec);
-    $("dustEstimate").textContent = rec ? ("Sheet: " + prettify(est) + "/s") : "No runnable build";
+    if (rec) {
+      $("dustEstimate").textContent = "Sheet: " + prettify(est) + "/s";
+      $("dustEstimate").title = "Recommended build: " + rec.n;
+    } else {
+      var pSum = probeBuildSummary(level, null, rate);
+      if (pSum && pSum.target) {
+        $("dustEstimate").innerHTML = "<span style='color:var(--warn);font-weight:650;'>No runnable build</span> <span style='color:var(--muted);font-size:11px;margin-left:4px;'>(Build: " + esc(pSum.buildTimeStr) + " · Clear: ~" + esc(pSum.clearTimeStr) + ")</span>";
+        $("dustEstimate").title = "SA " + level + " requires upgrades.\nTarget: " + pSum.target.n + "\nBuild Time: " + pSum.buildTimeStr + "\nClear Time: ~" + pSum.clearTimeStr + (pSum.totalTimeStr ? ("\nTotal: ~" + pSum.totalTimeStr) : "");
+      } else {
+        $("dustEstimate").textContent = "No runnable build";
+        $("dustEstimate").title = "No sheet builds recorded for SA " + level;
+      }
+    }
     $("controls").hidden = false;
     $("results").hidden = false;
     if ($("sourceStatus")) {
@@ -4382,10 +4424,167 @@ var ONE_TIMER_MILESTONES = [
     };
   }
 
+  function probeBuildSummary(level, rec, rateOverride) {
+    var bnk = bank();
+    var r = (typeof rateOverride === "number" && rateOverride > 0)
+      ? rateOverride
+      : activeDustPs(rec);
+    var pick = bestNextUpgrade(rec);
+    var target = (rec && rec.n) ? rec : (pick && pick.build ? pick.build : null);
+    var allSteps = (rec && rec.n) ? [] : (pick && pick.allSteps ? pick.allSteps : null);
+
+    if (!target) {
+      var allB = buildsFor(level);
+      if (allB && allB.length) {
+        var bestScore = Infinity;
+        for (var i = 0; i < allB.length; i++) {
+          var b = allB[i];
+          var st = applyStepOrder(level, b, expandSteps(gapSteps(b)));
+          var wi = stepsWaitInfo(st, r, bnk);
+          var score = (st.length * 1e12) + (isFinite(wi.wait) ? wi.wait : 1e11);
+          if (score < bestScore) {
+            bestScore = score;
+            target = b;
+            allSteps = st;
+          }
+        }
+      }
+    }
+
+    if (!target) return null;
+
+    if (!allSteps && !runnable(target)) {
+      allSteps = applyStepOrder(level, target, expandSteps(gapSteps(target)));
+    } else if (!allSteps) {
+      allSteps = [];
+    }
+
+    var wInfo = allSteps.length ? stepsWaitInfo(allSteps, r, bnk) : { wait: 0, remDust: 0, remShards: 0, remDustEq: 0 };
+    var buildSec = runnable(target) ? 0 : wInfo.wait;
+    var neededKills = saLevelReq(level);
+    var isCurrentLevel = state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel) === level;
+    var remainingKills = isCurrentLevel ? Math.max(0, neededKills - (state.ab.enemiesKilled || 0)) : neededKills;
+
+    var secPerKill = (target.k && target.k > 0) ? target.k : 0;
+    if (!secPerKill && target.d && target.d > 0) {
+      var baseReward = (1 + ((level - 1) * 5)) * Math.pow(1.19, level - 1);
+      if (level >= 50) baseReward *= Math.pow(1.1, level - 49);
+      secPerKill = (baseReward * 4.3) / target.d;
+    }
+    if (!secPerKill) secPerKill = 15;
+
+    var clearSec = remainingKills * secPerKill;
+    var totalSec = (isFinite(buildSec) && isFinite(clearSec)) ? (buildSec + clearSec) : null;
+
+    var buildTimeStr = (buildSec === 0) ? "Ready now" : fmtDuration(buildSec);
+    var clearTimeStr = fmtDuration(clearSec);
+    var totalTimeStr = totalSec != null ? fmtDuration(totalSec) : "--";
+
+    return {
+      target: target,
+      steps: allSteps,
+      stepCount: allSteps.length,
+      buildSec: buildSec,
+      clearSec: clearSec,
+      totalSec: totalSec,
+      buildTimeStr: buildTimeStr,
+      clearTimeStr: clearTimeStr,
+      totalTimeStr: totalTimeStr,
+      remainingKills: remainingKills,
+      secPerKill: secPerKill,
+      wInfo: wInfo,
+      pick: pick
+    };
+  }
+
   function renderRecommended(rec, rate) {
     var el = $("recommend");
     if (!rec) {
-      el.innerHTML = "<div class='rec'><p class='empty'>No sheet build on SA " + state.level + " is fully runnable with your current items, levels, limbs, and ring. Check the Next Upgrade Advisor and Better Builds below for the fastest unlock path.</p></div>";
+      var summary = probeBuildSummary(state.level, null, rate);
+      if (!summary || !summary.target) {
+        el.innerHTML = "<div class='rec'><p class='empty'>No sheet build on SA " + state.level + " is recorded in the database.</p></div>";
+        return;
+      }
+      var target = summary.target;
+      var targetDelta = loadoutDelta(target);
+      var targetMods = formatModList(target.r && target.r.m || []);
+
+      var itemCards = Object.keys(target.i).map(function (k) {
+        var sh = isShards(k);
+        var myLv = userLevel(k);
+        var reqLv = target.i[k];
+        var isEq = !!(userItem(k) && userItem(k).equipped);
+        var under = myLv < reqLv;
+        var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "") + (under ? " underleveled" : "");
+        var tip = (under ? ("Upgrade needed: Lv " + myLv + " → Lv " + reqLv) : ("Requirement met: Lv " + myLv + " >= " + reqLv)) +
+          (isEq ? " · Equipped" : " · Unequipped");
+        var lvText = under ? ("Lv " + myLv + " → " + reqLv) : ("Lv " + reqLv);
+        return "<div class='" + cls + "' title='" + esc(tip) + "'>" +
+          "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
+          "<span class='li-lv'>" + esc(lvText) + "</span>" +
+          "</div>";
+      }).join("");
+
+      var metrics = [];
+      metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(target.d) + "/s</span>");
+      if (target.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + target.k + "s kills</span>");
+      if (target.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((target.wr <= 1 ? target.wr : target.wr / 100) * 100) + "% WR</span>");
+      metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (target.l || "?") + " Limbs</span>");
+      if (target.r) {
+        metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + target.r.lv + (targetMods ? " (" + esc(targetMods) + ")" : "") + "</span>");
+      }
+      if (target.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + target.c + "</span>");
+
+      var remSteps = summary.steps.length;
+      var stepPill = "<span class='pill sm warn-pill'>" + ICONS.bolt + " " + remSteps + " Upgrade" + (remSteps === 1 ? "" : "s") + " Needed</span>";
+
+      var isLocked = summary.pick && summary.pick.isLocked;
+      var lockBtn = isLocked
+        ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='recLockPlanBtn' title='Advisor is locked to " + esc(target.n) + ". Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
+        : "<button type='button' class='btn sm ghost lock-plan-btn' id='recLockPlanBtn' title='Lock advisor to " + esc(target.n) + " so recommendations follow this build.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
+
+      var timingBox =
+        "<div class='rec-timing-banner'>" +
+          "<div class='time-stat' title='Time to save required dust/shards for all " + remSteps + " upgrade steps (" + (rate ? (prettify(rate) + "/s dust rate") : "at current rate") + ")'>" +
+            "<span class='time-lbl'>" + ICONS.hammer + " Build Time:</span>" +
+            "<span class='mono' style='font-size:13.5px;font-weight:700;color:" + (summary.buildSec === 0 ? "var(--buy)" : "var(--text)") + ";'>" + esc(summary.buildTimeStr) + "</span>" +
+          "</div>" +
+          "<div class='time-sep'></div>" +
+          "<div class='time-stat' title='Anticipated time to clear SA " + state.level + " once " + esc(target.n) + " is active (" + prettify(summary.remainingKills) + " kills @ ~" + summary.secPerKill.toFixed(1) + "s per kill)'>" +
+            "<span class='time-lbl'>" + ICONS.clock + " Clear Time:</span>" +
+            "<span class='mono' style='font-size:13.5px;font-weight:700;color:var(--accent);'>~" + esc(summary.clearTimeStr) + "</span>" +
+          "</div>" +
+          (summary.totalTimeStr ? (
+            "<div class='time-sep'></div>" +
+            "<div class='time-stat' title='Total duration: Build Time + Clear Time'>" +
+              "<span class='time-lbl'>" + ICONS.spire + " Total:</span>" +
+              "<span class='mono' style='font-size:13.5px;font-weight:700;color:var(--buy);'>~" + esc(summary.totalTimeStr) + "</span>" +
+            "</div>"
+          ) : "") +
+        "</div>";
+
+      var explText = "No sheet build on SA " + state.level + " is currently runnable with your items and levels. " +
+        "Targeting the closest recommended build <b>" + esc(target.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). " +
+        "Follow the Next Upgrade Advisor on the right to progress toward this build.";
+
+      el.innerHTML =
+        "<div class='rec'>" +
+        "<div class='rec-top'>" +
+        "<div class='rec-head'><span style='color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'>Target Build:</span> <span>" + esc(target.n) + "</span></div>" +
+        "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" + stepPill + lockBtn + "</div>" +
+        "</div>" +
+        timingBox +
+        "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
+        "<div class='loadout-grid'>" + itemCards + "</div>" +
+        "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" + explText + "</span></div>" +
+        "</div>";
+
+      var rLockBtn = $("recLockPlanBtn");
+      if (rLockBtn) {
+        rLockBtn.addEventListener("click", function () {
+          toggleLockBuild(target);
+        });
+      }
       return;
     }
     var delta = loadoutDelta(rec);
@@ -4408,6 +4607,10 @@ var ONE_TIMER_MILESTONES = [
     metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(rec.d) + "/s</span>");
     if (rec.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + rec.k + "s kills</span>");
     if (rec.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((rec.wr <= 1 ? rec.wr : rec.wr / 100) * 100) + "% WR</span>");
+    var recClear = probeBuildSummary(state.level, rec, rate);
+    if (recClear && recClear.clearSec > 0) {
+      metrics.push("<span class='pill sm info' title='Anticipated time to clear SA " + state.level + " with " + esc(rec.n) + " (" + prettify(recClear.remainingKills) + " kills @ " + recClear.secPerKill.toFixed(1) + "s/kill)'>" + ICONS.clock + " Clear: ~" + esc(recClear.clearTimeStr) + "</span>");
+    }
     metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (rec.l || "?") + " Limbs</span>");
     if (rec.r) {
       if (delta.ringMismatch) {
@@ -5022,6 +5225,12 @@ var ONE_TIMER_MILESTONES = [
       (costTxt ? "<span class='pill sm accent'>" + (s.shards ? ICONS.gem : ICONS.dust) + " " + esc(costTxt) + "</span>" : "") +
       waitBadge +
       metaLockPill +
+      (function () {
+        var pSum = probeBuildSummary(state.level, rec, rate);
+        if (!pSum || !pSum.target) return "";
+        return "<span class='pill sm' title='Build Time: " + pSum.buildTimeStr + " · Clear Time: ~" + pSum.clearTimeStr + "'>" +
+          ICONS.clock + " Build: " + pSum.buildTimeStr + " · Clear: ~" + pSum.clearTimeStr + "</span>";
+      })() +
       (function () {
         var pMatch = findBestPresetMatch(pick.build);
         if (!pMatch) return "";
