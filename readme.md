@@ -13,6 +13,7 @@ This repository represents a unique approach to software development that levera
 - **[GENE](gene/)** - Evolving digital life simulation with genetic algorithms and interactive controls. Tweak world balance to nudge evolution and view genomic history
 - **[Conway's Game of Life](gol/)** - Classic cellular automaton with modern features like pattern selection, wrapped/infinite modes, speed control, pan & zoom, and colorful cell aging
 - **[Double Pendulum](pendulum/)** - Physics-based chaotic motion simulator with customizable parameters, real-time trace visualization, and image export capabilities
+- **[Trimps Spire Assault Planner](trimps/sa.html)** - Self-contained offline-first build advisor and upgrade planner for Trimps Universe 2 Spire Assault. Computes live dust/shard accumulation, ranks community sheet builds by ROI, optimizes atomic upgrade steps, models Ring inherent stats and One-Timer milestones, and audits in-game presets (P1–P3) and combat stability diagnostics
 
 ### AI-Powered Applications
 - **[nfo2Go v.3](nfo/)** - Personal AI information hub with customizable location-based briefings. Supports both Google Gemini and OpenRouter APIs with dynamic model selection, weather support, and offline data retention
@@ -134,12 +135,12 @@ This project collection demonstrates sophisticated AI integration patterns:
 
 ## 📊 Project Statistics
 
-- **Total Projects**: 16 applications
-- **Web Applications**: 8 PWA-enabled apps
+- **Total Projects**: 17 applications
+- **Web Applications**: 9 apps (8 PWA-enabled)
 - **CLI Tools**: 8 command-line utilities
 - **AI Integration**: 2 projects with AI API integration (nfo2Go, BTC Track)
 - **Cross-Platform**: 6 Go applications
-- **Languages**: JavaScript, Go, PowerShell, HTML, CSS
+- **Languages**: JavaScript, Python, Go, PowerShell, HTML, CSS
 
 ## 🤝 Contributing
 
