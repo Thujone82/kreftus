@@ -2178,7 +2178,7 @@ var ONE_TIMER_MILESTONES = [
     var extraMods = curMods.filter(function (m) {
       return reqMods.indexOf(m) === -1;
     });
-    var ringMismatch = !!(rec.r && (missingMods.length > 0 || (reqMods.length > 0 && extraMods.length > 0)));
+    var ringMismatch = !!(rec.r && missingMods.length > 0);
     var aligned = toEquip.length === 0 && toUnequip.length === 0 && !ringMismatch;
     return {
       toEquip: toEquip,
@@ -3248,9 +3248,8 @@ var ONE_TIMER_MILESTONES = [
     var reqRingLv = (b.r && b.r.lv) || 0;
     var ringLvGap = reqRingLv > curRingLv;
 
-    var modsExactMatch = reqMods.length === curMods.length &&
-      reqMods.every(function (m) { return curMods.indexOf(m) !== -1; });
-    var hasRingModSwap = b.r && (!hasRing() || !modsExactMatch);
+    var missingMods = reqMods.filter(function (m) { return curMods.indexOf(m) === -1; });
+    var hasRingModSwap = b.r && (!hasRing() || missingMods.length > 0);
     var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0);
     var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap;
 
