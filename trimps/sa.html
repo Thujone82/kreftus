@@ -5638,7 +5638,8 @@ var ONE_TIMER_MILESTONES = [
     metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (b.l || itemKeys.length) + " Limbs</span>");
     if (b.r) metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " R" + b.r.lv + (reqMods.length ? " (" + esc(reqModTxt) + ")" : "") + "</span>");
 
-    var swapCount = (delta ? delta.toEquip.length + delta.toUnequip.length : 0) + (hasRingModSwap ? 1 : 0);
+    var itemSwapCount = delta ? Math.max(delta.toEquip.length, delta.toUnequip.length) : 0;
+    var swapCount = itemSwapCount + (hasRingModSwap ? 1 : 0);
     var pillCls = "bb-info-pill " + (swapCount === 0 ? "aligned" : "has-swaps");
     var pillTxt = swapCount === 0 ? "Aligned" : (swapCount + (swapCount === 1 ? " swap" : " swaps"));
 
