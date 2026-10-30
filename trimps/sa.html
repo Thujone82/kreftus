@@ -4462,6 +4462,8 @@ var ONE_TIMER_MILESTONES = [
     renderNext(rec, rate);
     renderBoard(rec, rate);
     renderBetter(rec, rate);
+    var dlg = $("presetsDlg");
+    if (dlg && dlg.open) renderPresetsModal();
   }
 
   function formatModList(mods) {
@@ -5914,7 +5916,7 @@ var ONE_TIMER_MILESTONES = [
       var eDiag = combatDiagnostics();
       if (eDiag.isPushing && eDiag.etaSec > 0) {
         var liveRemSec = Math.max(0, eDiag.etaSec - bnk.elapsedSec);
-        var liveEtaDur = "~" + fmtDuration(liveRemSec);
+        var liveEtaDur = liveRemSec > 0 ? ("~" + fmtDuration(liveRemSec)) : "Ready to clear";
         var liveKillsEarned = (eDiag.secPerKill && eDiag.secPerKill > 0)
           ? Math.min(eDiag.remainingKills, Math.floor(bnk.elapsedSec / eDiag.secPerKill))
           : 0;
@@ -5973,6 +5975,33 @@ var ONE_TIMER_MILESTONES = [
     if (fLoaded) {
       var ago = bnk.elapsedSec < 5 ? "just now" : (fmtTime(bnk.elapsedSec) + " ago");
       fLoaded.textContent = ago;
+    }
+
+    var dlg = $("presetsDlg");
+    if (dlg && dlg.open) {
+      var mBar = $("modalCombatBar");
+      var mTxt = $("modalCombatKillsTxt");
+      var mEta = $("modalCombatEta");
+      if (mBar && mTxt) {
+        var mDiag = combatDiagnostics(rate);
+        if (mDiag.isPushing) {
+          var mEarned = (mDiag.secPerKill && mDiag.secPerKill > 0 && bnk.elapsedSec > 0)
+            ? Math.min(mDiag.remainingKills, Math.floor(bnk.elapsedSec / mDiag.secPerKill))
+            : 0;
+          var mRemaining = Math.max(0, mDiag.remainingKills - mEarned);
+          var mKillsTotal = mDiag.curKills + mEarned;
+          var mPct = mDiag.neededKills > 0 ? Math.min(100, (mKillsTotal / mDiag.neededKills) * 100) : 0;
+          var mRemSec = Math.max(0, (mDiag.etaSec || 0) - bnk.elapsedSec);
+          var mDuration = mRemSec > 0 ? ("~" + fmtDuration(mRemSec)) : (mDiag.etaSec > 0 ? "Ready to clear" : "");
+          var mClock = mRemSec > 0 ? fmtLocalEta(mRemSec) : "";
+          var mEtaStr = mDuration ? (mDuration + (mClock ? " (ETA " + mClock + ")" : "")) : "";
+
+          mTxt.innerHTML = "<b>" + prettify(mKillsTotal) + " / " + prettify(mDiag.neededKills) + "</b> kills (" + mPct.toFixed(1) + "%) · " +
+            "<b style='color:var(--accent);'>" + prettify(mRemaining) + " kills to clear</b>";
+          if (mEta) mEta.textContent = mEtaStr;
+          mBar.style.width = Math.max(2, mPct).toFixed(1) + "%";
+        }
+      }
     }
 
     var badge = $("advisorWaitBadge");
@@ -6239,9 +6268,11 @@ function renderPresetsModal() {
       return;
     }
 
+    var bnk = bank();
     var presets = getAllPresets();
     var curRec = bestRunnable(state.level);
-    var diag = combatDiagnostics();
+    var rate = activeDustPs(curRec);
+    var diag = combatDiagnostics(rate);
     var audit = saSettingsAudit();
     var msInfo = nextMilestoneInfo();
     var mb = macroBonusInfo();
@@ -6347,18 +6378,26 @@ function renderPresetsModal() {
           "<div class='audit-row'><span class='audit-lbl'>Level Combat Status:</span><div class='audit-val' style='display:grid;gap:6px;width:100%;'>" +
             (diag.isPushing
               ? (function () {
-                  var etaDuration = diag.etaSec ? ("~" + fmtDuration(diag.etaSec)) : "";
-                  var etaClock = diag.etaSec ? fmtLocalEta(diag.etaSec) : "";
+                  var liveKillsEarned = (diag.secPerKill && diag.secPerKill > 0 && bnk.elapsedSec > 0)
+                    ? Math.min(diag.remainingKills, Math.floor(bnk.elapsedSec / diag.secPerKill))
+                    : 0;
+                  var liveRemaining = Math.max(0, diag.remainingKills - liveKillsEarned);
+                  var liveKillsTotal = diag.curKills + liveKillsEarned;
+                  var livePct = diag.neededKills > 0 ? Math.min(100, (liveKillsTotal / diag.neededKills) * 100) : 0;
+                  var liveRemSec = Math.max(0, (diag.etaSec || 0) - bnk.elapsedSec);
+
+                  var etaDuration = liveRemSec > 0 ? ("~" + fmtDuration(liveRemSec)) : (diag.etaSec > 0 ? "Ready to clear" : "");
+                  var etaClock = liveRemSec > 0 ? fmtLocalEta(liveRemSec) : "";
                   var etaStr = etaDuration ? (etaDuration + (etaClock ? " (ETA " + etaClock + ")" : "")) : "";
-                  return "<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;width:100%;'>" +
+                  return "<div id='modalCombatStatus' style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;width:100%;'>" +
                     "<div>" +
                       "<span class='pill sm accent'>" + ICONS.target + " Completing SA " + diag.enemyLevel + " (Pushing)</span> " +
-                      "<span><b>" + prettify(diag.curKills) + " / " + prettify(diag.neededKills) + "</b> kills (" + diag.progressPct.toFixed(1) + "%) · " +
-                      "<b style='color:var(--accent);'>" + prettify(diag.remainingKills) + " kills to clear</b></span>" +
+                      "<span id='modalCombatKillsTxt'><b>" + prettify(liveKillsTotal) + " / " + prettify(diag.neededKills) + "</b> kills (" + livePct.toFixed(1) + "%) · " +
+                      "<b style='color:var(--accent);'>" + prettify(liveRemaining) + " kills to clear</b></span>" +
                     "</div>" +
-                    (etaStr ? ("<div class='mono' style='color:var(--accent);font-weight:650;font-size:12px;'>" + esc(etaStr) + "</div>") : "") +
+                    "<div id='modalCombatEta' class='mono' style='color:var(--accent);font-weight:650;font-size:12px;'>" + esc(etaStr) + "</div>" +
                   "</div>" +
-                  "<div class='kpi-bar' style='height:6px;width:100%;margin-top:2px;'><span style='width:" + Math.max(2, diag.progressPct).toFixed(1) + "%;background:var(--accent);'></span></div>";
+                  "<div class='kpi-bar' style='height:6px;width:100%;margin-top:2px;'><span id='modalCombatBar' style='width:" + Math.max(2, livePct).toFixed(1) + "%;background:var(--accent);'></span></div>";
                 })()
               : (diag.isFarming
                 ? ("<span class='pill sm muted'>" + ICONS.spire + " Farming SA " + diag.enemyLevel + "</span> " +
