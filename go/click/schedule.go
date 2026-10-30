@@ -395,3 +395,47 @@ func formatShortDuration(d time.Duration) string {
 	}
 	return b.String()
 }
+
+// NextScheduleName returns a collision-free schedule name based on baseName.
+// If baseName is unused (ignoring the schedule with excludeID), it returns baseName.
+// Otherwise it strips any trailing " - NN" suffix and returns "<root> - 02", "<root> - 03",
+// etc., picking the lowest unused number >= 2.
+func NextScheduleName(existing []Schedule, baseName string, excludeID string) string {
+	base := strings.TrimSpace(baseName)
+	if base == "" {
+		base = "Scheduled Macro"
+	}
+	taken := func(candidate string) bool {
+		for _, sc := range existing {
+			if excludeID != "" && sc.ID == excludeID {
+				continue
+			}
+			if strings.EqualFold(strings.TrimSpace(sc.Name), candidate) {
+				return true
+			}
+		}
+		return false
+	}
+	if !taken(base) {
+		return base
+	}
+	root := stripNumericSuffix(base)
+	for n := 2; ; n++ {
+		cand := fmt.Sprintf("%s - %02d", root, n)
+		if !taken(cand) {
+			return cand
+		}
+	}
+}
+
+func stripNumericSuffix(s string) string {
+	idx := strings.LastIndex(s, " - ")
+	if idx <= 0 {
+		return s
+	}
+	tail := strings.TrimSpace(s[idx+3:])
+	if len(tail) >= 2 && digitsOnly(tail) {
+		return strings.TrimSpace(s[:idx])
+	}
+	return s
+}

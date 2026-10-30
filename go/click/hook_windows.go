@@ -16,9 +16,9 @@ import (
 // syscall, and the window is marked "Not Responding".
 
 const (
-	vkLButton = 0x01
-	vkRButton = 0x02
-	vkMButton = 0x04
+	vkLButton  = 0x01
+	vkRButton  = 0x02
+	vkMButton  = 0x04
 	vkXButton1 = 0x05
 	vkXButton2 = 0x06
 )
@@ -76,7 +76,10 @@ func (r *recorder) startWithOptions(hwnd uintptr, captureMouse, captureKeys bool
 func updateRecordedWindow(hwnd uintptr) {
 	var rc rect
 	if hwnd != 0 {
-		procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rc)))
+		vis, _, _ := procIsWindowVisible.Call(hwnd)
+		if vis != 0 {
+			procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rc)))
+		}
 	}
 	recMu.Lock()
 	winL, winT, winR, winB = rc.left, rc.top, rc.right, rc.bottom
@@ -181,6 +184,9 @@ func pollInput(stop <-chan struct{}, done chan<- struct{}) {
 	for {
 		select {
 		case <-stop:
+			// Perform one final sample before exiting so an action completed right
+			// before stopping is never missed.
+			sampleInput(left, right, middle, &keyWas)
 			return
 		case <-ticker.C:
 			left, right, middle = sampleInput(left, right, middle, &keyWas)
@@ -272,12 +278,15 @@ func readKey(vk uintptr) keySample {
 func applyKey(was bool, k keySample, downKind, upKind Kind, x, y int32, tick uint32) bool {
 	switch {
 	case k.down && !was:
-		appendSample(downKind, x, y, 0, tick)
+		if !appendSample(downKind, x, y, 0, tick) {
+			return false
+		}
 	case !k.down && was:
 		appendSample(upKind, x, y, 0, tick)
 	case !k.down && !was && k.pressed:
-		appendSample(downKind, x, y, 0, tick)
-		appendSample(upKind, x, y, 0, tick)
+		if appendSample(downKind, x, y, 0, tick) {
+			appendSample(upKind, x, y, 0, tick)
+		}
 	}
 	return k.down
 }
@@ -327,19 +336,22 @@ func notePointer(x, y int32, flags uint16, wheel int16) {
 	}
 }
 
-func appendSample(kind Kind, x, y, wheel int32, tick uint32) {
+func appendSample(kind Kind, x, y, wheel int32, tick uint32) bool {
 	if !recOn {
-		return
+		return false
 	}
-	if kind != Move && pointInRecordedWindow(x, y) {
-		return
+	// Never discard a button-up event if its button-down started outside the Click window;
+	// otherwise moving the cursor onto the Click window to press Stop would eat the final action.
+	if kind != Move && kind != LeftUp && kind != RightUp && kind != MiddleUp && pointInRecordedWindow(x, y) {
+		return false
 	}
 	if rawN >= maxRecordEvents || time.Since(recStart) >= maxRecordDuration {
 		recOn = false
-		return
+		return false
 	}
 	rawSlots[rawN] = RawEvent{Tick: tick, Kind: kind, X: x, Y: y, Wheel: wheel}
 	rawN++
+	return true
 }
 
 func appendKeySample(kind Kind, vk uint16, tick uint32) {

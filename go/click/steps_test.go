@@ -31,26 +31,41 @@ func TestNextMacroNameLowestFreeAndRollover(t *testing.T) {
 	}
 }
 
-func TestBuildStepsClickDoubleClickAndDrag(t *testing.T) {
+func TestBuildStepsFourClicksAndDrag(t *testing.T) {
 	raw := []RawEvent{
 		{Tick: 100, Kind: LeftDown, X: 200, Y: 300},
 		{Tick: 150, Kind: LeftUp, X: 201, Y: 300},
-		// Second click within double-click threshold -> coalesced into DoubleClick
 		{Tick: 300, Kind: LeftDown, X: 201, Y: 301},
 		{Tick: 340, Kind: LeftUp, X: 201, Y: 301},
+		{Tick: 500, Kind: LeftDown, X: 202, Y: 301},
+		{Tick: 540, Kind: LeftUp, X: 202, Y: 301},
+		{Tick: 700, Kind: LeftDown, X: 202, Y: 301},
+		{Tick: 740, Kind: LeftUp, X: 202, Y: 301},
 		// Drag from (400,400) to (550,480)
 		{Tick: 900, Kind: RightDown, X: 400, Y: 400},
 		{Tick: 1200, Kind: RightUp, X: 550, Y: 480},
 	}
 	steps := BuildSteps(raw, DefaultBuildOptions(true))
-	if len(steps) != 2 {
-		t.Fatalf("len=%d: %+v", len(steps), steps)
+	if len(steps) != 5 {
+		t.Fatalf("len=%d, want 5: %+v", len(steps), steps)
 	}
-	if steps[0].Type != StepDoubleClick || steps[0].Button != ButtonLeft || steps[0].DelayMs != 100 {
-		t.Fatalf("step 0: %+v", steps[0])
+	for i := 0; i < 4; i++ {
+		if steps[i].Type != StepClick || steps[i].Button != ButtonLeft {
+			t.Fatalf("step %d: %+v", i, steps[i])
+		}
 	}
-	if steps[1].Type != StepDrag || steps[1].Button != ButtonRight || steps[1].X != 400 || steps[1].X2 != 550 || steps[1].HoldMs != 300 {
-		t.Fatalf("step 1: %+v", steps[1])
+	// First step retains its recorded DelayMs (100ms) for reordering, but EffectiveDelayMs(0) is 0
+	if steps[0].DelayMs != 100 || steps[0].EffectiveDelayMs(0) != 0 || steps[0].EffectiveDelayMs(1) != 100 {
+		t.Fatalf("first step delay handling: DelayMs=%d eff0=%d eff1=%d",
+			steps[0].DelayMs, steps[0].EffectiveDelayMs(0), steps[0].EffectiveDelayMs(1))
+	}
+	// Once user overrides DelayEdited = true, EffectiveDelayMs(0) honors the delay
+	steps[0].DelayEdited = true
+	if steps[0].EffectiveDelayMs(0) != 100 {
+		t.Fatalf("expected user-edited first step delay to be honored, got %d", steps[0].EffectiveDelayMs(0))
+	}
+	if steps[4].Type != StepDrag || steps[4].Button != ButtonRight || steps[4].X != 400 || steps[4].X2 != 550 || steps[4].HoldMs != 300 {
+		t.Fatalf("step 4: %+v", steps[4])
 	}
 }
 
@@ -115,6 +130,31 @@ func TestComputeNextRunAndPreview(t *testing.T) {
 	next := ComputeNextRun(s, base)
 	if next == nil || next.Hour() != 10 || next.Minute() != 0 {
 		t.Fatalf("window start adjustment failed: got %v", next)
+	}
+}
+
+func TestNextScheduleNameCollisionAvoidance(t *testing.T) {
+	var scheds []Schedule
+	n1 := NextScheduleName(scheds, "Macro 103026 04", "")
+	if n1 != "Macro 103026 04" {
+		t.Fatalf("first schedule got %q", n1)
+	}
+	scheds = append(scheds, Schedule{ID: "s1", Name: n1})
+
+	n2 := NextScheduleName(scheds, "Macro 103026 04", "")
+	if n2 != "Macro 103026 04 - 02" {
+		t.Fatalf("second schedule got %q, want Macro 103026 04 - 02", n2)
+	}
+	scheds = append(scheds, Schedule{ID: "s2", Name: n2})
+
+	n3 := NextScheduleName(scheds, "Macro 103026 04", "")
+	if n3 != "Macro 103026 04 - 03" {
+		t.Fatalf("third schedule got %q, want Macro 103026 04 - 03", n3)
+	}
+
+	// Updating s1 with its own name should not increment
+	if same := NextScheduleName(scheds, "Macro 103026 04", "s1"); same != "Macro 103026 04" {
+		t.Fatalf("updating existing schedule should keep name, got %q", same)
 	}
 }
 

@@ -166,7 +166,7 @@ func playSteps(steps []Step, speed float64, abort <-chan struct{}, onStep func(i
 		if onStep != nil {
 			onStep(idx)
 		}
-		delay := scaleDur(st.DelayMs)
+		delay := scaleDur(st.EffectiveDelayMs(idx))
 		hold := scaleDur(st.HoldMs)
 		if hold < minClickHold {
 			hold = minClickHold

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -276,6 +277,16 @@ func (s *Store) UpsertSchedule(sc Schedule, now time.Time) (Schedule, error) {
 	if sc.ID == "" {
 		sc.ID = newID()
 	}
+	baseName := strings.TrimSpace(sc.Name)
+	if baseName == "" {
+		for _, m := range s.macros {
+			if m.ID == sc.MacroID {
+				baseName = m.Name
+				break
+			}
+		}
+	}
+	sc.Name = NextScheduleName(s.schedules, baseName, sc.ID)
 	if sc.PlaysPerRun <= 0 {
 		sc.PlaysPerRun = 1
 	}

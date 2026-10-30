@@ -15,6 +15,8 @@
 
   let selectedStepIndex = -1;
   let activeScheduleEditId = "";
+  let schedNameUserCustomized = false;
+  let schedSuggestedName = "";
   let dragFromIndex = -1;
   let saveDebounceTimer = null;
   let undoStack = [];
@@ -98,11 +100,20 @@
     }, 220);
   }
 
+  function effectiveStepDelayMs(st, idx) {
+    const raw = st.delayMs || 0;
+    if (raw <= 0) return 0;
+    if (idx === 0 && !st.delayEdited && st.type !== "wait") return 0;
+    return raw;
+  }
+
   function formatEditorSubtitle(m, saved) {
-    const count = (m.steps || []).length;
+    const steps = m.steps || [];
+    const count = steps.length;
     let totalMs = 0;
-    for (const s of m.steps || []) {
-      if (s.delayMs > 0) totalMs += s.delayMs;
+    for (let i = 0; i < count; i++) {
+      const s = steps[i];
+      totalMs += effectiveStepDelayMs(s, i);
       if (s.holdMs > 0 && s.type !== "wait") totalMs += s.holdMs;
     }
     const spd = m.speed && m.speed > 0 ? m.speed : 1.0;
@@ -161,9 +172,10 @@
 
       const stepsCount = (m.steps || []).length;
       let totalMs = 0;
-      for (const s of m.steps || []) {
-        if (s.delayMs > 0) totalMs += s.delayMs;
-        if (s.holdMs > 0) totalMs += s.holdMs;
+      for (let i = 0; i < stepsCount; i++) {
+        const s = m.steps[i];
+        totalMs += effectiveStepDelayMs(s, i);
+        if (s.holdMs > 0 && s.type !== "wait") totalMs += s.holdMs;
       }
       const durStr = formatDurationShort(totalMs / (m.speed || 1));
 
@@ -251,18 +263,24 @@
       row.draggable = true;
       row.dataset.index = String(idx);
 
-      const delaySec = ((st.delayMs || 0) / 1000).toFixed(2);
+      const effDelayMs = effectiveStepDelayMs(st, idx);
+      const delaySec = (effDelayMs / 1000).toFixed(2);
+      const retainedHint =
+        idx === 0 && !st.delayEdited && st.delayMs > 0 && st.type !== "wait"
+          ? ` (recorded +${(st.delayMs / 1000).toFixed(2)}s retained if reordered; edit to override initial pause)`
+          : "";
 
       row.innerHTML = `
         <span class="drag-grip" title="Drag to reorder step (or press Alt+↑/↓)">⋮⋮</span>
         <span class="step-index">${idx + 1}</span>
         <span class="step-type-badge">${stepTypeLabel(st)}</span>
         <div class="step-controls">${buildStepControlsHTML(st, idx)}</div>
-        <label class="delay-chip" title="Delay before this step executes (seconds)">
+        <label class="delay-chip" title="Delay before this step executes (seconds)${retainedHint}">
           <span>+</span>
           <input type="number" step="0.05" min="0" max="86400" data-field="delaySec" value="${delaySec}" />
           <span>s</span>
         </label>
+        <button class="icon-btn" data-step-dup="${idx}" title="Duplicate step below">⧉</button>
         <button class="icon-btn danger" data-step-del="${idx}" title="Delete step">🗑</button>
       `;
 
@@ -476,6 +494,7 @@
         if (f === "delaySec") {
           const sec = Math.max(0, parseFloat(inp.value) || 0);
           st.delayMs = Math.round(sec * 1000);
+          st.delayEdited = sec > 0;
         } else if (f === "x") {
           st.x = parseInt(inp.value, 10) || 0;
         } else if (f === "y") {
@@ -495,6 +514,20 @@
         scheduleSaveMacro(m);
       });
     });
+
+    // Duplicate step button
+    const dupBtn = row.querySelector("[data-step-dup]");
+    if (dupBtn) {
+      dupBtn.addEventListener("click", () => {
+        pushUndoSnapshot(m);
+        const copy = JSON.parse(JSON.stringify(st));
+        copy.id = "";
+        m.steps.splice(idx + 1, 0, copy);
+        selectedStepIndex = idx + 1;
+        scheduleSaveMacro(m);
+        renderEditorPane();
+      });
+    }
 
     // Delete step button
     const delBtn = row.querySelector("[data-step-del]");
@@ -538,6 +571,24 @@
 
   // --- Scheduler Tab ---
 
+  function suggestScheduleName(baseName, excludeSchedId) {
+    let base = String(baseName || "").trim();
+    if (!base) base = "Scheduled Macro";
+    const taken = (cand) => {
+      const low = cand.toLowerCase();
+      return (appState.schedules || []).some(
+        (sc) => (!excludeSchedId || sc.id !== excludeSchedId) && String(sc.name || "").trim().toLowerCase() === low
+      );
+    };
+    if (!taken(base)) return base;
+    const root = base.replace(/\s+-\s+\d{2,}$/, "").trim() || base;
+    for (let n = 2; ; n++) {
+      const suffix = n < 10 ? "0" + n : String(n);
+      const cand = `${root} - ${suffix}`;
+      if (!taken(cand)) return cand;
+    }
+  }
+
   function openSchedulerForMacro(macroId) {
     switchTab("scheduler");
     populateNewScheduleForm(macroId);
@@ -545,6 +596,7 @@
 
   function populateNewScheduleForm(prefillMacroId) {
     activeScheduleEditId = "";
+    schedNameUserCustomized = false;
     $("#schedFormTitle").textContent = "Create Schedule";
     $("#btnRunSchedNow").classList.add("hidden");
     $("#btnDeleteSched").classList.add("hidden");
@@ -565,7 +617,8 @@
     }
 
     const selMacro = (appState.macros || []).find((m) => m.id === macroSel.value);
-    $("#schedName").value = selMacro ? selMacro.name : "";
+    schedSuggestedName = suggestScheduleName(selMacro ? selMacro.name : "", "");
+    $("#schedName").value = schedSuggestedName;
     $("#schedEnabled").checked = true;
 
     const in5 = new Date(Date.now() + 5 * 60 * 1000);
@@ -604,7 +657,14 @@
       macroSel.appendChild(opt);
     }
     macroSel.value = sc.macroId;
-    $("#schedName").value = sc.name || "";
+    const selMacro = (appState.macros || []).find((m) => m.id === sc.macroId);
+    const defaultForMacro = suggestScheduleName(selMacro ? selMacro.name : "", sc.id);
+    schedSuggestedName = sc.name || defaultForMacro;
+    schedNameUserCustomized =
+      !!sc.name &&
+      selMacro &&
+      sc.name.replace(/\s+-\s+\d{2,}$/, "").trim().toLowerCase() !== selMacro.name.trim().toLowerCase();
+    $("#schedName").value = sc.name || defaultForMacro;
     $("#schedEnabled").checked = !!sc.enabled;
     $("#schedStart").value = toLocalDateTimeInput(new Date(sc.start));
     $("#schedRepeat").value = sc.repeat || "none";
@@ -954,6 +1014,21 @@
 
     // Scheduler Form Events
     $("#btnNewSchedule").addEventListener("click", () => populateNewScheduleForm(appState.activeMacroId));
+    $("#schedMacro").addEventListener("change", () => {
+      const selMacro = (appState.macros || []).find((m) => m.id === $("#schedMacro").value);
+      const nextSuggested = suggestScheduleName(selMacro ? selMacro.name : "", activeScheduleEditId);
+      const curVal = ($("#schedName").value || "").trim();
+      if (!schedNameUserCustomized || curVal === "" || curVal === schedSuggestedName) {
+        schedSuggestedName = nextSuggested;
+        $("#schedName").value = nextSuggested;
+        schedNameUserCustomized = false;
+      }
+      refreshSchedulePreview();
+    });
+    $("#schedName").addEventListener("input", () => {
+      const curVal = ($("#schedName").value || "").trim();
+      schedNameUserCustomized = curVal !== "" && curVal !== schedSuggestedName;
+    });
     $("#schedRepeat").addEventListener("change", () => {
       syncScheduleFormVisibility();
       refreshSchedulePreview();
@@ -984,7 +1059,9 @@
       try {
         const sc = buildScheduleFromForm();
         const saved = await window.apiSaveSchedule(sc);
-        activeScheduleEditId = saved.id;
+        // After saving a schedule, advance to a fresh schedule form so the label
+        // immediately increments (e.g. "Macro ... - 02") instead of offering the same name twice.
+        populateNewScheduleForm(saved.macroId);
         showToast("success", "Saved schedule: " + saved.name);
       } catch (err) {
         showToast("error", String(err));

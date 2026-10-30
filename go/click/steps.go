@@ -49,23 +49,40 @@ func (m Mods) Has(flag Mods) bool {
 
 // Step is one user-editable action in a Macro.
 // DelayMs is the wait before this step runs (since the previous step finished).
+// DelayEdited is set to true when the user manually overrides the delay in the UI;
+// when false, the first step in a macro runs immediately (0 delay) while retaining
+// its recorded DelayMs in case the user later reorders steps.
 // HoldMs is how long a mouse button or key stays down during this step.
 type Step struct {
-	ID      string   `json:"id"`
-	DelayMs int64    `json:"delayMs"`
-	Type    StepType `json:"type"`
-	Button  Button   `json:"button,omitempty"`
-	X       int32    `json:"x,omitempty"`
-	Y       int32    `json:"y,omitempty"`
-	X2      int32    `json:"x2,omitempty"`
-	Y2      int32    `json:"y2,omitempty"`
-	Wheel   int32    `json:"wheel,omitempty"`
-	Key     uint16   `json:"key,omitempty"`
-	KeyName string   `json:"keyName,omitempty"`
-	Mods    Mods     `json:"mods,omitempty"`
-	Text    string   `json:"text,omitempty"`
-	HoldMs  int64    `json:"holdMs,omitempty"`
-	Glide   bool     `json:"glide"`
+	ID          string   `json:"id"`
+	DelayMs     int64    `json:"delayMs"`
+	DelayEdited bool     `json:"delayEdited,omitempty"`
+	Type        StepType `json:"type"`
+	Button      Button   `json:"button,omitempty"`
+	X           int32    `json:"x,omitempty"`
+	Y           int32    `json:"y,omitempty"`
+	X2          int32    `json:"x2,omitempty"`
+	Y2          int32    `json:"y2,omitempty"`
+	Wheel       int32    `json:"wheel,omitempty"`
+	Key         uint16   `json:"key,omitempty"`
+	KeyName     string   `json:"keyName,omitempty"`
+	Mods        Mods     `json:"mods,omitempty"`
+	Text        string   `json:"text,omitempty"`
+	HoldMs      int64    `json:"holdMs,omitempty"`
+	Glide       bool     `json:"glide"`
+}
+
+// EffectiveDelayMs returns the delay in milliseconds that should be applied
+// when this step is at position idx in a macro: 0 for the first step unless
+// the user explicitly set a delay (or the step is a pure Wait step).
+func (s Step) EffectiveDelayMs(idx int) int64 {
+	if s.DelayMs <= 0 {
+		return 0
+	}
+	if idx == 0 && !s.DelayEdited && s.Type != StepWait {
+		return 0
+	}
+	return s.DelayMs
 }
 
 // Delay returns DelayMs as a time.Duration.
@@ -96,12 +113,12 @@ type Macro struct {
 }
 
 // DurationMs returns the total duration of the macro in milliseconds,
-// accounting for its speed multiplier.
+// accounting for its speed multiplier and suppressing unedited initial delay.
 func (m Macro) DurationMs() int64 {
 	var total int64
-	for _, s := range m.Steps {
-		if s.DelayMs > 0 {
-			total += s.DelayMs
+	for i, s := range m.Steps {
+		if d := s.EffectiveDelayMs(i); d > 0 {
+			total += d
 		}
 		if s.HoldMs > 0 && s.Type != StepWait {
 			total += s.HoldMs
@@ -449,9 +466,6 @@ func BuildSteps(raw []RawEvent, opts BuildOptions) []Step {
 	if opts.DragThresholdPx <= 0 {
 		opts.DragThresholdPx = 6
 	}
-	if opts.DoubleClickMs <= 0 {
-		opts.DoubleClickMs = 380
-	}
 	if opts.TextMergeGapMs <= 0 {
 		opts.TextMergeGapMs = 450
 	}
@@ -491,18 +505,6 @@ func BuildSteps(raw []RawEvent, opts BuildOptions) []Step {
 			lastTick = endTick
 		} else {
 			lastTick = startTick
-		}
-
-		// Coalesce double clicks: two clicks of the same button at nearly the same point
-		if s.Type == StepClick && len(steps) > 0 {
-			prev := &steps[len(steps)-1]
-			if prev.Type == StepClick && prev.Button == s.Button &&
-				s.DelayMs <= opts.DoubleClickMs &&
-				abs32(prev.X-s.X) <= opts.DragThresholdPx &&
-				abs32(prev.Y-s.Y) <= opts.DragThresholdPx {
-				prev.Type = StepDoubleClick
-				return
-			}
 		}
 
 		// Coalesce consecutive wheel steps in the same direction within 250ms
@@ -548,6 +550,17 @@ func BuildSteps(raw []RawEvent, opts BuildOptions) []Step {
 				btn = ButtonRight
 			} else if ev.Kind == MiddleDown {
 				btn = ButtonMiddle
+			}
+			// If a previous button-down never saw its button-up before this new press, flush it so no click is lost.
+			if mouseDown.active {
+				emitStep(Step{
+					Type:   StepClick,
+					Button: mouseDown.btn,
+					X:      mouseDown.x,
+					Y:      mouseDown.y,
+					HoldMs: 40,
+					Glide:  true,
+				}, mouseDown.tick, mouseDown.tick)
 			}
 			mouseDown = pendingMouse{
 				active: true,
