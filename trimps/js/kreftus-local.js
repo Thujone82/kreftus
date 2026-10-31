@@ -1,87 +1,314 @@
-/* Local overlay - not from upstream; restored by updtrimps.ps1
- *
- * Cap #autoItemsDiv to the pixels between its top edge and the Save bar.
- * Do not size the tooltip: that stretches short tabs and still does not
- * create a scrollport on the items list.
- */
+/* ==========================================================================
+   Kreftus Local Customizations for Trimps
+   1. Settings Drawer Theme Toggle (to the right of #searchSettings, default ON)
+      - Turning OFF disables kreftus-local.css completely and clears JS helpers
+   2. Dynamically sizes Spire Assault (#autoItemsDiv) to fit above #settingsRow
+   3. Injects Mobile Quick-Switch Bar (<= 1100px) for fast 1-tap section filtering
+   4. Dynamically auto-scales any overflowing text in resource/misc cards
+   ========================================================================== */
 (function () {
-  var raf = 0;
+  'use strict';
 
-  function sizeSpireAssault() {
+  var THEME_STORAGE_KEY = 'kreftus.trimps.themeEnabled';
+  var MVIEW_STORAGE_KEY = 'kreftus.trimps.mobileView';
+  var MVIEW_TABS = [
+    { id: 'all', label: '📱 All' },
+    { id: 'combat', label: '⚔️ Combat' },
+    { id: 'buy', label: '🏗️ Buy' },
+    { id: 'resources', label: '📦 Resources' },
+    { id: 'log', label: '📜 Log' }
+  ];
+
+  var FIT_IDS = [
+    'foodPs', 'woodPs', 'metalPs', 'sciencePs',
+    'fragmentsPs', 'gemsPs', 'heliumPh',
+    'fragmentsOwned', 'gemsOwned', 'heliumOwned'
+  ];
+
+  function isThemeEnabled() {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) !== 'false';
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function findThemeLink() {
+    var links = document.querySelectorAll('link[rel="stylesheet"]');
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute('href') || '';
+      if (href.indexOf('kreftus-local.css') !== -1) {
+        return links[i];
+      }
+    }
+    return null;
+  }
+
+  function injectToggleBaseCss() {
+    if (document.getElementById('kreftusThemeToggleStyle')) return;
+    var style = document.createElement('style');
+    style.id = 'kreftusThemeToggleStyle';
+    style.textContent =
+      '#settingTitleBar #searchSettingsTitle { margin: 0 1vw !important; }' +
+      '#settingTitleBar #searchSettings { width: 20% !important; vertical-align: middle; }' +
+      '#kreftusThemeToggleBtn {' +
+      '  display: inline-block;' +
+      '  vertical-align: middle;' +
+      '  width: auto !important;' +
+      '  min-width: 11vw;' +
+      '  padding: 0.25vw 0.8vw;' +
+      '  margin: 0 0 0 0.8vw !important;' +
+      '  font-size: 1.35vw;' +
+      '  line-height: 1.5vw;' +
+      '  cursor: pointer;' +
+      '  user-select: none;' +
+      '}' +
+      '@media screen and (max-width: 1100px) {' +
+      '  #kreftusThemeToggleBtn {' +
+      '    font-size: 14px !important;' +
+      '    line-height: 1.3 !important;' +
+      '    padding: 6px 12px !important;' +
+      '    margin: 4px 0 4px 8px !important;' +
+      '  }' +
+      '}';
+    document.head.appendChild(style);
+  }
+
+  function clearJsOverrides() {
+    for (var i = 0; i < FIT_IDS.length; i++) {
+      var el = document.getElementById(FIT_IDS[i]);
+      if (el) {
+        el.style.transform = '';
+        el.style.transformOrigin = '';
+      }
+    }
     var tip = document.getElementById('tooltipDiv');
-    var items = document.getElementById('autoItemsDiv');
-    var bar = document.getElementById('settingsRow');
-    if (!tip) return;
+    if (tip) {
+      tip.style.maxHeight = '';
+    }
+    var itemsDiv = document.getElementById('autoItemsDiv');
+    if (itemsDiv) {
+      itemsDiv.style.maxHeight = '';
+    }
+  }
 
-    var isSa = tip.className.indexOf('tooltipExtraBiggest') !== -1 && tip.style.display === 'block';
-    if (!isSa) {
-      if (items) items.style.maxHeight = '';
+  function applyThemeState(enabled) {
+    var link = findThemeLink();
+    if (link) {
+      link.disabled = !enabled;
+    }
+
+    var btn = document.getElementById('kreftusThemeToggleBtn');
+    if (btn) {
+      btn.textContent = enabled ? 'SA Theme: On' : 'SA Theme: Off';
+      btn.classList.toggle('settingBtn1', enabled);
+      btn.classList.toggle('settingBtntrue', enabled);
+      btn.classList.toggle('settingBtn0', !enabled);
+      btn.classList.toggle('settingBtnfalse', !enabled);
+    }
+
+    var nav = document.getElementById('kreftusMobileNav');
+    if (!enabled) {
+      if (nav) nav.style.display = 'none';
+      MVIEW_TABS.forEach(function (t) {
+        document.body.classList.remove('kreftus-mview-' + t.id);
+      });
+      clearJsOverrides();
+    } else {
+      if (nav) nav.style.display = '';
+      var savedView = 'all';
+      try {
+        savedView = localStorage.getItem(MVIEW_STORAGE_KEY) || 'all';
+      } catch (e) {}
+      MVIEW_TABS.forEach(function (t) {
+        document.body.classList.toggle('kreftus-mview-' + t.id, t.id === savedView);
+      });
+      fitResourceBoxText();
+      adjustSpireAssaultPopup();
+    }
+  }
+
+  function initThemeToggleButton() {
+    injectToggleBaseCss();
+    var searchInput = document.getElementById('searchSettings');
+    if (!searchInput || document.getElementById('kreftusThemeToggleBtn')) return;
+
+    var btn = document.createElement('div');
+    btn.id = 'kreftusThemeToggleBtn';
+    btn.className = 'noselect optionContainer settingsBtn settingTypeBtn';
+    btn.title = 'Toggle custom SA Planner dark theme and mobile layout enhancements';
+    btn.addEventListener('click', function () {
+      var nextState = !isThemeEnabled();
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, nextState ? 'true' : 'false');
+      } catch (e) {}
+      applyThemeState(nextState);
+    });
+
+    if (searchInput.nextSibling) {
+      searchInput.parentNode.insertBefore(btn, searchInput.nextSibling);
+    } else {
+      searchInput.parentNode.appendChild(btn);
+    }
+
+    applyThemeState(isThemeEnabled());
+  }
+
+  function adjustSpireAssaultPopup() {
+    if (!isThemeEnabled()) return;
+
+    var tip = document.getElementById('tooltipDiv');
+    if (!tip || tip.style.display === 'none') return;
+
+    /* Clamp regular tooltips onto screen on narrow viewports */
+    if (window.innerWidth <= 1100 && !tip.classList.contains('tooltipExtraBiggest')) {
+      tip.style.left = Math.max(8, Math.min(tip.offsetLeft || 12, window.innerWidth - tip.offsetWidth - 8)) + 'px';
+      var maxTop = Math.max(8, window.innerHeight - tip.offsetHeight - 68);
+      if (tip.offsetTop > maxTop) {
+        tip.style.top = Math.max(8, maxTop) + 'px';
+      }
+    }
+
+    if (!tip.classList.contains('tooltipExtraBiggest')) return;
+
+    var itemsDiv = document.getElementById('autoItemsDiv');
+    if (!itemsDiv) return;
+
+    var settingsRow = document.getElementById('settingsRow');
+    var bottomLimit = window.innerHeight - 16;
+    if (settingsRow && settingsRow.offsetHeight > 0) {
+      var srRect = settingsRow.getBoundingClientRect();
+      if (srRect.top > 0) bottomLimit = srRect.top - 10;
+    }
+
+    tip.style.top = '12px';
+    tip.style.maxHeight = Math.max(320, bottomLimit - 12) + 'px';
+
+    var tipCost = document.getElementById('tipCost');
+    var footerReserve = (tipCost ? tipCost.offsetHeight : 36) + 36;
+    var itemsRect = itemsDiv.getBoundingClientRect();
+    var availableForItems = bottomLimit - itemsRect.top - footerReserve;
+
+    if (availableForItems > 180) {
+      itemsDiv.style.maxHeight = Math.floor(availableForItems) + 'px';
+    }
+  }
+
+  function fitResourceBoxText() {
+    if (!isThemeEnabled()) return;
+
+    for (var i = 0; i < FIT_IDS.length; i++) {
+      var el = document.getElementById(FIT_IDS[i]);
+      if (!el || el.offsetParent === null) continue;
+      var box = el.closest('.col-xs-6') || el.closest('.playerGather');
+      if (!box) continue;
+
+      /* Reset transform before measuring natural width */
+      el.style.transform = '';
+      el.style.transformOrigin = '';
+
+      var maxW = box.clientWidth - 6;
+      var naturalW = el.scrollWidth;
+      if (maxW > 20 && naturalW > maxW) {
+        var scale = Math.max(0.68, maxW / naturalW);
+        var isRightAligned = el.id === 'foodPs' || el.id === 'woodPs' || el.id === 'metalPs' || el.id === 'sciencePs';
+        el.style.transformOrigin = isRightAligned ? 'right center' : 'center center';
+        el.style.transform = 'scaleX(' + scale.toFixed(3) + ')';
+      }
+    }
+  }
+
+  function initMobileQuickNav() {
+    var innerWrapper = document.getElementById('innerWrapper');
+    if (!innerWrapper || document.getElementById('kreftusMobileNav')) return;
+
+    var nav = document.createElement('div');
+    nav.id = 'kreftusMobileNav';
+    nav.setAttribute('role', 'navigation');
+    nav.setAttribute('aria-label', 'Mobile Section Switcher');
+
+    var savedView = 'all';
+    try {
+      savedView = localStorage.getItem(MVIEW_STORAGE_KEY) || 'all';
+    } catch (e) {}
+
+    function setMobileView(viewId) {
+      MVIEW_TABS.forEach(function (t) {
+        document.body.classList.remove('kreftus-mview-' + t.id);
+      });
+      if (isThemeEnabled()) {
+        document.body.classList.add('kreftus-mview-' + viewId);
+      }
+      var btns = nav.querySelectorAll('.kreftus-mnav-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === viewId);
+      }
+      try {
+        localStorage.setItem(MVIEW_STORAGE_KEY, viewId);
+      } catch (e) {}
+    }
+
+    MVIEW_TABS.forEach(function (t) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'kreftus-mnav-btn' + (t.id === savedView ? ' active' : '');
+      btn.setAttribute('data-view', t.id);
+      btn.textContent = t.label;
+      btn.addEventListener('click', function () {
+        setMobileView(t.id);
+      });
+      nav.appendChild(btn);
+    });
+
+    innerWrapper.insertBefore(nav, innerWrapper.firstChild);
+    setMobileView(savedView);
+  }
+
+  /* Apply saved theme state immediately even before DOMContentLoaded if link exists */
+  var earlyLink = findThemeLink();
+  if (earlyLink) {
+    earlyLink.disabled = !isThemeEnabled();
+  }
+
+  function initKreftusEnhancements() {
+    initMobileQuickNav();
+    initThemeToggleButton();
+    applyThemeState(isThemeEnabled());
+
+    var tip = document.getElementById('tooltipDiv');
+    if (!tip) {
+      setTimeout(initKreftusEnhancements, 500);
       return;
     }
-    if (!items || !bar) return;
 
-    var barTop = bar.getBoundingClientRect().top;
-    var itemsRect = items.getBoundingClientRect();
-    var tipRect = tip.getBoundingClientRect();
-    if (itemsRect.height === 0) return;
-
-    var belowItems = Math.max(0, tipRect.bottom - itemsRect.bottom);
-    var itemsMax = Math.floor(barTop - itemsRect.top - belowItems - 4);
-    if (itemsMax < 64) itemsMax = 64;
-
-    var scroll = items.scrollTop;
-    if (items.scrollHeight > itemsMax + 1) {
-      var next = itemsMax + 'px';
-      if (items.style.maxHeight !== next) items.style.maxHeight = next;
-    } else if (items.style.maxHeight !== 'none') {
-      items.style.maxHeight = 'none';
-    }
-    if (items.scrollTop !== scroll) items.scrollTop = scroll;
-  }
-
-  function schedule() {
-    if (raf) return;
-    raf = window.requestAnimationFrame(function () {
-      raf = 0;
-      sizeSpireAssault();
+    var rafPending = false;
+    var observer = new MutationObserver(function () {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(function () {
+        rafPending = false;
+        adjustSpireAssaultPopup();
+      });
     });
-  }
 
-  function hookPopup() {
-    if (!window.autoBattle || !autoBattle.popup || autoBattle.popup._kreftus) return;
-    var orig = autoBattle.popup;
-    var wrapped = function () {
-      var ret = orig.apply(this, arguments);
-      schedule();
-      return ret;
-    };
-    wrapped._kreftus = true;
-    autoBattle.popup = wrapped;
-  }
-
-  window.addEventListener('resize', schedule);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', schedule);
-  }
-
-  function bind() {
-    hookPopup();
-    schedule();
-    var tip = document.getElementById('tooltipDiv');
-    if (!tip || !window.MutationObserver) return;
-    new MutationObserver(schedule).observe(tip, {
+    observer.observe(tip, {
       attributes: true,
-      attributeFilter: ['class', 'style']
+      attributeFilter: ['class', 'style'],
+      childList: true
     });
-    new MutationObserver(schedule).observe(tip, {
-      childList: true,
-      subtree: true
+
+    window.addEventListener('resize', function () {
+      adjustSpireAssaultPopup();
+      fitResourceBoxText();
     });
+
+    setInterval(fitResourceBoxText, 600);
+    setTimeout(fitResourceBoxText, 150);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bind);
+    document.addEventListener('DOMContentLoaded', initKreftusEnhancements);
   } else {
-    bind();
+    initKreftusEnhancements();
   }
 })();

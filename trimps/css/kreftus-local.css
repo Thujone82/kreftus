@@ -1,160 +1,1524 @@
-/* Local overrides - not from upstream; restored by updtrimps.ps1 */
+/* ==========================================================================
+   Kreftus Local Customizations for Trimps
+   Visual Overhaul (SA Planner Dark Theme) + Responsive Mobile Reflow
+   Loaded after css/style.css; preserved across upstream updates by updtrimps.ps1
+   ========================================================================== */
 
-/*
- * Do not flex-stretch the SA popup to the window. Short tabs must stay
- * content-sized. #autoItemsDiv is the only scrollport; its pixel cap is
- * set in js/kreftus-local.js from the Save bar's bounding box.
- */
-#tooltipDiv.tooltipExtraBiggest {
-  max-width: 100vw;
-  box-sizing: border-box;
+:root {
+  --bg: #08090c;
+  --bg-grad:
+    radial-gradient(ellipse 80% 50% at 15% -10%, rgba(247, 147, 26, 0.09), transparent 60%),
+    radial-gradient(ellipse 70% 45% at 88% 0%, rgba(96, 165, 250, 0.07), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 50% 105%, rgba(167, 139, 250, 0.05), transparent 60%);
+  --surface: rgba(20, 23, 31, 0.88);
+  --surface-solid: #14171f;
+  --surface-2: #191d27;
+  --surface-3: #222736;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --text: #e8ecf4;
+  --muted: #8b94a7;
+  --accent: #f7931a;
+  --accent-glow: rgba(247, 147, 26, 0.16);
+  --buy: #22c55e;
+  --warn: #fbbf24;
+  --bad: #f43f5e;
+  --info: #60a5fa;
+  --violet: #a78bfa;
+  --teal: #2dd4bf;
+  --shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45), 0 4px 10px -2px rgba(0, 0, 0, 0.35);
+  --radius: 10px;
+  --radius-sm: 7px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  --mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
 
-#tooltipDiv.tooltipExtraBiggest #tipText {
-  max-width: 100%;
-  overflow-x: clip;
-  box-sizing: border-box;
+/* --------------------------------------------------------------------------
+   1. Global Canvas, Typography & Dark Scrollbars
+   -------------------------------------------------------------------------- */
+html, body {
+  background-color: var(--bg) !important;
+  color: var(--text);
+  font-family: var(--font) !important;
+  -webkit-font-smoothing: antialiased;
 }
 
-#tooltipDiv.tooltipExtraBiggest #tipText > .noselect {
-  max-width: 100%;
-  overflow-x: clip;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 2%;
-  box-sizing: border-box;
+#wrapper,
+#boneWrapper {
+  background: var(--bg) !important;
+  background-image: var(--bg-grad) !important;
+  color: var(--text);
 }
 
-#tooltipDiv.tooltipExtraBiggest #autoDust,
-#tooltipDiv.tooltipExtraBiggest #abLevelButtons,
-#tooltipDiv.tooltipExtraBiggest #autoBattleStatsText,
-#tooltipDiv.tooltipExtraBiggest #autoBattleMenuButtons,
-#tooltipDiv.tooltipExtraBiggest #autoBattleNotes,
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv {
-  grid-column: 1 / -1;
+#innerWrapper {
+  padding: 6px 8px 0 8px;
 }
 
-#tooltipDiv.tooltipExtraBiggest .autoBattleTopName,
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder {
-  width: auto;
-  max-width: 100%;
-  margin-left: 0;
-  margin-right: 0;
-  box-sizing: border-box;
+/* Crisp Tabular Numerals (using --font with tabular-nums prevents wide monospace overflow) */
+.ownedArea,
+.psText,
+.bdNumber,
+#battleTimer,
+.fightBar,
+.innerFightBar,
+.thingOwned,
+#trimpsTime,
+#portalHeliumOwned,
+#portalTotalHelium,
+#portalTotalSpent,
+#boneOwned,
+#nullifiumCount {
+  font-family: var(--font) !important;
+  font-variant-numeric: tabular-nums;
 }
 
-/*
- * SA fight bars: never scroll. Also size text to the bar so a 1px line-height
- * mismatch cannot create a scrollable overflow box.
- */
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder,
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar,
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar,
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .noselect {
-  overflow: hidden !important;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+/* Sleek Dark Scrollbars */
+.niceScroll::-webkit-scrollbar,
+#log::-webkit-scrollbar,
+#buyContainer::-webkit-scrollbar,
+#mapsHere::-webkit-scrollbar,
+#voidMapsHere::-webkit-scrollbar,
+#portalUpgradesHere::-webkit-scrollbar,
+#achievementsHere::-webkit-scrollbar,
+#autoItemsDiv::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+  background-color: rgba(10, 12, 16, 0.4);
 }
 
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar::-webkit-scrollbar,
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar::-webkit-scrollbar,
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .noselect::-webkit-scrollbar {
+.niceScroll::-webkit-scrollbar-track,
+#log::-webkit-scrollbar-track,
+#buyContainer::-webkit-scrollbar-track,
+#mapsHere::-webkit-scrollbar-track,
+#voidMapsHere::-webkit-scrollbar-track,
+#portalUpgradesHere::-webkit-scrollbar-track,
+#achievementsHere::-webkit-scrollbar-track,
+#autoItemsDiv::-webkit-scrollbar-track {
+  background-color: rgba(10, 12, 16, 0.4);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.niceScroll::-webkit-scrollbar-thumb,
+#log::-webkit-scrollbar-thumb,
+#buyContainer::-webkit-scrollbar-thumb,
+#mapsHere::-webkit-scrollbar-thumb,
+#voidMapsHere::-webkit-scrollbar-thumb,
+#portalUpgradesHere::-webkit-scrollbar-thumb,
+#achievementsHere::-webkit-scrollbar-thumb,
+#autoItemsDiv::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.niceScroll::-webkit-scrollbar-thumb:hover,
+#log::-webkit-scrollbar-thumb:hover,
+#buyContainer::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(247, 147, 26, 0.5);
+}
+
+/* --------------------------------------------------------------------------
+   2. Top Row: Resource Cards, Auto-Fit Text, Work Buttons, Trimps & Log
+   -------------------------------------------------------------------------- */
+.playerGather {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  padding: 4px 5px;
+  overflow: hidden;
+  container-type: inline-size;
+  transition: border-color 0.2s ease;
+}
+
+.playerGather:hover {
+  border-color: var(--border-strong) !important;
+}
+
+/* Resource Semantic Accent Bars (matching sa.html .stat-card) */
+#food.playerGather      { border-left: 3px solid var(--buy) !important; }
+#wood.playerGather      { border-left: 3px solid #f59e0b !important; }
+#metal.playerGather     { border-left: 3px solid #94a3b8 !important; }
+#science.playerGather   { border-left: 3px solid var(--info) !important; }
+#fragments.playerGather { border-left: 3px solid var(--teal) !important; }
+#gems.playerGather      { border-left: 3px solid var(--violet) !important; }
+#helium.playerGather    { border-left: 3px solid #38bdf8 !important; }
+#trimps.playerGather    { border-left: 3px solid var(--accent) !important; }
+
+/* Bone Shrine Badge in Top-Left of Food Card */
+#boneShrineBtn {
+  background: var(--surface-3) !important;
+  color: var(--warn) !important;
+  border-right: 1px solid rgba(251, 191, 36, 0.4);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 7px 0 7px 0;
+  padding: 2px 5px;
+  font-weight: 700;
+  font-size: clamp(9px, 0.72vw, 12px) !important;
+  width: auto !important;
+  max-width: 44%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#boneShrineBtn.isEmpty {
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  border-color: var(--border-strong);
+}
+
+.playerGather .title {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+/* Primary Resource Cards (Food, Wood, Metal, Science) Container-Responsive Sizing */
+#resourceColumn .playerGather > .title {
+  font-size: clamp(12px, 8.2cqw, 1.4vw) !important;
+  line-height: 1.15;
+}
+
+#resourceColumn .playerGather .ownedArea,
+#resourceColumn .playerGather .ownedArea span {
+  font-size: clamp(11px, 6.8cqw, 1.2vw) !important;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#resourceColumn .collectRow {
+  margin: 4px 0 0 0 !important;
+  padding: 0 2px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 4px !important;
+}
+
+#resourceColumn .collectRow > .col-xs-6:first-child {
+  width: auto !important;
+  flex: 0 0 43% !important;
+  max-width: 43% !important;
+  padding: 0 !important;
+}
+
+#resourceColumn .collectRow > .col-xs-6:nth-child(2) {
+  width: auto !important;
+  flex: 1 1 55% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+}
+
+#resourceColumn .workBtn {
+  font-size: clamp(10px, 5.5cqw, 1.05vw) !important;
+  padding: 2px 4px !important;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#resourceColumn .psText,
+#resourceColumn .psText.sizeSecReduced,
+#resourceColumn .psText.sizeSecRegular {
+  font-size: clamp(9.5px, 5.3cqw, 1.0vw) !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  display: block !important;
+  width: 100% !important;
+  text-align: right !important;
+}
+
+/* Secondary Resource Cards (Fragments, Gems, Helium/Radon) Container-Responsive Sizing
+   Guarantees Title, Value (0), and Rate are always on their own separate rows */
+#miscColumn {
+  padding-left: 0.25vw;
+  padding-right: 0.25vw;
+}
+
+#miscColumn .playerGatherSm {
+  padding: 4px 4px !important;
+  overflow: hidden;
+  container-type: inline-size;
+  text-align: center;
+}
+
+#miscColumn .playerGatherSm br {
   display: none !important;
-  width: 0 !important;
-  height: 0 !important;
 }
 
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .progress-bar {
-  height: auto !important;
-  line-height: 1.25em !important;
+#miscColumn .playerGatherSm > .title,
+#miscColumn .playerGatherSm > #heliumName.title {
+  display: block !important;
+  width: 100%;
+  font-size: clamp(10px, 14cqw, 1.15vw) !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  margin-bottom: 1px;
+  white-space: nowrap;
 }
 
-#tooltipDiv.tooltipExtraBiggest .autoBattleBarHolder .innerFightBar {
-  font-size: 1em !important;
-  line-height: 1.25em !important;
+#miscColumn .playerGatherSm > .ownedArea {
+  display: block !important;
+  width: 100%;
+  margin-bottom: 1px;
 }
 
-/* Stat columns: 50% width + padding must stay inside the panel */
-#tooltipDiv.tooltipExtraBiggest .autoStats {
-  box-sizing: border-box;
-  max-width: 50%;
+#miscColumn .playerGatherSm .ownedArea,
+#miscColumn .playerGatherSm .ownedArea span {
+  font-size: clamp(10px, 13cqw, 1.1vw) !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  white-space: nowrap;
 }
 
-/* Tab row: wrap/shrink when narrow instead of forcing horizontal overflow */
-#tooltipDiv.tooltipExtraBiggest #autoBattleMenuButtons {
+#miscColumn .playerGatherSm .psText,
+#miscColumn .playerGatherSm .psText.sizeSecReduced,
+#miscColumn .playerGatherSm .psText.sizeSecRegular,
+#miscColumn .playerGatherSm #heliumPh.heliumPh {
+  display: block !important;
+  width: 100%;
+  font-size: clamp(8.5px, 11.2cqw, 0.95vw) !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1.2 !important;
+  margin-top: 0 !important;
+  white-space: nowrap;
+}
+
+.psText {
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.psText:hover {
+  color: var(--accent) !important;
+}
+
+/* Progress Bars & Vertically Centered, Properly Scaled Overlay Text */
+.progress,
+.resProgress,
+#trappingProgress {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.resProgress {
+  height: 14% !important;
+  min-height: 15px;
+}
+
+.progress-bar {
+  border-radius: 5px;
+}
+
+.progress > div > span,
+.resProgress > div > span,
+#trimpsTimeToFill,
+.progress > #soldierHealthTextContainer > span,
+.innerFightBar,
+.fightBar span {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.9) !important;
+  font-weight: 700 !important;
+}
+
+.resProgress > div > span,
+#trimpsTimeToFill {
+  top: 50% !important;
+  left: 0 !important;
+  transform: translateY(-50%) !important;
+  margin-top: 0 !important;
+  font-size: clamp(8.5px, 0.72vw, 12px) !important;
+  line-height: 1 !important;
+}
+
+/* Trimps Card (#trimps) & Trap Box (#trapArea) */
+#trapArea {
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 4px 6px;
+}
+
+/* Work / Gather Buttons (.workBtn) */
+.workBtn {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border-strong) !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all 0.15s ease;
+}
+
+.workColorOff {
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+}
+
+.workColorOff:hover {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.workColorOn {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.28), rgba(247, 147, 26, 0.14)) !important;
+  border-color: rgba(247, 147, 26, 0.6) !important;
+  color: #ffb04f !important;
+  box-shadow: 0 0 12px rgba(247, 147, 26, 0.18);
+}
+
+.workColorTurkimp {
+  background: linear-gradient(180deg, rgba(251, 146, 60, 0.35), rgba(194, 65, 12, 0.22)) !important;
+  border-color: #fb923c !important;
+  color: #ffedd5 !important;
+}
+
+/* Log Container & Log Filter Buttons */
+#logContainer {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  overflow: hidden;
+}
+
+#logBtnGroup.btn-group {
   display: flex;
-  flex-wrap: wrap;
-  max-width: 100%;
-  box-sizing: border-box;
+  gap: 3px;
+  padding: 2px 2px 4px 2px;
+}
+
+#logBtnGroup .btn.logFlt {
+  border-radius: 6px !important;
+  border: 1px solid var(--border-strong) !important;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+#logBtnGroup .btn.btn-success {
+  background: rgba(34, 197, 94, 0.18) !important;
+  border-color: rgba(34, 197, 94, 0.5) !important;
+  color: #4ade80 !important;
+}
+
+#logBtnGroup .btn.btn-danger {
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+  color: var(--muted) !important;
+}
+
+#logBtnGroup .btn.btn-danger:hover {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+}
+
+#logConfigBtn {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
+}
+
+#logConfigBtn:hover {
+  background: var(--surface-3) !important;
+  color: var(--accent) !important;
+}
+
+#log {
+  font-size: clamp(11px, 0.88vw, 14px);
+  line-height: 1.4;
+}
+
+.message {
+  font-size: clamp(11px, 0.88vw, 14px);
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin-top: 3px;
+}
+
+.message:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* --------------------------------------------------------------------------
+   3. Bottom Left: Queue, Buy Navigation Tabs & Purchase Cards (.thing)
+   -------------------------------------------------------------------------- */
+#queueContainer {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.4);
+  margin-bottom: 5px;
+  padding: 4px 8px;
+}
+
+.queueItem {
+  border-radius: 6px !important;
+  border: 1px solid var(--border-strong) !important;
+  background: var(--surface-2);
+  padding: 1px 6px;
+}
+
+#outerBuyContainer {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+
+/* Buy Category & Quantity Multiplier Tabs */
+.buyTabsUl {
+  border-bottom: none !important;
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+}
+
+.buyTabsUl > li {
+  float: none !important;
+  flex: 1 1 0;
+}
+
+.buyTabsUl > li > a {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  font-weight: 600;
+  margin-right: 0 !important;
+  transition: all 0.15s ease;
+  padding: 5px 4px !important;
+}
+
+.buyTabsUl > li > a:hover {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
+}
+
+.buyTabsUl > li.tabSelected > a,
+.buyTabsUl > li.tabSelected > a:hover,
+.buyTabsUl > li.tabSelected > a:focus {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.24), rgba(247, 147, 26, 0.12)) !important;
+  border-color: rgba(247, 147, 26, 0.55) !important;
+  color: #fb923c !important;
+  box-shadow: 0 2px 8px rgba(247, 147, 26, 0.15);
+}
+
+/* Alert Badges inside Tabs & Cards */
+.badge {
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
+#buildingsAlert.badge,
+#jobsAlert.badge,
+#upgradesAlert.badge,
+#equipmentAlert.badge,
+#talentsAlert.badge {
+  background: rgba(247, 147, 26, 0.25) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(247, 147, 26, 0.5);
+}
+
+/* Purchase Cards (.thing) */
+.thing {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border-strong) !important;
+  transition: transform 0.1s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  padding: 4px 3px;
+}
+
+.thingColorCanAfford {
+  background: linear-gradient(180deg, rgba(21, 43, 32, 0.95), rgba(16, 24, 22, 0.98)) !important;
+  border-color: rgba(34, 197, 94, 0.45) !important;
+  color: #ecfdf5 !important;
+  box-shadow: inset 0 1px 0 rgba(34, 197, 94, 0.14);
+}
+
+.thingColorCanAfford:hover {
+  background: linear-gradient(180deg, rgba(26, 58, 42, 0.98), rgba(19, 32, 28, 0.98)) !important;
+  border-color: rgba(34, 197, 94, 0.85) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(34, 197, 94, 0.25);
+  transform: translateY(-1px);
+}
+
+.thingColorCanNotAfford {
+  background: rgba(20, 23, 31, 0.75) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+  color: #64748b !important;
+}
+
+.thingColorCanNotAfford:hover {
+  background: rgba(27, 32, 43, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #94a3b8 !important;
+}
+
+.thingColorCtrl,
+.thingColorFiring {
+  background: linear-gradient(180deg, rgba(76, 23, 33, 0.92), rgba(35, 16, 23, 0.96)) !important;
+  border-color: rgba(244, 63, 94, 0.55) !important;
+  color: #ffe4e6 !important;
+}
+
+.thingColorUpgrading {
+  background: linear-gradient(180deg, rgba(24, 48, 86, 0.92), rgba(17, 25, 42, 0.96)) !important;
+  border-color: rgba(96, 165, 250, 0.55) !important;
+  color: #dbeafe !important;
+}
+
+/* Section Headers in Buy Container (Buildings, Jobs, Upgrades, Equipment) */
+.buyTitle {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------------
+   4. Bottom Right: Combat HUD, Formations, Action Column & World/Map Grid
+   -------------------------------------------------------------------------- */
+#battleContainer {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 6px 8px;
+}
+
+.fightBar {
+  height: 1.5vw !important;
+  min-height: 18px;
+  border-radius: 6px !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.progress > #soldierHealthTextContainer > span,
+.innerFightBar {
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-size: clamp(10px, 1.05vw, 15px) !important;
+  line-height: 1 !important;
+}
+
+/* Combat Side Buttons (Fight, Maps, Portal, Repeat, AutoFight) */
+.fightBtn {
+  border-radius: var(--radius-sm) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+#battleSideTitle {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* World Grid & Map Grid */
+#grid,
+#mapGrid {
+  background: #0d1017 !important;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.battleCell {
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  transition: background-color 0.1s ease;
+}
+
+.cellColorNotBeaten {
+  background-color: #1a1f2c;
+  color: #64748b;
+}
+
+.cellColorBeaten {
+  background-color: #166534;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cellColorOverkill {
+  background-color: #228b4e;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.cellColorCurrent {
+  background-color: #f59e0b;
+  color: #08090c;
+  font-weight: 700;
+}
+
+/* Map Chamber & Map Creation Controls (#preMaps) */
+#mapsCreateRow,
+#advMapsRow,
+#advMapsRow2 {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+}
+
+.advSelect,
+#mapLevelInput,
+#searchSettings {
+  background: #0e1118 !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.mapThing {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border-strong) !important;
+  transition: all 0.15s ease;
+}
+
+/* --------------------------------------------------------------------------
+   5. Bottom Settings Dock (#settingsRow, #settingsTable, #settingsHere)
+   -------------------------------------------------------------------------- */
+#settingsRow {
+  background: rgba(14, 17, 24, 0.96) !important;
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.55);
+}
+
+#settingsTable {
+  border-collapse: separate;
+  border-spacing: 3px 2px;
+}
+
+#settingsTable > tbody > tr > td {
+  background: var(--surface-2);
+  border: 1px solid var(--border) !important;
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 3px 4px;
+  transition: all 0.15s ease;
+}
+
+#settingsTable > tbody > tr > td:hover {
+  background: var(--surface-3);
+  border-color: rgba(247, 147, 26, 0.45) !important;
+  color: #fb923c;
+}
+
+#settingsHere {
+  background: var(--surface-solid);
+  border-top: 1px solid var(--border-strong);
+  padding: 8px 12px;
+}
+
+.settingsBtn {
+  border-radius: 6px !important;
+  font-weight: 600;
+}
+
+/* Theme Toggle Button in #settingTitleBar when SA Theme is Active */
+#kreftusThemeToggleBtn {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.28), rgba(21, 128, 61, 0.22)) !important;
+  border: 1px solid rgba(34, 197, 94, 0.65) !important;
+  color: #4ade80 !important;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.18);
+  transition: all 0.15s ease;
+}
+
+#kreftusThemeToggleBtn:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.38), rgba(21, 128, 61, 0.32)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+}
+
+/* --------------------------------------------------------------------------
+   6. Tooltips & Full-Screen Modals (#tooltipDiv, #portalWrapper, Heirlooms)
+   -------------------------------------------------------------------------- */
+#tooltipDiv,
+#tooltipDiv2 {
+  background: var(--surface-solid) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.78) !important;
+  padding: 14px !important;
+}
+
+#tooltipDiv #tipTitle,
+#tooltipDiv2 #tipTitle2 {
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+#tooltipDiv hr,
+#tooltipDiv2 hr {
+  border-color: var(--border-strong) !important;
+}
+
+/* High-Contrast Semantic Text inside Dark Tooltips */
+#tooltipDiv .red,
+#tooltipDiv2 .red,
+#tooltipDiv .errorMessage {
+  color: #fb7185 !important;
+}
+
+#tooltipDiv .green,
+#tooltipDiv2 .green {
+  color: #4ade80 !important;
+}
+
+#tooltipDiv .orange,
+#tooltipDiv2 .orange {
+  color: #fb923c !important;
+}
+
+#tooltipDiv table,
+#tooltipDiv2 table {
+  color: var(--text);
+}
+
+#tooltipDiv .table-bordered,
+#tooltipDiv .table-bordered > thead > tr > th,
+#tooltipDiv .table-bordered > tbody > tr > td {
+  border-color: var(--border-strong) !important;
+}
+
+#tooltipDiv input,
+#tooltipDiv select,
+#tooltipDiv textarea {
+  background: #0c0e14 !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+/* Full-Screen Overlays: Portal, Heirlooms, Stats, Achievements */
+#statsWrapper,
+#achievementWrapper,
+#heirloomWrapper,
+#mutTreeWrapper {
+  background: var(--bg) !important;
+  background-image: var(--bg-grad) !important;
+  color: var(--text) !important;
+}
+
+#equippedHeirlooms,
+#carriedHeirlooms,
+#extraHeirlooms,
+#heirloomTitleBar,
+.selectedHeirloomItem {
+  background: var(--surface-solid) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius);
+}
+
+.portalThing {
+  border-radius: var(--radius-sm) !important;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+
+/* --------------------------------------------------------------------------
+   7. Spire Assault (#tooltipDiv.tooltipExtraBiggest) Enhanced Layout
+   -------------------------------------------------------------------------- */
+#tooltipDiv.tooltipExtraBiggest {
+  width: 92vw !important;
+  max-width: 1760px !important;
+  left: 4vw !important;
+  top: 2vh !important;
+  max-height: calc(96vh - 42px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: #14171f !important;
+  color: #e8ecf4 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75) !important;
+  padding: 14px 18px !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest #tipTitle {
+  color: #f7931a !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+}
+
+#tooltipDiv.tooltipExtraBiggest > hr {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  margin-top: 0.6vh !important;
+  margin-bottom: 0.6vh !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
+#tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
+  max-height: calc(92vh - 280px) !important;
+  min-height: 220px !important;
+  background-color: #191d27 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  padding: 6px !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoItemContainer {
+  vertical-align: top !important;
+  padding: 3px !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoItem {
+  border-radius: 6px !important;
+  padding: 0.35em 0.3em !important;
+  transition: background-color 0.12s ease, border-color 0.12s ease !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoItemEquipped {
+  background-color: rgba(34, 197, 94, 0.18) !important;
+  border: 1px solid rgba(34, 197, 94, 0.55) !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoItemEquipped:hover {
+  background-color: rgba(34, 197, 94, 0.28) !important;
+  border-color: #22c55e !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoItemNotEquipped {
+  background-color: #12151d !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoItemNotEquipped:hover {
+  background-color: #222736 !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .autoBonusBox {
+  height: auto !important;
+  min-height: 9.5em !important;
+  border-radius: 6px !important;
+  padding: 0.6% !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .contractBox {
+  height: auto !important;
+  min-height: 11em !important;
+  border-radius: 6px !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .abOptions,
+#tooltipDiv.tooltipExtraBiggest .abMiscBox {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 8px !important;
+  background-color: #191d27 !important;
+}
+
+#tooltipDiv.tooltipExtraBiggest .ringContainer {
+  height: auto !important;
+  min-height: 12.5em !important;
+  background-color: #191d27 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 6px !important;
 }
 
 #tooltipDiv.tooltipExtraBiggest #autoBattleMenuButtons .btn {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  white-space: normal;
+  border-radius: 8px 8px 0 0 !important;
+  margin-right: 2px !important;
 }
 
-#tooltipDiv.tooltipExtraBiggest #abLevelButtons {
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
+#tooltipDiv.tooltipExtraBiggest #tipCost {
+  margin-top: 8px !important;
 }
 
-/*
- * Beat style.css 11em/16em so short tabs size to content. No !important:
- * JS sets an inline pixel max-height when the list would cover Save.
- */
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
-  max-width: 100%;
-  max-height: none;
-  overflow-x: hidden;
-  overflow-y: auto;
-  box-sizing: border-box;
+/* --------------------------------------------------------------------------
+   8. Mobile Quick-Switch Bar (Hidden on Wide Desktop, Shown <= 1100px)
+   -------------------------------------------------------------------------- */
+#kreftusMobileNav {
+  display: none;
 }
 
-/*
- * Only item rows (divs that contain .autoItemContainer) use flex.
- * Misc tab .abMiscBox children must stay inline-block so presets sit side-by-side.
- */
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > div:has(.autoItemContainer) {
-  display: flex;
-  flex-wrap: wrap;
-  max-width: 100%;
-  box-sizing: border-box;
+/* --------------------------------------------------------------------------
+   9. Responsive Reflow: Narrow Desktop, Tablet & Mobile (@media max-width: 1100px)
+      Large, crisp, mobile-readable typography & touch-friendly controls
+   -------------------------------------------------------------------------- */
+@media screen and (max-width: 1100px) {
+  html, body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    font-size: 16px !important;
+  }
+
+  #wrapper,
+  #innerWrapper {
+    height: auto !important;
+    min-height: 100vh !important;
+    padding: 6px 8px 88px 8px !important;
+  }
+
+  /* Sticky Quick-Switch Bar with Large, Easy-to-Read Buttons */
+  #kreftusMobileNav {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: rgba(14, 17, 24, 0.96);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    padding: 5px;
+    margin-bottom: 10px;
+    gap: 5px;
+    overflow-x: auto;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  }
+
+  .kreftus-mnav-btn {
+    flex: 1 1 auto;
+    background: var(--surface-2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-family: var(--font);
+    font-size: 15px !important;
+    font-weight: 700;
+    white-space: nowrap;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .kreftus-mnav-btn.active {
+    background: linear-gradient(180deg, rgba(247, 147, 26, 0.28), rgba(247, 147, 26, 0.14));
+    color: #fb923c;
+    border-color: rgba(247, 147, 26, 0.6);
+  }
+
+  /* Section Filtering via Quick-Switch Bar */
+  body.kreftus-mview-combat #buyCol,
+  body.kreftus-mview-combat #resourceColumn,
+  body.kreftus-mview-combat #miscColumn,
+  body.kreftus-mview-combat #logColumn {
+    display: none !important;
+  }
+
+  body.kreftus-mview-buy #rightCol,
+  body.kreftus-mview-buy #resourceColumn,
+  body.kreftus-mview-buy #miscColumn,
+  body.kreftus-mview-buy #trimpsColumn,
+  body.kreftus-mview-buy #logColumn {
+    display: none !important;
+  }
+
+  body.kreftus-mview-resources #rightCol,
+  body.kreftus-mview-resources #buyCol,
+  body.kreftus-mview-resources #logColumn {
+    display: none !important;
+  }
+
+  body.kreftus-mview-log #rightCol,
+  body.kreftus-mview-log #buyCol,
+  body.kreftus-mview-log #resourceColumn,
+  body.kreftus-mview-log #miscColumn,
+  body.kreftus-mview-log #trimpsColumn {
+    display: none !important;
+  }
+
+  body.kreftus-mview-log #logColumn {
+    height: calc(100vh - 145px) !important;
+  }
+
+  /* Top Row Reflow */
+  #topRow {
+    height: auto !important;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 10px 0 !important;
+  }
+
+  #resourceColumn,
+  #miscColumn,
+  #trimpsColumn,
+  #logColumn {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .resourceRow {
+    height: auto !important;
+    margin: 0 0 6px 0 !important;
+  }
+
+  /* Primary Resource Cards (Food, Wood, Metal, Science) - Large Readable Text */
+  #resourceColumn .playerGather {
+    height: auto !important;
+    min-height: 112px;
+    padding: 10px 12px !important;
+    margin-bottom: 4px !important;
+  }
+
+  #boneShrineBtn {
+    font-size: 13px !important;
+    padding: 3px 8px !important;
+    max-width: 55% !important;
+  }
+
+  #resourceColumn .playerGather > .title {
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+
+  #resourceColumn .playerGather .ownedArea,
+  #resourceColumn .playerGather .ownedArea span {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    line-height: 1.3 !important;
+  }
+
+  /* Progress Bars in Narrow Mode: 20px tall with centered 11.5px text */
+  .resProgress {
+    height: 20px !important;
+    margin: 6px 0 !important;
+  }
+
+  .resProgress > div > span,
+  #trimpsTimeToFill {
+    top: 50% !important;
+    left: 0 !important;
+    transform: translateY(-50%) !important;
+    margin-top: 0 !important;
+    font-size: 11.5px !important;
+    line-height: 1 !important;
+  }
+
+  #resourceColumn .workBtn {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    padding: 7px 10px !important;
+  }
+
+  #resourceColumn .psText,
+  #resourceColumn .psText.sizeSecReduced,
+  #resourceColumn .psText.sizeSecRegular {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+  }
+
+  /* Secondary Resource Cards (Fragments, Gems, Radon/Helium) - 3-Col Grid with Large Text */
+  #miscColumn {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  #miscColumn .playerGatherSm {
+    height: auto !important;
+    min-height: 84px;
+    padding: 8px 10px !important;
+    margin-bottom: 0 !important;
+  }
+
+  #miscColumn .playerGatherSm > .title,
+  #miscColumn .playerGatherSm > #heliumName.title {
+    display: block !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    margin-bottom: 2px;
+  }
+
+  #miscColumn .playerGatherSm > .ownedArea {
+    display: block !important;
+    margin-bottom: 2px;
+  }
+
+  #miscColumn .playerGatherSm .ownedArea,
+  #miscColumn .playerGatherSm .ownedArea span {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+  }
+
+  #miscColumn .playerGatherSm .psText,
+  #miscColumn .playerGatherSm .psText.sizeSecReduced,
+  #miscColumn .playerGatherSm .psText.sizeSecRegular,
+  #miscColumn .playerGatherSm #heliumPh.heliumPh {
+    display: block !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    line-height: 1.25 !important;
+  }
+
+  /* Trimps Card (#trimps) - Large Readable Text */
+  #trimps.playerGather {
+    height: auto !important;
+    padding: 12px 14px !important;
+    font-size: 16px !important;
+  }
+
+  #trimps #trimpTitle.title {
+    font-size: 22px !important;
+    font-weight: 800 !important;
+  }
+
+  #trimps #turkimpBuff,
+  #trimps #fluffyBox {
+    font-size: 14px !important;
+    padding: 4px 6px !important;
+    border-radius: 6px;
+  }
+
+  #trimps .ownedArea,
+  #trimps .ownedArea span {
+    font-size: 19px !important;
+    font-weight: 700 !important;
+  }
+
+  #trimps #unempHide,
+  #trimps #empHide {
+    font-size: 17px !important;
+    line-height: 1.35 !important;
+    font-weight: 600 !important;
+  }
+
+  #trimps #trimpsPs {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    color: var(--buy) !important;
+  }
+
+  #trapArea {
+    width: 92% !important;
+    padding: 8px 10px !important;
+    margin: 8px auto 2px auto !important;
+  }
+
+  #trimpsCollectBtn,
+  #trimpsCollecting {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    padding: 7px 12px !important;
+  }
+
+  #trappingProgress {
+    height: 14px !important;
+    margin-top: 6px !important;
+  }
+
+  /* Message Log Panel (#logColumn) */
+  #logColumn {
+    height: 230px !important;
+  }
+
+  #logBtnGroup {
+    height: auto !important;
+  }
+
+  #logBtnGroup div button,
+  #logConfigBtn {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    padding: 7px 10px !important;
+  }
+
+  #log {
+    height: calc(100% - 42px) !important;
+    font-size: 15px !important;
+  }
+
+  .message {
+    font-size: 15px !important;
+    line-height: 1.42 !important;
+    margin-top: 4px !important;
+  }
+
+  /* Bottom Row: Stack Combat & Buy Columns with Large Readable Controls */
+  #bottomRow {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 10px;
+    margin: 0 !important;
+  }
+
+  #buyCol,
+  #rightCol {
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+  #queueContainer {
+    height: auto !important;
+    min-height: 68px !important;
+    padding: 8px 10px !important;
+    font-size: 15px !important;
+  }
+
+  #foremenCount,
+  #buildSpeed,
+  #autoTrapBtn,
+  #buildingsCollectBtn,
+  #noQueue,
+  .queueItem {
+    font-size: 15px !important;
+  }
+
+  .buyTabsUl {
+    flex-wrap: wrap;
+  }
+
+  .buyTabsUl > li {
+    flex: 1 1 calc(33.333% - 4px);
+  }
+
+  .buyTabsUl > li > a,
+  .buyTab {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    padding: 8px 6px !important;
+  }
+
+  #buyContainer,
+  .buyContainerSizeSm,
+  .buyContainerSizeLg {
+    height: auto !important;
+    max-height: 580px !important;
+  }
+
+  .titleDiv,
+  .buyTitle {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+  }
+
+  .titleSpan,
+  #jobsTitleUnemployed,
+  #fireBtn,
+  #autoEquipBtn,
+  #autoPrestigeBtn,
+  #autoUpgradeBtn {
+    font-size: 14px !important;
+  }
+
+  .thing,
+  #buyHere.buttonSizeSmall div .buyBox .thing,
+  #buyHere.buttonSizeTiny div .buyBox .thing {
+    width: calc(50% - 6px) !important;
+    font-size: 15px !important;
+    line-height: 1.35 !important;
+    min-height: 54px;
+    margin: 3px !important;
+    padding: 8px 6px !important;
+  }
+
+  .thing .thingName {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+  }
+
+  .thing .thingOwned {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+  }
+
+  #GeneticistassistContainer,
+  #buyHere.buttonSizeSmall div .buyBox #GeneticistassistContainer,
+  #buyHere.buttonSizeTiny div .buyBox #GeneticistassistContainer {
+    width: calc(100% - 6px) !important;
+  }
+
+  /* Combat HUD & World/Map Grid (#battleContainer) */
+  #battleContainer {
+    height: auto !important;
+    font-size: 16px !important;
+    padding: 10px !important;
+  }
+
+  .battleStatsTitle,
+  #goodGuyAttack,
+  #badGuyAttack,
+  #goodGuyBlock,
+  #badGuyName {
+    font-size: 16px !important;
+  }
+
+  .trimpBadge,
+  .badBadge,
+  .antiBadge {
+    font-size: 14px !important;
+    padding: 3px 6px !important;
+  }
+
+  .fightBar {
+    height: 26px !important;
+  }
+
+  .progress > #soldierHealthTextContainer > span,
+  .innerFightBar {
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+  }
+
+  #gridRow {
+    height: auto !important;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #battleBtnsColumn {
+    width: 100% !important;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 0 !important;
+  }
+
+  #battleSideTitle {
+    grid-column: 1 / -1;
+    font-size: 16px !important;
+    padding: 8px !important;
+  }
+
+  .battleSideBtnContainer {
+    margin-top: 0 !important;
+  }
+
+  .fightBtn,
+  #pauseFight {
+    font-size: 15px !important;
+    padding: 8px 10px !important;
+  }
+
+  #gridContainer {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .battleCell {
+    font-size: 14px !important;
+    min-height: 32px;
+    line-height: 32px !important;
+  }
+
+  /* Map Creation Controls */
+  #mapsCreateRow,
+  #advMapsRow,
+  #advMapsRow2 {
+    font-size: 14px !important;
+    padding: 8px 6px !important;
+  }
+
+  #advMapsRow .col-xs-3,
+  #advMapsRow2 .col-xs-3,
+  #advMapsRow2 .col-xs-2 {
+    width: 50% !important;
+    margin-bottom: 6px;
+  }
+
+  #mapLevelInput {
+    width: 72px !important;
+    font-size: 15px !important;
+  }
+
+  #mapsHere,
+  #voidMapsHere {
+    height: auto !important;
+    max-height: 340px !important;
+  }
+
+  .mapThing {
+    width: calc(50% - 6px) !important;
+    font-size: 14px !important;
+  }
+
+  /* Bottom Settings Bar: Multi-Row Flex Toolbar with Readable 14px Text */
+  #settingsTable,
+  #settingsTable > tbody {
+    display: block;
+    width: 100%;
+  }
+
+  #settingsTable > tbody > tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 6px;
+  }
+
+  #settingsTable > tbody > tr > td {
+    display: block !important;
+    width: auto !important;
+    flex: 1 1 calc(20% - 5px);
+    font-size: 14px !important;
+    padding: 8px 4px !important;
+  }
+
+  /* Tooltips & Modals Clamped to Screen */
+  #tooltipDiv,
+  #tooltipDiv2,
+  #tooltipDiv.tooltipExtraBiggest {
+    width: 95vw !important;
+    left: 2.5vw !important;
+    max-height: calc(92vh - 68px) !important;
+    overflow-y: auto !important;
+    font-size: 15px !important;
+    padding: 12px !important;
+  }
+
+  #tooltipDiv.tooltipExtraBiggest .autoItemContainer {
+    width: calc(50% - 6px) !important;
+  }
+
+  #tooltipDiv.tooltipExtraBiggest .autoBonusBox,
+  #tooltipDiv.tooltipExtraBiggest .contractBox,
+  #tooltipDiv.tooltipExtraBiggest .abMiscBox,
+  #tooltipDiv.tooltipExtraBiggest .ringContainer {
+    width: 100% !important;
+    margin-bottom: 6px !important;
+  }
+
+  .portalThing,
+  .portalThing.smallPerk,
+  .portalThing.tinyPerk {
+    width: calc(50% - 6px) !important;
+    font-size: 14px !important;
+    height: auto !important;
+    min-height: 52px;
+  }
 }
 
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv .autoItemContainer {
-  box-sizing: border-box;
-  width: calc(100% / 7);
-  max-width: calc(100% / 7);
-  margin-left: 0;
-  padding: 0 0.05em;
-}
-
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv .autoItem {
-  box-sizing: border-box;
-  margin-left: 0;
-  margin-right: 0;
-  max-width: 100%;
-}
-
-/*
- * Restore inline-block flow for Misc / Bonuses / Contracts boxes.
- * (An earlier rule set display:flex on all #autoItemsDiv > div, which
- * stacked these full-width instead of in rows.)
- */
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .abMiscBox,
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .autoBonusBox,
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > .contractBox {
-  display: inline-block;
-  box-sizing: border-box;
-  vertical-align: top;
-}
-
-#tooltipDiv.tooltipExtraBiggest #autoItemsDiv > button.autoBonusBox {
-  box-sizing: border-box;
-  vertical-align: top;
+/* Extra-Narrow Phones (<= 540px): Stack Food/Wood/Metal/Science 1-per-row if needed */
+@media screen and (max-width: 540px) {
+  .resourceRow > .col-xs-6 {
+    width: 100% !important;
+    padding: 0 !important;
+    margin-bottom: 6px;
+  }
 }
