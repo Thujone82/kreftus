@@ -19,10 +19,12 @@
     { id: 'log', label: '📜 Log' }
   ];
 
-  var FIT_IDS = [
-    'foodPs', 'woodPs', 'metalPs', 'sciencePs',
-    'fragmentsPs', 'gemsPs', 'heliumPh',
-    'fragmentsOwned', 'gemsOwned', 'heliumOwned'
+  var FIT_SELECTORS = [
+    '#food .ownedArea', '#wood .ownedArea', '#metal .ownedArea', '#science .ownedArea',
+    '#fragments .ownedArea', '#gems .ownedArea', '#helium .ownedArea', '#trimps > .ownedArea',
+    '#fragments > .title', '#gems > .title', '#helium > .title',
+    '#foodPs', '#woodPs', '#metalPs', '#sciencePs',
+    '#fragmentsPs', '#gemsPs', '#heliumPh'
   ];
 
   function isThemeEnabled() {
@@ -75,12 +77,10 @@
   }
 
   function clearJsOverrides() {
-    for (var i = 0; i < FIT_IDS.length; i++) {
-      var el = document.getElementById(FIT_IDS[i]);
-      if (el) {
-        el.style.transform = '';
-        el.style.transformOrigin = '';
-      }
+    var nodes = document.querySelectorAll(FIT_SELECTORS.join(','));
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].style.transform = '';
+      nodes[i].style.transformOrigin = '';
     }
     var tip = document.getElementById('tooltipDiv');
     if (tip) {
@@ -197,22 +197,23 @@
   function fitResourceBoxText() {
     if (!isThemeEnabled()) return;
 
-    for (var i = 0; i < FIT_IDS.length; i++) {
-      var el = document.getElementById(FIT_IDS[i]);
+    var nodes = document.querySelectorAll(FIT_SELECTORS.join(','));
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
       if (!el || el.offsetParent === null) continue;
-      var box = el.closest('.col-xs-6') || el.closest('.playerGather');
+      var isRateInCollectRow = el.id === 'foodPs' || el.id === 'woodPs' || el.id === 'metalPs' || el.id === 'sciencePs';
+      var box = isRateInCollectRow ? el.closest('.col-xs-6') : el.closest('.playerGather');
       if (!box) continue;
 
       /* Reset transform before measuring natural width */
       el.style.transform = '';
       el.style.transformOrigin = '';
 
-      var maxW = box.clientWidth - 6;
+      var maxW = box.clientWidth - (isRateInCollectRow ? 4 : 12);
       var naturalW = el.scrollWidth;
       if (maxW > 20 && naturalW > maxW) {
-        var scale = Math.max(0.68, maxW / naturalW);
-        var isRightAligned = el.id === 'foodPs' || el.id === 'woodPs' || el.id === 'metalPs' || el.id === 'sciencePs';
-        el.style.transformOrigin = isRightAligned ? 'right center' : 'center center';
+        var scale = Math.max(0.65, maxW / naturalW);
+        el.style.transformOrigin = isRateInCollectRow ? 'right center' : 'center center';
         el.style.transform = 'scaleX(' + scale.toFixed(3) + ')';
       }
     }

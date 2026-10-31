@@ -177,26 +177,59 @@ html, body {
   color: var(--text);
 }
 
-/* Primary Resource Cards (Food, Wood, Metal, Science) Container-Responsive Sizing */
+/* Primary Resource Cards (Food, Wood, Metal, Science)
+   Flex column layout: Title & Amounts expand and center in upper space;
+   Progress bar and Buttons/Rate pin to the bottom of the box */
+#resourceColumn .playerGather {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 6px 8px !important;
+}
+
+#resourceColumn .playerGather > br {
+  display: none !important;
+}
+
 #resourceColumn .playerGather > .title {
-  font-size: clamp(12px, 8.2cqw, 1.4vw) !important;
-  line-height: 1.15;
+  margin-top: auto !important;
+  font-size: clamp(14px, 11.2cqw, 2.05vw) !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+  letter-spacing: 0.01em;
+}
+
+#resourceColumn .playerGather > .ownedArea {
+  margin-bottom: auto !important;
+  display: inline-block !important;
+  white-space: nowrap !important;
+  padding-top: 2px;
 }
 
 #resourceColumn .playerGather .ownedArea,
 #resourceColumn .playerGather .ownedArea span {
-  font-size: clamp(11px, 6.8cqw, 1.2vw) !important;
-  font-weight: 600;
-  white-space: nowrap;
+  font-size: clamp(12px, 9.2cqw, 1.65vw) !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+}
+
+#resourceColumn .playerGather > .resProgress {
+  width: 100% !important;
+  flex-shrink: 0;
+  margin: 4px 0 5px 0 !important;
 }
 
 #resourceColumn .collectRow {
-  margin: 4px 0 0 0 !important;
-  padding: 0 2px !important;
+  width: 100% !important;
+  flex-shrink: 0;
+  margin: 0 !important;
+  padding: 0 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 4px !important;
+  gap: 6px !important;
 }
 
 #resourceColumn .collectRow > .col-xs-6:first-child {
@@ -211,11 +244,12 @@ html, body {
   flex: 1 1 55% !important;
   min-width: 0 !important;
   padding: 0 !important;
+  text-align: right !important;
 }
 
 #resourceColumn .workBtn {
-  font-size: clamp(10px, 5.5cqw, 1.05vw) !important;
-  padding: 2px 4px !important;
+  font-size: clamp(10.5px, 6.4cqw, 1.2vw) !important;
+  padding: 3px 6px !important;
   width: 100%;
   white-space: nowrap;
   overflow: hidden;
@@ -225,24 +259,27 @@ html, body {
 #resourceColumn .psText,
 #resourceColumn .psText.sizeSecReduced,
 #resourceColumn .psText.sizeSecRegular {
-  font-size: clamp(9.5px, 5.3cqw, 1.0vw) !important;
+  font-size: clamp(10.5px, 6.2cqw, 1.18vw) !important;
   letter-spacing: -0.02em !important;
   margin: 0 !important;
   white-space: nowrap !important;
-  display: block !important;
-  width: 100% !important;
+  display: inline-block !important;
   text-align: right !important;
 }
 
-/* Secondary Resource Cards (Fragments, Gems, Helium/Radon) Container-Responsive Sizing
-   Guarantees Title, Value (0), and Rate are always on their own separate rows */
+/* Secondary Resource Cards (Fragments, Gems, Helium/Radon)
+   Title & Amount centered in upper space; Rate pinned to bottom */
 #miscColumn {
   padding-left: 0.25vw;
   padding-right: 0.25vw;
 }
 
-#miscColumn .playerGatherSm {
-  padding: 4px 4px !important;
+#miscColumn .playerGatherSm:not([style*="display: none"]) {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 5px 4px !important;
   overflow: hidden;
   container-type: inline-size;
   text-align: center;
@@ -255,39 +292,39 @@ html, body {
 #miscColumn .playerGatherSm > .title,
 #miscColumn .playerGatherSm > #heliumName.title {
   display: block !important;
-  width: 100%;
-  font-size: clamp(10px, 14cqw, 1.15vw) !important;
-  line-height: 1.2 !important;
-  font-weight: 700 !important;
-  margin-bottom: 1px;
+  margin-top: auto !important;
+  font-size: clamp(11px, 16.5cqw, 1.4vw) !important;
+  line-height: 1.15 !important;
+  font-weight: 800 !important;
   white-space: nowrap;
 }
 
 #miscColumn .playerGatherSm > .ownedArea {
-  display: block !important;
-  width: 100%;
-  margin-bottom: 1px;
+  display: inline-block !important;
+  margin-bottom: auto !important;
+  padding-top: 1px;
+  white-space: nowrap !important;
 }
 
 #miscColumn .playerGatherSm .ownedArea,
 #miscColumn .playerGatherSm .ownedArea span {
-  font-size: clamp(10px, 13cqw, 1.1vw) !important;
-  line-height: 1.2 !important;
+  font-size: clamp(11px, 15.5cqw, 1.32vw) !important;
+  line-height: 1.15 !important;
   font-weight: 700 !important;
-  white-space: nowrap;
+  white-space: nowrap !important;
 }
 
 #miscColumn .playerGatherSm .psText,
 #miscColumn .playerGatherSm .psText.sizeSecReduced,
 #miscColumn .playerGatherSm .psText.sizeSecRegular,
 #miscColumn .playerGatherSm #heliumPh.heliumPh {
-  display: block !important;
-  width: 100%;
-  font-size: clamp(8.5px, 11.2cqw, 0.95vw) !important;
-  letter-spacing: -0.03em !important;
-  line-height: 1.2 !important;
+  display: inline-block !important;
+  flex-shrink: 0;
+  font-size: clamp(9px, 12.5cqw, 1.05vw) !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.15 !important;
   margin-top: 0 !important;
-  white-space: nowrap;
+  white-space: nowrap !important;
 }
 
 .psText {
@@ -342,12 +379,62 @@ html, body {
   line-height: 1 !important;
 }
 
-/* Trimps Card (#trimps) & Trap Box (#trapArea) */
+/* Trimps Card (#trimps) & Trap Box (#trapArea) pinned to bottom */
+#trimps.playerGather {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  padding: 6px 8px !important;
+}
+
+#trimps.playerGather > br {
+  display: none !important;
+}
+
+#trimps.playerGather > .row {
+  width: 100%;
+  margin: 0 !important;
+}
+
+#trimps #trimpTitle.title {
+  font-size: clamp(14px, 9.5cqw, 1.75vw) !important;
+  font-weight: 800 !important;
+}
+
+#trimps > .ownedArea {
+  display: inline-block !important;
+  margin: 2px auto !important;
+  white-space: nowrap !important;
+}
+
+#trimps > .ownedArea,
+#trimps > .ownedArea span {
+  font-size: clamp(12px, 8cqw, 1.5vw) !important;
+  font-weight: 700 !important;
+}
+
+#trimps > .resProgress {
+  width: 100% !important;
+  margin: 3px 0 !important;
+  flex-shrink: 0;
+}
+
+#trimps #unempHide {
+  margin-top: auto !important;
+}
+
+#trimps #empHide {
+  margin-bottom: auto !important;
+}
+
 #trapArea {
   border: 1px solid var(--border-strong) !important;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.22);
   padding: 4px 6px;
+  width: 92% !important;
+  margin: 4px auto 0 auto !important;
+  flex-shrink: 0;
 }
 
 /* Work / Gather Buttons (.workBtn) */
@@ -516,6 +603,71 @@ html, body {
   box-shadow: 0 2px 8px rgba(247, 147, 26, 0.15);
 }
 
+/* Spire Assault (SA) Tab Status Tints: Winning (Green), Losing (Red), None (Purple) */
+.buyTabsUl > li.abTabWinning > a {
+  background: linear-gradient(180deg, rgba(20, 58, 40, 0.96), rgba(13, 35, 25, 0.98)) !important;
+  border-color: rgba(34, 197, 94, 0.55) !important;
+  color: #4ade80 !important;
+  box-shadow: inset 0 1px 0 rgba(34, 197, 94, 0.18);
+}
+
+.buyTabsUl > li.abTabWinning > a:hover {
+  background: linear-gradient(180deg, rgba(26, 76, 52, 0.98), rgba(17, 46, 33, 0.98)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+}
+
+.buyTabsUl > li.abTabLosing > a {
+  background: linear-gradient(180deg, rgba(72, 20, 29, 0.96), rgba(42, 13, 19, 0.98)) !important;
+  border-color: rgba(244, 63, 94, 0.55) !important;
+  color: #fb7185 !important;
+  box-shadow: inset 0 1px 0 rgba(244, 63, 94, 0.18);
+}
+
+.buyTabsUl > li.abTabLosing > a:hover {
+  background: linear-gradient(180deg, rgba(92, 26, 37, 0.98), rgba(56, 17, 25, 0.98)) !important;
+  border-color: #f43f5e !important;
+  color: #ffe4e6 !important;
+}
+
+.buyTabsUl > li.abTabNone > a {
+  background: linear-gradient(180deg, rgba(48, 24, 72, 0.96), rgba(29, 15, 45, 0.98)) !important;
+  border-color: rgba(167, 139, 250, 0.5) !important;
+  color: #c4b5fd !important;
+  box-shadow: inset 0 1px 0 rgba(167, 139, 250, 0.16);
+}
+
+.buyTabsUl > li.abTabNone > a:hover {
+  background: linear-gradient(180deg, rgba(64, 32, 96, 0.98), rgba(39, 20, 60, 0.98)) !important;
+  border-color: #a78bfa !important;
+  color: #f5f3ff !important;
+}
+
+/* Equality, Alchemy, Spire & Nature Status Tints in #buyTabsUl2 */
+.buyTabsUl > li.equalityTabScalingOn > a {
+  background: linear-gradient(180deg, rgba(30, 41, 82, 0.95), rgba(19, 26, 52, 0.98)) !important;
+  border-color: rgba(96, 165, 250, 0.45) !important;
+  color: #93c5fd !important;
+}
+
+.buyTabsUl > li.equalityTabScalingOff > a {
+  background: linear-gradient(180deg, rgba(58, 52, 26, 0.95), rgba(36, 32, 16, 0.98)) !important;
+  border-color: rgba(251, 191, 36, 0.4) !important;
+  color: #fde68a !important;
+}
+
+.buyTabsUl > li#alchemyTab > a {
+  background: linear-gradient(180deg, rgba(16, 46, 28, 0.95), rgba(10, 28, 17, 0.98)) !important;
+  border-color: rgba(45, 212, 191, 0.4) !important;
+  color: #5eead4 !important;
+}
+
+.buyTabsUl > li#playerSpireTab.pausedSpire > a {
+  background: linear-gradient(180deg, rgba(72, 20, 29, 0.96), rgba(42, 13, 19, 0.98)) !important;
+  border-color: rgba(244, 63, 94, 0.55) !important;
+  color: #fb7185 !important;
+}
+
 /* Alert Badges inside Tabs & Cards */
 .badge {
   font-family: var(--font);
@@ -579,6 +731,72 @@ html, body {
 .thingColorUpgrading {
   background: linear-gradient(180deg, rgba(24, 48, 86, 0.92), rgba(17, 25, 42, 0.96)) !important;
   border-color: rgba(96, 165, 250, 0.55) !important;
+  color: #dbeafe !important;
+}
+
+/* Best Efficiency Highlight (.efficientYes) - Affordable vs Unaffordable */
+.thing.efficientYes.thingColorCanAfford {
+  background: linear-gradient(180deg, rgba(23, 58, 124, 0.96), rgba(15, 36, 80, 0.98)) !important;
+  border-color: rgba(56, 189, 248, 0.9) !important;
+  color: #f0f9ff !important;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.28), inset 0 1px 0 rgba(125, 211, 252, 0.25) !important;
+}
+
+.thing.efficientYes.thingColorCanAfford .thingOwned {
+  color: #bae6fd !important;
+}
+
+.thing.efficientYes.thingColorCanAfford:hover {
+  background: linear-gradient(180deg, rgba(30, 72, 150, 0.98), rgba(19, 45, 98, 0.98)) !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.38), 0 0 0 1px rgba(56, 189, 248, 0.45) !important;
+}
+
+.thing.efficientYes.thingColorCanNotAfford {
+  background: linear-gradient(180deg, rgba(32, 43, 82, 0.9), rgba(21, 28, 54, 0.94)) !important;
+  border-color: rgba(96, 165, 250, 0.6) !important;
+  color: #e2e8f0 !important;
+  box-shadow: inset 0 0 8px rgba(96, 165, 250, 0.16) !important;
+}
+
+.thing.efficientYes.thingColorCanNotAfford .thingOwned {
+  color: #93c5fd !important;
+}
+
+.thing.efficientYes.thingColorCanNotAfford:hover {
+  background: linear-gradient(180deg, rgba(40, 54, 100, 0.95), rgba(26, 35, 68, 0.97)) !important;
+  border-color: rgba(147, 197, 253, 0.85) !important;
+  color: #ffffff !important;
+}
+
+/* Special Purchase Card States (Firing Jobs, Golden Upgrades, C2/C3 Challenges) */
+.thing.thingColorFiringJob {
+  background: linear-gradient(180deg, rgba(115, 24, 34, 0.95), rgba(64, 12, 19, 0.98)) !important;
+  border-color: rgba(244, 63, 94, 0.75) !important;
+  color: #ffe4e6 !important;
+}
+
+.thing.thingColorGoldenUpgrade {
+  background: linear-gradient(180deg, rgba(146, 88, 12, 0.95), rgba(92, 52, 8, 0.98)) !important;
+  border-color: rgba(251, 191, 36, 0.8) !important;
+  color: #fef08a !important;
+}
+
+.thing.thingColorDone {
+  background: linear-gradient(180deg, rgba(20, 74, 42, 0.95), rgba(13, 44, 25, 0.98)) !important;
+  border-color: rgba(34, 197, 94, 0.6) !important;
+  color: #dcfce7 !important;
+}
+
+.thing.thingColorSquared {
+  background: linear-gradient(180deg, rgba(88, 28, 135, 0.95), rgba(52, 14, 84, 0.98)) !important;
+  border-color: rgba(192, 132, 252, 0.65) !important;
+  color: #f3e8ff !important;
+}
+
+.thing.thingColorInfinite {
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.95), rgba(19, 36, 88, 0.98)) !important;
+  border-color: rgba(96, 165, 250, 0.65) !important;
   color: #dbeafe !important;
 }
 

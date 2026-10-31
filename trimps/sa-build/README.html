@@ -664,20 +664,18 @@ Included alongside the planner is our custom, installable Progressive Web App (P
 
 ---
 
-## 🎮 Custom PWA Fork of Trimps (`trimps/index.html`)
+## ✨ Features & User Guide
 
-Located at [`trimps/index.html`](../index.html), this fork provides a standalone desktop and mobile experience for playing Trimps 5.10.1:
-
-- **Installable Progressive Web App (PWA)**: Built with [`manifest.json`](../manifest.json) for native standalone window launching with desktop and home screen icons.
-- **Offline Capable**: Runs completely locally without requiring continuous internet access.
-- **Custom Local Styling**: Features custom styling and responsive UI enhancements via [`css/kreftus-local.css`](../css/kreftus-local.css).
-- **Upstream Synchronization**: Maintained via [`updtrimps.ps1`](../updtrimps.ps1), which updates the base game from upstream `Trimps.github.io` while safeguarding local customizations and planner files.
+### 1. Next Upgrade Advisor & Milestone Tracker
+- **Smart Build Progression**: Matches your current loadout against over 3,500 community builds across 157 levels from Google Sheets.
+- **Step-by-Step Guidance**: Details required upgrades, dust/shard costs, and time-to-acquire based on your live dust bank and income.
+- **Plan Locking**: Lock your active plan to prevent mid-progression recommendation jumping.
+- **Milestones**: Tracks one-timer milestones (7–53 items) and Ring slot unlocks.
+- **Light & Dark Theming**: Built-in dark (default) and light themes with persistent preference storage.
 
 ---
 
-## ✨ Features & User Guide
-
-### 1. In-Browser Combat Simulator & Sandbox Modal
+### 2. In-Browser Combat Simulator & Sandbox Modal
 The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle combat engine ([`AutoBattle.js`](../AutoBattle.js)) inside [`sim-engine.js`](./sim-engine.js).
 
 - **Full Affix & Mechanic Simulation**: Faithfully models all enemy properties (Berserking, Poisoning, Shocking, Bleed, Lifestealing, Fast x2/x3, Defensive, Slowing Aura, Enrage, etc.) and Huffy stats (Attack, Defense, Lifesteal, Dust Mult, Resists, Limbs, The Ring).
@@ -692,7 +690,7 @@ The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle
 
 ---
 
-### 2. Auto-Calibrated Dust Rates (9,001 Simulated Battles)
+### 3. Auto-Calibrated Dust Rates (9,001 Simulated Battles)
 - **Zero-Input Accuracy**: When you import a Trimps save string or change enemy levels, the planner automatically executes an accelerated **9,001-fight headless Monte Carlo simulation** using your live gear and enemy level.
 - **Exact Game Parity**: Replaces generic sheet baselines with the exact dust/second earned in real gameplay (e.g. `7.22B/s`).
 - **Streamlined Custom Dust Override**:
@@ -702,7 +700,7 @@ The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle
 
 ---
 
-### 3. Monte Carlo Push Test
+### 4. Monte Carlo Push Test
 Located in Tab 2 of the Simulator modal:
 
 - **Push Viability Heatmap**: Tests your current sandbox build across higher Spire Assault levels to identify push boundaries.
@@ -713,7 +711,7 @@ Located in Tab 2 of the Simulator modal:
 
 ---
 
-### 4. Ring Mod Optimizer
+### 5. Ring Mod Optimizer
 Located in Tab 3 of the Simulator modal:
 
 - **Exhaustive Permutation Search**: Simulates every valid combination of Ring mods (Attack, Dust, Health, Defense, Lifesteal) for your current Ring level.
@@ -722,7 +720,7 @@ Located in Tab 3 of the Simulator modal:
 
 ---
 
-### 5. Upgrade Value (Upgrade Sensitivity & Payback ROI)
+### 6. Upgrade Value (Upgrade Sensitivity & Payback ROI)
 Located in Tab 4 of the Simulator modal:
 
 - **Immediate Progression ROI**: Tests the impact of upgrading each equipped item by +1 level or upgrading The Ring by +1 level.
@@ -732,12 +730,21 @@ Located in Tab 4 of the Simulator modal:
 
 ---
 
-### 6. Next Upgrade Advisor & Milestone Tracker
-- **Smart Build Progression**: Matches your current loadout against over 3,500 community builds across 157 levels from Google Sheets.
-- **Step-by-Step Guidance**: Details required upgrades, dust/shard costs, and time-to-acquire based on your live dust bank and income.
-- **Plan Locking**: Lock your active plan to prevent mid-progression recommendation jumping.
-- **Milestones**: Tracks one-timer milestones (7–53 items) and Ring slot unlocks.
-- **Light & Dark Theming**: Built-in dark (default) and light themes with persistent preference storage.
+## 🎮 Custom PWA Fork of Trimps (`trimps/index.html`)
+
+Located at [`trimps/index.html`](../index.html), this fork provides a modernized desktop and mobile experience for playing Trimps 5.10.1:
+
+- **SA Planner Dark Re-Theme ([`css/kreftus-local.css`](../css/kreftus-local.css) & [`js/kreftus-local.js`](../js/kreftus-local.js))**:
+  - Overhauls the entire Trimps UI to match the dark design system of [`trimps/sa.html`](../sa.html): `#08090c` ambient canvas, elevated `#14171f` surface cards, semantic resource accent borders, segmented pill tabs (with dark green/red/purple status tints on the `SA` tab), emerald-tinted affordable purchase cards, royal-blue `.efficientYes` best-equipment highlights, dark tooltips/modals, and an expanded Spire Assault popup.
+  - **Auto-Scaling Resource Readouts**: Combines CSS container query units (`cqw`) with dynamic JavaScript width fitting so long resource counts and `+X/sec` rates never overflow their cards.
+- **Responsive Mobile & Narrow-Screen Reflow (`<= 1100px`)**:
+  - Unlocks vertical scrolling, enlarges typography and touch targets for mobile legibility, stacks multi-column panels cleanly, and gives the 10×10 World/Map combat grid full screen width.
+  - Injects a sticky **Mobile Quick-Switch Bar** (`📱 All`, `⚔️ Combat`, `🏗️ Buy`, `📦 Resources`, `📜 Log`) for 1-tap section filtering on phones and tablets.
+- **Settings Drawer Theme Toggle (`SA Theme: On / Off`)**:
+  - Adds a persistent **`SA Theme: On` / `SA Theme: Off`** toggle button directly to the right of the Settings search box (`#searchSettings`).
+  - Defaults to **On** and remembers your preference in `localStorage` (`kreftus.trimps.themeEnabled`). Turning it **Off** completely disables `kreftus-local.css` and restores 100% stock Trimps styling while leaving the toggle accessible.
+- **Installable Progressive Web App (PWA) & Offline Support**: Built with [`manifest.json`](../manifest.json) and [`sw.js`](../sw.js) for native standalone window launching and offline play.
+- **Upstream Synchronization**: Maintained via [`updtrimps.ps1`](../../updtrimps.ps1), which updates the base game from upstream `Trimps.github.io` while safeguarding all local overlays and planner files.
 
 ---
 
@@ -789,7 +796,6 @@ Run from PowerShell inside `trimps/sa-build/`:
 ## 🛡️ Upstream Protection (`updtrimps.ps1`)
 
 `updtrimps.ps1` synchronizes local `trimps/` files with the upstream `Trimps.github.io` repository while preserving locally owned components. Both `sa.html` and the entire `sa-build/` directory are explicitly excluded from upstream overwrites.
-
   </script>
 
   <!-- Marked Parser from CDN -->
