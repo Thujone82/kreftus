@@ -517,16 +517,16 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v28';
+const CACHE_NAME = 'trimps-v30';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?28',
+  'css/kreftus-local.css?30',
   'js/kreftus-local.js',
-  'js/kreftus-local.js?28',
+  'js/kreftus-local.js?30',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -630,19 +630,19 @@ elseif ($indexHtml -notmatch 'apple-touch-icon') {
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.css') {
-  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?28`" />")
+  $indexHtml = $indexHtml -replace '(<link rel="stylesheet" type="text/css" href="css/style\.css[^"]*"\s*/>)', ('$1' + "`r`n`t<link rel=`"stylesheet`" type=`"text/css`" href=`"css/kreftus-local.css?30`" />")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?28"') {
-  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?28"'
+elseif ($indexHtml -match 'href="css/kreftus-local\.css(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.css\?30"') {
+  $indexHtml = $indexHtml -replace 'href="css/kreftus-local\.css(\?[^"]*)?"', 'href="css/kreftus-local.css?30"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'kreftus-local\.js') {
-  $indexHtml = $indexHtml -replace '(<script type="text/javascript" src="main\.js[^"]*"></script>)', ('$1' + "`r`n`t<script type=`"text/javascript`" src=`"js/kreftus-local.js?28`"></script>")
+  $indexHtml = $indexHtml -replace '(<script type="text/javascript" src="main\.js[^"]*"></script>)', ('$1' + "`r`n`t<script type=`"text/javascript`" src=`"js/kreftus-local.js?30`"></script>")
   $indexChanged = $true
 }
-elseif ($indexHtml -match 'src="js/kreftus-local\.js(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.js\?28"') {
-  $indexHtml = $indexHtml -replace 'src="js/kreftus-local\.js(\?[^"]*)?"', 'src="js/kreftus-local.js?28"'
+elseif ($indexHtml -match 'src="js/kreftus-local\.js(\?[^"]*)?"' -and $indexHtml -notmatch 'kreftus-local\.js\?30"') {
+  $indexHtml = $indexHtml -replace 'src="js/kreftus-local\.js(\?[^"]*)?"', 'src="js/kreftus-local.js?30"'
   $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {

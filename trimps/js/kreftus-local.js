@@ -171,6 +171,11 @@
 
     if (!tip.classList.contains('tooltipExtraBiggest')) return;
 
+    var atkBar = document.getElementById('autoBattleTrimpAttackBar');
+    if (atkBar && atkBar.parentElement) atkBar.parentElement.classList.add('autoBattleAttackHolder');
+    var eatkBar = document.getElementById('autoBattleEnemyAttackBar');
+    if (eatkBar && eatkBar.parentElement) eatkBar.parentElement.classList.add('autoBattleAttackHolder');
+
     var itemsDiv = document.getElementById('autoItemsDiv');
     if (!itemsDiv) return;
 
