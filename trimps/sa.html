@@ -2334,6 +2334,14 @@ var SA_DATA = {"sheet":"https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-L
   function levelTag(level) {
     return isFarmLevel(level) ? "Farm" : "Push";
   }
+
+  function isLevelCleared(level) {
+    if (!state.ab) return false;
+    var l = Number(level);
+    var maxL = state.ab.maxEnemyLevel || 1;
+    if (state.ab.sealed || state.ab.canSeal || maxL > 160) return true;
+    return l < maxL;
+  }
   var EXTRA_DESC = {
     Doppelganger_Signet: "Summon a Doppelganger: 50% damage reduction, 2x Attack, +1 Poison Stack Rate while alive. Explodes after taking your Max Health in damage or if it would kill, redealing fight damage and shredding 50% Enemy Defense.",
     Doppelganger_Diadem: "Can Bleed for 10s. 2x Attack if Signet is equipped, x2 again if Doppelganger is alive. Doppelganger has 50% more health and can resurrect once per fight."
@@ -4547,7 +4555,7 @@ var ONE_TIMER_MILESTONES = [
     var buildSec = runnable(target) ? 0 : wInfo.wait;
     var neededKills = saLevelReq(level);
     var isCurrentLevel = state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel) === level;
-    var remainingKills = isCurrentLevel ? Math.max(0, neededKills - (state.ab.enemiesKilled || 0)) : neededKills;
+    var remainingKills = isLevelCleared(level) ? 0 : (isCurrentLevel ? Math.max(0, neededKills - (state.ab.enemiesKilled || 0)) : neededKills);
 
     var secPerKill = (target.k && target.k > 0) ? target.k : 0;
     if (!secPerKill && target.d && target.d > 0) {
@@ -5321,6 +5329,11 @@ var ONE_TIMER_MILESTONES = [
       (function () {
         var pSum = probeBuildSummary(state.level, rec, rate);
         if (!pSum || !pSum.target) return "";
+        var cleared = isLevelCleared(state.level);
+        if (cleared) {
+          return "<span class='pill sm' title='Build Time: " + pSum.buildTimeStr + " (SA " + state.level + " already cleared)'>" +
+            ICONS.hammer + " Build: " + pSum.buildTimeStr + "</span>";
+        }
         return "<span class='pill sm' title='Build Time: " + pSum.buildTimeStr + " · Clear Time: ~" + pSum.clearTimeStr + "'>" +
           ICONS.clock + " Build: " + pSum.buildTimeStr + " · Clear: ~" + pSum.clearTimeStr + "</span>";
       })() +
