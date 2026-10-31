@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trimps Spire Assault Planner &amp; Simulator &mdash; Documentation</title>
+  <link rel="icon" href="../favicon.ico" type="image/png">
+  <style>
+    :root {
+      --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "Cascadia Code", "SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+      --radius: 12px;
+    }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #08090c;
+      --bg2: #14171f;
+      --bg-grad: radial-gradient(1100px 600px at -10% -15%, rgba(247, 147, 26, 0.13), transparent 60%),
+                 radial-gradient(900px 520px at 110% -10%, rgba(96, 165, 250, 0.09), transparent 60%);
+      --surface: rgba(20, 23, 31, 0.85);
+      --surface-solid: #14171f;
+      --surface-2: #191d27;
+      --surface-3: #222736;
+      --card: #191d27;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text: #e8ecf4;
+      --muted: #8b94a7;
+      --faint: #5f687c;
+      --accent: #f7931a;
+      --accent-soft: rgba(247, 147, 26, 0.14);
+      --buy: #22c55e;
+      --buy-soft: rgba(34, 197, 94, 0.14);
+      --warn: #fbbf24;
+      --warn-soft: rgba(251, 191, 36, 0.14);
+      --bad: #f43f5e;
+      --info: #60a5fa;
+      --info-soft: rgba(96, 165, 250, 0.14);
+      --teal: #2dd4bf;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      --code-bg: #12151c;
+      --code-border: rgba(255, 255, 255, 0.08);
+    }
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: #f3f4f7;
+      --bg2: #ffffff;
+      --bg-grad: radial-gradient(1100px 600px at -10% -15%, rgba(228, 125, 0, 0.10), transparent 60%),
+                 radial-gradient(900px 520px at 110% -10%, rgba(37, 99, 235, 0.07), transparent 60%);
+      --surface: rgba(255, 255, 255, 0.90);
+      --surface-solid: #ffffff;
+      --surface-2: #f6f7fa;
+      --surface-3: #eaedf2;
+      --card: #ffffff;
+      --border: rgba(15, 23, 42, 0.09);
+      --border-strong: rgba(15, 23, 42, 0.18);
+      --text: #0f172a;
+      --muted: #5b6478;
+      --faint: #959cad;
+      --accent: #e47d00;
+      --accent-soft: rgba(228, 125, 0, 0.11);
+      --buy: #16a34a;
+      --buy-soft: rgba(22, 163, 74, 0.11);
+      --warn: #d97706;
+      --warn-soft: rgba(217, 119, 6, 0.12);
+      --bad: #e11d48;
+      --info: #2563eb;
+      --info-soft: rgba(37, 99, 235, 0.10);
+      --teal: #0d9488;
+      --shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+      --code-bg: #e9ecef;
+      --code-border: rgba(15, 23, 42, 0.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html {
+      scroll-behavior: smooth;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font);
+      background-color: var(--bg);
+      background-image: var(--bg-grad);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---------- Header / Nav ---------- */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .nav-brand-logo {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      box-shadow: 0 0 14px rgba(247, 147, 26, 0.4);
+    }
+    .nav-brand-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--surface-3);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .pill.accent { background: var(--accent-soft); color: var(--accent); border-color: rgba(247, 147, 26, 0.35); }
+    .pill.buy { background: var(--buy-soft); color: var(--buy); border-color: rgba(34, 197, 94, 0.35); }
+    .pill.info { background: var(--info-soft); color: var(--info); border-color: rgba(96, 165, 250, 0.35); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .nav-btn:hover {
+      background: var(--surface-3);
+      border-color: var(--border-strong);
+    }
+    .nav-btn.accent {
+      background: var(--accent-soft);
+      border-color: rgba(247, 147, 26, 0.35);
+      color: var(--accent);
+    }
+    .nav-btn.accent:hover {
+      background: rgba(247, 147, 26, 0.22);
+    }
+
+    /* ---------- Container & Markdown Article ---------- */
+    .page-wrap {
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 64px;
+      flex: 1;
+    }
+
+    /* Jump TOC Bar */
+    .toc-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .toc-title {
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toc-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .toc-chip {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 7px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .toc-chip:hover {
+      color: var(--accent);
+      border-color: rgba(247, 147, 26, 0.4);
+      background: var(--accent-soft);
+    }
+
+    /* ---------- Screenshot Gallery ---------- */
+    .gallery-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 28px;
+    }
+    .gallery-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .gallery-title {
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .gallery-strip {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scrollbar-width: thin;
+    }
+    .gallery-thumb {
+      flex: 0 0 auto;
+      width: 140px;
+      height: 84px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface-3);
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .gallery-thumb:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    }
+    .gallery-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .gallery-thumb-tag {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      pointer-events: none;
+    }
+
+    /* Lightbox Modal */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .lightbox-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(4, 6, 10, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .lightbox-dialog {
+      position: relative;
+      z-index: 1000;
+      max-width: 95vw;
+      max-height: 94vh;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    .lightbox-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+      padding: 0 4px;
+    }
+    .lightbox-caption {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      font-family: var(--mono);
+    }
+    .lightbox-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .lightbox-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    .lightbox-stage {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+    .lightbox-nav-btn {
+      background: rgba(20, 23, 31, 0.75);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      font-size: 26px;
+      line-height: 1;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+      flex: none;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+    .lightbox-nav-btn:hover {
+      background: var(--surface-3);
+      color: var(--accent);
+      transform: scale(1.08);
+    }
+    .lightbox-img-wrap {
+      max-width: calc(90vw - 110px);
+      max-height: 82vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+      background: #000;
+    }
+    .lightbox-img {
+      max-width: 100%;
+      max-height: 82vh;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Markdown Body */
+    .markdown-body {
+      color: var(--text);
+      font-size: 14.5px;
+      line-height: 1.7;
+    }
+    .markdown-body h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin: 0 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .markdown-body h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin: 36px 0 16px;
+      color: var(--text);
+      scroll-margin-top: 70px;
+    }
+    .markdown-body h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 24px 0 12px;
+      color: var(--accent);
+      scroll-margin-top: 70px;
+    }
+    .markdown-body h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 18px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .markdown-body p, .markdown-body ul, .markdown-body ol {
+      margin: 0 0 16px;
+    }
+    .markdown-body ul, .markdown-body ol {
+      padding-left: 24px;
+    }
+    .markdown-body li {
+      margin-bottom: 6px;
+    }
+    .markdown-body a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .markdown-body a:hover {
+      text-decoration: underline;
+    }
+    .markdown-body hr {
+      height: 1px;
+      border: 0;
+      background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+      margin: 32px 0;
+    }
+    .markdown-body blockquote {
+      margin: 18px 0;
+      padding: 12px 18px;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      color: var(--text);
+    }
+    .markdown-body blockquote p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Inline Code & Code Blocks */
+    .markdown-body code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 5px;
+      color: var(--accent);
+    }
+    .markdown-body pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-x: auto;
+      margin: 18px 0;
+      position: relative;
+    }
+    .markdown-body pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      font-size: 13px;
+      color: var(--text);
+      display: block;
+      line-height: 1.5;
+    }
+
+    /* Tables */
+    .markdown-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 24px;
+      font-size: 13px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .markdown-body th {
+      text-align: left;
+      padding: 10px 14px;
+      background: var(--surface-3);
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border-strong);
+      font-weight: 700;
+    }
+    .markdown-body td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .markdown-body tr:last-child td {
+      border-bottom: 0;
+    }
+    .markdown-body tr:hover td {
+      background: var(--surface-3);
+    }
+
+    /* Footer */
+    .page-footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 20px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--surface);
+    }
+    .page-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .page-footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="top-nav">
+    <a href="../sa.html" class="nav-brand" title="Open Spire Assault Planner">
+      <div class="nav-brand-logo">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+      </div>
+      <div class="nav-brand-title">
+        <span>Spire Assault Planner</span>
+        <span class="pill accent">Documentation</span>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <a href="../sa.html" class="nav-btn accent" title="Open the Spire Assault Planner &amp; Combat Simulator">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
+        <span>Open Planner</span>
+      </a>
+      <a href="../index.html" class="nav-btn" title="Launch custom offline-capable Trimps PWA">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="1.5"/><circle cx="16" cy="12" r="1.5"/></svg>
+        <span>Trimps PWA</span>
+      </a>
+      <a href="README.md" class="nav-btn" title="View raw Markdown source">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Raw MD</span>
+      </a>
+      <button type="button" class="nav-btn" id="themeBtn" title="Toggle theme">
+        <span id="themeIco">☀️</span>
+        <span id="themeTxt">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Page Content Container -->
+  <main class="page-wrap">
+    <!-- Dynamic Jump TOC -->
+    <nav class="toc-card" id="tocCard" style="display:none;">
+      <div class="toc-title">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>Quick Navigation</span>
+      </div>
+      <div class="toc-chips" id="tocChips"></div>
+    </nav>
+
+    <!-- Screenshot Gallery -->
+    <section class="gallery-card" id="galleryCard" style="display:none;">
+      <div class="gallery-header">
+        <div class="gallery-title">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span>Screenshot Gallery</span>
+        </div>
+        <span class="pill accent" id="galleryCount">0 Screenshots</span>
+      </div>
+      <div class="gallery-strip" id="galleryStrip"></div>
+    </section>
+
+    <!-- Markdown Target -->
+    <article class="markdown-body" id="readmeContent">
+      <div style="padding:40px;text-align:center;color:var(--muted);">Loading Spire Assault Planner Documentation&hellip;</div>
+    </article>
+  </main>
+
+  <!-- Fullscreen Lightbox Modal -->
+  <div class="lightbox" id="lightboxModal" style="display:none;" aria-hidden="true">
+    <div class="lightbox-overlay" id="lightboxOverlay"></div>
+    <div class="lightbox-dialog">
+      <div class="lightbox-header">
+        <span class="lightbox-caption" id="lightboxCaption">Screenshot</span>
+        <button type="button" class="lightbox-btn" id="lightboxClose" title="Close (Esc)">✕</button>
+      </div>
+      <div class="lightbox-stage">
+        <button type="button" class="lightbox-nav-btn prev" id="lightboxPrev" title="Previous Image (Left Arrow)">‹</button>
+        <div class="lightbox-img-wrap">
+          <img src="" alt="Spire Assault Screenshot" id="lightboxImg" class="lightbox-img">
+        </div>
+        <button type="button" class="lightbox-nav-btn next" id="lightboxNext" title="Next Image (Right Arrow)">›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="page-footer">
+    <div>Trimps Spire Assault Planner &amp; Simulator &middot; <a href="../sa.html">Launch Application</a> &middot; <a href="../index.html">Play Trimps PWA</a> &middot; <a href="#top">Back to Top &uarr;</a></div>
+  </footer>
+
+  <!-- Embedded Markdown Fallback for Offline / local file:// Protocol -->
+  <script type="text/markdown" id="embeddedReadme">
+# Trimps Spire Assault Planner & Combat Simulator
+
+A high-performance, self-contained single-page application ([`trimps/sa.html`](../sa.html)) for optimizing **Trimps Spire Assault (AutoBattle)** progression, evaluating community builds, and executing real-time combat simulations.
+
+Included alongside the planner is our custom, installable Progressive Web App (PWA) fork of the full Trimps game ([`trimps/index.html`](../index.html)).
+
+---
+
+## 🎮 Custom PWA Fork of Trimps (`trimps/index.html`)
+
+Located at [`trimps/index.html`](../index.html), this fork provides a standalone desktop and mobile experience for playing Trimps 5.10.1:
+
+- **Installable Progressive Web App (PWA)**: Built with [`manifest.json`](../manifest.json) for native standalone window launching with desktop and home screen icons.
+- **Offline Capable**: Runs completely locally without requiring continuous internet access.
+- **Custom Local Styling**: Features custom styling and responsive UI enhancements via [`css/kreftus-local.css`](../css/kreftus-local.css).
+- **Upstream Synchronization**: Maintained via [`updtrimps.ps1`](../updtrimps.ps1), which updates the base game from upstream `Trimps.github.io` while safeguarding local customizations and planner files.
+
+---
+
+## ✨ Features & User Guide
+
+### 1. In-Browser Combat Simulator & Sandbox Modal
+The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle combat engine ([`AutoBattle.js`](../AutoBattle.js)) inside [`sim-engine.js`](./sim-engine.js).
+
+- **Full Affix & Mechanic Simulation**: Faithfully models all enemy properties (Berserking, Poisoning, Shocking, Bleed, Lifestealing, Fast x2/x3, Defensive, Slowing Aura, Enrage, etc.) and Huffy stats (Attack, Defense, Lifesteal, Dust Mult, Resists, Limbs, The Ring).
+- **Speed Controls**: Supports real-time playback at `1x`, `2x`, `5x`, `10x`, `50x`, plus frame-by-frame `Step`, `Pause/Resume`, and `Reset`.
+- **Batch 1K Execution**: Instantly runs 1,000 fights in headless mode to calculate high-precision win rates, average kill times (TTK), and dust income rates.
+- **Testing Sandbox Loadout**:
+  - Displays active equipped items with quick `−` and `+` level adjustments.
+  - Ring level stepper and dynamic mod toggles with live slot enforcement.
+  - **Reset to Save**: Instantly reverts sandbox gear back to your live save loadout.
+  - **Lock to Plan**: Locks custom sandbox builds directly into the Next Upgrade Advisor roadmap. Prompts for a custom build name or offers a smart default.
+- **Maximized Vertical Space**: The simulator dialog expands to `min(960px, calc(100vh - 36px))`, using up to 96% of available screen height to display tables, sandboxes, and arena combat without unnecessary vertical scrolling on 1080p displays.
+
+---
+
+### 2. Auto-Calibrated Dust Rates (9,001 Simulated Battles)
+- **Zero-Input Accuracy**: When you import a Trimps save string or change enemy levels, the planner automatically executes an accelerated **9,001-fight headless Monte Carlo simulation** using your live gear and enemy level.
+- **Exact Game Parity**: Replaces generic sheet baselines with the exact dust/second earned in real gameplay (e.g. `7.22B/s`).
+- **Streamlined Custom Dust Override**:
+  - The dust pill displays `Sim: X/s (SA Y)` alongside a subtle gear icon (`⚙`).
+  - Clicking `⚙` exposes an inline numerical input for manual dust rate overrides.
+  - When overridden, a red cancel pill (`✕`) appears. Clicking `✕`, pasting a new save, or switching SA levels instantly clears the override and restores the simulated rate.
+
+---
+
+### 3. Monte Carlo Push Test
+Located in Tab 2 of the Simulator modal:
+
+- **Push Viability Heatmap**: Tests your current sandbox build across higher Spire Assault levels to identify push boundaries.
+- **Accelerated Scan**: Runs a fast 10-fight smoke test to detect the maximum winning level, then conducts a deep 500-fight per level scan across a 10-level window.
+- **Metrics**: Visual win rate bars, win/loss breakdown, average fight duration, and estimated clear times (`~1.6d` or `Unclearable`).
+- **One-Click Level Set**: Identifies the **Highest Winning Level** (≥1 win) and **Max Stable Level** (≥50% win rate) with a button to immediately set the simulator to that level.
+- **Smart Result Retention**: Heatmap results are cached by build loadout signature (`getSimBuildSignature`). Switching between simulator tabs or changing the SA level dropdown re-renders cached results instantly with zero delay. Re-scans only occur when sandbox gear is modified or when clicking **🎲 Re-scan Push Heatmap**.
+
+---
+
+### 4. Ring Mod Optimizer
+Located in Tab 3 of the Simulator modal:
+
+- **Exhaustive Permutation Search**: Simulates every valid combination of Ring mods (Attack, Dust, Health, Defense, Lifesteal) for your current Ring level.
+- **Relative Delta Comparison**: Accurately benchmarks combinations against your active build, displaying `Δ VS CURRENT` (e.g. `= Current`, `+7.41B/s`, etc.), simulated dust/s, win rate, and TTK. The active `Current` pill dynamically highlights green if optimal, or red if superior mod configurations exist.
+- **Apply to Sandbox**: Instantly equips selected ring mods into the sandbox loadout with one click.
+
+---
+
+### 5. Upgrade Value (Upgrade Sensitivity & Payback ROI)
+Located in Tab 4 of the Simulator modal:
+
+- **Immediate Progression ROI**: Tests the impact of upgrading each equipped item by +1 level or upgrading The Ring by +1 level.
+- **Accurate Payback Metric**: Calculates the exact payback duration (`Upgrade Cost / Simulated Δ Dust Gain`), showing how quickly the upgrade pays for itself.
+- **Ranked Advice**: Automatically runs upon opening the tab or changing SA levels and sorts upgrades by highest efficiency.
+- **Apply to Sandbox**: Directly applies the upgrade to the sandbox loadout to preview further progression.
+
+---
+
+### 6. Next Upgrade Advisor & Milestone Tracker
+- **Smart Build Progression**: Matches your current loadout against over 3,500 community builds across 157 levels from Google Sheets.
+- **Step-by-Step Guidance**: Details required upgrades, dust/shard costs, and time-to-acquire based on your live dust bank and income.
+- **Plan Locking**: Lock your active plan to prevent mid-progression recommendation jumping.
+- **Milestones**: Tracks one-timer milestones (7–53 items) and Ring slot unlocks.
+- **Light & Dark Theming**: Built-in dark (default) and light themes with persistent preference storage.
+
+---
+
+## 📁 Architecture & File Layout
+
+| File | Purpose |
+|---|---|
+| [`shell.html`](./shell.html) | HTML shell, CSS custom properties, responsive layout, modal templates, and UI components. |
+| [`app.js`](./app.js) | Client application logic: save decompression, live bank accumulation, community build matcher, simulator controllers, sandbox state, and UI binding. |
+| [`sim-engine.js`](./sim-engine.js) | Full-featured Trimps AutoBattle simulator engine: fighter modeling, buff/debuff management, tick loops, 9,001-fight calibration, push heatmap scanner, ring optimizer, and upgrade sensitivity. |
+| [`data.json`](./data.json) | Compiled dataset (~1.3 MB) containing 3,500+ community builds, item definitions, dust tiers, and level parameters. |
+| [`build_data.py`](./build_data.py) | Python extractor that pulls builds from the community Google Sheets workbook (`_sa.xlsx`) and item stats from `objects.js`. |
+| [`assemble.py`](./assemble.py) | Python script that bundles `shell.html`, `lz-string.js`, `sim-engine.js`, `data.json`, and `app.js` into the self-contained `trimps/sa.html` with CRLF line endings. |
+| [`refresh.ps1`](./refresh.ps1) | PowerShell build pipeline coordinating syntax validation (`node --check`), dataset compilation, and bundle assembly. |
+| [`README.html`](./README.html) | Interactive HTML documentation viewer with live markdown parsing, theme toggle (Dark/Light), and offline support. |
+
+---
+
+## 🚀 Build Pipeline (`refresh.ps1`)
+
+Run from PowerShell inside `trimps/sa-build/`:
+
+```powershell
+# Fast build: Validates JavaScript syntax and compiles trimps/sa.html (skips workbook download)
+.\refresh.ps1 -AssembleOnly
+
+# Standard build: Re-parses local cached _sa.xlsx and compiles sa.html
+.\refresh.ps1
+
+# Fresh build: Downloads the latest community Google Sheets workbook, re-parses data, and compiles sa.html
+.\refresh.ps1 -Fresh
+
+# Fresh build with cache cleanup: Downloads latest workbook, builds, and removes temporary _sa.xlsx
+.\refresh.ps1 -Fresh -CleanCache
+```
+
+### Script Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `-AssembleOnly` | Switch | Skips `build_data.py` and rapidly validates & compiles `sa.html` from existing `data.json`. |
+| `-Fresh` | Switch | Forces a fresh download of the community Google Sheets workbook before rebuilding. |
+| `-CleanCache` | Switch | Removes the cached `_sa.xlsx` file after a successful build. |
+| `-VerboseSheets` | Switch | Streams detailed per-level build counts during extraction. |
+| `-Help` | Switch | Displays full parameter documentation and usage examples. |
+
+---
+
+## 🛡️ Upstream Protection (`updtrimps.ps1`)
+
+`updtrimps.ps1` synchronizes local `trimps/` files with the upstream `Trimps.github.io` repository while preserving locally owned components. Both `sa.html` and the entire `sa-build/` directory are explicitly excluded from upstream overwrites.
+
+  </script>
+
+  <!-- Marked Parser from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" crossorigin="anonymous"></script>
+
+  <script>
+    // ---------- Theme Management ----------
+    function initTheme() {
+      var saved = "dark";
+      try {
+        saved = localStorage.getItem("saPlanner.theme") || "dark";
+      } catch (e) {}
+      applyTheme(saved);
+
+      var btn = document.getElementById("themeBtn");
+      if (btn) {
+        btn.addEventListener("click", function() {
+          var cur = document.documentElement.getAttribute("data-theme") || "dark";
+          var next = cur === "dark" ? "light" : "dark";
+          applyTheme(next);
+          try {
+            localStorage.setItem("saPlanner.theme", next);
+          } catch (e) {}
+        });
+      }
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      var ico = document.getElementById("themeIco");
+      var txt = document.getElementById("themeTxt");
+      if (ico && txt) {
+        if (theme === "dark") {
+          ico.textContent = "☀️";
+          txt.textContent = "Light";
+        } else {
+          ico.textContent = "🌙";
+          txt.textContent = "Dark";
+        }
+      }
+    }
+
+    initTheme();
+
+    // ---------- Simple Offline Markdown Parser Fallback ----------
+    function fallbackMarkdownParse(md) {
+      var lines = md.split(/\r?\n/);
+      var html = [];
+      var inList = false;
+      var inCode = false;
+      var codeBuf = [];
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        if (line.startsWith("```")) {
+          if (inCode) {
+            html.push("<pre><code>" + escapeHtml(codeBuf.join("\n")) + "</code></pre>");
+            codeBuf = [];
+            inCode = false;
+          } else {
+            inCode = true;
+          }
+          continue;
+        }
+
+        if (inCode) {
+          codeBuf.push(line);
+          continue;
+        }
+
+        if (line.startsWith("# ")) {
+          html.push("<h1>" + line.substring(2) + "</h1>");
+        } else if (line.startsWith("## ")) {
+          html.push("<h2>" + line.substring(3) + "</h2>");
+        } else if (line.startsWith("### ")) {
+          html.push("<h3>" + line.substring(4) + "</h3>");
+        } else if (line.startsWith("---")) {
+          html.push("<hr>");
+        } else if (line.startsWith("- ")) {
+          if (!inList) { html.push("<ul>"); inList = true; }
+          html.push("<li>" + line.substring(2) + "</li>");
+        } else {
+          if (inList) { html.push("</ul>"); inList = false; }
+          if (line.trim().length > 0) {
+            html.push("<p>" + line + "</p>");
+          }
+        }
+      }
+      if (inList) html.push("</ul>");
+      return html.join("\n");
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // ---------- Build Table of Contents Chips ----------
+    function buildTOC() {
+      var content = document.getElementById("readmeContent");
+      var chips = document.getElementById("tocChips");
+      var card = document.getElementById("tocCard");
+      if (!content || !chips || !card) return;
+
+      var headings = content.querySelectorAll("h2");
+      if (headings.length < 2) return;
+
+      chips.innerHTML = "";
+      headings.forEach(function(h, idx) {
+        var text = h.textContent.trim();
+        if (/upstream\s*protection/i.test(text)) return;
+        if (!h.id) {
+          h.id = "sec-" + (idx + 1) + "-" + text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        }
+        var a = document.createElement("a");
+        a.className = "toc-chip";
+        a.href = "#" + h.id;
+        a.textContent = text;
+        chips.appendChild(a);
+      });
+      card.style.display = "block";
+    }
+
+    // ---------- Dynamic Screenshot Gallery & Lightbox ----------
+    function probeImage(url) {
+      return new Promise(function(resolve) {
+        var img = new Image();
+        img.onload = function() { resolve(true); };
+        img.onerror = function() { resolve(false); };
+        img.src = url;
+      });
+    }
+
+    var galleryImages = [];
+    var curLightboxIdx = 0;
+
+    async function initGallery() {
+      var candidatePrefixes = ["../../images/TrimpsSA", "../images/TrimpsSA"];
+      var workingPrefix = null;
+
+      for (var p = 0; p < candidatePrefixes.length; p++) {
+        var ok = await probeImage(candidatePrefixes[p] + "1.png");
+        if (ok) {
+          workingPrefix = candidatePrefixes[p];
+          break;
+        }
+      }
+      if (!workingPrefix) workingPrefix = "../../images/TrimpsSA";
+
+      var list = [];
+      var idx = 1;
+      var consecutiveMisses = 0;
+
+      // Scan starting at 1, loop sequentially until 2 misses or reaching safety cap of 60
+      while (consecutiveMisses < 2 && idx <= 60) {
+        var url = workingPrefix + idx + ".png";
+        var exists = await probeImage(url);
+        if (exists) {
+          list.push({ index: idx, url: url, name: "TrimpsSA" + idx + ".png" });
+          consecutiveMisses = 0;
+        } else {
+          consecutiveMisses++;
+        }
+        idx++;
+      }
+
+      if (!list.length) return;
+      galleryImages = list;
+
+      var card = document.getElementById("galleryCard");
+      var strip = document.getElementById("galleryStrip");
+      var count = document.getElementById("galleryCount");
+      if (!card || !strip) return;
+
+      if (count) count.textContent = list.length + " Screenshot" + (list.length === 1 ? "" : "s");
+
+      strip.innerHTML = "";
+      list.forEach(function(item, gIdx) {
+        var thumb = document.createElement("div");
+        thumb.className = "gallery-thumb";
+        thumb.title = item.name + " (Click to view full screen)";
+        thumb.innerHTML = "<img src='" + item.url + "' alt='" + item.name + "' loading='lazy'>" +
+          "<span class='gallery-thumb-tag'>#" + item.index + "</span>";
+        thumb.addEventListener("click", function() {
+          openLightbox(gIdx);
+        });
+        strip.appendChild(thumb);
+      });
+
+      card.style.display = "block";
+    }
+
+    function openLightbox(idx) {
+      if (!galleryImages.length) return;
+      if (idx < 0) idx = galleryImages.length - 1;
+      if (idx >= galleryImages.length) idx = 0;
+      curLightboxIdx = idx;
+
+      var modal = document.getElementById("lightboxModal");
+      var img = document.getElementById("lightboxImg");
+      var caption = document.getElementById("lightboxCaption");
+      if (!modal || !img) return;
+
+      var cur = galleryImages[curLightboxIdx];
+      img.src = cur.url;
+      img.alt = cur.name;
+      if (caption) {
+        caption.textContent = cur.name + " (" + (curLightboxIdx + 1) + " of " + galleryImages.length + ")";
+      }
+
+      modal.style.display = "flex";
+      modal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeLightbox() {
+      var modal = document.getElementById("lightboxModal");
+      if (modal) {
+        modal.style.display = "none";
+        modal.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    function navLightbox(delta) {
+      openLightbox(curLightboxIdx + delta);
+    }
+
+    // Lightbox UI bindings
+    var btnCloseLb = document.getElementById("lightboxClose");
+    if (btnCloseLb) btnCloseLb.addEventListener("click", closeLightbox);
+    var overlayLb = document.getElementById("lightboxOverlay");
+    if (overlayLb) overlayLb.addEventListener("click", closeLightbox);
+
+    var prevLb = document.getElementById("lightboxPrev");
+    if (prevLb) prevLb.addEventListener("click", function(ev) {
+      ev.stopPropagation();
+      navLightbox(-1);
+    });
+
+    var nextLb = document.getElementById("lightboxNext");
+    if (nextLb) nextLb.addEventListener("click", function(ev) {
+      ev.stopPropagation();
+      navLightbox(1);
+    });
+
+    window.addEventListener("keydown", function(ev) {
+      var modal = document.getElementById("lightboxModal");
+      if (!modal || modal.style.display === "none") return;
+      if (ev.key === "Escape") closeLightbox();
+      else if (ev.key === "ArrowLeft") navLightbox(-1);
+      else if (ev.key === "ArrowRight") navLightbox(1);
+    });
+
+    // ---------- Load and Render Markdown ----------
+    async function loadDocumentation() {
+      var mdText = "";
+
+      // 1. Attempt live fetch
+      try {
+        var resp = await fetch("README.md", { cache: "no-cache" });
+        if (resp.ok) {
+          mdText = await resp.text();
+        }
+      } catch (err) {
+        console.warn("fetch('README.md') unavailable (standard under file:// protocol), using embedded fallback:", err);
+      }
+
+      // 2. Fallback to embedded script if fetch fails
+      if (!mdText) {
+        var emb = document.getElementById("embeddedReadme");
+        if (emb) mdText = emb.textContent.trim();
+      }
+
+      var target = document.getElementById("readmeContent");
+      if (!target) return;
+
+      if (!mdText) {
+        target.innerHTML = "<p style='color:var(--bad);'>Could not load documentation.</p>";
+        return;
+      }
+
+      // 3. Parse Markdown (using marked.js or lightweight fallback)
+      if (window.marked && typeof window.marked.parse === "function") {
+        target.innerHTML = window.marked.parse(mdText);
+      } else {
+        target.innerHTML = fallbackMarkdownParse(mdText);
+      }
+
+      buildTOC();
+      initGallery();
+    }
+
+    loadDocumentation();
+  </script>
+</body>
+</html>

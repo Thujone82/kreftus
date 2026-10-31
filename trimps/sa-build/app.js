@@ -109,6 +109,10 @@
     level: 0,
     theme: "dark",
     dustOverride: "",
+    simulatedDustPs: 0,
+    simulatedDustTimePerKill: 0,
+    simulatedDustWinRate: 0,
+    simulatedLevel: 0,
     customDustRates: {},
     filters: { ring: true, contract: true, limb: true, hideUnused: false },
     stepOrder: {},
@@ -823,12 +827,34 @@ var ONE_TIMER_MILESTONES = [
     return fLevel > 50;
   }
 
+  function autoCalibrateSaveRate() {
+    if (typeof SASimEngine === "undefined" || !state.save) return;
+    var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
+    try {
+      var simRes = SASimEngine.runBatch({ save: state.save, level: fightLevel }, { kills: 9001, maxFights: 12000, ticks: 1000000 });
+      if (simRes && simRes.dustPs > 0) {
+        state.simulatedDustPs = simRes.dustPs;
+        state.simulatedDustTimePerKill = simRes.timePerKill || simRes.secPerKill;
+        state.simulatedDustWinRate = simRes.winRate;
+        state.simulatedLevel = fightLevel;
+        if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride) {
+          $("dustOverride").placeholder = prettify(simRes.dustPs) + "/s (Simulated)";
+        }
+      }
+    } catch (e) {
+      console.warn("Auto-calibration sim error:", e);
+    }
+  }
+
   function activeDustPs(recommended) {
     var over = parseNum(state.dustOverride);
     if (isFinite(over) && over > 0) return over;
+    if (state.simulatedDustPs && state.simulatedDustPs > 0) {
+      return state.simulatedDustPs;
+    }
     if (recommended && recommended.d) return recommended.d;
     if (state.ab) {
-      var fightLevel = state.ab.enemyLevel || state.ab.maxEnemyLevel;
+      var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
       if (fightLevel) {
         var fightRec = bestRunnable(fightLevel);
         if (fightRec && fightRec.d) return fightRec.d;
@@ -948,6 +974,11 @@ var ONE_TIMER_MILESTONES = [
     var name = typeof entry === "string" ? entry : entry.name;
     var d = typeof entry === "object" ? entry.d : null;
     var k;
+    if (state.lockedPlans && state.lockedPlans[String(level)] && state.lockedPlans[String(level)].customBuild) {
+      var cb = state.lockedPlans[String(level)].customBuild;
+      if (id && (buildId(cb) === id || cb.id === id)) return cb;
+      if (name && (cb.n === name || buildId(cb) === name)) return cb;
+    }
     if (id) {
       for (k = 0; k < all.length; k++) {
         if (buildId(all[k]) === id) return all[k];
@@ -1017,7 +1048,8 @@ var ONE_TIMER_MILESTONES = [
       id: buildId(target),
       name: target.n,
       d: target.d || 0,
-      steps: steps
+      steps: steps,
+      customBuild: target
     };
     try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
   }
@@ -1256,7 +1288,7 @@ var ONE_TIMER_MILESTONES = [
     var doneInit = evaluatedInitial.filter(function (s) { return s.completed; });
     var pendingInit = evaluatedInitial.filter(function (s) { return !s.completed; });
     evaluatedInitial = doneInit.concat(pendingInit);
-    state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluatedInitial };
+    state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluatedInitial, customBuild: target };
     try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
     return evaluatedInitial;
   }
@@ -2126,12 +2158,47 @@ var ONE_TIMER_MILESTONES = [
     var level = Number($("levelSelect").value);
     state.level = level;
     syncCustomDustRate(level);
+    // Override custom with sim on SA level change
+    if (state.previousRenderLevel != null && state.previousRenderLevel !== level) {
+      state.dustOverride = "";
+      if ($("dustOverride")) $("dustOverride").value = "";
+      if ($("dustOverrideWrap")) $("dustOverrideWrap").style.display = "none";
+    }
+    state.previousRenderLevel = level;
+
     var rec = bestRunnable(level);
     var rate = activeDustPs(rec);
     var est = sheetDustPs(rec);
-    if (rec) {
+    if ($("btnOpenSim")) $("btnOpenSim").style.display = "inline-flex";
+
+    var gearIcon = $("dustGearIcon");
+    var closeIcon = $("dustCloseIcon");
+    var toggleBtn = $("btnDustToggleOverride");
+
+    if (state.dustOverride) {
+      var customNum = parseNum(state.dustOverride);
+      var customTxt = (isFinite(customNum) && customNum > 0) ? prettify(customNum) : esc(state.dustOverride);
+      $("dustEstimate").innerHTML = "<span class='tone-buy'>Custom: <b>" + customTxt + "/s</b></span> <span style='opacity:0.75;font-size:11px;'>(Sheet: " + prettify(est) + "/s)</span>";
+      $("dustEstimate").title = "Custom override: " + customTxt + "/s. Click X to revert to simulated rate.";
+      if (gearIcon) gearIcon.style.display = "none";
+      if (closeIcon) closeIcon.style.display = "block";
+      if (toggleBtn) toggleBtn.title = "Clear custom override and revert to simulated rate";
+    } else if (state.simulatedDustPs && state.simulatedDustPs > 0) {
+      var farmLvl = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || state.level;
+      $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(state.simulatedDustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + farmLvl + ")</span>";
+      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvl + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "0.60") + "s/kill).\nClick Simulator to view live combat.";
+      if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride) {
+        $("dustOverride").placeholder = prettify(state.simulatedDustPs) + "/s";
+      }
+      if (gearIcon) gearIcon.style.display = "block";
+      if (closeIcon) closeIcon.style.display = "none";
+      if (toggleBtn) toggleBtn.title = "Customize dust rate override";
+    } else if (rec) {
       $("dustEstimate").textContent = "Sheet: " + prettify(est) + "/s";
       $("dustEstimate").title = "Recommended build: " + rec.n;
+      if (gearIcon) gearIcon.style.display = "block";
+      if (closeIcon) closeIcon.style.display = "none";
+      if (toggleBtn) toggleBtn.title = "Customize dust rate override";
     } else {
       var pSum = probeBuildSummary(level, null, rate);
       if (pSum && pSum.target) {
@@ -2314,6 +2381,7 @@ var ONE_TIMER_MILESTONES = [
       var stepPill = "<span class='pill sm warn-pill'>" + ICONS.bolt + " " + remSteps + " Upgrade" + (remSteps === 1 ? "" : "s") + " Needed</span>";
 
       var isLocked = summary.pick && summary.pick.isLocked;
+      var simBtn = "<button type='button' class='btn sm ghost sim-plan-btn' id='recSimPlanBtn' title='Load " + esc(target.n) + " into Combat Simulator'>⚔️ Sim</button>";
       var lockBtn = isLocked
         ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='recLockPlanBtn' title='Advisor is locked to " + esc(target.n) + ". Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
         : "<button type='button' class='btn sm ghost lock-plan-btn' id='recLockPlanBtn' title='Lock advisor to " + esc(target.n) + " so recommendations follow this build.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
@@ -2350,7 +2418,7 @@ var ONE_TIMER_MILESTONES = [
         "<div class='rec'>" +
         "<div class='rec-top'>" +
         "<div class='rec-head'><span style='color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'>Target Build:</span> <span>" + esc(target.n) + "</span></div>" +
-        "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" + lvlTagPill + stepPill + lockBtn + "</div>" +
+        "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" + lvlTagPill + stepPill + simBtn + lockBtn + "</div>" +
         "</div>" +
         timingBox +
         "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
@@ -2362,6 +2430,12 @@ var ONE_TIMER_MILESTONES = [
       if (rLockBtn) {
         rLockBtn.addEventListener("click", function () {
           toggleLockBuild(target);
+        });
+      }
+      var rSimBtn = $("recSimPlanBtn");
+      if (rSimBtn) {
+        rSimBtn.addEventListener("click", function () {
+          openSimModal(target);
         });
       }
       return;
@@ -2418,11 +2492,13 @@ var ONE_TIMER_MILESTONES = [
       }
     }
 
+    var recSimBtn = "<button type='button' class='btn sm ghost sim-plan-btn' id='recSimPlanBtn' title='Load " + esc(rec.n) + " into Combat Simulator'>⚔️ Sim</button>";
     var statusHtml = "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" +
       (delta.aligned
         ? "<span class='pill sm buy'>" + ICONS.check + " Active &amp; Aligned</span>"
         : "<span class='pill sm warn-pill'>" + ICONS.warn + " Adjustments Needed</span><span class='pill sm buy'>" + ICONS.check + " Runnable</span>") +
       presetBadge +
+      recSimBtn +
       "</div>";
 
     var deltaHtml = "";
@@ -2460,6 +2536,13 @@ var ONE_TIMER_MILESTONES = [
       "<div class='loadout-grid'>" + itemCards + "</div>" +
       (rec.note ? "<div class='notes'>" + ICONS.info + "<span>" + esc(rec.note) + "</span></div>" : "") +
       "</div>";
+
+    var rSimBtn2 = $("recSimPlanBtn");
+    if (rSimBtn2) {
+      rSimBtn2.addEventListener("click", function () {
+        openSimModal(rec);
+      });
+    }
   }
 
   function stepFullCost(st) {
@@ -2979,6 +3062,7 @@ var ONE_TIMER_MILESTONES = [
       why = "First step on the fewest-gap path to a stronger sheet build (hover Step 1 of " + pick.remaining + " to reorder plan).";
     }
 
+    var nextSimBtnHtml = "<button type='button' class='btn sm ghost sim-plan-btn' id='nextSimPlanBtn' title='Load " + esc(pick.build.n) + " into Combat Simulator'>⚔️ Sim</button>";
     var lockBtnHtml = pick.isLocked
       ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='lockPlanBtn' title='Advisor is locked to " + esc(pick.build.n) + ". Click to unlock and re-enable automatic recommendations.'>" + ICONS.lock + "<span>Locked</span></button>"
       : "<button type='button' class='btn sm ghost lock-plan-btn' id='lockPlanBtn' title='Lock advisor to " + esc(pick.build.n) + " so recommendations do not switch mid-plan.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
@@ -3001,7 +3085,7 @@ var ONE_TIMER_MILESTONES = [
       "<div class='next'>" +
       "<div class='next-top'>" +
       kickerHtml +
-      "<div class='next-top-actions'>" + lockBtnHtml + badgeHtml + "</div>" +
+      "<div class='next-top-actions'>" + nextSimBtnHtml + lockBtnHtml + badgeHtml + "</div>" +
       "</div>" +
       "<div class='next-action-box'>" +
       "<div class='next-head " + stepClass(s) + "'>" + iconForStep(s) + "<span>" + esc(stepLabel(s)) + "</span></div>" +
@@ -3042,6 +3126,12 @@ var ONE_TIMER_MILESTONES = [
     if (lockBtn) {
       lockBtn.addEventListener("click", function () {
         toggleLockBuild(pick.build);
+      });
+    }
+    var nSimBtn = $("nextSimPlanBtn");
+    if (nSimBtn) {
+      nSimBtn.addEventListener("click", function () {
+        openSimModal(pick.build);
       });
     }
 
@@ -3408,17 +3498,28 @@ var ONE_TIMER_MILESTONES = [
         (cost.shards ? prettify(cost.shards) + " shards" : "") + "</td>" +
         "<td class='mono pos'>+" + prettify(gain) + "/s</td>" +
         "<td class='mono bb-earn-return' data-build-idx='" + idx + "' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
-        "<td>" + (function() {
+        "<td><div style='display:flex;gap:4px;align-items:center;'>" +
+        "<button type='button' class='btn sm ghost sim-row-btn' data-sim-build='" + esc(buildId(b)) + "' title='Load into Combat Simulator'>⚔️ Sim</button>" +
+        (function() {
           var isRowLocked = isSameLockedBuild(state.level, b);
           var bId = buildId(b);
           return isRowLocked
             ? "<button type='button' class='btn sm accent lock-row-btn locked' data-lock-build='" + esc(bId) + "' title='Advisor is locked to this build. Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
             : "<button type='button' class='btn sm ghost lock-row-btn' data-lock-build='" + esc(bId) + "' title='Lock Next Upgrade Advisor to this build'>" + ICONS.unlock + "<span>Lock</span></button>";
-        })() + "</td></tr>";
+        })() + "</div></td></tr>";
     }).join("");
     var betterEl = $("better");
-    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Earn/Return</th><th>Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>Δ d/s</th><th>Earn/Return</th><th>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
+      var sBtn = ev.target.closest("button[data-sim-build]");
+      if (sBtn) {
+        ev.preventDefault();
+        var sId = sBtn.getAttribute("data-sim-build");
+        var targetB = (state.lastBetterBuilds || []).find(function(b) { return buildId(b) === sId; }) ||
+                      findLockedTarget(state.level, { id: sId });
+        if (targetB) openSimModal(targetB);
+        return;
+      }
       var btn = ev.target.closest("button[data-lock-build]");
       if (!btn) return;
       ev.preventDefault();
@@ -3893,6 +3994,18 @@ var ONE_TIMER_MILESTONES = [
       var pick = decoded.ab.enemyLevel || decoded.ab.maxEnemyLevel || 4;
       if (pick > (decoded.ab.maxEnemyLevel || pick)) pick = decoded.ab.maxEnemyLevel;
       fillLevels(pick);
+      if (!isRestore) {
+        state.dustOverride = "";
+        if ($("dustOverride")) $("dustOverride").value = "";
+        if ($("dustOverrideWrap")) $("dustOverrideWrap").style.display = "none";
+        if (state.customDustRates && state.customDustRates[String(pick)]) {
+          delete state.customDustRates[String(pick)];
+        }
+      }
+      autoCalibrateSaveRate();
+      if (!isRestore && state.simulatedDustPs > 0) {
+        toast("Dust rate auto-calibrated: " + prettify(state.simulatedDustPs) + "/s (9,001 simulations)");
+      }
       var curSig = getLoadoutSignature();
       if (state.customDustRates && typeof state.customDustRates === "object") {
         var changed = false;
@@ -4155,6 +4268,843 @@ function renderPresetsModal() {
     }
   }
 
+
+  /* ---------- Combat Simulator & Sandbox Controller ---------- */
+  var simState = {
+    active: false,
+    session: null,
+    config: null,
+    speed: 10,
+    paused: false,
+    animId: null,
+    pendingTimeout: null,
+    lastFrameTs: 0,
+    accumulatedMs: 0,
+    activeTab: "arena",
+    pendingLockBuild: null,
+    lastMcScan: null,
+    lastMcSig: null
+  };
+
+  function fillSimLevelSelect(selectedLevel) {
+    var sel = $("simLevelSelect");
+    if (!sel) return;
+    sel.innerHTML = "";
+    var lvls = sheetLevels();
+    if (lvls.indexOf(selectedLevel) === -1) lvls.push(selectedLevel);
+    lvls.sort(function(a, b) { return a - b; });
+    lvls.forEach(function(l) {
+      var opt = document.createElement("option");
+      opt.value = l;
+      opt.textContent = "SA " + l + (isFarmLevel(l) ? " (Farm)" : " (Push)");
+      if (l === selectedLevel) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  function openSimModal(targetBuild, options) {
+    if (!state.save) {
+      toast("Load a Trimps save first to use the Simulator.");
+      return;
+    }
+    var dlg = $("simDlg");
+    if (!dlg) return;
+
+    try {
+      simState.active = true;
+      simState.paused = false;
+
+      var simLvl = (targetBuild && (targetBuild.saLevel || targetBuild.level)) || state.level || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || 1;
+      fillSimLevelSelect(simLvl);
+
+      var cfgSource = targetBuild
+        ? { save: state.save, build: targetBuild, level: simLvl }
+        : { save: state.save, level: simLvl };
+      simState.config = SASimEngine.normalizeConfig(cfgSource);
+
+      renderSimSandboxUI();
+      startSimSession();
+      switchSimTab("arena");
+
+      if (typeof dlg.showModal === "function") dlg.showModal();
+      else dlg.setAttribute("open", "");
+
+      if (simState.speed === "batch") {
+        runSimBatch1K();
+      }
+    } catch (err) {
+      simState.active = false;
+      console.error("openSimModal error:", err);
+      toast("Simulator error: " + (err.message || String(err)));
+    }
+  }
+
+  function closeSimModal() {
+    simState.active = false;
+    simState.paused = true;
+    if (simState.animId) {
+      cancelAnimationFrame(simState.animId);
+      simState.animId = null;
+    }
+    if (simState.pendingTimeout) {
+      clearTimeout(simState.pendingTimeout);
+      simState.pendingTimeout = null;
+    }
+    if (simState.session) {
+      simState.session = null;
+    }
+    var dlg = $("simDlg");
+    if (dlg) {
+      if (dlg.open && typeof dlg.close === "function") dlg.close();
+      else dlg.removeAttribute("open");
+    }
+  }
+
+  function renderSimSandboxUI() {
+    if (!simState.config) return;
+
+    // 1. Limbs Pill
+    var equippedCount = 0;
+    for (var k in simState.config.items) {
+      if (simState.config.items[k] && simState.config.items[k].equipped) equippedCount++;
+    }
+    var maxLimbs = (simState.config.extraLimbs || 0) + 4;
+    var limbsPill = $("simLimbsPill");
+    if (limbsPill) {
+      limbsPill.textContent = "Equipped: " + equippedCount + " / " + maxLimbs + " Limbs";
+      limbsPill.className = "pill sm " + (equippedCount > maxLimbs ? "warn-pill" : (equippedCount === maxLimbs ? "buy" : ""));
+    }
+
+    // 2. Ring Box
+    var ringVal = $("simRingLevelVal");
+    if (ringVal) ringVal.textContent = "Lv " + simState.config.ring.level;
+    var allowedSlots = SASimEngine.unlockedSlotsForLevel(simState.config.ring.level);
+    var curMods = (simState.config.ring.mods || []).slice();
+    var slotsPill = $("simRingSlotsPill");
+    if (slotsPill) {
+      slotsPill.textContent = curMods.length + " / " + allowedSlots + " slots used";
+      slotsPill.className = "pill sm " + (curMods.length > allowedSlots ? "sell" : "teal");
+    }
+
+    var ringModsList = $("simRingModsList");
+    if (ringModsList) {
+      var allRingMods = ["Attack", "Dust", "Defense", "Health", "Lifesteal"];
+      ringModsList.innerHTML = allRingMods.map(function(m) {
+        var active = curMods.includes(m);
+        return "<span class='sim-ring-mod-chk " + (active ? "active" : "") + "' data-ring-mod='" + esc(m) + "'>" +
+          (active ? ICONS.check : "+") + " " + esc(m) + "</span>";
+      }).join("");
+
+      ringModsList.onclick = function(ev) {
+        var chk = ev.target.closest("span[data-ring-mod]");
+        if (!chk) return;
+        var modName = chk.getAttribute("data-ring-mod");
+        var active = simState.config.ring.mods.includes(modName);
+        if (active) {
+          simState.config.ring.mods = simState.config.ring.mods.filter(function(m) { return m !== modName; });
+        } else {
+          var allowed = SASimEngine.unlockedSlotsForLevel(simState.config.ring.level);
+          if (simState.config.ring.mods.length >= allowed) {
+            simState.config.ring.mods.shift(); // Remove oldest
+          }
+          simState.config.ring.mods.push(modName);
+        }
+        renderSimSandboxUI();
+        startSimSession();
+      };
+    }
+
+    // 3. Items Grid (filtered to active items being simulated)
+    var grid = $("simItemsGrid");
+    if (grid) {
+      var order = SA_DATA.itemOrder || Object.keys(simState.config.items);
+      var activeKeys = order.filter(function(k) {
+        var it = simState.config.items[k];
+        if (!it) return false;
+        if (typeof it === "object") return !!it.equipped;
+        if (typeof it === "number") return Array.isArray(simState.config.equipped) && simState.config.equipped.indexOf(k) !== -1;
+        return false;
+      });
+      grid.innerHTML = activeKeys.map(function(k) {
+        var item = simState.config.items[k];
+        var lv = typeof item === "number" ? item : (item.level || 0);
+        var sh = isShards(k);
+
+        return "<div class='sim-item-row equipped' data-item-key='" + esc(k) + "'>" +
+          "<div class='sim-item-info' title='Active item in combat simulation'>" +
+          iconForItem(k) +
+          "<span class='sim-item-name'>" + esc(itemName(k)) + "</span>" +
+          "</div>" +
+          "<div class='sim-stepper'>" +
+          "<button type='button' class='sim-step-btn' data-item-minus='" + esc(k) + "' title='Decrease level'>−</button>" +
+          "<span class='sim-step-val " + (sh ? "tone-teal" : "") + "'>Lv " + lv + "</span>" +
+          "<button type='button' class='sim-step-btn' data-item-plus='" + esc(k) + "' title='Increase level'>+</button>" +
+          "</div>" +
+          "</div>";
+      }).join("");
+
+      grid.onclick = function(ev) {
+        var minusTarget = ev.target.closest("[data-item-minus]");
+        if (minusTarget) {
+          var k = minusTarget.getAttribute("data-item-minus");
+          if (simState.config.items[k]) {
+            if (typeof simState.config.items[k] === "number" && simState.config.items[k] > 0) {
+              simState.config.items[k]--;
+            } else if (simState.config.items[k].level > 0) {
+              simState.config.items[k].level--;
+            }
+            renderSimSandboxUI();
+            startSimSession();
+            if (simState.activeTab === "sensitivity") runUpgradeSensitivity();
+          }
+          return;
+        }
+
+        var plusTarget = ev.target.closest("[data-item-plus]");
+        if (plusTarget) {
+          var k = plusTarget.getAttribute("data-item-plus");
+          if (!simState.config.items[k]) simState.config.items[k] = { level: 0, equipped: true };
+          if (typeof simState.config.items[k] === "number") {
+            simState.config.items[k]++;
+          } else {
+            simState.config.items[k].level = (simState.config.items[k].level || 0) + 1;
+            simState.config.items[k].equipped = true;
+          }
+          renderSimSandboxUI();
+          startSimSession();
+          if (simState.activeTab === "sensitivity") runUpgradeSensitivity();
+          return;
+        }
+      };
+    }
+  }
+
+  function startSimSession() {
+    if (!simState.config) return;
+    simState.session = SASimEngine.createSession(simState.config);
+    simState.lastFrameTs = 0;
+    simState.accumulatedMs = 0;
+    var snap = simState.session.getState();
+    updateSimUI(snap);
+    clearSimLog();
+    addSimLogMsg("0.0s", "Combat session initialized for SA " + simState.config.level, "init");
+    if (!simState.animId && simState.active) {
+      simState.animId = requestAnimationFrame(simAnimTick);
+    }
+  }
+
+  function simAnimTick(ts) {
+    var dlg = $("simDlg");
+    if (!simState.active || !dlg || !dlg.open) {
+      simState.active = false;
+      if (simState.animId) {
+        cancelAnimationFrame(simState.animId);
+        simState.animId = null;
+      }
+      return;
+    }
+    if (!simState.lastFrameTs) simState.lastFrameTs = ts;
+    var deltaRealMs = Math.min(100, ts - simState.lastFrameTs);
+    simState.lastFrameTs = ts;
+
+    if (!simState.paused && simState.session && simState.speed !== "batch") {
+      var speedMult = Number(simState.speed) || 10;
+      var simulatedCombatMs = deltaRealMs * speedMult;
+      simState.accumulatedMs += simulatedCombatMs;
+
+      var ticksToRun = Math.floor(simState.accumulatedMs / 300);
+      if (ticksToRun > 0) {
+        if (ticksToRun > 60) ticksToRun = 60;
+        simState.accumulatedMs -= (ticksToRun * 300);
+
+        for (var t = 0; t < ticksToRun; t++) {
+          simState.session.step();
+        }
+        var snap = simState.session.getState();
+        updateSimUI(snap);
+      }
+    }
+
+    if (simState.active && dlg && dlg.open) {
+      simState.animId = requestAnimationFrame(simAnimTick);
+    } else {
+      simState.animId = null;
+    }
+  }
+
+  function updateSimUI(snap) {
+    if (!snap) return;
+
+    // Top Summary
+    var sDust = $("simStatDust");
+    if (sDust) sDust.textContent = prettify(snap.dustPs || 0) + "/s";
+    var sShards = $("simStatShards");
+    if (sShards) sShards.textContent = prettify(snap.shardsPs || 0) + "/s";
+    var sWr = $("simStatWinRate");
+    if (sWr) sWr.textContent = (snap.winRate != null ? snap.winRate.toFixed(1) + "%" : "--");
+    var sTk = $("simStatKillTime");
+    if (sTk) sTk.textContent = (snap.timePerKill != null ? snap.timePerKill.toFixed(2) + "s" : "--");
+    var sFg = $("simStatFights");
+    if (sFg) sFg.textContent = (snap.wins || 0) + " / " + (snap.losses || 0);
+
+    // Huffy
+    var hHpBar = $("simHuffyHpBar");
+    if (hHpBar) hHpBar.style.width = Math.max(0, Math.min(100, (snap.huffyHp / Math.max(1, snap.huffyMaxHp)) * 100)) + "%";
+    var hHpTxt = $("simHuffyHpTxt");
+    if (hHpTxt) hHpTxt.textContent = prettify(snap.huffyHp) + " / " + prettify(snap.huffyMaxHp);
+
+    var hAtkPct = snap.huffyMaxAtkTimer > 0 ? Math.max(0, Math.min(100, ((snap.huffyMaxAtkTimer - snap.huffyAtkTimer) / snap.huffyMaxAtkTimer) * 100)) : 0;
+    var hAtkBar = $("simHuffyAtkBar");
+    if (hAtkBar) hAtkBar.style.width = hAtkPct + "%";
+    var hAtkTxt = $("simHuffyAtkTxt");
+    if (hAtkTxt) hAtkTxt.textContent = (snap.huffyAtkTimer / 1000).toFixed(2) + "s / " + (snap.huffyMaxAtkTimer / 1000).toFixed(2) + "s";
+
+    var hAtk = $("simHuffyStatAtk");
+    if (hAtk) hAtk.textContent = prettify(snap.huffyAtk);
+    var hDef = $("simHuffyStatDef");
+    if (hDef) hDef.textContent = prettify(snap.huffyDef);
+    var hLs = $("simHuffyStatLs");
+    if (hLs) hLs.textContent = (snap.huffyLs || 0) + "%";
+    var hDm = $("simHuffyStatDustMult");
+    if (hDm) hDm.textContent = (snap.huffyDustMult || 0) + "%";
+
+    var hDebuffs = $("simHuffyDebuffs");
+    if (hDebuffs) {
+      var dHtml = [];
+      if (snap.huffyBuffs) {
+        if (snap.huffyBuffs.bleed) dHtml.push("<span class='sim-debuff-pill bleed'>Bleed: " + prettify(snap.huffyBuffs.bleed.dmg) + "</span>");
+        if (snap.huffyBuffs.poison) dHtml.push("<span class='sim-debuff-pill poison'>Poison: " + snap.huffyBuffs.poison.stacks + "x</span>");
+        if (snap.huffyBuffs.shock) dHtml.push("<span class='sim-debuff-pill shock'>Shock: +" + (snap.huffyBuffs.shock.amp || 0) + "%</span>");
+      }
+      hDebuffs.innerHTML = dHtml.join("");
+    }
+
+    // Center Timer (average over last 100 sims)
+    var fTime = $("simFightTime");
+    if (fTime) {
+      var avgSec = (snap.avgLast100Sec && snap.avgLast100Sec > 0) ? snap.avgLast100Sec : (snap.timePerKill || 0.6);
+      fTime.textContent = avgSec.toFixed(2) + "s avg";
+      fTime.title = "Average kill duration over the last 100 fights";
+    }
+
+    // Enemy
+    var eName = $("simEnemyName");
+    if (eName) eName.textContent = snap.enemyName || "Enemy";
+    var eSub = $("simEnemySub");
+    if (eSub) eSub.textContent = "SA " + (snap.enemyLevel || simState.config.level);
+
+    var eHpBar = $("simEnemyHpBar");
+    if (eHpBar) eHpBar.style.width = Math.max(0, Math.min(100, (snap.enemyHp / Math.max(1, snap.enemyMaxHp)) * 100)) + "%";
+    var eHpTxt = $("simEnemyHpTxt");
+    if (eHpTxt) eHpTxt.textContent = prettify(snap.enemyHp) + " / " + prettify(snap.enemyMaxHp);
+
+    var eAtkPct = snap.enemyMaxAtkTimer > 0 ? Math.max(0, Math.min(100, ((snap.enemyMaxAtkTimer - snap.enemyAtkTimer) / snap.enemyMaxAtkTimer) * 100)) : 0;
+    var eAtkBar = $("simEnemyAtkBar");
+    if (eAtkBar) eAtkBar.style.width = eAtkPct + "%";
+    var eAtkTxt = $("simEnemyAtkTxt");
+    if (eAtkTxt) eAtkTxt.textContent = (snap.enemyAtkTimer / 1000).toFixed(2) + "s / " + (snap.enemyMaxAtkTimer / 1000).toFixed(2) + "s";
+
+    var eAtk = $("simEnemyStatAtk");
+    if (eAtk) eAtk.textContent = prettify(snap.enemyAtk);
+    var eDef = $("simEnemyStatDef");
+    if (eDef) eDef.textContent = prettify(snap.enemyDef);
+    var eLs = $("simEnemyStatLs");
+    if (eLs) eLs.textContent = (snap.enemyLs || 0) + "%";
+    var eEnrage = $("simEnemyStatEnrage");
+    if (eEnrage) eEnrage.textContent = snap.enemyEnrageTimer > 0 ? (snap.enemyEnrageTimer / 1000).toFixed(0) + "s" : "ENRAGED";
+
+    var eDebuffs = $("simEnemyDebuffs");
+    if (eDebuffs) {
+      var edHtml = [];
+      if (snap.enemyBuffs) {
+        if (snap.enemyBuffs.bleed) edHtml.push("<span class='sim-debuff-pill bleed'>Bleed: " + prettify(snap.enemyBuffs.bleed.dmg) + "</span>");
+        if (snap.enemyBuffs.poison) edHtml.push("<span class='sim-debuff-pill poison'>Poison: " + snap.enemyBuffs.poison.stacks + "x</span>");
+        if (snap.enemyBuffs.shock) edHtml.push("<span class='sim-debuff-pill shock'>Shock: +" + (snap.enemyBuffs.shock.amp || 0) + "%</span>");
+      }
+      eDebuffs.innerHTML = edHtml.join("");
+    }
+
+    // Recent Log Events
+    if (snap.recentEvents && snap.recentEvents.length) {
+      snap.recentEvents.forEach(function(ev) {
+        addSimLogMsg((snap.time || 0).toFixed(1) + "s", ev.msg, ev.type);
+      });
+      snap.recentEvents.length = 0;
+    }
+  }
+
+  function clearSimLog() {
+    var logWrap = $("simCombatLog");
+    if (logWrap) logWrap.innerHTML = "";
+  }
+
+  function addSimLogMsg(timeStr, msg, type) {
+    var logWrap = $("simCombatLog");
+    if (!logWrap) return;
+    var line = document.createElement("div");
+    line.className = "sim-log-line";
+    line.innerHTML = "<span class='sim-log-time'>" + esc(timeStr) + "</span><span class='sim-log-msg " + (type || "") + "'>" + esc(msg) + "</span>";
+    if (typeof logWrap.insertBefore === "function") {
+      logWrap.insertBefore(line, logWrap.firstChild);
+    } else if (typeof logWrap.appendChild === "function") {
+      logWrap.appendChild(line);
+    }
+    while (logWrap.children && logWrap.children.length > 50) {
+      if (typeof logWrap.removeChild === "function" && logWrap.lastChild) {
+        logWrap.removeChild(logWrap.lastChild);
+      } else {
+        break;
+      }
+    }
+  }
+
+  function setSimSpeed(speed) {
+    simState.speed = speed;
+    var btns = document.querySelectorAll("#simSpeedGroup button");
+    btns.forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-speed") === String(speed));
+    });
+    if (speed === "batch") {
+      runSimBatch1K();
+    }
+  }
+
+  function toggleSimPlay() {
+    simState.paused = !simState.paused;
+    var btn = $("simBtnPlay");
+    if (btn) btn.textContent = simState.paused ? "Resume" : "Pause";
+  }
+
+  function stepSimFrame() {
+    if (!simState.session) return;
+    simState.paused = true;
+    var btn = $("simBtnPlay");
+    if (btn) btn.textContent = "Resume";
+    simState.session.step();
+    updateSimUI(simState.session.getState());
+  }
+
+  function resetSimBattle() {
+    if (!simState.session) return;
+    simState.session.reset();
+    simState.lastFrameTs = 0;
+    simState.accumulatedMs = 0;
+    updateSimUI(simState.session.getState());
+    clearSimLog();
+    addSimLogMsg("0.0s", "Battle reset to 0s", "init");
+  }
+
+  function resetSimToSave() {
+    if (!state.save) return;
+    var lvl = (simState.config && simState.config.level) || state.level;
+    simState.config = SASimEngine.normalizeConfig({ save: state.save, level: lvl });
+    simState.lastMcScan = null;
+    simState.lastMcSig = null;
+    renderSimSandboxUI();
+    startSimSession();
+    toast("Sandbox reset to your live save loadout");
+  }
+
+  function runSimBatch1K() {
+    if (!simState.session) return;
+    simState.session.reset(true);
+    var targetFights = 1000;
+    var maxTicks = 200000;
+    var ticks = 0;
+    while ((simState.session.ab.sessionEnemiesKilled + simState.session.ab.sessionTrimpsKilled) < targetFights && ticks < maxTicks) {
+      simState.session.step();
+      ticks++;
+    }
+    var snap = simState.session.getState();
+    updateSimUI(snap);
+    var tStr = (snap.time != null ? snap.time.toFixed(1) : "0.0") + "s";
+    addSimLogMsg(tStr, "Batch complete: 1,000 fights simulated (" + ticks + " ticks).", "kill");
+  }
+
+  function switchSimTab(tab) {
+    simState.activeTab = tab;
+    var tabMap = {
+      arena: $("simPanelArena"),
+      montecarlo: $("simPanelMonteCarlo") || $("simPanelMontecarlo"),
+      ringopt: $("simPanelRingOpt") || $("simPanelRingopt"),
+      sensitivity: $("simPanelSensitivity")
+    };
+    for (var t in tabMap) {
+      var btn = document.querySelector("#simTabs button[data-tab='" + t + "']");
+      if (btn) btn.classList.toggle("active", t === tab);
+      var panel = tabMap[t];
+      if (panel) panel.style.display = t === tab ? (t === "arena" ? "block" : "flex") : "none";
+    }
+
+    if (tab === "montecarlo") {
+      runMonteCarloPush(false);
+    } else if (tab === "ringopt") {
+      runRingOptimizer();
+    } else if (tab === "sensitivity") {
+      runUpgradeSensitivity();
+    }
+  }
+
+  function onSimLevelChange() {
+    var sel = $("simLevelSelect");
+    if (!sel || !simState.config) return;
+    var newLvl = Number(sel.value) || 1;
+    simState.config.level = newLvl;
+    simState.config.enemyLevel = newLvl;
+    renderSimSandboxUI();
+    startSimSession();
+    if (simState.activeTab === "sensitivity") {
+      runUpgradeSensitivity();
+    } else if (simState.activeTab === "montecarlo") {
+      runMonteCarloPush(false);
+    } else if (simState.activeTab === "ringopt") {
+      runRingOptimizer();
+    }
+  }
+
+  function onSimLockToPlan() {
+    if (!simState.config) return;
+    var lvl = simState.config.level || state.level;
+    var allSheetBuilds = buildsFor(lvl);
+
+    var matchedBuild = null;
+    for (var i = 0; i < allSheetBuilds.length; i++) {
+      var sb = allSheetBuilds[i];
+      var itemKeys = Object.keys(sb.i || {});
+      var match = true;
+      for (var j = 0; j < itemKeys.length; j++) {
+        var k = itemKeys[j];
+        var cfgItem = simState.config.items[k];
+        if (!cfgItem || !cfgItem.equipped || cfgItem.level < sb.i[k]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        matchedBuild = sb;
+        break;
+      }
+    }
+
+    if (matchedBuild) {
+      toggleLockBuild(matchedBuild);
+      closeSimModal();
+      return;
+    }
+
+    var defaultName = "Custom SA " + lvl + " Build";
+    simState.pendingLockBuild = {
+      n: defaultName,
+      d: (simState.session && Math.round(simState.session.getState().dustPs)) || 0,
+      l: Object.keys(simState.config.items).filter(function(k) { return simState.config.items[k] && simState.config.items[k].equipped; }).length,
+      r: { lv: simState.config.ring.level, m: (simState.config.ring.mods || []).slice() },
+      i: (function() {
+        var map = {};
+        for (var k in simState.config.items) {
+          if (simState.config.items[k] && simState.config.items[k].equipped) {
+            map[k] = simState.config.items[k].level || 1;
+          }
+        }
+        return map;
+      })(),
+      saLevel: lvl
+    };
+
+    var promptDlg = $("simLockPromptDlg");
+    if (promptDlg) {
+      $("simCustomPlanName").value = defaultName;
+      if (typeof promptDlg.showModal === "function") promptDlg.showModal();
+      else promptDlg.setAttribute("open", "");
+    }
+  }
+
+  function confirmSimCustomLock() {
+    var promptDlg = $("simLockPromptDlg");
+    var nameInput = $("simCustomPlanName");
+    var name = (nameInput && nameInput.value.trim()) || (simState.pendingLockBuild && simState.pendingLockBuild.n) || "Custom SA Build";
+    if (simState.pendingLockBuild) {
+      simState.pendingLockBuild.n = name;
+      toggleLockBuild(simState.pendingLockBuild);
+      simState.pendingLockBuild = null;
+    }
+    if (promptDlg) {
+      if (typeof promptDlg.close === "function") promptDlg.close();
+      else promptDlg.removeAttribute("open");
+    }
+    closeSimModal();
+  }
+
+  function closeSimLockPrompt() {
+    simState.pendingLockBuild = null;
+    var promptDlg = $("simLockPromptDlg");
+    if (promptDlg) {
+      if (typeof promptDlg.close === "function") promptDlg.close();
+      else promptDlg.removeAttribute("open");
+    }
+  }
+
+  function getSimBuildSignature(cfg) {
+    if (!cfg) return "";
+    var items = [];
+    if (cfg.items) {
+      for (var k in cfg.items) {
+        var it = cfg.items[k];
+        if (typeof it === "object" && it.equipped) {
+          items.push(k + ":" + (it.level || 0));
+        } else if (typeof it === "number" && it > 0) {
+          items.push(k + ":" + it);
+        }
+      }
+    }
+    items.sort();
+    var ring = cfg.ring ? (cfg.ring.level + "|" + (cfg.ring.mods || []).slice().sort().join(",")) : "";
+    return items.join(";") + "||" + ring;
+  }
+
+  function renderMonteCarloHeatmap(scan, resDiv) {
+    if (!scan || !scan.levels || !scan.levels.length) {
+      resDiv.innerHTML = "<p class='empty'>No push simulation results generated.</p>";
+      return;
+    }
+
+    var maxWin = scan.highestWinLevel;
+    var max50 = scan.maxWin50;
+
+    // Top summary action banner
+    var headerHtml = "<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 16px;background:var(--card-bg,#1e232d);border:1px solid var(--border,#2d3748);border-radius:8px;margin-bottom:14px;'>" +
+      "<div style='display:flex;align-items:center;gap:16px;flex-wrap:wrap;'>" +
+      "<div>" +
+      "<div style='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;'>Highest Winning Level</div>" +
+      "<div style='font-size:16px;font-weight:700;color:var(--text);'>SA " + maxWin + " <span style='font-size:11.5px;font-weight:normal;color:var(--muted);'>(≥1 Win)</span></div>" +
+      "</div>" +
+      "<div style='border-left:1px solid var(--border,#2d3748);padding-left:16px;'>" +
+      "<div style='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;'>Max Stable Level (≥50% WR)</div>" +
+      "<div style='font-size:16px;font-weight:700;color:var(--buy,#10b981);'>SA " + max50 + "</div>" +
+      "</div>" +
+      "</div>" +
+      "<button type='button' class='btn sm accent' id='simBtnSetToMaxWin' data-set-level='" + max50 + "' style='font-weight:600;padding:6px 14px;box-shadow:0 0 10px rgba(247,147,26,0.3);'>" +
+      "🎯 Set Simulator to SA " + max50 + " (Max ≥50% Level)" +
+      "</button>" +
+      "</div>";
+
+    // Heatmap Table
+    var rows = scan.levels.map(function(r) {
+      var wr = r.winRate;
+      var tone = wr >= 99 ? "tone-buy" : (wr >= 50 ? "tone-warn" : (wr > 0 ? "tone-warn" : "tone-bad"));
+      var barColor = wr >= 99 ? "var(--buy,#10b981)" : (wr >= 80 ? "#14b8a6" : (wr >= 50 ? "var(--warn,#f59e0b)" : (wr > 0 ? "#f97316" : "var(--bad,#ef4444)")));
+      var isCur = simState.config && simState.config.level === r.targetLevel;
+
+      var clearTimeHtml = "Unclearable";
+      var enemyDef = SASimEngine.getEnemyDef(r.targetLevel);
+      var neededKills = enemyDef ? enemyDef.neededKills : 1000;
+      var curKills = (state.ab && state.ab.enemyLevel === r.targetLevel) ? (state.ab.enemyKills || 0) : 0;
+      var remKills = Math.max(0, neededKills - curKills);
+      if (wr > 0 && r.timePerKill > 0) {
+        var effectiveSecPerKill = r.timePerKill / (wr / 100);
+        clearTimeHtml = "~" + fmtTime(remKills * effectiveSecPerKill);
+      }
+
+      return "<tr" + (isCur ? " style='background:rgba(247,147,26,0.1);font-weight:600;'" : "") + ">" +
+        "<td><b>SA " + r.targetLevel + "</b>" + (isCur ? " <span class='pill sm' style='margin-left:4px;'>Current</span>" : "") + (r.targetLevel === max50 ? " <span class='pill sm buy' style='margin-left:4px;'>Max Stable</span>" : "") + "</td>" +
+        "<td style='min-width:140px;'>" +
+        "<div style='display:flex;align-items:center;gap:8px;'>" +
+        "<div style='flex:1;background:rgba(255,255,255,0.08);height:8px;border-radius:4px;overflow:hidden;'>" +
+        "<div style='width:" + wr.toFixed(1) + "%;background:" + barColor + ";height:100%;border-radius:4px;'></div>" +
+        "</div>" +
+        "<span class='mono " + tone + "' style='font-weight:700;width:52px;text-align:right;'>" + wr.toFixed(1) + "%</span>" +
+        "</div>" +
+        "</td>" +
+        "<td class='mono'>" + r.wins + " / " + r.fights + "</td>" +
+        "<td class='mono'>" + r.avgFightDuration.toFixed(1) + "s</td>" +
+        "<td class='mono'>" + (wr > 0 ? "<span class='tone-buy'>" + clearTimeHtml + "</span>" : "<span class='tone-bad'>Unclearable</span>") + "</td>" +
+        "<td><button type='button' class='btn sm ghost' data-set-level='" + r.targetLevel + "'>Test SA " + r.targetLevel + "</button></td>" +
+        "</tr>";
+    }).join("");
+
+    var tableHtml = "<div class='tbl-wrap'><table class='sim-ext-table'><thead><tr>" +
+      "<th>Level</th><th>Win Rate (Heatmap)</th><th>Wins / 500</th><th>Avg Fight Time</th><th>Est. Clear Time</th><th>Action</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+
+    resDiv.innerHTML = headerHtml + tableHtml;
+
+    resDiv.onclick = function(ev) {
+      var btn = ev.target.closest("[data-set-level]");
+      if (!btn) return;
+      var targetLvl = Number(btn.getAttribute("data-set-level"));
+      if (targetLvl && simState.config) {
+        simState.config.level = targetLvl;
+        simState.config.enemyLevel = targetLvl;
+        if ($("simLevelSelect")) $("simLevelSelect").value = String(targetLvl);
+        renderSimSandboxUI();
+        startSimSession();
+        switchSimTab("arena");
+        toast("Simulator set to SA " + targetLvl);
+      }
+    };
+  }
+
+  function runMonteCarloPush(force) {
+    if (!simState.config || !simState.active) return;
+    var resDiv = $("simMcResults");
+    if (!resDiv) return;
+
+    var curSig = getSimBuildSignature(simState.config);
+    if (!force && simState.lastMcScan && simState.lastMcSig === curSig) {
+      renderMonteCarloHeatmap(simState.lastMcScan, resDiv);
+      return;
+    }
+
+    resDiv.style.display = "block";
+    resDiv.innerHTML = "<div style='padding:24px;text-align:center;color:var(--muted);'><div class='spin' style='font-size:24px;margin-bottom:8px;'>🎲</div>Scanning all SA levels for push viability heatmap (500 battles / level)...</div>";
+
+    if (simState.pendingTimeout) clearTimeout(simState.pendingTimeout);
+    simState.pendingTimeout = setTimeout(function () {
+      simState.pendingTimeout = null;
+      if (!simState.active) return;
+      try {
+        var scan = SASimEngine.scanPushHeatmap(simState.config, { fights: 500 });
+        if (!scan || !scan.levels || !scan.levels.length) {
+          resDiv.innerHTML = "<p class='empty'>No push simulation results generated.</p>";
+          return;
+        }
+
+        simState.lastMcScan = scan;
+        simState.lastMcSig = curSig;
+        renderMonteCarloHeatmap(scan, resDiv);
+      } catch (e) {
+        resDiv.innerHTML = "<div style='color:var(--bad);padding:10px;'>Push heatmap error: " + esc(e.message || String(e)) + "</div>";
+      }
+    }, 10);
+  }
+
+  function runRingOptimizer() {
+    if (!simState.config || !simState.active) return;
+    var resDiv = $("simRingOptResults");
+    if (resDiv) {
+      resDiv.innerHTML = "<div style='padding:20px;text-align:center;color:var(--muted);'>Simulating all valid Ring mod combinations...</div>";
+    }
+
+    if (simState.pendingTimeout) clearTimeout(simState.pendingTimeout);
+    simState.pendingTimeout = setTimeout(function () {
+      simState.pendingTimeout = null;
+      if (!simState.active) return;
+      try {
+        var results = SASimEngine.optimizeRing(simState.config, { maxKills: 20 });
+        if (!results || !results.length) {
+          resDiv.innerHTML = "<p class='empty'>No valid ring permutations found for your Ring level.</p>";
+          return;
+        }
+
+        var curModsStr = (simState.config.ring.mods || []).slice().sort().join(" / ");
+        var curEntry = null;
+        for (var ri = 0; ri < results.length; ri++) {
+          if (results[ri].mods.slice().sort().join(" / ") === curModsStr) {
+            curEntry = results[ri];
+            break;
+          }
+        }
+        var curRate = curEntry ? curEntry.dustPs : ((simState.session && simState.session.getState().dustPs) || 0);
+        var hasBetter = results.some(function (x) { return x.dustPs > curRate + 0.5; });
+        var currentPillCls = hasBetter ? "sell" : "buy";
+
+        var rows = results.map(function (r, idx) {
+          var modsStr = r.mods.join(" / ");
+          var isCurrent = modsStr === curModsStr;
+          var diff = r.dustPs - curRate;
+          var diffStr = "=";
+          var diffCls = "muted";
+          if (!isCurrent && Math.abs(diff) >= 1) {
+            diffStr = diff > 0 ? ("+" + prettify(diff) + "/s") : ("-" + prettify(Math.abs(diff)) + "/s");
+            diffCls = diff > 0 ? "pos" : "neg";
+          }
+
+          return "<tr" + (isCurrent ? " style='background:rgba(247,147,26,0.1);font-weight:600;'" : "") + ">" +
+            "<td>#" + (idx + 1) + "</td>" +
+            "<td><b>" + esc(modsStr) + "</b>" + (isCurrent ? " <span class='pill sm " + currentPillCls + "' style='margin-left:4px;'>Current</span>" : "") + "</td>" +
+            "<td class='mono'><b>" + prettify(r.dustPs) + "/s</b></td>" +
+            "<td class='mono " + diffCls + "'>" + esc(diffStr) + "</td>" +
+            "<td>" + r.winRate.toFixed(0) + "%</td>" +
+            "<td>" + (r.timePerKill ? r.timePerKill.toFixed(2) + "s" : "--") + "</td>" +
+            "<td><button type='button' class='btn sm ghost' data-apply-mods='" + esc(r.mods.join(",")) + "'>Apply to Sandbox</button></td>" +
+            "</tr>";
+        }).join("");
+
+        resDiv.innerHTML = "<div class='tbl-wrap'><table class='sim-ext-table'><thead><tr><th>Rank</th><th>Ring Mods</th><th>Simulated Dust/s</th><th>Δ vs Current</th><th>Win Rate</th><th>TTK</th><th>Action</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+
+        resDiv.onclick = function (ev) {
+          var btn = ev.target.closest("button[data-apply-mods]");
+          if (!btn) return;
+          var mods = btn.getAttribute("data-apply-mods").split(",");
+          simState.config.ring.mods = mods;
+          renderSimSandboxUI();
+          startSimSession();
+          runUpgradeSensitivity();
+          toast("Applied Ring mods: " + mods.join(" / "));
+        };
+      } catch (e) {
+        resDiv.innerHTML = "<div style='color:var(--bad);padding:10px;'>Ring optimizer error: " + esc(e.message || String(e)) + "</div>";
+      }
+    }, 10);
+  }
+
+  function runUpgradeSensitivity() {
+    if (!simState.config || !simState.active) return;
+    var resDiv = $("simSensitivityResults");
+    if (resDiv) {
+      resDiv.innerHTML = "<div style='padding:20px;text-align:center;color:var(--muted);'>Simulating upgrade sensitivity on equipped items and ring...</div>";
+    }
+
+    if (simState.pendingTimeout) clearTimeout(simState.pendingTimeout);
+    simState.pendingTimeout = setTimeout(function () {
+      simState.pendingTimeout = null;
+      if (!simState.active) return;
+      try {
+        var results = SASimEngine.evaluateUpgradeROI(simState.config, { maxKills: 20 });
+        if (!results || !results.length) {
+          resDiv.innerHTML = "<p class='empty'>No upgrade candidates available to test.</p>";
+          return;
+        }
+
+        var rows = results.map(function (r, idx) {
+          var costTxt = r.cost ? (prettify(r.cost) + (r.shards ? " shards" : " dust")) : "0";
+          var diffStr = r.deltaDustPs > 0 ? ("+" + prettify(r.deltaDustPs) + "/s") : ("-" + prettify(Math.abs(r.deltaDustPs)) + "/s");
+          var diffCls = r.deltaDustPs > 0 ? "pos" : (r.deltaDustPs < 0 ? "neg" : "muted");
+          var paybackStr = (r.paybackSec != null && isFinite(r.paybackSec) && r.paybackSec > 0) ? fmtTime(r.paybackSec) : (r.deltaDustPs > 0 ? "Instant" : "Never");
+
+          return "<tr>" +
+            "<td>#" + (idx + 1) + "</td>" +
+            "<td><b>" + esc(r.label) + "</b></td>" +
+            "<td class='mono'>" + esc(costTxt) + "</td>" +
+            "<td class='mono " + diffCls + "'><b>" + esc(diffStr) + "</b></td>" +
+            "<td class='mono'>" + esc(paybackStr) + "</td>" +
+            "<td><button type='button' class='btn sm ghost' data-apply-upgrade='" + esc(r.type + ":" + (r.key || "")) + "'>Apply to Sandbox</button></td>" +
+            "</tr>";
+        }).join("");
+
+        resDiv.innerHTML = "<div class='tbl-wrap'><table class='sim-ext-table'><thead><tr><th>Rank</th><th>Upgrade Step</th><th>Cost</th><th>Simulated Δ Dust/s</th><th>Payback</th><th>Action</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+
+        resDiv.onclick = function (ev) {
+          var btn = ev.target.closest("button[data-apply-upgrade]");
+          if (!btn) return;
+          var parts = btn.getAttribute("data-apply-upgrade").split(":");
+          var type = parts[0];
+          var key = parts[1];
+          if (type === "ring") {
+            simState.config.ring.level++;
+          } else if (type === "item" && key && simState.config.items[key]) {
+            simState.config.items[key].level++;
+          }
+          renderSimSandboxUI();
+          startSimSession();
+          switchSimTab("arena");
+          toast("Applied upgrade: " + (type === "ring" ? "Ring" : itemName(key)) + " +1");
+        };
+      } catch (e) {
+        resDiv.innerHTML = "<div style='color:var(--bad);padding:10px;'>Upgrade sensitivity error: " + esc(e.message || String(e)) + "</div>";
+      }
+    }, 10);
+  }
+
   var bound = false;
   function bind() {
     if (bound) return;
@@ -4164,6 +5114,31 @@ function renderPresetsModal() {
     $("saveBox").addEventListener("paste", function () { setTimeout(onLoad, 0); });
     $("levelSelect").addEventListener("change", render);
     $("dustOverride").addEventListener("input", onDustInput);
+    $("dustOverride").addEventListener("keydown", function(ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        $("dustOverride").blur();
+      }
+    });
+    var btnDustToggle = $("btnDustToggleOverride");
+    if (btnDustToggle) {
+      btnDustToggle.addEventListener("click", function() {
+        if (state.dustOverride) {
+          state.dustOverride = "";
+          if ($("dustOverride")) $("dustOverride").value = "";
+          if ($("dustOverrideWrap")) $("dustOverrideWrap").style.display = "none";
+          render();
+          toast("Custom rate cleared; reverted to " + (state.simulatedDustPs ? "simulated" : "sheet") + " rate");
+        } else {
+          var wrap = $("dustOverrideWrap");
+          if (wrap) {
+            var isShown = wrap.style.display !== "none";
+            wrap.style.display = isShown ? "none" : "inline-flex";
+            if (!isShown && $("dustOverride")) $("dustOverride").focus();
+          }
+        }
+      });
+    }
     ["filtRing", "filtContract", "filtLimb", "filtHideUnused"].forEach(function (id) {
       $(id).addEventListener("change", onFilterChange);
     });
@@ -4183,11 +5158,99 @@ function renderPresetsModal() {
         if (ev.target === $("presetsDlg")) closePresetsModal();
       });
     }
+    if ($("simDlg")) {
+      var btnS = $("btnOpenSim");
+      if (btnS) btnS.addEventListener("click", function() { openSimModal(); });
+      var btnCloseS = $("btnCloseSim");
+      if (btnCloseS) btnCloseS.addEventListener("click", closeSimModal);
+      var sDlg = $("simDlg");
+      if (sDlg) {
+        sDlg.addEventListener("click", function (ev) {
+          if (ev.target === sDlg) closeSimModal();
+        });
+        sDlg.addEventListener("close", closeSimModal);
+        sDlg.addEventListener("cancel", closeSimModal);
+      }
+
+      var sLevel = $("simLevelSelect");
+      if (sLevel) sLevel.addEventListener("change", onSimLevelChange);
+      var sPlay = $("simBtnPlay");
+      if (sPlay) sPlay.addEventListener("click", toggleSimPlay);
+      var sStep = $("simBtnStep");
+      if (sStep) sStep.addEventListener("click", stepSimFrame);
+      var sReset = $("simBtnReset");
+      if (sReset) sReset.addEventListener("click", resetSimBattle);
+      var sResetSave = $("simBtnResetToSave");
+      if (sResetSave) sResetSave.addEventListener("click", resetSimToSave);
+      var sLockPlan = $("simBtnLockToPlan");
+      if (sLockPlan) sLockPlan.addEventListener("click", onSimLockToPlan);
+
+      var speedGroup = $("simSpeedGroup");
+      if (speedGroup) {
+        speedGroup.onclick = function(ev) {
+          var sBtn = ev.target.closest("button[data-speed]");
+          if (sBtn) setSimSpeed(sBtn.getAttribute("data-speed"));
+        };
+      }
+
+      var tabsGroup = $("simTabs");
+      if (tabsGroup) {
+        tabsGroup.onclick = function(ev) {
+          var tBtn = ev.target.closest("button[data-tab]");
+          if (tBtn) switchSimTab(tBtn.getAttribute("data-tab"));
+        };
+      }
+
+      var rRingMinus = $("simRingMinus");
+      if (rRingMinus) rRingMinus.addEventListener("click", function() {
+        if (simState.config && simState.config.ring.level > 1) {
+          simState.config.ring.level--;
+          renderSimSandboxUI();
+          startSimSession();
+        }
+      });
+      var rRingPlus = $("simRingPlus");
+      if (rRingPlus) rRingPlus.addEventListener("click", function() {
+        if (simState.config) {
+          simState.config.ring.level++;
+          renderSimSandboxUI();
+          startSimSession();
+        }
+      });
+
+      var btnPush = $("simBtnRunPush");
+      if (btnPush) btnPush.addEventListener("click", function () { runMonteCarloPush(true); });
+      var btnRingOpt = $("simBtnRunRingOpt");
+      if (btnRingOpt) btnRingOpt.addEventListener("click", runRingOptimizer);
+      var btnSens = $("simBtnRunSensitivity");
+      if (btnSens) btnSens.addEventListener("click", runUpgradeSensitivity);
+    }
+
+    if ($("simLockPromptDlg")) {
+      var btnConfirm = $("btnConfirmLockPrompt");
+      if (btnConfirm) btnConfirm.addEventListener("click", confirmSimCustomLock);
+      var btnCloseLp = $("btnCloseLockPrompt");
+      if (btnCloseLp) btnCloseLp.addEventListener("click", closeSimLockPrompt);
+      var btnCancelLp = $("btnCancelLockPrompt");
+      if (btnCancelLp) btnCancelLp.addEventListener("click", closeSimLockPrompt);
+      $("simLockPromptDlg").addEventListener("click", function(ev) {
+        if (ev.target === $("simLockPromptDlg")) closeSimLockPrompt();
+      });
+    }
+
     document.addEventListener("keydown", function (ev) {
       var tag = (ev.target && ev.target.tagName) || "";
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       if (ev.key === "t" || ev.key === "T") { ev.preventDefault(); toggleTheme(); }
       else if (ev.key === "u" || ev.key === "U") { ev.preventDefault(); onUpdate(); }
+      else if (ev.key === "s" || ev.key === "S") {
+        if (state.ab) {
+          ev.preventDefault();
+          var sDlg = $("simDlg");
+          if (sDlg && sDlg.open) closeSimModal();
+          else openSimModal();
+        }
+      }
       else if (ev.key === "p" || ev.key === "P") {
         if (state.ab) {
           ev.preventDefault();
@@ -4245,6 +5308,9 @@ function renderPresetsModal() {
   window.saResetBankTimer = resetBankTimer;
   window.saOpenPresets = openPresetsModal;
   window.saClosePresets = closePresetsModal;
+  window.saOpenSim = openSimModal;
+  window.saCloseSim = closeSimModal;
+  window.saCloseLockPrompt = closeSimLockPrompt;
   try {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
     else bind();

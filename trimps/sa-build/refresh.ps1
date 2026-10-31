@@ -56,6 +56,7 @@ $RepoRoot   = Split-Path -Parent $TrimpsDir
 $CacheFile  = Join-Path $Here '_sa.xlsx'
 $DataFile   = Join-Path $Here 'data.json'
 $ShellFile  = Join-Path $Here 'shell.html'
+$SimFile    = Join-Path $Here 'sim-engine.js'
 $AppFile    = Join-Path $Here 'app.js'
 $LzFile     = Join-Path $TrimpsDir 'lz-string.js'
 $ObjFile    = Join-Path $TrimpsDir 'objects.js'
@@ -372,15 +373,21 @@ try {
     }
 
     # Step 2: JavaScript Syntax Validation
-    Write-StreamLine "[2/3] Validate : Checking app.js syntax..." "Yellow"
+    Write-StreamLine "[2/3] Validate : Checking sim-engine.js & app.js syntax..." "Yellow"
     if (Get-Command node -ErrorAction SilentlyContinue) {
+        & node --check $SimFile 2>&1 | ForEach-Object {
+            Write-StreamLine "      $($_.ToString())" "Red"
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "JavaScript syntax check failed in sim-engine.js (exit code $LASTEXITCODE)"
+        }
         & node --check $AppFile 2>&1 | ForEach-Object {
             Write-StreamLine "      $($_.ToString())" "Red"
         }
         if ($LASTEXITCODE -ne 0) {
             throw "JavaScript syntax check failed in app.js (exit code $LASTEXITCODE)"
         }
-        Write-StreamLine "      Syntax   : OK (app.js verified via node --check)" "Green"
+        Write-StreamLine "      Syntax   : OK (sim-engine.js & app.js verified via node --check)" "Green"
     } else {
         Write-StreamLine "      Syntax   : Skipped (node not found on PATH)" "DarkGray"
     }

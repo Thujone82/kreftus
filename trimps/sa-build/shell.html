@@ -1502,6 +1502,201 @@
     .milestone-info b { font-size: 12.5px; }
     .milestone-info small { color: var(--muted); font-size: 11px; }
     .milestone-status { flex: none; }
+
+    /* ---------- Combat Simulator & Sandbox Modal ---------- */
+    #simDlg {
+      width: min(1060px, calc(100vw - 32px));
+      height: min(960px, calc(100vh - 36px));
+      max-height: calc(100vh - 24px);
+      margin: auto;
+    }
+    #simDlg[open] {
+      display: flex;
+      flex-direction: column;
+    }
+    #simDlg .dlg-h {
+      flex: 0 0 auto;
+    }
+    #simDlgBody {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+      overflow-y: auto;
+      padding: 14px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .sim-ext-panel { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+    .sim-tabs {
+      display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px;
+      overflow-x: auto;
+    }
+    .sim-tab-btn {
+      padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; background: var(--surface-2);
+      border: 1px solid var(--border); color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+    .sim-tab-btn:hover { color: var(--text); background: var(--surface-3); }
+    .sim-tab-btn.active { color: var(--accent); background: var(--accent-soft); border-color: rgba(247,147,26,0.35); }
+    .sim-stats-bar {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px;
+    }
+    .sim-stat-box {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .sim-stat-box .lbl { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em; }
+    .sim-stat-box .val { font-size: 14.5px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+    .sim-stat-box.highlight .val { color: var(--buy); }
+
+    .sim-arena {
+      display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: stretch; margin-bottom: 12px;
+    }
+    @media (max-width: 760px) {
+      .sim-arena { grid-template-columns: 1fr; }
+    }
+    .sim-fighter-card {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+      display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden;
+    }
+    .sim-fighter-card.huffy { border-color: rgba(96, 165, 250, 0.25); }
+    .sim-fighter-card.enemy { border-color: rgba(244, 63, 94, 0.25); }
+    .sim-fighter-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .sim-fighter-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .sim-fighter-sub { font-size: 11px; color: var(--muted); }
+    
+    .sim-bar-wrap {
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .sim-bar-lbl {
+      display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--muted);
+    }
+    .sim-bar {
+      height: 14px; border-radius: 7px; background: rgba(0,0,0,0.35); border: 1px solid var(--border);
+      position: relative; overflow: hidden;
+    }
+    .sim-bar-fill {
+      height: 100%; border-radius: 6px; transition: width 0.1s linear;
+    }
+    .sim-bar-hp-huffy { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .sim-bar-hp-enemy { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .sim-bar-atk {
+      height: 6px; border-radius: 3px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); overflow: hidden;
+    }
+    .sim-bar-atk-fill {
+      height: 100%; background: #fbbf24; transition: width 0.05s linear;
+    }
+
+    .sim-fighter-stats {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 8px; font-size: 11px; color: var(--muted);
+      margin-top: 4px;
+    }
+    .sim-fighter-stats div { display: flex; justify-content: space-between; }
+    .sim-fighter-stats span.v { font-family: var(--mono); font-weight: 600; color: var(--text); }
+    
+    .sim-debuffs {
+      display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; align-items: center;
+    }
+    .sim-debuff-pill {
+      font-size: 10.5px; padding: 2px 6px; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--border);
+      display: inline-flex; align-items: center; gap: 3px;
+    }
+    .sim-debuff-pill.poison { color: #4ade80; border-color: rgba(74, 222, 128, 0.3); }
+    .sim-debuff-pill.bleed { color: #f87171; border-color: rgba(248, 113, 113, 0.3); }
+    .sim-debuff-pill.shock { color: #facc15; border-color: rgba(250, 204, 21, 0.3); }
+
+    .sim-vs-col {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      min-width: 60px;
+    }
+    .sim-vs-pill {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 4px 8px; border-radius: 6px;
+      background: var(--surface-3); border: 1px solid var(--border); color: var(--muted);
+    }
+    .sim-timer-pill {
+      font-size: 12px; font-family: var(--mono); font-weight: 700; color: var(--accent);
+    }
+
+    .sim-controls-bar {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+      margin-bottom: 12px;
+    }
+    .sim-ctrl-group { display: flex; align-items: center; gap: 6px; }
+    .sim-speed-btn {
+      padding: 4px 8px; font-size: 11.5px; font-family: var(--mono); border-radius: 6px; background: var(--surface);
+      border: 1px solid var(--border); color: var(--muted); cursor: pointer;
+    }
+    .sim-speed-btn:hover { color: var(--text); }
+    .sim-speed-btn.active { background: var(--accent-soft); color: var(--accent); border-color: rgba(247,147,26,0.35); font-weight: 700; }
+
+    .sim-log-wrap {
+      background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+      font-family: var(--mono); font-size: 11px; color: var(--muted); height: 85px; overflow-y: auto;
+      display: flex; flex-direction: column-reverse; gap: 3px; margin-bottom: 12px;
+    }
+    .sim-log-line { display: flex; gap: 6px; align-items: baseline; }
+    .sim-log-time { color: var(--faint); flex: none; }
+    .sim-log-msg { color: var(--text); }
+    .sim-log-msg.hit { color: #93c5fd; }
+    .sim-log-msg.crit { color: #facc15; font-weight: 700; }
+    .sim-log-msg.bleed { color: #f87171; }
+    .sim-log-msg.poison { color: #4ade80; }
+    .sim-log-msg.shock { color: #fbbf24; }
+    .sim-log-msg.kill { color: #34d399; font-weight: 700; }
+    .sim-log-msg.death { color: #f43f5e; font-weight: 700; }
+
+    .sim-sandbox-sec {
+      display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px;
+    }
+    .sim-sandbox-head {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    }
+    .sim-sandbox-head h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .sim-items-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;
+      max-height: 240px; overflow-y: auto; padding-right: 4px;
+    }
+    .sim-item-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 8px;
+      border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px;
+      user-select: none;
+    }
+    .sim-item-row.equipped { border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.04); }
+    .sim-item-row.unequipped { opacity: 0.6; }
+    .sim-item-info { display: flex; align-items: center; gap: 6px; min-width: 0; cursor: pointer; flex: 1; }
+    .sim-item-info svg { width: 14px; height: 14px; flex: none; }
+    .sim-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sim-stepper { display: flex; align-items: center; gap: 2px; }
+    .sim-step-btn {
+      width: 20px; height: 20px; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--border);
+      color: var(--text); font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+      padding: 0;
+    }
+    .sim-step-btn:hover { background: var(--accent-soft); color: var(--accent); }
+    .sim-step-val {
+      min-width: 28px; text-align: center; font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    }
+
+    .sim-ring-box {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    }
+    .sim-ring-mods-list { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .sim-ring-mod-chk {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; cursor: pointer; padding: 3px 7px;
+      border-radius: 6px; background: var(--surface); border: 1px solid var(--border);
+    }
+    .sim-ring-mod-chk.active { background: var(--teal-soft); color: var(--teal); border-color: rgba(45,212,191,0.35); font-weight: 600; }
+
+    .sim-ext-panel { display: flex; flex-direction: column; gap: 12px; }
+    .sim-ext-ctrls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sim-ext-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .sim-ext-table th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border-strong); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .sim-ext-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+    .sim-ext-table tr:hover { background: var(--surface-2); }
   </style>
 </head>
 <body>
@@ -1523,6 +1718,10 @@
           <span>Loaded</span>
           <b id="factLoadedTime">just now</b>
         </div>
+        <button type="button" class="btn sm" id="btnOpenSim" title="Inspect Combat Simulation &amp; Sandbox" onclick="window.saOpenSim&&saOpenSim()" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
+          Simulator
+        </button>
         <button type="button" class="btn sm" id="btnPresets" title="Inspect In-Game Presets, Milestones & Diagnostics (P)" onclick="window.saOpenPresets&&saOpenPresets()" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
           Presets &amp; Milestones
@@ -1621,19 +1820,23 @@
           <div class="save-facts" id="saveFacts"></div>
 
           <div class="control-group">
-            <label class="field">
-              <span class="field-label">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <div class="field" style="display:flex;align-items:center;gap:6px;">
+              <span class="field-label" style="display:inline-flex;align-items:center;gap:4px;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Your dust/s
               </span>
-              <span class="dust-line">
-                <span class="input-wrap">
-                  <input id="dustOverride" type="text" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="override sheet estimate">
-                  <span class="input-unit">/s</span>
+              <span class="dust-line" style="display:inline-flex;align-items:center;gap:6px;">
+                <span class="pill sm accent" id="dustEstimate" style="display:inline-flex;align-items:center;gap:6px;"></span>
+                <span id="dustOverrideWrap" style="display:none;align-items:center;gap:4px;">
+                  <input id="dustOverride" type="text" class="inp sm" style="width:105px;padding:2px 6px;font-size:12px;" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="e.g. 7.5B">
+                  <span style="font-size:11px;color:var(--muted);">/s</span>
                 </span>
-                <span class="pill sm accent" id="dustEstimate"></span>
+                <button type="button" class="icon-btn" id="btnDustToggleOverride" title="Customize dust rate" style="padding:3px;border-radius:4px;color:var(--muted);background:transparent;border:none;cursor:pointer;display:inline-flex;align-items:center;line-height:1;">
+                  <svg id="dustGearIcon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  <svg id="dustCloseIcon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;color:var(--bad);"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
               </span>
-            </label>
+            </div>
           </div>
         </div>
       </section>
@@ -1742,6 +1945,209 @@
     <div class="dlg-b" id="presetsDlgBody"></div>
   </dialog>
 
+  <dialog id="simDlg">
+    <div class="dlg-h">
+      <h2>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
+        <span>Spire Assault Simulator</span>
+      </h2>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+        <label for="simLevelSelect" style="font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Level:</label>
+        <select id="simLevelSelect" class="inp" style="padding:3px 8px;font-size:12px;height:28px;"></select>
+        <button type="button" class="icon-btn" id="btnCloseSim" title="Close" onclick="window.saCloseSim&&saCloseSim()">✕</button>
+      </div>
+    </div>
+    <div class="dlg-b" id="simDlgBody">
+      <div class="sim-tabs" id="simTabs">
+        <button type="button" class="sim-tab-btn active" data-tab="arena">⚔️ Live Battle &amp; Sandbox</button>
+        <button type="button" class="sim-tab-btn" data-tab="montecarlo">🎲 Monte Carlo Push Test</button>
+        <button type="button" class="sim-tab-btn" data-tab="ringopt">💍 Ring Mod Optimizer</button>
+        <button type="button" class="sim-tab-btn" data-tab="sensitivity">📈 Upgrade Value</button>
+      </div>
+
+      <div class="sim-stats-bar">
+        <div class="sim-stat-box highlight">
+          <span class="lbl">Simulated Dust/s</span>
+          <span class="val" id="simStatDust">--</span>
+        </div>
+        <div class="sim-stat-box">
+          <span class="lbl">Shards/s</span>
+          <span class="val" id="simStatShards">--</span>
+        </div>
+        <div class="sim-stat-box">
+          <span class="lbl">Win Rate</span>
+          <span class="val" id="simStatWinRate">--</span>
+        </div>
+        <div class="sim-stat-box">
+          <span class="lbl">Avg Kill Time</span>
+          <span class="val" id="simStatKillTime">--</span>
+        </div>
+        <div class="sim-stat-box">
+          <span class="lbl">Fights (W / L)</span>
+          <span class="val" id="simStatFights">0 / 0</span>
+        </div>
+      </div>
+
+      <!-- Tab 1: Live Battle & Sandbox -->
+      <div id="simPanelArena">
+        <div class="sim-arena">
+          <div class="sim-fighter-card huffy">
+            <div class="sim-fighter-head">
+              <div class="sim-fighter-name">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Huffy</span>
+              </div>
+              <span class="sim-fighter-sub" id="simHuffySub">11 Limbs</span>
+            </div>
+            <div class="sim-bar-wrap">
+              <div class="sim-bar-lbl"><span>HP</span><span id="simHuffyHpTxt">-- / --</span></div>
+              <div class="sim-bar"><div class="sim-bar-fill sim-bar-hp-huffy" id="simHuffyHpBar" style="width:100%;"></div></div>
+            </div>
+            <div class="sim-bar-wrap">
+              <div class="sim-bar-lbl"><span>Attack Charge</span><span id="simHuffyAtkTxt">0.50s</span></div>
+              <div class="sim-bar-atk"><div class="sim-bar-atk-fill" id="simHuffyAtkBar" style="width:0%;"></div></div>
+            </div>
+            <div class="sim-fighter-stats" id="simHuffyStats">
+              <div><span>Attack:</span><span class="v" id="simHuffyStatAtk">--</span></div>
+              <div><span>Defense:</span><span class="v" id="simHuffyStatDef">--</span></div>
+              <div><span>Lifesteal:</span><span class="v" id="simHuffyStatLs">--</span></div>
+              <div><span>Dust Mult:</span><span class="v" id="simHuffyStatDustMult">--</span></div>
+            </div>
+            <div class="sim-debuffs" id="simHuffyDebuffs"></div>
+          </div>
+
+          <div class="sim-vs-col">
+            <span class="sim-vs-pill">VS</span>
+            <span class="sim-timer-pill" id="simFightTime">0.0s</span>
+          </div>
+
+          <div class="sim-fighter-card enemy">
+            <div class="sim-fighter-head">
+              <div class="sim-fighter-name">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                <span id="simEnemyName">Enemy</span>
+              </div>
+              <span class="sim-fighter-sub" id="simEnemySub">SA 68</span>
+            </div>
+            <div class="sim-bar-wrap">
+              <div class="sim-bar-lbl"><span>HP</span><span id="simEnemyHpTxt">-- / --</span></div>
+              <div class="sim-bar"><div class="sim-bar-fill sim-bar-hp-enemy" id="simEnemyHpBar" style="width:100%;"></div></div>
+            </div>
+            <div class="sim-bar-wrap">
+              <div class="sim-bar-lbl"><span>Attack Charge</span><span id="simEnemyAtkTxt">0.70s</span></div>
+              <div class="sim-bar-atk"><div class="sim-bar-atk-fill" id="simEnemyAtkBar" style="width:0%;"></div></div>
+            </div>
+            <div class="sim-fighter-stats" id="simEnemyStats">
+              <div><span>Attack:</span><span class="v" id="simEnemyStatAtk">--</span></div>
+              <div><span>Defense:</span><span class="v" id="simEnemyStatDef">--</span></div>
+              <div><span>Lifesteal:</span><span class="v" id="simEnemyStatLs">--</span></div>
+              <div><span>Enrage:</span><span class="v" id="simEnemyStatEnrage">60s</span></div>
+            </div>
+            <div class="sim-debuffs" id="simEnemyDebuffs"></div>
+          </div>
+        </div>
+
+        <div class="sim-controls-bar">
+          <div class="sim-ctrl-group">
+            <button type="button" class="btn sm" id="simBtnPlay" style="min-width:70px;">Pause</button>
+            <button type="button" class="btn sm ghost" id="simBtnStep" title="Advance simulation by 1 frame (300ms)">Step</button>
+            <button type="button" class="btn sm ghost" id="simBtnReset" title="Restart battle from 0s">Reset</button>
+          </div>
+          <div class="sim-ctrl-group" id="simSpeedGroup">
+            <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Speed:</span>
+            <button type="button" class="sim-speed-btn" data-speed="1">1x</button>
+            <button type="button" class="sim-speed-btn" data-speed="2">2x</button>
+            <button type="button" class="sim-speed-btn" data-speed="5">5x</button>
+            <button type="button" class="sim-speed-btn active" data-speed="10">10x</button>
+            <button type="button" class="sim-speed-btn" data-speed="50">50x</button>
+            <button type="button" class="sim-speed-btn" data-speed="batch" title="Instantly calculate 1,000 kills">Batch 1K</button>
+          </div>
+        </div>
+
+        <div class="sim-log-wrap" id="simCombatLog">
+          <div class="sim-log-line"><span class="sim-log-time">0.0s</span><span class="sim-log-msg">Combat session initialized.</span></div>
+        </div>
+
+        <div class="sim-sandbox-sec">
+          <div class="sim-sandbox-head">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <h4>Testing Sandbox Loadout</h4>
+              <span class="pill sm" id="simLimbsPill">Equipped: 11 / 11 Limbs</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button type="button" class="btn sm ghost" id="simBtnResetToSave" title="Revert sandbox loadout to your live save gear">Reset to Save</button>
+              <button type="button" class="btn sm accent" id="simBtnLockToPlan" title="Lock this loadout into your Next Upgrade Advisor plan">Lock to Plan</button>
+            </div>
+          </div>
+
+          <div class="sim-ring-box">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/></svg>
+                The Ring:
+              </span>
+              <div class="sim-stepper">
+                <button type="button" class="sim-step-btn" id="simRingMinus">−</button>
+                <span class="sim-step-val" id="simRingLevelVal">Lv 16</span>
+                <button type="button" class="sim-step-btn" id="simRingPlus">+</button>
+              </div>
+              <span class="pill sm teal" id="simRingSlotsPill">2 / 2 slots used</span>
+            </div>
+            <div class="sim-ring-mods-list" id="simRingModsList"></div>
+          </div>
+
+          <div class="sim-items-grid" id="simItemsGrid"></div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Monte Carlo Push Test -->
+      <div id="simPanelMonteCarlo" class="sim-ext-panel" style="display:none;">
+        <div class="sim-ext-ctrls">
+          <span style="font-size:12.5px;color:var(--text);font-weight:600;">Push Viability Heatmap (500 Fights / Level):</span>
+          <button type="button" class="btn sm accent" id="simBtnRunPush">🎲 Re-scan Push Heatmap</button>
+        </div>
+        <div id="simMcResults"></div>
+      </div>
+
+      <!-- Tab 3: Ring Mod Optimizer -->
+      <div id="simPanelRingOpt" class="sim-ext-panel" style="display:none;">
+        <div id="simRingOptResults">
+          <p class="empty">Calculating optimal ring configurations...</p>
+        </div>
+      </div>
+
+      <!-- Tab 4: Upgrade Value -->
+      <div id="simPanelSensitivity" class="sim-ext-panel" style="display:none;">
+        <div id="simSensitivityResults">
+          <div style="padding:20px;text-align:center;color:var(--muted);">Simulating next upgrade steps...</div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="simLockPromptDlg" style="width: min(440px, calc(100vw - 32px));">
+    <div class="dlg-h">
+      <h2>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
+        <span>Lock Custom Build to Plan</span>
+      </h2>
+      <button type="button" class="icon-btn" style="margin-left:auto" id="btnCloseLockPrompt" title="Close" onclick="window.saCloseLockPrompt&&saCloseLockPrompt()">✕</button>
+    </div>
+    <div class="dlg-b" style="gap:14px;padding:18px 20px;">
+      <p style="margin:0;font-size:13px;color:var(--muted);">
+        Name this sandbox build to lock it into your Next Upgrade Advisor. The planner will guide your upgrades toward this custom configuration.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <label for="simCustomPlanName" style="font-size:12px;font-weight:600;color:var(--text);">Build Name:</label>
+        <input type="text" id="simCustomPlanName" class="inp" style="width:100%;font-size:13.5px;" placeholder="Custom SA Build">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
+        <button type="button" class="btn sm ghost" id="btnCancelLockPrompt" onclick="window.saCloseLockPrompt&&saCloseLockPrompt()">Cancel</button>
+        <button type="button" class="btn sm accent" id="btnConfirmLockPrompt">Lock to Plan</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="helpDlg">
     <div class="dlg-h">
       <h2>
@@ -1785,6 +2191,9 @@
   </script>
   <script>
 var SA_DATA = /*__DATA__*/;
+  </script>
+  <script>
+/*__SIM__*/
   </script>
   <script>
 /*__APP__*/
