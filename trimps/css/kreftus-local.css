@@ -668,6 +668,164 @@ html, body {
   color: #fb7185 !important;
 }
 
+/* Quantity Multiplier Tabs (+1, +10, +25, +100, Custom, Max) */
+#numTabs > ul,
+#portalTabs {
+  border-bottom: none !important;
+  display: flex !important;
+  gap: 3px !important;
+  padding: 3px 2px !important;
+  background: var(--surface) !important;
+  border-radius: var(--radius-sm) !important;
+  box-sizing: border-box !important;
+}
+
+#numTabs > ul > li,
+#portalTabs > li {
+  float: none !important;
+  flex: 1 1 0 !important;
+  display: flex !important;
+}
+
+#numTabs > ul > li > a,
+#portalTabs > li > a {
+  flex: 1 1 auto !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  padding: 5px 3px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: 32px !important;
+  box-sizing: border-box !important;
+  transition: all 0.15s ease !important;
+}
+
+#numTabs > ul > li > a:hover,
+#portalTabs > li > a:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-bright) !important;
+  border-color: var(--border-strong) !important;
+}
+
+#numTabs > ul > li.tabSelected > a,
+#numTabs > ul > li.tabSelected > a:hover,
+#portalTabs > li.tabSelected > a,
+#portalTabs > li.tabSelected > a:hover {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.24), rgba(247, 147, 26, 0.12)) !important;
+  border-color: rgba(247, 147, 26, 0.65) !important;
+  color: #fb923c !important;
+  box-shadow: 0 1px 4px rgba(247, 147, 26, 0.2) !important;
+}
+
+/* Custom Tab (#tab5) split button: +Custom and Custom */
+#numTabs #tab5 {
+  flex: 1.5 1 0 !important;
+  gap: 2px !important;
+}
+
+#numTabs #tab5 a {
+  width: auto !important;
+  flex: 1 1 50% !important;
+  padding: 5px 2px !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+}
+
+/* AutoEquip, AutoStructure, AutoUpgrade, AutoPrestige Buttons */
+.toggleConfigBtn {
+  height: 32px !important;
+  min-height: 32px !important;
+  display: flex !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+.toggleConfigBtn div:first-child {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  float: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.toggleConfigBtn div:nth-child(2) {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  float: none !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(0, 0, 0, 0.25) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.toggleConfigBtn div:nth-child(2):hover {
+  background: rgba(0, 0, 0, 0.45) !important;
+}
+
+.toggleConfigBtn div span.glyphicon {
+  font-size: 13px !important;
+  line-height: 1 !important;
+}
+
+.autoUpgradeBtn {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  min-height: 32px !important;
+  line-height: 30px !important;
+  border-radius: var(--radius-sm) !important;
+  text-align: center !important;
+  border: 1px solid var(--border-strong) !important;
+}
+
+/* Equipment / Buildings / Upgrades Title Bars */
+#equipmentTitleDiv .row,
+#buildingsTitleDiv .row,
+#upgradesTitleDiv .row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+#equipmentTitleDiv .row > div:first-child,
+#buildingsTitleDiv .row > div:first-child,
+#upgradesTitleDiv .row > div:first-child {
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+
+#equipmentTitleDiv .row > div:last-child,
+#buildingsTitleDiv .row > div:last-child,
+#upgradesTitleDiv .row > div:last-child {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  min-width: 140px !important;
+}
+
+#equipmentTitleSpan,
+#buildingsTitleSpan,
+#upgradesTitleSpan {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: var(--text-bright) !important;
+}
+
 /* Alert Badges inside Tabs & Cards */
 .badge {
   font-family: var(--font);
@@ -842,6 +1000,95 @@ html, body {
   letter-spacing: 0.01em;
   transition: all 0.15s ease;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Bone Trader Button */
+#boneBtnMain {
+  background: var(--surface-2) !important;
+  color: var(--text-bright) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+#boneBtnMain:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+#boneBtnText {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: inherit !important;
+}
+
+/* Combat Stat Rows (#goodGuyStatsRow, #damageDiv, #blockDiv, #badGuyRow) */
+.battleStatsTitle {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  line-height: 1.25 !important;
+  margin-bottom: 2px !important;
+}
+
+.battleStatsTitle + br {
+  display: none !important;
+}
+
+#goodGuyStatsRow {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  column-gap: 8px !important;
+  row-gap: 2px !important;
+}
+
+#damageDiv {
+  width: auto !important;
+  max-width: 100% !important;
+  float: none !important;
+  flex: 0 1 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+}
+
+#critSpan {
+  display: inline-block !important;
+  margin-left: 2px !important;
+  white-space: nowrap !important;
+}
+
+#blockDiv {
+  width: auto !important;
+  float: none !important;
+  flex: 0 1 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+}
+
+#blockDiv #goodGuyBlockName {
+  order: -1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.energyShieldIcon {
+  position: static !important;
+  margin-right: 4px !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+  transform: none !important;
+}
+
+#roboTrimpBtn {
+  width: auto !important;
+  float: none !important;
+  margin-left: auto !important;
 }
 
 #battleSideTitle {
@@ -1640,12 +1887,59 @@ table,
     font-weight: 800 !important;
   }
 
+  /* Quantity Multiplier Tabs in Narrow Mode */
+  #numTabs > ul,
+  #portalTabs {
+    gap: 4px !important;
+    padding: 4px 2px !important;
+  }
+
+  #numTabs > ul > li > a,
+  #portalTabs > li > a {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    min-height: 38px !important;
+    padding: 6px 2px !important;
+  }
+
+  #numTabs #tab5 {
+    flex: 1.6 1 0 !important;
+  }
+
+  #numTabs #tab5 a {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+  }
+
+  /* AutoEquip & Config Buttons in Narrow Mode */
+  .toggleConfigBtn {
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .toggleConfigBtn div:first-child {
+    font-size: 14px !important;
+    padding: 6px 10px !important;
+  }
+
+  .toggleConfigBtn div:nth-child(2) {
+    flex: 0 0 36px !important;
+    width: 36px !important;
+  }
+
+  .autoUpgradeBtn {
+    font-size: 14px !important;
+    min-height: 36px !important;
+    line-height: 34px !important;
+  }
+
+  #equipmentTitleDiv .row > div:last-child {
+    min-width: 150px !important;
+  }
+
   .titleSpan,
   #jobsTitleUnemployed,
-  #fireBtn,
-  #autoEquipBtn,
-  #autoPrestigeBtn,
-  #autoUpgradeBtn {
+  #fireBtn {
     font-size: 14px !important;
   }
 
@@ -1683,6 +1977,18 @@ table,
     padding: 10px !important;
   }
 
+  .battleStatsTitle {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    line-height: 1.25 !important;
+    margin-bottom: 2px !important;
+  }
+
+  .battleStatsTitle + br {
+    display: none !important;
+  }
+
   .battleStatsTitle,
   #goodGuyAttack,
   #badGuyAttack,
@@ -1710,6 +2016,56 @@ table,
     line-height: 1 !important;
   }
 
+  /* Combat stats row: send shield to next row so crits have full room */
+  #goodGuyStatsRow {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    row-gap: 2px !important;
+  }
+
+  #damageDiv {
+    width: auto !important;
+    max-width: calc(100% - 32px) !important;
+    float: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    white-space: nowrap !important;
+  }
+
+  #blockDiv {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    float: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    white-space: nowrap !important;
+    margin-top: 2px !important;
+    padding-left: 15px !important;
+  }
+
+  #blockDiv #goodGuyBlockName {
+    order: -1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+
+  .energyShieldIcon {
+    position: static !important;
+    margin-right: 4px !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    transform: none !important;
+  }
+
+  #roboTrimpBtn {
+    width: auto !important;
+    float: none !important;
+    margin-left: auto !important;
+  }
+
   #gridRow {
     height: auto !important;
     display: flex;
@@ -1717,28 +2073,97 @@ table,
     gap: 8px;
   }
 
-  #battleBtnsColumn {
+  #battleBtnsColumn,
+  #extraMapBtns:not(.col-xs-off) {
     width: 100% !important;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
+    max-width: 100% !important;
+    float: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
     padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  #extraMapBtns:not(.col-xs-off) {
+    margin-top: 8px !important;
   }
 
   #battleSideTitle {
-    grid-column: 1 / -1;
+    grid-column: 1 / -1 !important;
     font-size: 16px !important;
     padding: 8px !important;
+    margin-bottom: 2px !important;
   }
 
-  .battleSideBtnContainer {
-    margin-top: 0 !important;
+  #battleBtnsColumn .battleSideBtnContainer,
+  #extraMapBtns .battleSideBtnContainer {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block;
   }
 
+  .battleSideBtnContainer.btn-hidden,
+  .battleSideBtnContainer[style*="display: none"],
+  .battleSideBtnContainer:has(> [style*="display: none"]),
+  .battleSideBtnContainer:empty {
+    display: none !important;
+  }
+
+  #battleBtnsColumn .fightBtn,
+  #extraMapBtns .fightBtn,
   .fightBtn,
   #pauseFight {
-    font-size: 15px !important;
-    padding: 8px 10px !important;
+    width: 100% !important;
+    min-height: 38px !important;
+    font-size: 14px !important;
+    padding: 6px 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+    border-radius: var(--radius-sm) !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+  }
+
+  #mapsBtn {
+    min-height: 38px !important;
+    height: 38px !important;
+    display: flex !important;
+    align-items: stretch !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #mapsBtn div:first-child {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    float: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 8px !important;
+    margin-top: 0 !important;
+    font-size: 14px !important;
+  }
+
+  #mapsBtn div:nth-child(2) {
+    flex: 0 0 36px !important;
+    width: 36px !important;
+    float: none !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  #boneBtnText {
+    font-size: 13px !important;
   }
 
   #gridContainer {

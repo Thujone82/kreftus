@@ -2522,7 +2522,7 @@ function manageEqualityStacks() {
 	const tabTextElem = document.getElementById('equalityA');
 	const activeStacks = game.portal.Equality.getActiveLevels();
 	let text = activeStacks + ' stack' + needAnS(activeStacks) + ' of Equality are active, multiplying the Attack of Trimps ';
-	let elemText = 'Equality (Scaling ';
+	let elemText = 'Equality';
 	const enemyMult = game.portal.Equality.getMult(false);
 	if (game.heirlooms.Shield.inequality.currentBonus > 0) {
 		const trimpMult = game.portal.Equality.getMult(true);
@@ -2533,12 +2533,10 @@ function manageEqualityStacks() {
 
 	if (game.portal.Equality.getSetting('scalingActive')) {
 		swapClass('equalityTabScaling', 'equalityTabScalingOn', tabElem);
-		elemText += 'On)';
 		text += '. Scaling is on.';
 		manageStacks('Equality Scaling', activeStacks, true, 'equalityStacks', 'icomoon icon-arrow-bold-down', text, false);
 	} else {
 		swapClass('equalityTabScaling', 'equalityTabScalingOff', tabElem);
-		elemText += 'Off)';
 		text += '. Scaling is off.';
 		manageStacks('Equality Scaling', activeStacks, true, 'equalityStacks', 'icomoon icon-arrow-bold-down', text, false);
 	}

@@ -76,6 +76,7 @@
     document.head.appendChild(style);
   }
 
+
   function clearJsOverrides() {
     var nodes = document.querySelectorAll(FIT_SELECTORS.join(','));
     for (var i = 0; i < nodes.length; i++) {
@@ -276,10 +277,57 @@
     earlyLink.disabled = !isThemeEnabled();
   }
 
+  function scrollToTop() {
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      window.scrollTo(0, 0);
+    }
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }
+
+  function hookModalAutoScroll() {
+    var modalTriggerIds = [
+      'autoBattleTab',
+      'equalityTab',
+      'playerSpireTab',
+      'alchemyTab',
+      'talentsTab',
+      'natureTab',
+      'heirloomsBtn',
+      'boneBtnMain',
+      'portalBtn',
+      'settingsBtn',
+      'statsBtn',
+      'achieveBtn',
+      'viewPerksBtn'
+    ];
+
+    modalTriggerIds.forEach(function (id) {
+      var elem = document.getElementById(id);
+      if (elem && !elem._kreftusScrollHooked) {
+        elem._kreftusScrollHooked = true;
+        elem.addEventListener('click', function () {
+          scrollToTop();
+        });
+      }
+    });
+  }
+
+  function enforceEqualityTabName() {
+    var tabTextElem = document.getElementById('equalityA');
+    if (tabTextElem && tabTextElem.innerHTML !== 'Equality') {
+      tabTextElem.innerHTML = 'Equality';
+    }
+  }
+
   function initKreftusEnhancements() {
     initMobileQuickNav();
     initThemeToggleButton();
     applyThemeState(isThemeEnabled());
+    hookModalAutoScroll();
+    enforceEqualityTabName();
 
     var tip = document.getElementById('tooltipDiv');
     if (!tip) {
@@ -303,13 +351,19 @@
       childList: true
     });
 
+
     window.addEventListener('resize', function () {
       adjustSpireAssaultPopup();
       fitResourceBoxText();
     });
 
-    setInterval(fitResourceBoxText, 600);
-    setTimeout(fitResourceBoxText, 150);
+    setInterval(function () {
+      fitResourceBoxText();
+      enforceEqualityTabName();
+    }, 600);
+    setTimeout(function () {
+      fitResourceBoxText();
+    }, 150);
   }
 
   if (document.readyState === 'loading') {
