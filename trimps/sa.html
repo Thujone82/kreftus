@@ -7311,7 +7311,7 @@ function createRawAutoBattle(game, u2Mutations) {
             huffyMaxAtkTimer: trimp.attackSpeed || 500,
             huffyBuffs: {
               bleed: trimp.bleed && trimp.bleed.time > 0 ? { dmg: trimp.bleed.mod || 0, amp: Math.round((trimp.bleed.mod || 0) * 100) } : null,
-              poison: trimp.poison && trimp.poison.time > 0 ? { stacks: trimp.poison.stacks || 0 } : null,
+              poison: trimp.poison && trimp.poison.time > 0 ? { stacks: trimp.poison.stacks || 0, amp: Math.round((trimp.poison.stacks || 0) * 100) } : null,
               shock: trimp.shock && trimp.shock.time > 0 ? { amp: Math.round((trimp.shock.mod || 0) * 100) } : null
             },
             enemyName: enemy.profile || ('Enemy Lv ' + ab.enemyLevel),
@@ -7325,7 +7325,7 @@ function createRawAutoBattle(game, u2Mutations) {
             enemyMaxAtkTimer: enemy.attackSpeed || 700,
             enemyBuffs: {
               bleed: enemy.bleed && enemy.bleed.time > 0 ? { dmg: enemy.bleed.mod || 0, amp: Math.round((enemy.bleed.mod || 0) * 100) } : null,
-              poison: enemy.poison && enemy.poison.time > 0 ? { stacks: enemy.poison.stacks || 0 } : null,
+              poison: enemy.poison && enemy.poison.time > 0 ? { stacks: enemy.poison.stacks || 0, amp: Math.round((enemy.poison.stacks || 0) * 100) } : null,
               shock: enemy.shock && enemy.shock.time > 0 ? { amp: Math.round((enemy.shock.mod || 0) * 100) } : null
             },
             huffy: {
@@ -12190,7 +12190,7 @@ function renderPresetsModal() {
       var dHtml = [];
       if (snap.huffyBuffs) {
         if (snap.huffyBuffs.bleed) { var bAmp = snap.huffyBuffs.bleed.amp != null ? snap.huffyBuffs.bleed.amp : Math.round((snap.huffyBuffs.bleed.dmg || 0) * 100); dHtml.push("<span class='sim-debuff-pill bleed'>Bleed: +" + bAmp + "%</span>"); }
-        if (snap.huffyBuffs.poison) dHtml.push("<span class='sim-debuff-pill poison'>Poison: " + snap.huffyBuffs.poison.stacks + "x</span>");
+        if (snap.huffyBuffs.poison) { var pAmp = snap.huffyBuffs.poison.amp != null ? snap.huffyBuffs.poison.amp : Math.round((snap.huffyBuffs.poison.stacks || 0) * 100); dHtml.push("<span class='sim-debuff-pill poison'>Poison: +" + pAmp + "%</span>"); }
         if (snap.huffyBuffs.shock) dHtml.push("<span class='sim-debuff-pill shock'>Shock: +" + (snap.huffyBuffs.shock.amp || 0) + "%</span>");
       }
       hDebuffs.innerHTML = dHtml.join("");
@@ -12235,7 +12235,7 @@ function renderPresetsModal() {
       var edHtml = [];
       if (snap.enemyBuffs) {
         if (snap.enemyBuffs.bleed) { var ebAmp = snap.enemyBuffs.bleed.amp != null ? snap.enemyBuffs.bleed.amp : Math.round((snap.enemyBuffs.bleed.dmg || 0) * 100); edHtml.push("<span class='sim-debuff-pill bleed'>Bleed: +" + ebAmp + "%</span>"); }
-        if (snap.enemyBuffs.poison) edHtml.push("<span class='sim-debuff-pill poison'>Poison: " + snap.enemyBuffs.poison.stacks + "x</span>");
+        if (snap.enemyBuffs.poison) { var epAmp = snap.enemyBuffs.poison.amp != null ? snap.enemyBuffs.poison.amp : Math.round((snap.enemyBuffs.poison.stacks || 0) * 100); edHtml.push("<span class='sim-debuff-pill poison'>Poison: +" + epAmp + "%</span>"); }
         if (snap.enemyBuffs.shock) edHtml.push("<span class='sim-debuff-pill shock'>Shock: +" + (snap.enemyBuffs.shock.amp || 0) + "%</span>");
       }
       eDebuffs.innerHTML = edHtml.join("");

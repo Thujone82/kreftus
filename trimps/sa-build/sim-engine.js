@@ -4543,7 +4543,7 @@ function createRawAutoBattle(game, u2Mutations) {
             huffyMaxAtkTimer: trimp.attackSpeed || 500,
             huffyBuffs: {
               bleed: trimp.bleed && trimp.bleed.time > 0 ? { dmg: trimp.bleed.mod || 0, amp: Math.round((trimp.bleed.mod || 0) * 100) } : null,
-              poison: trimp.poison && trimp.poison.time > 0 ? { stacks: trimp.poison.stacks || 0 } : null,
+              poison: trimp.poison && trimp.poison.time > 0 ? { stacks: trimp.poison.stacks || 0, amp: Math.round((trimp.poison.stacks || 0) * 100) } : null,
               shock: trimp.shock && trimp.shock.time > 0 ? { amp: Math.round((trimp.shock.mod || 0) * 100) } : null
             },
             enemyName: enemy.profile || ('Enemy Lv ' + ab.enemyLevel),
@@ -4557,7 +4557,7 @@ function createRawAutoBattle(game, u2Mutations) {
             enemyMaxAtkTimer: enemy.attackSpeed || 700,
             enemyBuffs: {
               bleed: enemy.bleed && enemy.bleed.time > 0 ? { dmg: enemy.bleed.mod || 0, amp: Math.round((enemy.bleed.mod || 0) * 100) } : null,
-              poison: enemy.poison && enemy.poison.time > 0 ? { stacks: enemy.poison.stacks || 0 } : null,
+              poison: enemy.poison && enemy.poison.time > 0 ? { stacks: enemy.poison.stacks || 0, amp: Math.round((enemy.poison.stacks || 0) * 100) } : null,
               shock: enemy.shock && enemy.shock.time > 0 ? { amp: Math.round((enemy.shock.mod || 0) * 100) } : null
             },
             huffy: {

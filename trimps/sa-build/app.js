@@ -4811,7 +4811,7 @@ function renderPresetsModal() {
       var dHtml = [];
       if (snap.huffyBuffs) {
         if (snap.huffyBuffs.bleed) { var bAmp = snap.huffyBuffs.bleed.amp != null ? snap.huffyBuffs.bleed.amp : Math.round((snap.huffyBuffs.bleed.dmg || 0) * 100); dHtml.push("<span class='sim-debuff-pill bleed'>Bleed: +" + bAmp + "%</span>"); }
-        if (snap.huffyBuffs.poison) dHtml.push("<span class='sim-debuff-pill poison'>Poison: " + snap.huffyBuffs.poison.stacks + "x</span>");
+        if (snap.huffyBuffs.poison) { var pAmp = snap.huffyBuffs.poison.amp != null ? snap.huffyBuffs.poison.amp : Math.round((snap.huffyBuffs.poison.stacks || 0) * 100); dHtml.push("<span class='sim-debuff-pill poison'>Poison: +" + pAmp + "%</span>"); }
         if (snap.huffyBuffs.shock) dHtml.push("<span class='sim-debuff-pill shock'>Shock: +" + (snap.huffyBuffs.shock.amp || 0) + "%</span>");
       }
       hDebuffs.innerHTML = dHtml.join("");
@@ -4856,7 +4856,7 @@ function renderPresetsModal() {
       var edHtml = [];
       if (snap.enemyBuffs) {
         if (snap.enemyBuffs.bleed) { var ebAmp = snap.enemyBuffs.bleed.amp != null ? snap.enemyBuffs.bleed.amp : Math.round((snap.enemyBuffs.bleed.dmg || 0) * 100); edHtml.push("<span class='sim-debuff-pill bleed'>Bleed: +" + ebAmp + "%</span>"); }
-        if (snap.enemyBuffs.poison) edHtml.push("<span class='sim-debuff-pill poison'>Poison: " + snap.enemyBuffs.poison.stacks + "x</span>");
+        if (snap.enemyBuffs.poison) { var epAmp = snap.enemyBuffs.poison.amp != null ? snap.enemyBuffs.poison.amp : Math.round((snap.enemyBuffs.poison.stacks || 0) * 100); edHtml.push("<span class='sim-debuff-pill poison'>Poison: +" + epAmp + "%</span>"); }
         if (snap.enemyBuffs.shock) edHtml.push("<span class='sim-debuff-pill shock'>Shock: +" + (snap.enemyBuffs.shock.amp || 0) + "%</span>");
       }
       eDebuffs.innerHTML = edHtml.join("");
