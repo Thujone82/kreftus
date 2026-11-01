@@ -2077,6 +2077,35 @@ var ONE_TIMER_MILESTONES = [
     return "";
   }
 
+  function stepBadgeHtml(s) {
+    if (s.kind === "level") {
+      return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) +
+        "<span class='step-text'><span class='step-name'>" + esc(itemName(s.key)) + "</span><span class='step-sub'>Lv " + s.from + " → " + s.to + "</span></span></span>";
+    }
+    if (s.kind === "ring") {
+      return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) +
+        "<span class='step-text'><span class='step-name'>The Ring</span><span class='step-sub'>Lv " + s.from + " → " + s.to + "</span></span></span>";
+    }
+    if (s.kind === "ringUnlock") {
+      return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) +
+        "<span class='step-text'><span class='step-name'>The Ring</span><span class='step-sub'>Unlock</span></span></span>";
+    }
+    if (s.kind === "limbs") {
+      return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) +
+        "<span class='step-text'><span class='step-name'>Extra Limbs</span><span class='step-sub'>" + s.from + " → " + s.to + "</span></span></span>";
+    }
+    if (s.kind === "contract") {
+      var cSub = "Z" + s.zone + (s.active ? " (active)" : (!s.reach ? " (unreached)" : ""));
+      return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) +
+        "<span class='step-text'><span class='step-name'>" + esc(itemName(s.key)) + "</span><span class='step-sub'>" + esc(cSub) + "</span></span></span>";
+    }
+    if (s.kind === "missing") {
+      return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) +
+        "<span class='step-text'><span class='step-name'>" + esc(itemName(s.key)) + "</span><span class='step-sub'>Missing</span></span></span>";
+    }
+    return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) + "<span>" + esc(stepLabel(s)) + "</span></span>";
+  }
+
   function atomicStep(s) {
     if (s.kind === "level" && s.to > s.from + 1) {
       return { kind: "level", key: s.key, from: s.from, to: s.from + 1, cost: upgradeCostAt(s.key, s.from), shards: s.shards };
@@ -3384,8 +3413,9 @@ var ONE_TIMER_MILESTONES = [
         var reach = (state.radon + 1) >= cat.zone;
         var cPrice = contractPrice(key);
         var tUnlock = timeForCost(cPrice, isSh, rate, bnk.dust, bnk.shards);
+        var waitStr = !reach ? ("Z" + cat.zone) : fmtTime(tUnlock);
         meta += "<div class='cost'><span>Contract</span><span>" + prettify(cPrice) + " " + currencyName(key) + "</span></div>";
-        meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + cPrice + "' data-item-shards='" + (isSh ? "1" : "0") + "'>" + fmtTime(tUnlock) + "</span></div>";
+        meta += "<div class='time'><span>Wait</span><span class='board-wait'" + (!reach ? " data-unreached-zone='" + cat.zone + "'" : "") + " data-item-cost='" + cPrice + "' data-item-shards='" + (isSh ? "1" : "0") + "'>" + waitStr + "</span></div>";
         if (active) meta += "<div class='flag'>" + ICONS.info + " Accepted, not finished</div>";
         if (!reach) meta += "<div class='flag bad'>" + ICONS.warn + " Void map unreachable</div>";
         lines.push("Complete the Z" + cat.zone + " contract to unlock " + itemName(key) + ".");
@@ -3687,18 +3717,26 @@ var ONE_TIMER_MILESTONES = [
       var gain = (b.d || 0) - cur;
       var remCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : 0;
       var ret = (gain > 0 && remCost > 0) ? (remCost / gain) : (gain > 0 ? 0 : Infinity);
-      var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
-      var earnStr = earn === 0 ? "ready" : fmtTime(earn);
+      var blockedContracts = steps.filter(function (s) { return s.kind === "contract" && !s.reach; });
+      var blocked = blockedContracts.length > 0;
+      var blockedZone = 0;
+      if (blocked) {
+        blockedContracts.forEach(function (s) { if (s.zone && s.zone > blockedZone) blockedZone = s.zone; });
+        if (!blockedZone && b.c) blockedZone = b.c;
+      }
+      var earnStr = (blocked && earn === 0) ? ("Z" + (blockedZone || "?")) : (earn === 0 ? "ready" : fmtTime(earn));
       var retStr = ret === 0 ? "0s" : fmtTime(ret);
       var earnReturnVal = earnStr + "/" + retStr;
-      var earnReturnTip = "Earn: " + earnStr + " (remaining wait with bank) · Return: " + retStr + " (payback: remaining cost / Δ d/s)";
+      var earnReturnTip = blocked
+        ? ("Requires unreached Zone " + (blockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + fmtTime(earn) + " · Return: " + retStr)
+        : ("Earn: " + earnStr + " (remaining wait with bank) · Return: " + retStr + " (payback: remaining cost / Δ d/s)");
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
         (blocked ? "<span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + (b.c || "?") + "</span>" : "") +
         "</div><div class='sub mono' style='margin-top:3px;'>" + prettify(b.d) + "/s" + (b.k != null ? " · " + b.k + "s" : "") + "</div></td>" +
         "<td><div class='steps'>" + steps.map(function (s) {
-          return "<span class='step-badge " + stepClass(s) + "'>" + iconForStep(s) + "<span>" + esc(stepLabel(s)) + "</span></span>";
+          return stepBadgeHtml(s);
         }).join("") + "</div></td>" +
         "<td class='mono'>" + (cost.dust ? prettify(cost.dust) + " dust" : "") +
         (cost.dust && cost.shards ? "<br>" : "") +
@@ -3710,8 +3748,8 @@ var ONE_TIMER_MILESTONES = [
               return "<td class='mono pos'>" + bk.toFixed(1) + "s kills" + (diff ? "<span style='font-size:11px;opacity:0.8;'> " + diff + "</span>" : "") + "</td>";
             })()
           : ("<td class='mono pos'>+" + prettify(gain) + "/s</td>")) +
-        "<td class='mono bb-earn-return' data-build-idx='" + idx + "' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
-        "<td><div style='display:flex;gap:4px;align-items:center;'>" +
+        "<td class='mono bb-earn-return" + (blocked && earn === 0 ? " blocked" : "") + "' data-build-idx='" + idx + "' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
+        "<td class='bb-actions-td'><div class='bb-actions-cell'>" +
         "<button type='button' class='btn sm ghost sim-row-btn' data-sim-build='" + esc(buildId(b)) + "' title='Load into Combat Simulator'>⚔️ Sim</button>" +
         (function() {
           var isRowLocked = isSameLockedBuild(state.level, b);
@@ -3723,7 +3761,7 @@ var ONE_TIMER_MILESTONES = [
     }).join("");
     var betterEl = $("better");
     var colGainLbl = (mode === "push") ? "Kill Speed (Δ)" : "Δ d/s";
-    betterEl.innerHTML = "<div class='tbl-wrap'><div class='tbl-swipe-hint'>↔ Swipe table horizontally to view all columns &amp; actions</div><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>" + colGainLbl + "</th><th>Earn/Return</th><th>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    betterEl.innerHTML = "<div class='tbl-wrap'><div class='tbl-swipe-hint'>↔ Swipe table horizontally to view all columns &amp; actions</div><table><thead><tr><th>Build</th><th class='th-missing'>Missing Upgrades</th><th class='th-cost'>Total Cost</th><th class='th-gain'>" + colGainLbl + "</th><th class='th-earn'>Earn / Return</th><th class='th-actions'>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
       var sBtn = ev.target.closest("button[data-sim-build]");
       if (sBtn) {
@@ -4156,10 +4194,19 @@ var ONE_TIMER_MILESTONES = [
           var bGain = (b.d || 0) - (state.lastBetterCur || 0);
           var bRemCost = bWInfo.remDustEq > 0 ? bWInfo.remDustEq : 0;
           var bRet = (bGain > 0 && bRemCost > 0) ? (bRemCost / bGain) : (bGain > 0 ? 0 : Infinity);
-          var bEarnStr = bEarn === 0 ? "ready" : fmtTime(bEarn);
+          var bBlockedContracts = bSteps.filter(function (s) { return s.kind === "contract" && !s.reach; });
+          var bBlocked = bBlockedContracts.length > 0;
+          var bBlockedZone = 0;
+          if (bBlocked) {
+            bBlockedContracts.forEach(function (s) { if (s.zone && s.zone > bBlockedZone) bBlockedZone = s.zone; });
+            if (!bBlockedZone && b.c) bBlockedZone = b.c;
+          }
+          var bEarnStr = (bBlocked && bEarn === 0) ? ("Z" + (bBlockedZone || "?")) : (bEarn === 0 ? "ready" : fmtTime(bEarn));
           var bRetStr = bRet === 0 ? "0s" : fmtTime(bRet);
           var bEarnReturnVal = bEarnStr + "/" + bRetStr;
-          var bEarnReturnTip = "Earn: " + bEarnStr + " (remaining wait with bank) · Return: " + bRetStr + " (payback: remaining cost / Δ d/s)";
+          var bEarnReturnTip = bBlocked
+            ? ("Requires unreached Zone " + (bBlockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + fmtTime(bEarn) + " · Return: " + bRetStr)
+            : ("Earn: " + bEarnStr + " (remaining wait with bank) · Return: " + bRetStr + " (payback: remaining cost / Δ d/s)");
           if (cell.textContent !== bEarnReturnVal) cell.textContent = bEarnReturnVal;
           if (cell.title !== bEarnReturnTip) cell.title = bEarnReturnTip;
         }
@@ -4169,6 +4216,11 @@ var ONE_TIMER_MILESTONES = [
     var bWaitEls = document.querySelectorAll("#board .board-wait");
     for (var bi = 0; bi < bWaitEls.length; bi++) {
       var el = bWaitEls[bi];
+      var unreach = el.getAttribute("data-unreached-zone");
+      if (unreach) {
+        if (el.textContent !== ("Z" + unreach)) el.textContent = "Z" + unreach;
+        continue;
+      }
       var c = parseFloat(el.getAttribute("data-item-cost")) || 0;
       var sh = el.getAttribute("data-item-shards") === "1";
       var w = timeForCost(c, sh, rate, bnk.dust, bnk.shards);

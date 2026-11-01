@@ -1044,6 +1044,7 @@
       background: var(--surface-2); border: 1px solid var(--border);
     }
     .step-badge svg { width: 13px; height: 13px; flex: none; }
+    .step-badge .step-text { display: inline-flex; align-items: baseline; gap: 4px; }
     .step-badge.step-item { background: var(--info-soft); border-color: rgba(96, 165, 250, 0.28); }
     .step-badge.step-contract { background: var(--violet-soft); border-color: rgba(167, 139, 250, 0.28); }
     .step-badge.step-limb { background: var(--warn-soft); border-color: rgba(251, 191, 36, 0.28); }
@@ -1223,6 +1224,8 @@
     tr.unreachable { background: rgba(244, 63, 94, 0.08); }
     tr.unreachable:hover { background: rgba(244, 63, 94, 0.13); }
     .steps { display: flex; flex-wrap: wrap; gap: 5px; }
+    .bb-actions-cell { display: flex; gap: 4px; align-items: center; }
+    .bb-earn-return.blocked { color: var(--sell); }
 
     /* ---------- better builds info hover popover ---------- */
     .bb-build-cell {
@@ -1512,16 +1515,77 @@
         border-bottom: 1px solid var(--border);
         letter-spacing: 0.02em;
       }
-      .tbl-wrap table {
-        min-width: 580px;
-        font-size: 11.5px;
+      .tbl-wrap {
+        border-radius: 8px;
       }
-      .tbl-wrap th, .tbl-wrap td {
-        padding: 8px 6px;
+      .tbl-wrap table {
+        min-width: 0 !important;
+        width: 100% !important;
+        font-size: 11px;
+      }
+      .tbl-wrap th {
+        white-space: normal !important;
+        line-height: 1.15 !important;
+        vertical-align: bottom !important;
+        padding: 6px 4px !important;
+        font-size: 10px !important;
+        letter-spacing: 0.02em !important;
+      }
+      .tbl-wrap td {
+        padding: 6px 4px !important;
+        font-size: 11px;
+      }
+      .tbl-wrap th.th-missing {
+        max-width: 130px;
+      }
+      .tbl-wrap th.th-earn,
+      .tbl-wrap th.th-actions,
+      .tbl-wrap td.bb-earn-return,
+      .tbl-wrap td.bb-actions-td {
+        text-align: center !important;
       }
       .step-badge {
-        font-size: 11px;
-        padding: 1.5px 5px;
+        font-size: 10.5px !important;
+        padding: 2px 5px !important;
+        gap: 4px !important;
+        max-width: 130px !important;
+        align-items: flex-start !important;
+        white-space: normal !important;
+      }
+      .step-badge svg {
+        width: 12px !important;
+        height: 12px !important;
+        margin-top: 1px !important;
+      }
+      .step-badge .step-text {
+        display: flex !important;
+        flex-direction: column !important;
+        line-height: 1.15 !important;
+        gap: 1px !important;
+      }
+      .step-badge .step-name {
+        white-space: normal !important;
+        word-break: break-word !important;
+        font-size: 10.5px !important;
+      }
+      .step-badge .step-sub {
+        font-size: 9.5px !important;
+        opacity: 0.85 !important;
+        white-space: nowrap !important;
+      }
+      .bb-actions-cell {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 3px !important;
+        align-items: stretch !important;
+      }
+      .bb-actions-cell .btn.sm {
+        padding: 0 4px !important;
+        height: 24px !important;
+        font-size: 10.5px !important;
+        justify-content: center !important;
+        min-width: 0 !important;
+        width: 100% !important;
       }
     }
 
