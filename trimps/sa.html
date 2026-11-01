@@ -95,7 +95,8 @@
       padding: 0;
       min-width: 0;
       width: 100%;
-      overflow-x: hidden;
+      max-width: 100vw;
+      box-sizing: border-box;
     }
     body {
       font-family: var(--font);
@@ -247,14 +248,19 @@
       margin: 0 auto;
       padding: 18px 20px 44px;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 16px;
+      box-sizing: border-box;
     }
     #workspace:not([hidden]) {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 16px;
       animation: fadein 0.22s ease;
       width: 100%;
+      max-width: 100%;
       min-width: 0;
+      box-sizing: border-box;
     }
     .grid { display: grid; gap: 16px; width: 100%; }
     .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -265,7 +271,9 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       min-width: 0;
+      max-width: 100%;
       width: 100%;
+      box-sizing: border-box;
     }
     .panel { padding: 16px 18px; }
     .card-h {
@@ -1188,7 +1196,18 @@
     .card:hover .tip { display: block; animation: fadein 0.1s ease; }
 
     /* ---------- tables ---------- */
-    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+    .tbl-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+      max-width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-2);
+      box-sizing: border-box;
+      display: block;
+    }
+    .tbl-swipe-hint { display: none; }
     table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--border); vertical-align: top; }
     tbody tr:last-child td { border-bottom: 0; }
@@ -1421,7 +1440,7 @@
 
     @media (max-width: 1200px) {
       .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .g2, .g-rec { grid-template-columns: 1fr; }
+      .g2, .g-rec { grid-template-columns: minmax(0, 1fr); }
     }
 
     /* ---------- Mobile & Small Screen Responsiveness (< 860px) ---------- */
@@ -1482,15 +1501,68 @@
       }
     }
 
-    @media (max-width: 600px) {
-      main { padding: 10px 10px 36px; gap: 12px; }
-      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-      .loadout-grid, .board {
-        grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
-        gap: 6px;
+    @media (max-width: 860px) {
+      .tbl-swipe-hint {
+        display: block;
+        text-align: center;
+        font-size: 11px;
+        color: var(--muted);
+        padding: 6px 8px;
+        background: var(--surface-3);
+        border-bottom: 1px solid var(--border);
+        letter-spacing: 0.02em;
       }
-      .panel { padding: 12px; }
+      .tbl-wrap table {
+        min-width: 580px;
+        font-size: 11.5px;
+      }
+      .tbl-wrap th, .tbl-wrap td {
+        padding: 8px 6px;
+      }
+      .step-badge {
+        font-size: 11px;
+        padding: 1.5px 5px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      main { padding: 10px 10px 36px; gap: 12px; width: 100%; max-width: 100vw; }
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+      .loadout-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+        width: 100% !important;
+      }
+      .board {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+        width: 100% !important;
+      }
+      .panel { padding: 12px 10px; width: 100%; max-width: 100%; box-sizing: border-box; }
       .hero-feats { grid-template-columns: 1fr; }
+      .card {
+        padding: 10px 8px !important;
+        min-height: 115px !important;
+      }
+      .card h3 {
+        font-size: 12px !important;
+      }
+      .card .lv {
+        font-size: 15px !important;
+      }
+      .loadout-item {
+        padding: 6px 8px !important;
+        font-size: 12px !important;
+      }
+      .loadout-item .li-name {
+        font-size: 11.5px !important;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .loadout-grid, .board {
+        grid-template-columns: 1fr !important;
+      }
     }
 /* ---------- Presets, Milestones & Diagnostics Modal ---------- */
     #presetsDlg {
@@ -11155,7 +11227,7 @@ var ONE_TIMER_MILESTONES = [
     }).join("");
     var betterEl = $("better");
     var colGainLbl = (mode === "push") ? "Kill Speed (Δ)" : "Δ d/s";
-    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>" + colGainLbl + "</th><th>Earn/Return</th><th>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    betterEl.innerHTML = "<div class='tbl-wrap'><div class='tbl-swipe-hint'>↔ Swipe table horizontally to view all columns &amp; actions</div><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>" + colGainLbl + "</th><th>Earn/Return</th><th>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
       var sBtn = ev.target.closest("button[data-sim-build]");
       if (sBtn) {

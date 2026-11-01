@@ -3723,7 +3723,7 @@ var ONE_TIMER_MILESTONES = [
     }).join("");
     var betterEl = $("better");
     var colGainLbl = (mode === "push") ? "Kill Speed (Δ)" : "Δ d/s";
-    betterEl.innerHTML = "<div class='tbl-wrap'><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>" + colGainLbl + "</th><th>Earn/Return</th><th>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    betterEl.innerHTML = "<div class='tbl-wrap'><div class='tbl-swipe-hint'>↔ Swipe table horizontally to view all columns &amp; actions</div><table><thead><tr><th>Build</th><th>Missing Upgrades</th><th>Total Cost</th><th>" + colGainLbl + "</th><th>Earn/Return</th><th>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
       var sBtn = ev.target.closest("button[data-sim-build]");
       if (sBtn) {
