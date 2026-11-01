@@ -13,7 +13,7 @@
 	<link rel="apple-touch-icon" href="icons/192.png">
 	<link rel="manifest" href="manifest.json">
 	<link rel="stylesheet" type="text/css" href="css/style.css?39" />
-	<link rel="stylesheet" type="text/css" href="css/kreftus-local.css?43" />
+	<link rel="stylesheet" type="text/css" href="css/kreftus-local.css?49" />
 </head>
 <!-- 		Trimps
 		Copyright (C) 2025 Zach Hood
@@ -1181,7 +1181,7 @@
 			<div class="btn btn-warning inPortalBtn" style="display: none" id="respecPortalBtn" onclick="respecPerks()" onmouseover="tooltip('Respec', null, event)" onmouseout="tooltip('hide')"></div>
 			<div class="btn btn-success inPortalBtn" style='display: none' id="swapToCurrentChallengeBtn" onclick="swapToCurrentChallenge()" onmouseover="tooltip('View Current Challenge', 'customText', event, 'Swap the Challenge Selection pane to instead display your current challenge, or vice versa')" onmouseout="tooltip('hide')">View Current Challenge</div>
 			<div class="btn btn-warning inPortalBtn" style="display: none" id="clearPerksBtn" onclick="clearPerks()">Clear All Perks</div>
-			<div class="btn inPortalBtn autoColor darkBorder" onmouseover="tooltip('Respec Mutators', null, event)" onmouseout="tooltip('hide')" onclick="u2Mutations.toggleRespec()" style="display: none" id="respecMutatorsBtn"></div>
+			<div class="btn inPortalBtn autoColor darkBorder" onmouseover="tooltip('Respec Mutators', null, event)" onmouseout="tooltip('hide')" onclick="u2Mutations.toggleRespec()" style="display: none" id="respecMutatorsBtn">Respec Mutators On Portal</div>
 		</div>
 	</div>
 	<div id="achievementWrapper" style="display: none">
@@ -1397,7 +1397,7 @@
 	<script type="text/javascript" src="playerSpire.js?62"></script>
 	<script type="text/javascript" src="objects.js?62"></script>
 	<script type="text/javascript" src="main.js?63"></script>
-	<script type="text/javascript" src="js/kreftus-local.js?43"></script>
+	<script type="text/javascript" src="js/kreftus-local.js?49"></script>
 	<script>
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('sw.js', { scope: './' }).then(

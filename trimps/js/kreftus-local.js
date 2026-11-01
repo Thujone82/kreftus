@@ -79,6 +79,8 @@
 
   function clearJsOverrides() {
     enhanceViewPerksBtn();
+    hookStatsEnhancements();
+    updateStatsTabs();
     var nodes = document.querySelectorAll(FIT_SELECTORS.join(','));
     for (var i = 0; i < nodes.length; i++) {
       nodes[i].style.transform = '';
@@ -349,6 +351,28 @@
     }
   }
 
+  function updateStatsTabs() {
+    var mode = (window.game && window.game.global) ? window.game.global.statsMode : "total";
+    var totalBtn = document.getElementById("totalSelectBtn");
+    var currentBtn = document.getElementById("currentSelectBtn");
+    var customBtn = document.getElementById("customSelectBtn");
+    if (totalBtn) totalBtn.classList.toggle("statActive", mode === "total");
+    if (currentBtn) currentBtn.classList.toggle("statActive", mode === "current");
+    if (customBtn) customBtn.classList.toggle("statActive", mode === "custom");
+  }
+
+  function hookStatsEnhancements() {
+    var orig = window.toggleStats;
+    if (typeof orig === "function" && !orig._kreftusHooked) {
+      window.toggleStats = function (mode) {
+        var res = orig.apply(this, arguments);
+        updateStatsTabs();
+        return res;
+      };
+      window.toggleStats._kreftusHooked = true;
+    }
+  }
+
   function initKreftusEnhancements() {
     initMobileQuickNav();
     initThemeToggleButton();
@@ -391,6 +415,8 @@
       formatEqualityTab();
       updateHeliumIcon();
       enhanceViewPerksBtn();
+      updateStatsTabs();
+      hookStatsEnhancements();
     }, 600);
     setTimeout(function () {
       fitResourceBoxText();

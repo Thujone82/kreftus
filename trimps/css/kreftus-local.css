@@ -612,6 +612,46 @@ html, body {
   padding: 6px;
 }
 
+/* ==========================================================================
+   Universal Elimination of Light Corners on Buttons & Tabs
+   ========================================================================== */
+.nav-tabs > li,
+.nav-justified > li,
+.buyTabsUl > li,
+#buyTabs > ul > li,
+#buyTabsUl > li,
+#buyTabsUl2 > li,
+#numTabs > ul > li,
+#portalTabs > li,
+#portalPresetsTabs > li,
+li.buyTab,
+li.tabNotSelected,
+li.tabSelected,
+li.tabNotEnabled,
+.tabNotSelected,
+.tabNotEnabled,
+.tabSelected.buyTab {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.nav-tabs > li:hover,
+.nav-justified > li:hover,
+.buyTabsUl > li:hover,
+#numTabs > ul > li:hover,
+#portalTabs > li:hover,
+#portalPresetsTabs > li:hover,
+li.tabNotSelected:hover,
+li.tabSelected:hover,
+li.tabNotEnabled:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
 /* Buy Category & Quantity Multiplier Tabs */
 .buyTabsUl {
   border-bottom: none !important;
@@ -802,22 +842,25 @@ html, body {
 .toggleConfigBtn {
   height: 32px !important;
   min-height: 32px !important;
-  display: flex !important;
+  display: inline-flex !important;
   align-items: stretch !important;
   overflow: hidden !important;
   border-radius: var(--radius-sm) !important;
   border: 1px solid var(--border-strong) !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+  width: auto !important;
+  max-width: fit-content !important;
 }
 
 .toggleConfigBtn div:first-child {
-  flex: 1 1 auto !important;
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
   width: auto !important;
   float: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 4px 8px !important;
+  padding: 0 10px !important;
   font-size: 13px !important;
   font-weight: 600 !important;
   line-height: 1 !important;
@@ -825,24 +868,38 @@ html, body {
 }
 
 .toggleConfigBtn div:nth-child(2) {
-  flex: 0 0 32px !important;
-  width: 32px !important;
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  flex-shrink: 0 !important;
   float: none !important;
   height: 100% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: rgba(0, 0, 0, 0.25) !important;
-  border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+  cursor: pointer !important;
 }
 
 .toggleConfigBtn div:nth-child(2):hover {
-  background: rgba(0, 0, 0, 0.45) !important;
+  background: rgba(0, 0, 0, 0.5) !important;
 }
 
-.toggleConfigBtn div span.glyphicon {
+.toggleConfigBtn div:nth-child(2) span.glyphicon,
+.toggleConfigBtn div span.glyphicon-cog {
   font-size: 13px !important;
   line-height: 1 !important;
+  color: #ffffff !important;
+  display: inline-block !important;
+  opacity: 0.95 !important;
+  transition: transform 0.2s ease, opacity 0.2s ease !important;
+}
+
+.toggleConfigBtn div:nth-child(2):hover span.glyphicon,
+.toggleConfigBtn div:nth-child(2):hover span.glyphicon-cog {
+  opacity: 1 !important;
+  transform: rotate(30deg) !important;
 }
 
 .autoUpgradeBtn {
@@ -855,13 +912,37 @@ html, body {
   border: 1px solid var(--border-strong) !important;
 }
 
-/* Equipment / Buildings / Upgrades Title Bars */
+/* Buy Container, Buy Content & Section Title Bars */
+#buyContainer {
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+#buyHere {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  padding: 4px 6px !important;
+}
+
+.titleDiv {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 4px 0 !important;
+  margin: 0 !important;
+}
+
 #equipmentTitleDiv .row,
 #buildingsTitleDiv .row,
-#upgradesTitleDiv .row {
+#upgradesTitleDiv .row,
+#jobsTitleDiv .row {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
+  margin: 0 !important;
+  padding: 0 4px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  gap: 6px !important;
 }
 
 #equipmentTitleDiv .row > div:first-child,
@@ -869,22 +950,99 @@ html, body {
 #upgradesTitleDiv .row > div:first-child {
   width: auto !important;
   flex: 0 0 auto !important;
+  margin-right: auto !important;
 }
 
-#equipmentTitleDiv .row > div:last-child,
-#buildingsTitleDiv .row > div:last-child,
-#upgradesTitleDiv .row > div:last-child {
+#jobsTitleDiv .row > div:first-child {
   width: auto !important;
   flex: 0 0 auto !important;
-  min-width: 140px !important;
+}
+
+#jobsTitleDiv .row > div:nth-child(2) {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  margin-right: auto !important;
+}
+
+/* Hide empty spacer columns in Buildings and Equipment title rows */
+#buildingsTitleDiv .row > div:nth-child(2),
+#equipmentTitleDiv .row > div:nth-child(2),
+#equipmentTitleDiv .row > div:nth-child(3) {
+  display: none !important;
+}
+
+#buildingsTitleDiv .row > div,
+#equipmentTitleDiv .row > div,
+#upgradesTitleDiv .row > div,
+#jobsTitleDiv .row > div {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  padding: 0 !important;
 }
 
 #equipmentTitleSpan,
 #buildingsTitleSpan,
-#upgradesTitleSpan {
+#upgradesTitleSpan,
+#jobsTitleSpan {
   font-size: 16px !important;
   font-weight: 700 !important;
   color: var(--text-bright) !important;
+}
+
+#jobsTitleUnemployed {
+  color: var(--text-muted) !important;
+  font-weight: 600 !important;
+  margin-left: 4px !important;
+}
+
+
+/* Fire Button & Map Increment Buttons */
+#fireBtn {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  line-height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: var(--radius-sm) !important;
+  text-align: center !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+
+#fireBtn.fireBtnNotFiring {
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  border-color: var(--border-strong) !important;
+}
+
+#fireBtn.fireBtnNotFiring:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-bright) !important;
+  border-color: var(--border-hover) !important;
+}
+
+#fireBtn.fireBtnFiring {
+  background: linear-gradient(180deg, rgba(82, 22, 32, 0.96), rgba(50, 14, 21, 0.98)) !important;
+  border-color: rgba(244, 63, 94, 0.6) !important;
+  color: #fb7185 !important;
+}
+
+.incrementBtn {
+  background: var(--surface-2) !important;
+  color: var(--text-bright) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 2px 8px !important;
+  transition: all 0.15s ease !important;
+}
+
+.incrementBtn:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--border-hover) !important;
+  color: #ffffff !important;
 }
 
 /* Alert Badges inside Tabs & Cards */
@@ -1412,6 +1570,7 @@ table,
    Time Portal / View Perks Modal (#portalWrapper)
    ========================================================================== */
 #portalWrapper,
+#portalWrapper.portalMkPreview,
 #portalWrapper.portalMk0,
 #portalWrapper.portalMk1,
 #portalWrapper.portalMk2,
@@ -1754,9 +1913,105 @@ table,
   padding: 4px 8px !important;
 }
 
+/* Challenge View in View Perks Modal */
+#viewChallenge {
+  background: var(--surface-solid) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 16px 20px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45) !important;
+  max-height: 62vh !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) rgba(10, 12, 16, 0.4);
+}
+
+#viewChallenge::-webkit-scrollbar {
+  width: 7px;
+  background-color: rgba(10, 12, 16, 0.4);
+}
+
+#viewChallenge::-webkit-scrollbar-track {
+  background: rgba(10, 12, 16, 0.4);
+  border-radius: 6px;
+}
+
+#viewChallenge::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+
+#viewChallenge::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
 #viewChallengeText {
   color: var(--text) !important;
-  font-size: 14px;
+  font-size: 14.5px !important;
+  line-height: 1.6 !important;
+  display: block !important;
+  margin-top: 10px !important;
+}
+
+#viewChallengeText b,
+#viewChallengeText strong {
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+#viewChallengeText h4,
+#viewChallengeText .challengeTitle {
+  color: var(--accent) !important;
+  font-weight: 700;
+}
+
+#viewChallengeText ul {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) rgba(10, 12, 16, 0.4);
+}
+
+#cancelChallengeBtn {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 20px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  margin-top: 12px !important;
+}
+
+#cancelChallengeBtn.btn-warning {
+  background: linear-gradient(180deg, rgba(82, 22, 32, 0.96), rgba(50, 14, 21, 0.98)) !important;
+  border: 1px solid rgba(244, 63, 94, 0.55) !important;
+  color: #fb7185 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+}
+
+#cancelChallengeBtn.btn-warning:hover {
+  background: linear-gradient(180deg, rgba(104, 28, 41, 0.98), rgba(64, 18, 27, 0.98)) !important;
+  border-color: #f43f5e !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+#cancelChallengeBtn.btn-success {
+  background: linear-gradient(180deg, rgba(16, 52, 32, 0.96), rgba(10, 36, 22, 0.98)) !important;
+  border: 1px solid rgba(34, 197, 94, 0.55) !important;
+  color: #86efac !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+}
+
+#cancelChallengeBtn.btn-success:hover {
+  background: linear-gradient(180deg, rgba(22, 70, 42, 0.98), rgba(14, 48, 28, 0.98)) !important;
+  border-color: #22c55e !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
 }
 
 /* Challenge Selection Buttons */
@@ -1831,6 +2086,17 @@ table,
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4) !important;
   transition: all 0.15s ease !important;
   cursor: pointer;
+}
+
+/* Ensure hidden buttons in Time Portal / View Perks stay hidden */
+#portalBtnContainer .inPortalBtn[style*="display: none"],
+#portalBtnContainer .inPortalBtn[style*="display:none"],
+#portalBtnContainer [style*="display: none"],
+#portalBtnContainer [style*="display:none"],
+#portalWrapper.portalMkPreview #activatePortalBtn,
+#portalWrapper.portalMkPreview #respecMutatorsBtn,
+#portalWrapper.portalMkPreview #swapToCurrentChallengeBtn {
+  display: none !important;
 }
 
 #portalBtnContainer .inPortalBtn:hover {
@@ -1911,18 +2177,314 @@ table,
   color: #fff !important;
 }
 
-#swapToCurrentChallengeBtn,
-#cancelChallengeBtn {
+#respecPortalBtn::before,
+#respecMutatorsBtn::before {
+  content: "\e031";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+#swapToCurrentChallengeBtn {
   background: linear-gradient(180deg, rgba(16, 52, 28, 0.95), rgba(11, 35, 19, 0.98)) !important;
   border: 1px solid rgba(34, 197, 94, 0.5) !important;
   color: #86efac !important;
 }
 
-#swapToCurrentChallengeBtn:hover,
-#cancelChallengeBtn:hover {
+#swapToCurrentChallengeBtn:hover {
   background: linear-gradient(180deg, rgba(22, 68, 37, 0.98), rgba(14, 44, 24, 0.98)) !important;
   border-color: #22c55e !important;
   color: #fff !important;
+}
+
+/* ==========================================================================
+   Statistics Modal (#statsWrapper)
+   ========================================================================== */
+#statsWrapper {
+  background: var(--bg) !important;
+  background-image: var(--bg-grad) !important;
+  color: var(--text) !important;
+  padding: 24px 24px 32px !important;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+  text-align: center !important;
+}
+
+#statsTitle {
+  display: inline-block !important;
+  color: #ffffff !important;
+  font-family: var(--font-display) !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7) !important;
+  margin-bottom: 14px !important;
+}
+
+#statsTitle::before {
+  content: "\e185";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 22px;
+  color: var(--accent);
+  vertical-align: -1px;
+}
+
+#statsBtnRow {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 8px !important;
+  max-width: 540px !important;
+  margin: 0 auto 16px auto !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 4px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+}
+
+#statsBtnRow > .col-xs-3 {
+  display: none !important;
+}
+
+.statToggleBtn {
+  flex: 1 1 0 !important;
+  float: none !important;
+  width: auto !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  border: 1px solid var(--border-strong) !important;
+  margin: 0 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  text-shadow: none !important;
+}
+
+.statToggleBtn:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-bright) !important;
+  border-color: var(--border-hover) !important;
+  transform: translateY(-1px);
+}
+
+.statToggleBtn.statActive,
+.statToggleBtn[style*="yellow"],
+.statToggleBtn[style*="255, 255, 0"],
+.statToggleBtn[style*="#FFFF00"] {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.28), rgba(247, 147, 26, 0.12)) !important;
+  border-color: var(--accent) !important;
+  color: #fb923c !important;
+  box-shadow: 0 0 12px rgba(247, 147, 26, 0.4), inset 0 0 6px rgba(247, 147, 26, 0.15) !important;
+  font-weight: 800 !important;
+}
+
+#statsRow {
+  max-width: 1440px !important;
+  width: 100% !important;
+  margin: 0 auto 20px auto !important;
+  max-height: calc(100vh - 190px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 8px 12px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) rgba(10, 12, 16, 0.4);
+}
+
+#statsRow::-webkit-scrollbar {
+  width: 7px;
+  background-color: rgba(10, 12, 16, 0.4);
+}
+
+#statsRow::-webkit-scrollbar-track {
+  background: rgba(10, 12, 16, 0.4);
+  border-radius: 6px;
+}
+
+#statsRow::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+
+#statsRow::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+#statsRow > .col-xs-3,
+#statsRow > .col-xs-4,
+#statCol1,
+#statCol2,
+#statCol3,
+#statCol4 {
+  flex: 0 0 25% !important;
+  max-width: 25% !important;
+  width: 25% !important;
+  padding: 0 6px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  float: none !important;
+}
+
+.statContainer {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 8px 12px !important;
+  margin: 0 !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.15s ease !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-height: 56px !important;
+}
+
+.statContainer:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--border-hover) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45) !important;
+}
+
+.statContainer br {
+  display: none !important;
+}
+
+.statTitle {
+  color: var(--muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  margin-bottom: 3px !important;
+  line-height: 1.25 !important;
+  display: block !important;
+}
+
+.statValue {
+  color: #f8fafc !important;
+  font-family: var(--font-mono) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  display: block !important;
+}
+
+.statContainer .btn {
+  margin-top: 5px !important;
+  padding: 3px 14px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  border-radius: var(--radius-sm) !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.statContainer .btn-danger {
+  background: linear-gradient(180deg, rgba(82, 22, 32, 0.95), rgba(50, 14, 21, 0.98)) !important;
+  border: 1px solid rgba(244, 63, 94, 0.5) !important;
+  color: #fca5a5 !important;
+}
+
+.statContainer .btn-danger:hover {
+  background: linear-gradient(180deg, rgba(104, 28, 41, 0.98), rgba(64, 18, 27, 0.98)) !important;
+  border-color: #f43f5e !important;
+  color: #ffffff !important;
+}
+
+.statContainer .btn-success {
+  background: linear-gradient(180deg, rgba(16, 52, 32, 0.95), rgba(10, 36, 22, 0.98)) !important;
+  border: 1px solid rgba(34, 197, 94, 0.5) !important;
+  color: #86efac !important;
+}
+
+.statContainer .btn-success:hover {
+  background: linear-gradient(180deg, rgba(22, 70, 42, 0.98), rgba(14, 48, 28, 0.98)) !important;
+  border-color: #22c55e !important;
+  color: #ffffff !important;
+}
+
+#statsWrapper .inPortalBtn {
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  margin: 6px !important;
+}
+
+#statsWrapper .inPortalBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+#statsWrapper .inPortalBtn.btn-danger {
+  background: linear-gradient(180deg, rgba(82, 22, 32, 0.96), rgba(50, 14, 21, 0.98)) !important;
+  border: 1px solid rgba(244, 63, 94, 0.55) !important;
+  color: #fb7185 !important;
+}
+
+#statsWrapper .inPortalBtn.btn-danger:hover {
+  background: linear-gradient(180deg, rgba(104, 28, 41, 0.98), rgba(64, 18, 27, 0.98)) !important;
+  border-color: #f43f5e !important;
+  color: #ffffff !important;
+}
+
+#statsWrapper .inPortalBtn.btn-info {
+  background: linear-gradient(180deg, rgba(22, 38, 70, 0.96), rgba(14, 25, 48, 0.98)) !important;
+  border: 1px solid rgba(96, 165, 250, 0.55) !important;
+  color: #93c5fd !important;
+}
+
+#statsWrapper .inPortalBtn.btn-info:hover {
+  background: linear-gradient(180deg, rgba(30, 52, 96, 0.98), rgba(18, 34, 66, 0.98)) !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+
+#statsWrapper .inPortalBtn.btn-danger::before {
+  content: "\e014";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+#statsWrapper .inPortalBtn.btn-info::before {
+  content: "\e086";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
 }
 
 /* ==========================================================================
@@ -2771,18 +3333,21 @@ table,
 
   /* AutoEquip & Config Buttons in Narrow Mode */
   .toggleConfigBtn {
-    height: 36px !important;
-    min-height: 36px !important;
+    height: 34px !important;
+    min-height: 34px !important;
   }
 
   .toggleConfigBtn div:first-child {
-    font-size: 14px !important;
-    padding: 6px 10px !important;
+    font-size: 12px !important;
+    padding: 2px 6px !important;
+    min-width: 0 !important;
   }
 
   .toggleConfigBtn div:nth-child(2) {
-    flex: 0 0 36px !important;
-    width: 36px !important;
+    flex: 0 0 28px !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    flex-shrink: 0 !important;
   }
 
   .autoUpgradeBtn {
@@ -2792,13 +3357,16 @@ table,
   }
 
   #equipmentTitleDiv .row > div:last-child {
-    min-width: 150px !important;
+    width: auto !important;
   }
 
   .titleSpan,
-  #jobsTitleUnemployed,
-  #fireBtn {
+  #jobsTitleUnemployed {
     font-size: 14px !important;
+  }
+
+  #fireBtn {
+    font-size: 13px !important;
   }
 
   .thing,
@@ -3126,8 +3694,9 @@ table,
     margin-bottom: 6px !important;
   }
 
-  /* Time Portal Modal in Narrow View */
-  #portalWrapper {
+  /* Time Portal / View Perks Modal in Narrow View */
+  #portalWrapper,
+  #portalWrapper.portalMkPreview {
     width: 100% !important;
     max-width: 100vw !important;
     height: 100vh !important;
@@ -3303,6 +3872,39 @@ table,
     white-space: nowrap !important;
   }
 
+  /* View Perks Modal in Tablet / Narrow View */
+  #viewChallenge {
+    max-height: 48vh !important;
+    padding: 12px 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  #viewChallengeText {
+    font-size: 13px !important;
+  }
+
+  /* Statistics Modal in Tablet / Narrow View */
+  #statsWrapper {
+    padding: 16px 12px 24px !important;
+  }
+
+  #statsRow {
+    max-height: calc(100vh - 160px) !important;
+    padding: 6px !important;
+  }
+
+  #statsRow > .col-xs-3,
+  #statsRow > .col-xs-4,
+  #statCol1,
+  #statCol2,
+  #statCol3,
+  #statCol4 {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+    width: 50% !important;
+    margin-bottom: 8px !important;
+  }
+
   #challengeDescription {
     height: auto !important;
     min-height: 0 !important;
@@ -3370,6 +3972,16 @@ table,
     align-items: center !important;
     justify-content: center !important;
     box-sizing: border-box !important;
+  }
+
+  #portalBtnContainer .inPortalBtn[style*="display: none"],
+  #portalBtnContainer .inPortalBtn[style*="display:none"],
+  #portalBtnContainer [style*="display: none"],
+  #portalBtnContainer [style*="display:none"],
+  #portalWrapper.portalMkPreview #activatePortalBtn,
+  #portalWrapper.portalMkPreview #respecMutatorsBtn,
+  #portalWrapper.portalMkPreview #swapToCurrentChallengeBtn {
+    display: none !important;
   }
 
   #activatePortalBtn {
