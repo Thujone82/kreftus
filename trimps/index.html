@@ -13,7 +13,7 @@
 	<link rel="apple-touch-icon" href="icons/192.png">
 	<link rel="manifest" href="manifest.json">
 	<link rel="stylesheet" type="text/css" href="css/style.css?39" />
-	<link rel="stylesheet" type="text/css" href="css/kreftus-local.css?35" />
+	<link rel="stylesheet" type="text/css" href="css/kreftus-local.css?37" />
 </head>
 <!-- 		Trimps
 		Copyright (C) 2025 Zach Hood
@@ -172,7 +172,7 @@
 					<div class="col-xs-6 maxH">
 						<div id="food" class="playerGather">
 							<div id="boneShrineBtn" style="display: none" class="isEmpty noselect" onmouseover="tooltip('Bone Shrine', null, event)" onclick="game.permaBoneBonuses.boosts.consume()" onmouseout="tooltip('hide')"></div>
-							<span class="title">Food</span>
+							<span class="title"><span class="resIcon glyphicon glyphicon-apple"></span> Food</span>
 							<br/>
 							<span class="ownedArea bdHover" onclick="getMaxResources('Food')"><span id="foodOwned">0</span> / <span id="foodMax"></span></span>
 							<br/>
@@ -194,7 +194,7 @@
 
 					<div class="col-xs-6 maxH">
 						<div id="wood" class="playerGather" style="visibility: hidden;">
-							<span class="title">Wood</span>
+							<span class="title"><span class="resIcon glyphicon glyphicon-tree-deciduous"></span> Wood</span>
 							<br/>
 							<span class="ownedArea bdHover" onclick="getMaxResources('Wood')"><span id="woodOwned">0</span> / <span id="woodMax"></span></span>
 							<br/>
@@ -218,7 +218,7 @@
 				<div class="row resourceRow">
 					<div class="col-xs-6 maxH">
 						<div id="metal" class="playerGather" style="visibility: hidden;">
-							<span class="title">Metal</span>
+							<span class="title"><span class="resIcon icomoon icon-cubes"></span> Metal</span>
 							<br/>
 							<span class="ownedArea bdHover" onclick="getMaxResources('Metal')"><span id="metalOwned">0</span> / <span id="metalMax"></span></span>
 							<br/>
@@ -239,7 +239,7 @@
 					</div>
 					<div class="col-xs-6 maxH">
 						<div id="science" class="playerGather" style="visibility: hidden;">
-							<span class="title">Science</span>
+							<span class="title"><span class="resIcon icomoon icon-flask"></span> Science</span>
 							<br/>
 							<span class="ownedArea"><span id="scienceOwned">0</span></span>
 							<br/>
@@ -257,21 +257,21 @@
 			</div>
 			<div class="col-xs-1" id="miscColumn">
 				<div id="fragments" class="playerGather playerGatherSm" style="visibility: hidden;">
-					<span class="title">Fragments</span>
+					<span class="title"><span class="resIcon glyphicon glyphicon-th"></span> Fragments</span>
 					<br/>
 					<span class="ownedArea"><span id="fragmentsOwned">0</span></span>
 					<br/>
 					<span class="psText sizeSecRegular pointer noselect" id="fragmentsPs" style="display: none" onclick="getPsString('fragments')">+0/sec</span>
 				</div>
 				<div id="gems" class="playerGather playerGatherSm" style="visibility: hidden;">
-					<span class="title">Gems</span>
+					<span class="title"><span class="resIcon icomoon icon-diamond"></span> Gems</span>
 					<br/>
 					<span class="ownedArea"><span id="gemsOwned">0</span></span>
 					<br/>
 					<span class="psText sizeSecRegular pointer noselect" id="gemsPs" style="display: none" onclick="getPsString('gems')">+0/sec</span>
 				</div>
 				<div id="helium" class="playerGather playerGatherSm" style="display: none">
-					<span id="heliumName" class="title">Helium</span>
+					<span id="heliumTitle" class="title"><span id="heliumIcon" class="resIcon icomoon icon-battery"></span> <span id="heliumName">Helium</span></span>
 					<br/>
 					<span class="ownedArea"><span id="heliumOwned">0</span></span>
 					<br/>
@@ -1397,7 +1397,7 @@
 	<script type="text/javascript" src="playerSpire.js?62"></script>
 	<script type="text/javascript" src="objects.js?62"></script>
 	<script type="text/javascript" src="main.js?62"></script>
-	<script type="text/javascript" src="js/kreftus-local.js?35"></script>
+	<script type="text/javascript" src="js/kreftus-local.js?37"></script>
 	<script>
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('sw.js', { scope: './' }).then(

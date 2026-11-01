@@ -22,7 +22,7 @@
   var FIT_SELECTORS = [
     '#food .ownedArea', '#wood .ownedArea', '#metal .ownedArea', '#science .ownedArea',
     '#fragments .ownedArea', '#gems .ownedArea', '#helium .ownedArea', '#trimps > .ownedArea',
-    '#fragments > .title', '#gems > .title', '#helium > .title',
+    '#fragments > .title', '#gems > .title', '#helium > .title', '#heliumTitle',
     '#foodPs', '#woodPs', '#metalPs', '#sciencePs',
     '#fragmentsPs', '#gemsPs', '#heliumPh'
   ];
@@ -315,6 +315,16 @@
     });
   }
 
+  function updateHeliumIcon() {
+    var iconElem = document.getElementById('heliumIcon');
+    if (iconElem && typeof heliumIcon === 'function') {
+      var cls = 'resIcon ' + heliumIcon(true);
+      if (iconElem.className !== cls) {
+        iconElem.className = cls;
+      }
+    }
+  }
+
   function enforceEqualityTabName() {
     var tabTextElem = document.getElementById('equalityA');
     if (tabTextElem && tabTextElem.innerHTML !== 'Equality') {
@@ -328,6 +338,7 @@
     applyThemeState(isThemeEnabled());
     hookModalAutoScroll();
     enforceEqualityTabName();
+    updateHeliumIcon();
 
     var tip = document.getElementById('tooltipDiv');
     if (!tip) {
@@ -360,6 +371,7 @@
     setInterval(function () {
       fitResourceBoxText();
       enforceEqualityTabName();
+      updateHeliumIcon();
     }, 600);
     setTimeout(function () {
       fitResourceBoxText();

@@ -200,6 +200,20 @@ html, body {
   letter-spacing: 0.01em;
 }
 
+.playerGather .title .resIcon,
+.playerGatherSm .title .resIcon {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+  font-size: 0.88em;
+  opacity: 0.95;
+}
+
+#miscColumn .playerGatherSm .title .resIcon {
+  margin-right: 3px;
+  font-size: 0.84em;
+}
+
 #resourceColumn .playerGather > .ownedArea {
   margin-bottom: auto !important;
   display: inline-block !important;
@@ -290,7 +304,8 @@ html, body {
 }
 
 #miscColumn .playerGatherSm > .title,
-#miscColumn .playerGatherSm > #heliumName.title {
+#miscColumn .playerGatherSm > #heliumName.title,
+#miscColumn .playerGatherSm > #heliumTitle.title {
   display: block !important;
   margin-top: auto !important;
   font-size: clamp(11px, 16.5cqw, 1.4vw) !important;
@@ -1352,6 +1367,263 @@ table,
   transition: transform 0.1s ease, border-color 0.15s ease;
 }
 
+/* ==========================================================================
+   Bone Trader Modal (#boneWrapper)
+   ========================================================================== */
+#boneWrapper {
+  background: var(--bg) !important;
+  background-image: var(--bg-grad) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-lg, 12px) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85) !important;
+  padding: 16px 20px !important;
+  max-height: 94vh !important;
+  overflow-y: auto !important;
+  z-index: 1000 !important;
+}
+
+#boneWrapper .boneBtn.dangerColor {
+  background: var(--danger, #ef4444) !important;
+  border: 1px solid rgba(239, 68, 68, 0.6) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  padding: 6px 16px !important;
+  font-size: 14px !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer;
+}
+
+#boneWrapper .boneBtn.dangerColor:hover {
+  background: #dc2626 !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4) !important;
+}
+
+#boneTitleContainer {
+  color: #fff !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+}
+
+#boneOwnedContainer {
+  color: var(--accent) !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px;
+}
+
+#bonesFrom {
+  color: var(--muted) !important;
+  font-size: 13px !important;
+}
+
+#boneFlavorRow {
+  color: var(--muted) !important;
+  font-size: 13px !important;
+  font-style: italic;
+  margin-top: 4px;
+  margin-bottom: 14px;
+}
+
+#boneBuyRow {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+#boneBuyRow .boneBuyColumn,
+.boneBuyColumn {
+  background: var(--surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius, 10px) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow) !important;
+  padding: 14px !important;
+  height: auto !important;
+  min-height: 480px;
+}
+
+.boneBuyTitle {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: var(--accent) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding-bottom: 6px !important;
+  margin-bottom: 10px !important;
+  text-align: center;
+}
+
+.boneBuyDesc,
+.miscDesc {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  color: var(--text) !important;
+  padding: 10px 12px !important;
+  margin-bottom: 10px !important;
+  line-height: 1.4 !important;
+  font-size: 12px !important;
+}
+
+#permaBoneBonuses {
+  font-size: 12px !important;
+  color: var(--text) !important;
+}
+
+#permaBoneBonuses .singleBonusBox {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  color: var(--muted) !important;
+  padding: 8px 10px !important;
+  box-sizing: border-box !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  margin-bottom: 6px;
+  transition: border-color 0.15s ease !important;
+}
+
+#permaBoneBonuses .singleBonusBox:hover {
+  border-color: var(--accent) !important;
+  color: var(--text) !important;
+}
+
+.boneBtn {
+  border-radius: var(--radius-sm, 6px) !important;
+  padding: 6px 10px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  margin-bottom: 6px !important;
+  transition: all 0.15s ease !important;
+  border: 1px solid transparent !important;
+  cursor: pointer;
+}
+
+.boneBtnStateOff {
+  background-color: var(--surface-3) !important;
+  color: var(--muted) !important;
+  border: 1px solid var(--border-strong) !important;
+}
+
+.boneBtnStateOn {
+  background: linear-gradient(180deg, #1d4ed8, #1e40af) !important;
+  color: #fff !important;
+  border: 1px solid #3b82f6 !important;
+}
+
+.boneBtnStateOn:hover {
+  background: #2563eb !important;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4) !important;
+}
+
+.boneBtnStateTeal {
+  background-color: #0d9488 !important;
+  color: #fff !important;
+  border: 1px solid #14b8a6 !important;
+}
+
+.importLocation {
+  color: var(--accent) !important;
+  font-weight: 700 !important;
+  margin: 10px 0 6px 0 !important;
+  text-decoration: none !important;
+  font-size: 13px !important;
+}
+
+.importsTable {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  overflow: hidden !important;
+  margin-bottom: 10px !important;
+  font-size: 12px !important;
+}
+
+.importsTable > tbody > tr {
+  background-color: var(--surface-2) !important;
+  color: var(--text) !important;
+  font-size: 12px !important;
+}
+
+.importsTable > tbody > tr > td {
+  border-top: 1px solid var(--border) !important;
+  padding: 6px 10px !important;
+  vertical-align: middle !important;
+}
+
+.importsTable > tbody > tr:hover {
+  background-color: var(--surface-3) !important;
+}
+
+.importsTable tr.importOwned,
+.importsTable > tbody > tr.importOwned {
+  background-color: rgba(34, 197, 94, 0.18) !important;
+  color: #4ade80 !important;
+  font-weight: 600;
+}
+
+.importsTable > tbody > tr.importOwned:hover {
+  background-color: rgba(34, 197, 94, 0.28) !important;
+}
+
+#importPurchaseBtn {
+  margin-top: 6px;
+  width: 100%;
+}
+
+#singleRunBonuses {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  padding: 8px 10px !important;
+  margin: 10px 0 !important;
+}
+
+#singleRunBonuses .boneBuyTitle {
+  font-size: 14px !important;
+  margin-bottom: 4px !important;
+}
+
+#singleRunBonuses .boneBuyDesc {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 0 6px 0 !important;
+  margin-bottom: 6px !important;
+  font-size: 11px !important;
+  color: var(--muted) !important;
+  text-align: center;
+}
+
+#singleRunBonuses .singleBonusBox {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  color: var(--muted) !important;
+  padding: 6px 8px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  box-sizing: border-box !important;
+  margin-bottom: 6px;
+  transition: border-color 0.15s ease !important;
+}
+
+#singleRunBonuses .singleBonusBox:hover {
+  border-color: var(--accent) !important;
+  color: var(--text) !important;
+}
+
+#bonePortalDescription {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+}
+
+#heliumGainedMisc {
+  color: var(--accent) !important;
+  font-size: 13px !important;
+}
+
 /* --------------------------------------------------------------------------
    7. Spire Assault (#tooltipDiv.tooltipExtraBiggest) Enhanced Layout
    -------------------------------------------------------------------------- */
@@ -1715,7 +1987,8 @@ table,
   }
 
   #miscColumn .playerGatherSm > .title,
-  #miscColumn .playerGatherSm > #heliumName.title {
+  #miscColumn .playerGatherSm > #heliumName.title,
+  #miscColumn .playerGatherSm > #heliumTitle.title {
     display: block !important;
     font-size: 18px !important;
     font-weight: 800 !important;
@@ -2275,6 +2548,32 @@ table,
     font-size: 14px !important;
     height: auto !important;
     min-height: 52px;
+  }
+
+  /* Bone Trader Modal in Narrow View */
+  #boneWrapper {
+    width: 95vw !important;
+    left: 2.5vw !important;
+    margin: 2vh 0 !important;
+    max-height: calc(94vh - 68px) !important;
+    overflow-y: auto !important;
+    font-size: 14px !important;
+    padding: 12px !important;
+  }
+
+  #boneBuyRow {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  #boneBuyRow .boneBuyColumn,
+  .boneBuyColumn {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+    min-height: 0 !important;
+    margin-bottom: 8px !important;
   }
 }
 
