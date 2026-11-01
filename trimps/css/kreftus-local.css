@@ -1408,9 +1408,521 @@ table,
   border-radius: var(--radius);
 }
 
-.portalThing {
+/* ==========================================================================
+   Time Portal / View Perks Modal (#portalWrapper)
+   ========================================================================== */
+#portalWrapper,
+#portalWrapper.portalMk0,
+#portalWrapper.portalMk1,
+#portalWrapper.portalMk2,
+#portalWrapper.portalMk3,
+#portalWrapper.portalMk4,
+#portalWrapper.portalMk5,
+#portalWrapper.portalMk6 {
+  background: var(--bg) !important;
+  background-image: var(--bg-grad) !important;
+  color: var(--text) !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
+}
+
+/* Universe Switcher Button (Top Left) */
+#swapPortalUniverseBtn {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-strong) !important;
   border-radius: var(--radius-sm) !important;
-  transition: transform 0.1s ease, border-color 0.15s ease;
+  color: var(--text-bright) !important;
+  font-weight: 600 !important;
+  padding: 6px 14px !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer;
+}
+
+#swapPortalUniverseBtn:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+
+#swapPortalUniverseBtn::before {
+  content: "\e178";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+/* Title & Stats Header */
+#portalTitle {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+#portalHelium {
+  color: #38bdf8 !important;
+  font-weight: 800 !important;
+}
+
+#portalTotalHelium,
+#portalTotalSpent,
+#portalTotalPortals {
+  color: var(--muted) !important;
+}
+
+#portalTotalHelium span,
+#portalTotalSpent span,
+#portalTotalPortals span {
+  color: var(--text-bright) !important;
+  font-weight: 600;
+}
+
+#portalError {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  color: #fca5a5 !important;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px !important;
+}
+
+/* Columns & Section Headers */
+#perkCol .challengeTitle,
+#challengeCol .challengeTitle,
+.challengeTitle {
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px;
+}
+
+#portalStory,
+#challengeDescriptionPre {
+  color: var(--muted) !important;
+  font-size: 13.5px !important;
+  margin-bottom: 8px;
+}
+
+/* Preset Tabs (#portalPresetsTabs) */
+#portalPresetsTabs {
+  border-bottom: none !important;
+  display: flex !important;
+  gap: 3px !important;
+  padding: 3px 2px !important;
+  background: var(--surface) !important;
+  border-radius: var(--radius-sm) !important;
+  box-sizing: border-box !important;
+  margin-bottom: 6px !important;
+}
+
+#portalPresetsTabs > li {
+  float: none !important;
+  flex: 1 1 0 !important;
+  display: flex !important;
+}
+
+#portalPresetsTabs > li > a {
+  flex: 1 1 auto !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  padding: 5px 3px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: 28px !important;
+  transition: all 0.15s ease !important;
+}
+
+#portalPresetsTabs > li > a:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-bright) !important;
+  border-color: var(--border-strong) !important;
+}
+
+#portalPresetsTabs > li.tabSelected > a,
+#portalPresetsTabs > li.tabSelected > a:hover {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.24), rgba(247, 147, 26, 0.12)) !important;
+  border-color: rgba(247, 147, 26, 0.65) !important;
+  color: #fb923c !important;
+  box-shadow: 0 1px 4px rgba(247, 147, 26, 0.2) !important;
+}
+
+#portalPresetsTabs > li.tabNotEnabled > a {
+  opacity: 0.65;
+}
+
+/* Quantity Multiplier Tabs (#portalTabs) */
+#portalTabs {
+  border-bottom: none !important;
+  display: flex !important;
+  gap: 3px !important;
+  padding: 3px 2px !important;
+  background: var(--surface) !important;
+  border-radius: var(--radius-sm) !important;
+  box-sizing: border-box !important;
+  margin-bottom: 8px !important;
+  margin-top: 4px !important;
+  border: none !important;
+}
+
+#portalTabs > li {
+  float: none !important;
+  flex: 1 1 0 !important;
+  display: flex !important;
+}
+
+#portalTabs > li > a {
+  flex: 1 1 auto !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  padding: 5px 3px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: 30px !important;
+  transition: all 0.15s ease !important;
+}
+
+#portalTabs > li > a:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-bright) !important;
+  border-color: var(--border-strong) !important;
+}
+
+#portalTabs > li.tabSelected > a,
+#portalTabs > li.tabSelected > a:hover {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.24), rgba(247, 147, 26, 0.12)) !important;
+  border-color: rgba(247, 147, 26, 0.65) !important;
+  color: #fb923c !important;
+  box-shadow: 0 1px 4px rgba(247, 147, 26, 0.2) !important;
+}
+
+#portalTabs #ptabRemove.tabSelected > a {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.25), rgba(239, 68, 68, 0.12)) !important;
+  border-color: rgba(239, 68, 68, 0.65) !important;
+  color: #f87171 !important;
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Perk Upgrade Cards (#portalUpgradesHere) */
+#portalUpgradesHere {
+  padding: 2px !important;
+}
+
+.portalThing {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--text) !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+  transition: transform 0.1s ease, border-color 0.15s ease, background-color 0.15s ease !important;
+  padding: 5px 6px !important;
+  margin: 0.25% !important;
+  box-sizing: border-box !important;
+}
+
+.portalThing:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--border-hover) !important;
+  transform: translateY(-1px);
+}
+
+.portalThing .thingName {
+  color: #f8fafc !important;
+  font-weight: 700 !important;
+}
+
+.portalThing .thingOwned {
+  color: var(--accent) !important;
+  font-weight: 600;
+}
+
+.portalThing.perkColorOn {
+  background: linear-gradient(180deg, rgba(22, 27, 38, 0.98), rgba(16, 20, 28, 0.98)) !important;
+  border-color: rgba(96, 165, 250, 0.35) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 5px rgba(0, 0, 0, 0.4) !important;
+}
+
+.portalThing.perkColorOff {
+  background: rgba(14, 17, 24, 0.75) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+  color: var(--muted) !important;
+}
+
+.portalThing.perkColorOff .thingName {
+  color: var(--muted) !important;
+}
+
+.portalThing.perkColorMaxed {
+  background: linear-gradient(180deg, rgba(38, 28, 54, 0.95), rgba(24, 18, 36, 0.98)) !important;
+  border-color: rgba(167, 139, 250, 0.45) !important;
+  color: #e9d5ff !important;
+}
+
+.portalThing.perkColorMaxed .thingName {
+  color: #f5f3ff !important;
+}
+
+.portalThing.additive.perkColorOn {
+  background: linear-gradient(180deg, rgba(16, 42, 28, 0.95), rgba(11, 28, 19, 0.98)) !important;
+  border-color: rgba(34, 197, 94, 0.45) !important;
+}
+
+.portalThing.additive.perkColorOn .thingName {
+  color: #86efac !important;
+}
+
+#equalityScaling.equalityColorOn {
+  background: linear-gradient(180deg, rgba(20, 58, 40, 0.96), rgba(13, 35, 25, 0.98)) !important;
+  border-color: rgba(34, 197, 94, 0.6) !important;
+}
+
+#equalityScaling.equalityColorOn .thingName {
+  color: #4ade80 !important;
+}
+
+#equalityScaling.equalityColorOff {
+  background: linear-gradient(180deg, rgba(58, 52, 26, 0.95), rgba(36, 32, 16, 0.98)) !important;
+  border-color: rgba(251, 191, 36, 0.5) !important;
+}
+
+#equalityScaling.equalityColorOff .thingName {
+  color: #fde68a !important;
+}
+
+/* Challenge Squared Button */
+.thingColorSquared,
+#inPortalC2Button,
+#challengeSquaredViewBtn {
+  background: linear-gradient(180deg, rgba(30, 41, 82, 0.95), rgba(19, 26, 52, 0.98)) !important;
+  border: 1px solid rgba(96, 165, 250, 0.45) !important;
+  border-radius: var(--radius-sm) !important;
+  color: #93c5fd !important;
+  padding: 4px 10px !important;
+  font-weight: 700 !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.thingColorSquared:hover,
+#inPortalC2Button:hover,
+#challengeSquaredViewBtn:hover {
+  background: linear-gradient(180deg, rgba(38, 54, 110, 0.98), rgba(24, 34, 70, 0.98)) !important;
+  border-color: #60a5fa !important;
+  color: #dbeafe !important;
+}
+
+/* Challenge Description Box */
+#specificChallengeDescription {
+  background: var(--surface-solid) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius) !important;
+  color: var(--text) !important;
+  padding: 12px 14px !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+}
+
+#specificChallengeDescription * {
+  color: inherit;
+}
+
+#specificChallengeDescription b,
+#specificChallengeDescription strong {
+  color: #fff !important;
+}
+
+#specificChallengeDescription table {
+  border-color: var(--border-strong) !important;
+  margin-top: 6px;
+}
+
+#specificChallengeDescription th,
+#specificChallengeDescription td {
+  border-color: var(--border) !important;
+  padding: 4px 8px !important;
+}
+
+#viewChallengeText {
+  color: var(--text) !important;
+  font-size: 14px;
+}
+
+/* Challenge Selection Buttons */
+.challengeThing {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--text-bright) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.challengeThing:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--accent) !important;
+  transform: translateY(-1px);
+}
+
+.challengeRepeatable {
+  background: linear-gradient(180deg, rgba(22, 34, 56, 0.95), rgba(15, 23, 38, 0.98)) !important;
+  border-color: rgba(96, 165, 250, 0.4) !important;
+  color: #93c5fd !important;
+}
+
+.challengeRepeatable:hover {
+  background: linear-gradient(180deg, rgba(28, 44, 74, 0.98), rgba(18, 28, 48, 0.98)) !important;
+  border-color: #60a5fa !important;
+}
+
+#challengeDaily {
+  background: linear-gradient(180deg, rgba(84, 58, 16, 0.95), rgba(54, 38, 10, 0.98)) !important;
+  border-color: rgba(245, 158, 11, 0.55) !important;
+  color: #fde68a !important;
+  font-weight: 700 !important;
+}
+
+#challengeDaily:hover {
+  background: linear-gradient(180deg, rgba(104, 72, 20, 0.98), rgba(68, 48, 12, 0.98)) !important;
+  border-color: #fbbf24 !important;
+}
+
+.challengeThing.challengeSelected,
+.challengeThing.thingColorSquaredActive {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 10px rgba(247, 147, 26, 0.5), inset 0 0 8px rgba(247, 147, 26, 0.2) !important;
+  color: #fff !important;
+}
+
+/* Action Buttons Row (#portalBtnContainer) */
+#portalBtnContainer {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 14px !important;
+  flex-wrap: wrap !important;
+}
+
+#portalBtnContainer .inPortalBtn {
+  height: 44px !important;
+  min-height: 44px !important;
+  padding: 0 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer;
+}
+
+#portalBtnContainer .inPortalBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+#activatePortalBtn {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  border: 1px solid rgba(147, 197, 253, 0.55) !important;
+  color: #ffffff !important;
+}
+
+#activatePortalBtn:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  box-shadow: 0 0 16px rgba(37, 99, 235, 0.5) !important;
+}
+
+#activatePortalBtn::before {
+  content: "\e162";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+#cancelPortalBtn {
+  background: linear-gradient(180deg, rgba(82, 22, 32, 0.96), rgba(50, 14, 21, 0.98)) !important;
+  border: 1px solid rgba(244, 63, 94, 0.55) !important;
+  color: #fb7185 !important;
+}
+
+#cancelPortalBtn:hover {
+  background: linear-gradient(180deg, rgba(104, 28, 41, 0.98), rgba(64, 18, 27, 0.98)) !important;
+  border-color: #f43f5e !important;
+  color: #fff !important;
+}
+
+#cancelPortalBtn::before {
+  content: "\e014";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+#clearPerksBtn {
+  background: linear-gradient(180deg, rgba(84, 58, 16, 0.95), rgba(54, 38, 10, 0.98)) !important;
+  border: 1px solid rgba(245, 158, 11, 0.5) !important;
+  color: #fde68a !important;
+}
+
+#clearPerksBtn:hover {
+  background: linear-gradient(180deg, rgba(104, 72, 20, 0.98), rgba(68, 48, 12, 0.98)) !important;
+  border-color: #fbbf24 !important;
+  color: #fff !important;
+}
+
+#clearPerksBtn::before {
+  content: "\e020";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+#respecMutatorsBtn,
+#respecPortalBtn {
+  background: linear-gradient(180deg, rgba(16, 46, 46, 0.95), rgba(10, 30, 30, 0.98)) !important;
+  border: 1px solid rgba(45, 212, 191, 0.45) !important;
+  color: #5eead4 !important;
+}
+
+#respecMutatorsBtn:hover,
+#respecPortalBtn:hover {
+  background: linear-gradient(180deg, rgba(20, 60, 60, 0.98), rgba(14, 40, 40, 0.98)) !important;
+  border-color: #2dd4bf !important;
+  color: #fff !important;
+}
+
+#swapToCurrentChallengeBtn,
+#cancelChallengeBtn {
+  background: linear-gradient(180deg, rgba(16, 52, 28, 0.95), rgba(11, 35, 19, 0.98)) !important;
+  border: 1px solid rgba(34, 197, 94, 0.5) !important;
+  color: #86efac !important;
+}
+
+#swapToCurrentChallengeBtn:hover,
+#cancelChallengeBtn:hover {
+  background: linear-gradient(180deg, rgba(22, 68, 37, 0.98), rgba(14, 44, 24, 0.98)) !important;
+  border-color: #22c55e !important;
+  color: #fff !important;
 }
 
 /* ==========================================================================
@@ -2614,13 +3126,107 @@ table,
     margin-bottom: 6px !important;
   }
 
+  /* Time Portal Modal in Narrow View */
+  #portalWrapper {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    padding: 12px 10px 80px 10px !important;
+    overflow-y: auto !important;
+    font-size: 14px !important;
+  }
+
+  #portalRow {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  #perkCol,
+  #challengeCol {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    float: none !important;
+  }
+
+  #portalTitle {
+    font-size: 24px !important;
+    margin: 8px 0 !important;
+  }
+
+  #portalHelium {
+    font-size: 18px !important;
+    line-height: 1.3 !important;
+  }
+
+  #portalTotalPortals,
+  #portalTotalSpent,
+  #portalTotalHelium {
+    font-size: 13px !important;
+    line-height: 1.3 !important;
+  }
+
+  #perkCol .challengeTitle,
+  #challengeCol .challengeTitle,
+  .challengeTitle {
+    font-size: 18px !important;
+    margin-bottom: 4px !important;
+  }
+
+  #portalStory,
+  #challengeDescriptionPre {
+    font-size: 13px !important;
+  }
+
+  #swapPortalUniverseBtn {
+    position: static !important;
+    display: inline-block !important;
+    margin-bottom: 8px !important;
+    font-size: 13px !important;
+  }
+
+  #portalUpgradesHere {
+    max-height: 50vh !important;
+    width: 100% !important;
+  }
+
   .portalThing,
   .portalThing.smallPerk,
   .portalThing.tinyPerk {
-    width: calc(50% - 6px) !important;
-    font-size: 14px !important;
+    width: calc(33.333% - 4px) !important;
+    font-size: 12px !important;
     height: auto !important;
-    min-height: 52px;
+    min-height: 48px !important;
+    margin: 0 0 4px 0 !important;
+  }
+
+  #specificChallengeDescription {
+    min-height: 80px !important;
+    max-height: 180px !important;
+    font-size: 13px !important;
+    margin: 8px 0 !important;
+  }
+
+  .challengeThing {
+    width: calc(25% - 4px) !important;
+    height: auto !important;
+    min-height: 36px !important;
+    font-size: 12px !important;
+    padding: 2px 4px !important;
+  }
+
+  #portalBtnContainer {
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  #portalBtnContainer .inPortalBtn {
+    font-size: 15px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 0 16px !important;
+    flex: 1 1 calc(50% - 8px) !important;
   }
 
   /* Bone Trader Modal in Narrow View */
@@ -2656,5 +3262,20 @@ table,
     width: 100% !important;
     padding: 0 !important;
     margin-bottom: 6px;
+  }
+
+  .portalThing,
+  .portalThing.smallPerk,
+  .portalThing.tinyPerk {
+    width: calc(50% - 4px) !important;
+  }
+
+  .challengeThing {
+    width: calc(33.333% - 4px) !important;
+  }
+
+  #portalBtnContainer .inPortalBtn {
+    flex: 1 1 100% !important;
+    width: 100% !important;
   }
 }
