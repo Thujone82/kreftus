@@ -340,10 +340,12 @@
     }
   }
 
-  function enforceEqualityTabName() {
+  function formatEqualityTab() {
     var tabTextElem = document.getElementById('equalityA');
-    if (tabTextElem && tabTextElem.innerHTML !== 'Equality') {
-      tabTextElem.innerHTML = 'Equality';
+    if (!tabTextElem) return;
+    var html = tabTextElem.innerHTML;
+    if (html.indexOf('(Scaling') !== -1 && html.indexOf('equalityScaling') === -1) {
+      tabTextElem.innerHTML = html.replace(/\s*(\(Scaling\s+(?:On|Off)\))/i, ' <span class="equalityScaling">$1</span>');
     }
   }
 
@@ -352,7 +354,7 @@
     initThemeToggleButton();
     applyThemeState(isThemeEnabled());
     hookModalAutoScroll();
-    enforceEqualityTabName();
+    formatEqualityTab();
     updateHeliumIcon();
     enhanceViewPerksBtn();
 
@@ -386,7 +388,7 @@
 
     setInterval(function () {
       fitResourceBoxText();
-      enforceEqualityTabName();
+      formatEqualityTab();
       updateHeliumIcon();
       enhanceViewPerksBtn();
     }, 600);
