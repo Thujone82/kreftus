@@ -1157,12 +1157,21 @@
       font-family: var(--mono); font-size: 15px; font-weight: 700;
       display: flex; align-items: center; justify-content: space-between; gap: 6px;
     }
+    .card .cost.max-level { justify-content: center; font-weight: 600; }
     .card .gap { color: var(--warn); }
     .lv-bar {
       height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin: 5px 0 6px;
     }
-    .lv-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--buy); transition: width 0.2s; }
-    .card.warn .lv-bar > span { background: var(--warn); }
+    .lv-bar > span {
+      display: block; height: 100%; border-radius: 999px;
+      background: var(--buy); opacity: 0.65; transition: width 0.2s, opacity 0.2s;
+    }
+    .lv-bar > span.ready {
+      opacity: 1;
+      background: var(--buy) !important;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.45);
+    }
+    .card.warn .lv-bar > span:not(.ready) { background: var(--warn); }
     .card.locked .lv-bar > span { background: var(--violet); width: 0 !important; }
 
     .card-meta-rows { display: grid; gap: 3px; margin-top: auto; }
@@ -7384,18 +7393,44 @@ function createRawAutoBattle(game, u2Mutations) {
     return !!FARM_LEVELS_SET[l];
   }
 
+  function isWorkingToClear(level) {
+    if (!state.ab) return false;
+    var l = level != null ? Number(level) : (state.ab.enemyLevel || state.level || 1);
+    var fightLvl = state.ab.enemyLevel || 1;
+    var maxLvl = state.ab.maxEnemyLevel || fightLvl;
+    var isMaxCleared = Boolean(state.ab.sealed || state.ab.canSeal || fightLvl > 160 || maxLvl > 160);
+    if (isMaxCleared) return false;
+    return (fightLvl >= maxLvl) && (l === fightLvl || l === maxLvl);
+  }
+
+  function getLevelDefaultMode(level) {
+    return isWorkingToClear(level) ? "push" : "farm";
+  }
+
   function getLevelMode(level) {
     var l = level != null ? Number(level) : state.level;
     if (state.levelModeOverrides && state.levelModeOverrides[l]) {
       return state.levelModeOverrides[l];
     }
-    return isFarmLevel(l) ? "farm" : "push";
+    return getLevelDefaultMode(l);
+  }
+
+  function updateLevelSelectOptionTag(level) {
+    var sel = $("levelSelect");
+    if (!sel || !sel.options) return;
+    for (var i = 0; i < sel.options.length; i++) {
+      if (Number(sel.options[i].value) === Number(level)) {
+        sel.options[i].textContent = "SA " + level + " · " + levelTag(level);
+        break;
+      }
+    }
   }
 
   function setLevelMode(level, mode) {
     var l = level != null ? Number(level) : state.level;
     if (!state.levelModeOverrides) state.levelModeOverrides = {};
     state.levelModeOverrides[l] = mode;
+    updateLevelSelectOptionTag(l);
   }
 
   function toggleLevelMode(level) {
@@ -7617,7 +7652,7 @@ function createRawAutoBattle(game, u2Mutations) {
 
   function upgradeCostAt(key, level) {
     var c = itemCat(key);
-    if (!c || c.noUp) return 0;
+    if (!c || c.noUp || (c.max && level >= c.max)) return 0;
     return c.start * Math.pow(c.mod, Math.max(0, level - 1));
   }
 
@@ -9036,7 +9071,7 @@ var ONE_TIMER_MILESTONES = [
     sheetLevels().forEach(function (lv) {
       var o = document.createElement("option");
       o.value = String(lv);
-      var tag = isFarmLevel(lv) ? "Farm" : "Push";
+      var tag = levelTag(lv);
       o.textContent = "SA " + lv + " · " + tag;
       sel.appendChild(o);
     });
@@ -9087,14 +9122,14 @@ var ONE_TIMER_MILESTONES = [
     var el = $("levelModeToggle");
     if (!el) return;
     var mode = getLevelMode(state.level);
-    var isFarmDef = isFarmLevel(state.level);
+    var isFarmDef = getLevelDefaultMode(state.level) === "farm";
     var isOverridden = !!(state.levelModeOverrides && state.levelModeOverrides[state.level]);
-    var defWord = isFarmDef ? "Farm" : "Push";
+    var isPushingCur = isWorkingToClear(state.level);
     var tipFarm = mode === "farm"
-      ? (isOverridden ? "Farm Mode active (User override · held until refresh)" : "Farm Mode active (Default for SA " + state.level + " · Dust Priority)")
+      ? (isOverridden ? "Farm Mode active (User override · held until refresh)" : "Farm Mode active (Default · Dust Priority)")
       : "Switch to Farm Mode (Prioritizes maximum dust rate for recommendations)";
     var tipPush = mode === "push"
-      ? (isOverridden ? "Push Mode active (User override · held until refresh)" : "Push Mode active (Default for SA " + state.level + " · Clear Time Priority)")
+      ? (isOverridden ? "Push Mode active (User override · held until refresh)" : ("Push Mode active (" + (isPushingCur ? "Active push level · Clear Priority" : "Clear Priority") + ")"))
       : "Switch to Push Mode (Prioritizes fastest clear time over dust rate for recommendations)";
 
     el.innerHTML =
@@ -9896,9 +9931,10 @@ var ONE_TIMER_MILESTONES = [
         "Targeting the closest recommended build <b>" + esc(target.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). " +
         "Follow the Next Upgrade Advisor on the right to progress toward this build.";
 
-      var isFarm = isFarmLevel(state.level);
-      var lvlTagPill = "<span class='pill sm " + (isFarm ? "buy" : "accent") + "' title='Community sheet " + (isFarm ? "Farming Level" : "Push Level") + "'>" +
-        (isFarm ? ICONS.dust + " Farm Level" : ICONS.spire + " Push Level") + "</span>";
+      var mode = getLevelMode(state.level);
+      var isFarm = mode === "farm";
+      var lvlTagPill = "<span class='pill sm " + (isFarm ? "buy" : "accent") + "' title='Recommendation Mode: " + (isFarm ? "Farm Mode (Dust rate prioritized)" : "Push Mode (Clear time prioritized)") + "'>" +
+        (isFarm ? ICONS.dust + " Farm Mode" : ICONS.spire + " Push Mode") + "</span>";
 
       el.innerHTML =
         "<div class='rec'>" +
@@ -10707,20 +10743,28 @@ var ONE_TIMER_MILESTONES = [
     else if (need && lv >= need) badge = "<span class='card-badge ok'>Equipped</span>";
     else if (equipped) badge = "<span class='card-badge sell'>Unequip</span>";
 
-    var pct = !owned ? 0 : (need ? Math.min(100, Math.round((lv / need) * 100)) : 100);
     var lines = [];
     var topLv = "";
     var meta = "";
+    var isMaxLevel = !cat || cat.noUp || (cat.max && lv >= cat.max);
+    var isSh = isShards(key);
+    var curFunds = isSh ? (bnk.shards || 0) : (bnk.dust || 0);
+    var nextCost = 0;
+    var pct = 0;
+    var isReady = false;
+    var barTip = "";
 
     if (!owned) {
+      pct = 0;
+      barTip = "Locked contract";
       topLv = "<div class='lv'><span>Locked</span>" + (cat && cat.zone ? "<span class='muted' style='font-size:12px;'>Z" + cat.zone + "</span>" : "") + "</div>";
       if (cat && cat.zone) {
         var active = state.ab.activeContract === key;
         var reach = (state.radon + 1) >= cat.zone;
         var cPrice = contractPrice(key);
-        var tUnlock = timeForCost(cPrice, isShards(key), rate, bnk.dust, bnk.shards);
+        var tUnlock = timeForCost(cPrice, isSh, rate, bnk.dust, bnk.shards);
         meta += "<div class='cost'><span>Contract</span><span>" + prettify(cPrice) + " " + currencyName(key) + "</span></div>";
-        meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + cPrice + "' data-item-shards='" + (isShards(key) ? "1" : "0") + "'>" + fmtTime(tUnlock) + "</span></div>";
+        meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + cPrice + "' data-item-shards='" + (isSh ? "1" : "0") + "'>" + fmtTime(tUnlock) + "</span></div>";
         if (active) meta += "<div class='flag'>" + ICONS.info + " Accepted, not finished</div>";
         if (!reach) meta += "<div class='flag bad'>" + ICONS.warn + " Void map unreachable</div>";
         lines.push("Complete the Z" + cat.zone + " contract to unlock " + itemName(key) + ".");
@@ -10728,21 +10772,32 @@ var ONE_TIMER_MILESTONES = [
     } else {
       topLv = "<div class='lv'><span>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</span>" +
         (equipped ? "<span class='muted' style='font-size:11px;font-weight:500;'>Equipped</span>" : (need ? "<span class='gap' style='font-size:11px;font-weight:600;'>Not equipped</span>" : "")) + "</div>";
-      if (cat && !cat.noUp) {
+      if (!isMaxLevel) {
         var next = upgradeCostAt(key, lv);
-        var tNext = timeForCost(next, isShards(key), rate, bnk.dust, bnk.shards);
+        nextCost = next;
+        var tNext = timeForCost(next, isSh, rate, bnk.dust, bnk.shards);
+        isReady = (next <= 0) || (curFunds >= next);
+        pct = next > 0 ? Math.min(100, Math.max(0, (curFunds / next) * 100)) : 100;
+        if (isReady) {
+          barTip = "Ready to upgrade to Lv " + (lv + 1) + "! (" + prettify(next) + " " + currencyName(key) + ")";
+        } else {
+          barTip = "Progress to Lv " + (lv + 1) + ": " + pct.toFixed(1) + "% (" + prettify(curFunds) + " / " + prettify(next) + " " + currencyName(key) + ")";
+        }
         meta += "<div class='cost'><span>Next (Lv " + (lv + 1) + ")</span><span>" + prettify(next) + " " + currencyName(key) + "</span></div>";
-        meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + next + "' data-item-shards='" + (isShards(key) ? "1" : "0") + "'>" + fmtTime(tNext) + "</span></div>";
+        meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + next + "' data-item-shards='" + (isSh ? "1" : "0") + "'>" + fmtTime(tNext) + "</span></div>";
         lines.push("Next upgrade: " + (cat.upgrade || "—") + ".");
         lines.push("Cost " + prettify(next) + " " + currencyName(key) + " (" + fmtTime(tNext) + ").");
         if (need > lv) {
           var gap = upgradeCostRange(key, lv, need);
-          var tGap = timeForCost(gap, isShards(key), rate, bnk.dust, bnk.shards);
-          meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " · <span class='board-wait' data-item-cost='" + gap + "' data-item-shards='" + (isShards(key) ? "1" : "0") + "'>" + fmtTime(tGap) + "</span></span></div>";
+          var tGap = timeForCost(gap, isSh, rate, bnk.dust, bnk.shards);
+          meta += "<div class='gapcost'><span>To Lv " + need + "</span><span>" + prettify(gap) + " · <span class='board-wait' data-item-cost='" + gap + "' data-item-shards='" + (isSh ? "1" : "0") + "'>" + fmtTime(tGap) + "</span></span></div>";
           lines.push("To reach the build: Lv " + lv + " → Lv " + need + ".");
         }
       } else {
-        meta += "<div class='cost'><span>Upgrade</span><span>Unupgradable</span></div>";
+        pct = 0;
+        barTip = "Max Level — cannot be upgraded";
+        meta += "<div class='cost max-level' style='justify-content:center;'><span style='color:var(--muted);font-weight:600;'>Max Level</span></div>";
+        lines.push("Max Level (Cannot be upgraded).");
       }
       if (need && !equipped) {
         lines.push("Recommended build uses this item — equip it into your loadout.");
@@ -10756,7 +10811,7 @@ var ONE_TIMER_MILESTONES = [
       "<div>" +
       "<div class='card-head-row'><h3>" + iconForItem(key) + "<span>" + esc(itemName(key)) + "</span></h3>" + badge + "</div>" +
       topLv +
-      "<div class='lv-bar'><span style='width:" + pct + "%'></span></div>" +
+      "<div class='lv-bar' title='" + esc(barTip) + "'><span class='board-bar" + (isReady ? " ready" : "") + "' data-item-cost='" + nextCost + "' data-item-shards='" + (isSh ? "1" : "0") + "' data-next-lv='" + (lv + 1) + "' data-currency='" + currencyName(key) + "' data-max-level='" + (isMaxLevel ? "1" : "0") + "' style='width:" + (isReady ? 100 : pct.toFixed(1)) + "%'></span></div>" +
       "</div>" +
       "<div class='card-meta-rows'>" + meta + "</div>" +
       cardTooltip(itemName(key), lines) +
@@ -10804,6 +10859,10 @@ var ONE_TIMER_MILESTONES = [
       }
       var next = ringLevelCost(lv);
       var tNext = timeForCost(next, true, rate, bnk.dust, bnk.shards);
+      var curShards = bnk.shards || 0;
+      var ringReady = (next <= 0) || (curShards >= next);
+      pct = next > 0 ? Math.min(100, Math.max(0, (curShards / next) * 100)) : 100;
+      var ringBarTip = ringReady ? ("Ready to upgrade Ring to Lv " + (lv + 1) + "! (" + prettify(next) + " shards)") : ("Progress to Ring Lv " + (lv + 1) + ": " + pct.toFixed(1) + "% (" + prettify(curShards) + " / " + prettify(next) + " shards)");
       var mods = formatModList(curMods);
       var reqModTxt = formatModList(reqMods);
       topLv = "<div class='lv'><span>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</span></div>";
@@ -10827,7 +10886,7 @@ var ONE_TIMER_MILESTONES = [
       "<div>" +
       "<div class='card-head-row'><h3>" + ICONS.ring + "<span>The Ring</span></h3>" + badge + "</div>" +
       topLv +
-      "<div class='lv-bar'><span style='width:" + pct + "%'></span></div>" +
+      "<div class='lv-bar' title='" + esc(hasRing() ? ringBarTip : "Unlock The Ring") + "'><span class='board-bar" + (hasRing() && ringReady ? " ready" : "") + "' data-item-cost='" + (hasRing() ? next : cost) + "' data-item-shards='1' data-next-lv='" + (hasRing() ? (lv + 1) : "1") + "' data-currency='shards' data-max-level='0' style='width:" + (hasRing() ? (ringReady ? 100 : pct.toFixed(1)) : 0) + "%'></span></div>" +
       "</div>" +
       "<div class='card-meta-rows'>" + meta + "</div>" +
       cardTooltip("The Ring", lines) + "</article>";
@@ -10838,12 +10897,15 @@ var ONE_TIMER_MILESTONES = [
     var to = needSlots - 4;
     var cost = extraLimbCost(from, to);
     var t = timeForCost(cost, false, rate, bnk.dust, bnk.shards);
-    var pct = Math.min(100, Math.round((maxSlots() / needSlots) * 100));
+    var curDust = bnk.dust || 0;
+    var isReady = (cost <= 0) || (curDust >= cost);
+    var pct = cost > 0 ? Math.min(100, Math.max(0, (curDust / cost) * 100)) : 100;
+    var limbBarTip = isReady ? ("Ready to buy Extra Limbs! (" + prettify(cost) + " dust)") : ("Progress to Extra Limbs: " + pct.toFixed(1) + "% (" + prettify(curDust) + " / " + prettify(cost) + " dust)");
     return "<article class='card warn rec'>" +
       "<div>" +
       "<div class='card-head-row'><h3>" + ICONS.limb + "<span>Extra Limbs</span></h3><span class='card-badge warn'>Need " + needSlots + "</span></div>" +
       "<div class='lv'><span>" + maxSlots() + " slots <span class='gap'>→ " + needSlots + "</span></span></div>" +
-      "<div class='lv-bar'><span style='width:" + pct + "%'></span></div>" +
+      "<div class='lv-bar' title='" + esc(limbBarTip) + "'><span class='board-bar" + (isReady ? " ready" : "") + "' data-item-cost='" + cost + "' data-item-shards='0' data-next-lv='" + needSlots + " slots' data-currency='dust' data-max-level='0' style='width:" + (isReady ? 100 : pct.toFixed(1)) + "%'></span></div>" +
       "</div>" +
       "<div class='card-meta-rows'>" +
       "<div class='cost'><span>Cost</span><span>" + prettify(cost) + " dust</span></div>" +
@@ -11492,6 +11554,29 @@ var ONE_TIMER_MILESTONES = [
       var txt = fmtTime(w);
       if (el.textContent !== txt) el.textContent = txt;
     }
+
+    var bBarEls = document.querySelectorAll("#board .board-bar");
+    for (var bbi = 0; bbi < bBarEls.length; bbi++) {
+      var bar = bBarEls[bbi];
+      if (bar.getAttribute("data-max-level") === "1") continue;
+      var bCost = parseFloat(bar.getAttribute("data-item-cost")) || 0;
+      if (bCost <= 0) continue;
+      var bSh = bar.getAttribute("data-item-shards") === "1";
+      var bFunds = bSh ? (bnk.shards || 0) : (bnk.dust || 0);
+      var bReady = bFunds >= bCost;
+      var bPct = bReady ? 100 : Math.min(100, Math.max(0, (bFunds / bCost) * 100));
+      var bPctStr = (bReady ? 100 : bPct.toFixed(1)) + "%";
+      if (bar.style.width !== bPctStr) bar.style.width = bPctStr;
+      if (bReady && !bar.classList.contains("ready")) bar.classList.add("ready");
+      else if (!bReady && bar.classList.contains("ready")) bar.classList.remove("ready");
+      var pLv = bar.getAttribute("data-next-lv");
+      var pCurr = bar.getAttribute("data-currency") || (bSh ? "shards" : "dust");
+      if (bar.parentElement) {
+        var nTip = bReady ? ("Ready to upgrade" + (pLv ? (" to Lv " + pLv) : "") + "! (" + prettify(bCost) + " " + pCurr + ")") :
+          ("Progress" + (pLv ? (" to Lv " + pLv) : "") + ": " + bPct.toFixed(1) + "% (" + prettify(bFunds) + " / " + prettify(bCost) + " " + pCurr + ")");
+        if (bar.parentElement.title !== nTip) bar.parentElement.title = nTip;
+      }
+    }
   }
 
   var liveBankTimer = null;
@@ -11526,6 +11611,7 @@ var ONE_TIMER_MILESTONES = [
       if (pick > (decoded.ab.maxEnemyLevel || pick)) pick = decoded.ab.maxEnemyLevel;
       fillLevels(pick);
       if (!isRestore) {
+        state.levelModeOverrides = {};
         state.dustOverride = "";
         if ($("dustOverride")) $("dustOverride").value = "";
         if ($("dustOverrideWrap")) $("dustOverrideWrap").style.display = "none";
@@ -11827,7 +11913,7 @@ function renderPresetsModal() {
     lvls.forEach(function(l) {
       var opt = document.createElement("option");
       opt.value = l;
-      opt.textContent = "SA " + l + (isFarmLevel(l) ? " (Farm)" : " (Push)");
+      opt.textContent = "SA " + l + " (" + levelTag(l) + ")";
       if (l === selectedLevel) opt.selected = true;
       sel.appendChild(opt);
     });

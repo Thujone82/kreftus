@@ -1157,12 +1157,21 @@
       font-family: var(--mono); font-size: 15px; font-weight: 700;
       display: flex; align-items: center; justify-content: space-between; gap: 6px;
     }
+    .card .cost.max-level { justify-content: center; font-weight: 600; }
     .card .gap { color: var(--warn); }
     .lv-bar {
       height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin: 5px 0 6px;
     }
-    .lv-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--buy); transition: width 0.2s; }
-    .card.warn .lv-bar > span { background: var(--warn); }
+    .lv-bar > span {
+      display: block; height: 100%; border-radius: 999px;
+      background: var(--buy); opacity: 0.65; transition: width 0.2s, opacity 0.2s;
+    }
+    .lv-bar > span.ready {
+      opacity: 1;
+      background: var(--buy) !important;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.45);
+    }
+    .card.warn .lv-bar > span:not(.ready) { background: var(--warn); }
     .card.locked .lv-bar > span { background: var(--violet); width: 0 !important; }
 
     .card-meta-rows { display: grid; gap: 3px; margin-top: auto; }
