@@ -9,7 +9,7 @@ Included alongside the planner is our custom, installable Progressive Web App (P
 ## ✨ Features & User Guide
 
 ### 1. Next Upgrade Advisor & Milestone Tracker
-- **Smart Build Progression**: Matches your current loadout against over 3,500 community builds across 157 levels from Google Sheets.
+- **Smart Build Progression**: Matches your current loadout against over 3,500 community builds across 157 levels sourced from the player-curated [Community Spire Assault Spreadsheet](https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs).
 - **Step-by-Step Guidance**: Details required upgrades, dust/shard costs, and time-to-acquire based on your live dust bank and income.
 - **Plan Locking**: Lock your active plan to prevent mid-progression recommendation jumping.
 - **Milestones**: Tracks one-timer milestones (7–53 items) and Ring slot unlocks.
@@ -17,7 +17,34 @@ Included alongside the planner is our custom, installable Progressive Web App (P
 
 ---
 
-### 2. In-Browser Combat Simulator & Sandbox Modal
+### 2. Intelligent Upgrade Step Order & Recommendation Engine
+Rather than presenting a monolithic, unordered shopping list, the Next Upgrade Advisor features an intelligent recommendation engine (`sortSmartSteps`) that decomposes target builds into an optimized, step-by-step roadmap:
+
+- **Strict Dependency Resolution**: Enforces mandatory game progression prerequisites automatically:
+  - Contracts are always scheduled before level upgrades for that item.
+  - The Ring unlock milestone is scheduled before Ring tier upgrades.
+  - Extra Limbs purchases are prioritized before unequipped items that depend on that slot to be worn.
+  - Multi-level upgrades on the same item are ordered sequentially (e.g. Level 12 → 13 → 14).
+- **Active-Build Prioritization**: Detects whether an item in the target plan is already equipped in your current active farming setup. Upgrades for currently equipped gear are scheduled first, providing immediate stat and dust earning improvements *while* you work toward the full build, rather than stockpiling dust for inactive items.
+- **Dynamic Cost & Wait-Time Minimization**: Evaluates your live dust bank, blood shard reserves, and real-time generation rate (`activeDustPs`) to calculate the exact effective time-to-acquire (`effWait`) for each step. Cheaper, faster upgrades that accelerate progress are scheduled ahead of long accumulation bottlenecks.
+- **Atomic Single-Step Guidance**: The top banner highlights the immediate next action with clear live state indicators (`Ready now` green badge or dynamic countdown timer pill), showing exact dust/shard requirements and remaining time.
+- **Custom Drag-and-Drop Reordering**: Allows full manual customization of step sequences directly in the step checklist. Custom order preferences are preserved per-plan in `localStorage` (`saPlanner.stepOrder`), with a 1-click **Reset Order** button to restore optimal algorithm ordering.
+- **Plan Locking & Completion Tracking**: Locking a target build (`Lock Plan`) pins your active progression path so recommendations do not fluctuate mid-progression. Tracks total completed steps (e.g. `Step 4 of 9 — 5 remaining`) and seamlessly transitions to `Locked (Done)` with gear application reminders once ready.
+
+---
+
+### 3. Community Build Sourcing & Database
+The advisor's progression roadmap and runnable builds are sourced and synchronized directly from the player-maintained [Community Spire Assault Spreadsheet](https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs):
+
+- **Comprehensive Level Coverage**: Catalogs 3,500+ battle-tested configurations submitted and vetted by the Trimps community across all 157 Spire Assault zones.
+- **Farming vs. Pushing Archetypes**: Categorizes builds into **Farming** setups (optimized for maximum steady dust/second yield) and **Pushing** setups (fine-tuned with defensive mitigation, lifesteal, and burst damage to overcome progression roadblocks).
+- **Full Gear Specifications**: Evaluates exact item tiers, required equipment upgrade levels, Extra Limbs slots, Ring level thresholds, active Ring mod allocations (Attack, Dust, Health, Defense, Lifesteal), and contract requirements.
+- **Automated Pipeline Extraction**: Sourced directly via [`build_data.py`](./build_data.py), which downloads the community Google Sheets workbook (`_sa.xlsx`), normalizes item IDs to match Trimps source definitions in [`objects.js`](../objects.js), calculates dust costs, and outputs the optimized [`data.json`](./data.json) catalog. Run `\refresh.ps1 -Fresh` at any time to sync with the latest community additions.
+- **Live Combat Calibration**: Replaces static sheet estimates with your true in-game performance by running builds through [`sim-engine.js`](./sim-engine.js) using your real save stats.
+
+---
+
+### 4. In-Browser Combat Simulator & Sandbox Modal
 The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle combat engine ([`AutoBattle.js`](../AutoBattle.js)) inside [`sim-engine.js`](./sim-engine.js).
 
 - **Full Affix & Mechanic Simulation**: Faithfully models all enemy properties (Berserking, Poisoning, Shocking, Bleed, Lifestealing, Fast x2/x3, Defensive, Slowing Aura, Enrage, etc.) and Huffy stats (Attack, Defense, Lifesteal, Dust Mult, Resists, Limbs, The Ring).
@@ -32,7 +59,7 @@ The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle
 
 ---
 
-### 3. Auto-Calibrated Dust Rates (9,001 Simulated Battles)
+### 5. Auto-Calibrated Dust Rates (9,001 Simulated Battles)
 - **Zero-Input Accuracy**: When you import a Trimps save string or change enemy levels, the planner automatically executes an accelerated **9,001-fight headless Monte Carlo simulation** using your live gear and enemy level.
 - **Exact Game Parity**: Replaces generic sheet baselines with the exact dust/second earned in real gameplay (e.g. `7.22B/s`).
 - **Streamlined Custom Dust Override**:
@@ -42,7 +69,7 @@ The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle
 
 ---
 
-### 4. Monte Carlo Push Test
+### 6. Monte Carlo Push Test
 Located in Tab 2 of the Simulator modal:
 
 - **Push Viability Heatmap**: Tests your current sandbox build across higher Spire Assault levels to identify push boundaries.
@@ -53,7 +80,7 @@ Located in Tab 2 of the Simulator modal:
 
 ---
 
-### 5. Ring Mod Optimizer
+### 7. Ring Mod Optimizer
 Located in Tab 3 of the Simulator modal:
 
 - **Exhaustive Permutation Search**: Simulates every valid combination of Ring mods (Attack, Dust, Health, Defense, Lifesteal) for your current Ring level.
@@ -62,7 +89,7 @@ Located in Tab 3 of the Simulator modal:
 
 ---
 
-### 6. Upgrade Value (Upgrade Sensitivity & Payback ROI)
+### 8. Upgrade Value (Upgrade Sensitivity & Payback ROI)
 Located in Tab 4 of the Simulator modal:
 
 - **Immediate Progression ROI**: Tests the impact of upgrading each equipped item by +1 level or upgrading The Ring by +1 level.
