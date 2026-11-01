@@ -12,11 +12,11 @@
   var THEME_STORAGE_KEY = 'kreftus.trimps.themeEnabled';
   var MVIEW_STORAGE_KEY = 'kreftus.trimps.mobileView';
   var MVIEW_TABS = [
-    { id: 'all', label: '📱 All' },
-    { id: 'combat', label: '⚔️ Combat' },
-    { id: 'buy', label: '🏗️ Buy' },
-    { id: 'resources', label: '📦 Resources' },
-    { id: 'log', label: '📜 Log' }
+    { id: 'all', label: '<span class="glyphicon glyphicon-th-large"></span> All' },
+    { id: 'combat', label: '<span class="icomoon icon-crosshairs"></span> Combat' },
+    { id: 'buy', label: '<span class="glyphicon glyphicon-wrench"></span> Buy' },
+    { id: 'resources', label: '<span class="icomoon icon-cubes"></span> Resources' },
+    { id: 'log', label: '<span class="glyphicon glyphicon-list-alt"></span> Log' }
   ];
 
   var FIT_SELECTORS = [
@@ -78,6 +78,7 @@
 
 
   function clearJsOverrides() {
+    enhanceViewPerksBtn();
     var nodes = document.querySelectorAll(FIT_SELECTORS.join(','));
     for (var i = 0; i < nodes.length; i++) {
       nodes[i].style.transform = '';
@@ -260,7 +261,7 @@
       btn.type = 'button';
       btn.className = 'kreftus-mnav-btn' + (t.id === savedView ? ' active' : '');
       btn.setAttribute('data-view', t.id);
-      btn.textContent = t.label;
+      btn.innerHTML = t.label;
       btn.addEventListener('click', function () {
         setMobileView(t.id);
       });
@@ -318,9 +319,23 @@
   function updateHeliumIcon() {
     var iconElem = document.getElementById('heliumIcon');
     if (iconElem && typeof heliumIcon === 'function') {
-      var cls = 'resIcon ' + heliumIcon(true);
+      var cls = 'resIcon kreftus-theme-only ' + heliumIcon(true);
       if (iconElem.className !== cls) {
         iconElem.className = cls;
+      }
+    }
+  }
+
+  function enhanceViewPerksBtn() {
+    var btn = document.getElementById('pastUpgradesBtn');
+    if (!btn) return;
+    if (isThemeEnabled()) {
+      if (btn.innerHTML === 'View Perks') {
+        btn.innerHTML = '<span class="kreftus-theme-only glyphicon glyphicon-eye-open" style="display: inline-block !important; margin-right: 4px;"></span>View Perks';
+      }
+    } else {
+      if (btn.innerHTML.indexOf('glyphicon-eye-open') !== -1) {
+        btn.innerHTML = 'View Perks';
       }
     }
   }
@@ -339,6 +354,7 @@
     hookModalAutoScroll();
     enforceEqualityTabName();
     updateHeliumIcon();
+    enhanceViewPerksBtn();
 
     var tip = document.getElementById('tooltipDiv');
     if (!tip) {
@@ -372,6 +388,7 @@
       fitResourceBoxText();
       enforceEqualityTabName();
       updateHeliumIcon();
+      enhanceViewPerksBtn();
     }, 600);
     setTimeout(function () {
       fitResourceBoxText();

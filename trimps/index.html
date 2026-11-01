@@ -13,7 +13,7 @@
 	<link rel="apple-touch-icon" href="icons/192.png">
 	<link rel="manifest" href="manifest.json">
 	<link rel="stylesheet" type="text/css" href="css/style.css?39" />
-	<link rel="stylesheet" type="text/css" href="css/kreftus-local.css?37" />
+	<link rel="stylesheet" type="text/css" href="css/kreftus-local.css?40" />
 </head>
 <!-- 		Trimps
 		Copyright (C) 2025 Zach Hood
@@ -106,18 +106,18 @@
 				</div>
 				<div class="col-xs-2">
 					<div class="boneBtn dangerColor pointer noselect" onclick="hideBones()">
-						Close
+						<span class="kreftus-theme-only glyphicon glyphicon-remove" style="display: none;"></span>Close
 					</div>
 				</div>
 			</div>
 			<div id="boneBuyRow" class="row">
 				<div class="col-xs-4 boneBuyColumn">
-					<div class="boneBuyTitle">Permanent Upgrades</div>
+					<div class="boneBuyTitle"><span class="kreftus-theme-only glyphicon glyphicon-star" style="display: none;"></span>Permanent Upgrades</div>
 					<div class="boneBuyDesc" id="permaBonesDesc"></div>
 					<div id="permaBoneBonuses"></div>
 				</div>
 				<div id="boneImportsColumn" class="col-xs-4 boneBuyColumn">
-					<div class="boneBuyTitle">Exotic Imp-orts</div>
+					<div class="boneBuyTitle"><span class="kreftus-theme-only icomoon icon-target" style="display: none;"></span>Exotic Imp-orts</div>
 					<div class="boostSpacerImports boostSpacer">
 						<div class="boneBuyDesc">Exotic Imp-orts will be unlocked permanently once purchased. Each has a <span id="exoticImpSpawnChance"></span>% chance to spawn per cell and better loot than normal enemies. Any stacking multipliers from killing Imp-orts reset on Portal but the imps do not have to be unlocked again.</div>
 						<div class="importsPreview">
@@ -134,7 +134,7 @@
 					</div>
 				</div>
 				<div id="boneMiscColumn" class="col-xs-4 boneBuyColumn">
-					<div class="boneBuyTitle">Other Goodies</div>
+					<div class="boneBuyTitle"><span class="kreftus-theme-only icomoon icon-gift" style="display: none;"></span>Other Goodies</div>
 						<div class="boostSpacer">
 						<div id="buyHeliumArea">
 							<div class="boneBtn boneBtnStateOn pointer noselect" id="heliumPurchaseBtn" onclick="tooltip('Confirm Purchase', null, 'update', 'You are about to purchase one Instant Portal for 100 bones. Your new Helium will appear in the View Perks menu at the bottom of the screen available for immediate spending, and your Respec will be refreshed. Is this what you wanted to do?', 'purchaseMisc(\'helium\')', 100)"> 
@@ -172,7 +172,7 @@
 					<div class="col-xs-6 maxH">
 						<div id="food" class="playerGather">
 							<div id="boneShrineBtn" style="display: none" class="isEmpty noselect" onmouseover="tooltip('Bone Shrine', null, event)" onclick="game.permaBoneBonuses.boosts.consume()" onmouseout="tooltip('hide')"></div>
-							<span class="title"><span class="resIcon glyphicon glyphicon-apple"></span> Food</span>
+							<span class="title"><span class="resIcon kreftus-theme-only glyphicon glyphicon-apple" style="display: none;"></span>Food</span>
 							<br/>
 							<span class="ownedArea bdHover" onclick="getMaxResources('Food')"><span id="foodOwned">0</span> / <span id="foodMax"></span></span>
 							<br/>
@@ -194,7 +194,7 @@
 
 					<div class="col-xs-6 maxH">
 						<div id="wood" class="playerGather" style="visibility: hidden;">
-							<span class="title"><span class="resIcon glyphicon glyphicon-tree-deciduous"></span> Wood</span>
+							<span class="title"><span class="resIcon kreftus-theme-only glyphicon glyphicon-tree-deciduous" style="display: none;"></span>Wood</span>
 							<br/>
 							<span class="ownedArea bdHover" onclick="getMaxResources('Wood')"><span id="woodOwned">0</span> / <span id="woodMax"></span></span>
 							<br/>
@@ -218,7 +218,7 @@
 				<div class="row resourceRow">
 					<div class="col-xs-6 maxH">
 						<div id="metal" class="playerGather" style="visibility: hidden;">
-							<span class="title"><span class="resIcon icomoon icon-cubes"></span> Metal</span>
+							<span class="title"><span class="resIcon kreftus-theme-only icomoon icon-cubes" style="display: none;"></span>Metal</span>
 							<br/>
 							<span class="ownedArea bdHover" onclick="getMaxResources('Metal')"><span id="metalOwned">0</span> / <span id="metalMax"></span></span>
 							<br/>
@@ -239,7 +239,7 @@
 					</div>
 					<div class="col-xs-6 maxH">
 						<div id="science" class="playerGather" style="visibility: hidden;">
-							<span class="title"><span class="resIcon icomoon icon-flask"></span> Science</span>
+							<span class="title"><span class="resIcon kreftus-theme-only icomoon icon-flask" style="display: none;"></span>Science</span>
 							<br/>
 							<span class="ownedArea"><span id="scienceOwned">0</span></span>
 							<br/>
@@ -257,21 +257,21 @@
 			</div>
 			<div class="col-xs-1" id="miscColumn">
 				<div id="fragments" class="playerGather playerGatherSm" style="visibility: hidden;">
-					<span class="title"><span class="resIcon glyphicon glyphicon-th"></span> Fragments</span>
+					<span class="title"><span class="resIcon kreftus-theme-only glyphicon glyphicon-th" style="display: none;"></span>Fragments</span>
 					<br/>
 					<span class="ownedArea"><span id="fragmentsOwned">0</span></span>
 					<br/>
 					<span class="psText sizeSecRegular pointer noselect" id="fragmentsPs" style="display: none" onclick="getPsString('fragments')">+0/sec</span>
 				</div>
 				<div id="gems" class="playerGather playerGatherSm" style="visibility: hidden;">
-					<span class="title"><span class="resIcon icomoon icon-diamond"></span> Gems</span>
+					<span class="title"><span class="resIcon kreftus-theme-only icomoon icon-diamond" style="display: none;"></span>Gems</span>
 					<br/>
 					<span class="ownedArea"><span id="gemsOwned">0</span></span>
 					<br/>
 					<span class="psText sizeSecRegular pointer noselect" id="gemsPs" style="display: none" onclick="getPsString('gems')">+0/sec</span>
 				</div>
 				<div id="helium" class="playerGather playerGatherSm" style="display: none">
-					<span id="heliumTitle" class="title"><span id="heliumIcon" class="resIcon icomoon icon-battery"></span> <span id="heliumName">Helium</span></span>
+					<span id="heliumTitle" class="title"><span id="heliumIcon" class="resIcon kreftus-theme-only icomoon icon-battery" style="display: none;"></span><span id="heliumName">Helium</span></span>
 					<br/>
 					<span class="ownedArea"><span id="heliumOwned">0</span></span>
 					<br/>
@@ -781,7 +781,7 @@
 							</div>
 							<div class="battleSideBtnContainer">
 								<span class="btn btn-info fightBtn" id="portalBtn" onmouseover="tooltip('Portal', null, event)" onmouseout="tooltip('hide')" onclick="portalClicked()" style="display: none">
-									Portal
+									<span class="kreftus-theme-only glyphicon glyphicon-globe" style="display: none;"></span>Portal
 								</span>
 							</div>
 							<div class="battleSideBtnContainer">
@@ -790,16 +790,16 @@
 								</span>
 							</div>
 							<div class="battleSideBtnContainer" style="display: none" id="heirloomBtnContainer">
-								<span id="heirloomsBtn" class="btn fightBtn heirloomsBtnColor" onclick="toggleHeirlooms()">Heirlooms</span>
+								<span id="heirloomsBtn" class="btn fightBtn heirloomsBtnColor" onclick="toggleHeirlooms()"><span class="kreftus-theme-only icomoon icon-shield3" style="display: none;"></span>Heirlooms</span>
 							</div>
 							<div class="battleSideBtnContainer" style="display: none" id="boneBtnContainer">
 								<span class="btn btn-default fightBtn" id="boneBtnMain" onclick="showBones()">
-									<span id="boneBtnText">Bone Trader</span>
+									<span class="kreftus-theme-only icomoon icon-gift" style="display: none;"></span><span id="boneBtnText">Bone Trader</span>
 								</span>
 							</div>							
 							<div class="battleSideBtnContainer" style="display: none" id="finishDailyBtnContainer">
 								<span class="btn btn-success fightBtn" id="finishDailyBtn" onclick="tooltip('Finish Daily', null, 'update')">
-									Finish Daily
+									<span class="kreftus-theme-only glyphicon glyphicon-ok" style="display: none;"></span>Finish Daily
 								</span>
 							</div>
 							<div class="battleSideBtnContainer" style="display: none" id="exitSpireBtnContainer">
@@ -1007,22 +1007,22 @@
 			<table id="settingsTable">
 				<tr>
 					<td class="btn btn-info" onclick="save(false, true)">
-						Save <span id="saveIndicator"></span><span id="playFabIndicator"></span>
+						<span class="kreftus-theme-only glyphicon glyphicon-floppy-disk" style="display: none;"></span>Save <span id="saveIndicator"></span><span id="playFabIndicator"></span>
 					</td>
 					<td class="btn btn-info" onclick="tooltip('Export', null, 'update')">
-						<div>Export</div>
+						<div><span class="kreftus-theme-only glyphicon glyphicon-export" style="display: none;"></span>Export</div>
 					</td>
 					<td class="btn btn-info" onclick="tooltip('Import', null, 'update')">
-						<div>Import</div>
+						<div><span class="kreftus-theme-only glyphicon glyphicon-import" style="display: none;"></span>Import</div>
 					</td>
 					<td class="btn btn-success" onclick="toggleStats()">
-						<div>Stats</div>
+						<div><span class="kreftus-theme-only glyphicon glyphicon-stats" style="display: none;"></span>Stats</div>
 					</td>
 					<td class="btn tealColor" onclick="toggleAchievementWindow()">
-						<div>Achieves</div>
+						<div><span class="kreftus-theme-only glyphicon glyphicon-star" style="display: none;"></span>Achieves</div>
 					</td>
 					<td class="btn btn-default" onclick="toggleSettingsMenu()">
-						<div id='settingsText'>Settings</div>
+						<div id='settingsText'><span class="kreftus-theme-only glyphicon glyphicon-cog" style="display: none;"></span>Settings</div>
 					</td>
 					<td class="btn" id="pastUpgradesBtn" onclick="viewPortalUpgrades()">
 						
@@ -1397,7 +1397,7 @@
 	<script type="text/javascript" src="playerSpire.js?62"></script>
 	<script type="text/javascript" src="objects.js?62"></script>
 	<script type="text/javascript" src="main.js?62"></script>
-	<script type="text/javascript" src="js/kreftus-local.js?37"></script>
+	<script type="text/javascript" src="js/kreftus-local.js?40"></script>
 	<script>
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('sw.js', { scope: './' }).then(

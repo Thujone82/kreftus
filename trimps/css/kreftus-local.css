@@ -54,6 +54,38 @@ html, body {
   padding: 6px 8px 0 8px;
 }
 
+
+
+#foremenCount::before {
+  content: "\e008";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 4px;
+  opacity: 0.85;
+}
+
+#buildSpeed::before {
+  content: "\e162";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  margin-right: 3px;
+  opacity: 0.85;
+}
+
+.kreftus-theme-only {
+  display: inline-block !important;
+}
+
+#settingsTable td .kreftus-theme-only,
+#battleBtnsColumn .btn .kreftus-theme-only,
+.boneBuyTitle .kreftus-theme-only,
+.boneBtn .kreftus-theme-only,
+.kreftus-mnav-btn .glyphicon,
+.kreftus-mnav-btn .icomoon {
+  display: inline-block !important;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
 /* Crisp Tabular Numerals (using --font with tabular-nums prevents wide monospace overflow) */
 .ownedArea,
 .psText,
@@ -202,7 +234,7 @@ html, body {
 
 .playerGather .title .resIcon,
 .playerGatherSm .title .resIcon {
-  display: inline-block;
+  display: inline-block !important;
   margin-right: 6px;
   vertical-align: -1px;
   font-size: 0.88em;
@@ -210,7 +242,8 @@ html, body {
 }
 
 #miscColumn .playerGatherSm .title .resIcon {
-  margin-right: 3px;
+  display: inline-block !important;
+  margin-right: 4px;
   font-size: 0.84em;
 }
 
