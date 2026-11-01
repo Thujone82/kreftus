@@ -2348,7 +2348,7 @@ var ONE_TIMER_MILESTONES = [
     } else if (state.simulatedDustPs && state.simulatedDustPs > 0) {
       var farmLvl = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || state.level;
       $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(state.simulatedDustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + farmLvl + ")</span>";
-      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvl + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "0.60") + "s/kill).\nClick Simulator to view live combat.";
+      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvl + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "--") + "s/kill).\nClick Simulator to view live combat.";
       if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride) {
         $("dustOverride").placeholder = prettify(state.simulatedDustPs) + "/s";
       }
@@ -3340,9 +3340,16 @@ var ONE_TIMER_MILESTONES = [
     return "<div class='tip'><strong>" + esc(title) + "</strong>" + lines.map(function (l) { return "<div>" + esc(l) + "</div>"; }).join("") + "</div>";
   }
 
+  function activeTargetBuild(rec, rate) {
+    if (rec && rec.i) return rec;
+    var summary = probeBuildSummary(state.level, null, rate);
+    return (summary && summary.target) ? summary.target : null;
+  }
+
   function renderBoard(rec, rate) {
-    var recItems = rec ? rec.i : {};
-    var hide = !!state.filters.hideUnused && rec;
+    var build = activeTargetBuild(rec, rate);
+    var recItems = build ? (build.i || {}) : {};
+    var hide = !!state.filters.hideUnused && !!build;
     var keys = {};
     if (hide) {
       Object.keys(recItems).forEach(function (k) { keys[k] = true; });
@@ -3364,11 +3371,11 @@ var ONE_TIMER_MILESTONES = [
       else if (need && lv >= need) readyCount++;
       html += itemCard(k, recItems[k], rate, bnk);
     });
-    if (!hide || (rec && rec.r)) html += ringCard(rec && rec.r, rate, bnk);
-    if (rec && rec.l && rec.l > maxSlots()) html += limbsCard(rec.l, rate, bnk);
+    if (!hide || (build && build.r)) html += ringCard(build && build.r, rate, bnk);
+    if (build && build.l && build.l > maxSlots()) html += limbsCard(build.l, rate, bnk);
     $("board").innerHTML = html;
     if ($("boardMeta")) {
-      $("boardMeta").textContent = "· " + order.length + " items shown" + (rec ? (" (" + readyCount + " build-ready)") : "");
+      $("boardMeta").textContent = "· " + order.length + " items shown" + (build ? (" (" + readyCount + " build-ready)") : "");
     }
   }
 
@@ -4833,7 +4840,7 @@ function renderPresetsModal() {
     var sWr = $("simStatWinRate");
     if (sWr) sWr.textContent = (snap.winRate != null ? snap.winRate.toFixed(1) + "%" : "--");
     var sTk = $("simStatKillTime");
-    if (sTk) sTk.textContent = (snap.timePerKill != null ? snap.timePerKill.toFixed(2) + "s" : "--");
+    if (sTk) sTk.textContent = (snap.timePerKill != null && snap.timePerKill > 0 ? snap.timePerKill.toFixed(2) + "s" : "--");
     var sFg = $("simStatFights");
     if (sFg) sFg.textContent = (snap.wins || 0) + " / " + (snap.losses || 0);
 
@@ -4869,12 +4876,20 @@ function renderPresetsModal() {
       hDebuffs.innerHTML = dHtml.join("");
     }
 
-    // Center Timer (average over last 100 sims)
+    // Center live timer & average
     var fTime = $("simFightTime");
     if (fTime) {
-      var avgSec = (snap.avgLast100Sec && snap.avgLast100Sec > 0) ? snap.avgLast100Sec : (snap.timePerKill || 0.6);
-      fTime.textContent = avgSec.toFixed(2) + "s avg";
-      fTime.title = "Average kill duration over the last 100 fights";
+      fTime.textContent = (snap.currentFightSec || 0).toFixed(1) + "s";
+      fTime.title = "Current fight elapsed time";
+    }
+    var aTime = $("simAvgTime");
+    if (aTime) {
+      if (snap.avgLast100Sec != null && snap.avgLast100Sec > 0) {
+        aTime.textContent = snap.avgLast100Sec.toFixed(2) + "s avg";
+      } else {
+        aTime.textContent = "-- avg";
+      }
+      aTime.title = "Average kill duration over completed fights";
     }
 
     // Enemy

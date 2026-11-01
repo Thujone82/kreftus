@@ -4473,6 +4473,15 @@ function createRawAutoBattle(game, u2Mutations) {
         if (eventLogs.length > 50) eventLogs.shift();
       }
 
+      var winningFightDurations = [];
+      var completedFightDurations = [];
+      var baseline = null;
+      try {
+        baseline = SASimEngine.runBatch(cfg, { maxKills: 15, maxFights: 25 });
+      } catch (e) {
+        baseline = null;
+      }
+
       return {
         ab: ab,
         cfg: cfg,
@@ -4482,18 +4491,47 @@ function createRawAutoBattle(game, u2Mutations) {
           cfg = SASimEngine.normalizeConfig(newCfg);
           SASimEngine.applyConfig(ab, cfg);
           eventLogs.length = 0;
+          winningFightDurations = [];
+          completedFightDurations = [];
+          try {
+            baseline = SASimEngine.runBatch(cfg, { maxKills: 15, maxFights: 25 });
+          } catch (e) {
+            baseline = null;
+          }
         },
 
         reset: function(resetStats) {
           ab.resetCombat(resetStats);
-          if (resetStats) eventLogs.length = 0;
+          if (resetStats) {
+            eventLogs.length = 0;
+            winningFightDurations = [];
+            completedFightDurations = [];
+          }
         },
 
         step: function(ticks) {
           ticks = ticks || 1;
           for (var i = 0; i < ticks; i++) {
+            var prevKills = ab.sessionEnemiesKilled;
+            var prevDeaths = ab.sessionTrimpsKilled;
+            var battleTimeBefore = ab.battleTime;
+
             ab.fight();
             ab.battleTime += ab.frameTime;
+
+            if (ab.sessionEnemiesKilled > prevKills) {
+              var killDuration = (ab.lastFightDurations && ab.lastFightDurations.length > 0)
+                ? ab.lastFightDurations[ab.lastFightDurations.length - 1]
+                : (battleTimeBefore / 1000);
+              winningFightDurations.push(killDuration);
+              if (winningFightDurations.length > 100) winningFightDurations.shift();
+              completedFightDurations.push(killDuration);
+              if (completedFightDurations.length > 100) completedFightDurations.shift();
+            } else if (ab.sessionTrimpsKilled > prevDeaths) {
+              var deathDuration = battleTimeBefore / 1000;
+              completedFightDurations.push(deathDuration);
+              if (completedFightDurations.length > 100) completedFightDurations.shift();
+            }
           }
         },
 
@@ -4501,25 +4539,43 @@ function createRawAutoBattle(game, u2Mutations) {
           var trimp = ab.trimp || {};
           var enemy = ab.enemy || {};
           var totalFights = ab.sessionEnemiesKilled + ab.sessionTrimpsKilled;
-          var winRate = totalFights > 0 ? (ab.sessionEnemiesKilled / totalFights * 100) : 100;
+          var winRate = totalFights > 0
+            ? (ab.sessionEnemiesKilled / totalFights * 100)
+            : (baseline ? baseline.winRate : 100);
           var dps = ab.getDustPs();
-          var totalSec = ab.battleTime / 1000;
-          var secPerKill = ab.sessionEnemiesKilled > 0 ? (totalSec / ab.sessionEnemiesKilled) : 0;
-          var avgLast100 = 0;
-          if (ab.lastFightDurations && ab.lastFightDurations.length > 0) {
+          if ((!dps || dps <= 0) && totalFights === 0 && baseline && baseline.dustPs) {
+            dps = baseline.dustPs;
+          }
+
+          var currentFightSec = (ab.battleTime || 0) / 1000;
+
+          var avgKillSec = null;
+          if (winningFightDurations.length > 0) {
             var durSum = 0;
-            for (var di = 0; di < ab.lastFightDurations.length; di++) durSum += ab.lastFightDurations[di];
-            avgLast100 = durSum / ab.lastFightDurations.length;
-          } else if (ab.lootAvg.counter > 0 && ab.sessionEnemiesKilled > 0) {
-            avgLast100 = (ab.lootAvg.counter / ab.sessionEnemiesKilled) / 1000;
-          } else if (secPerKill > 0) {
-            avgLast100 = secPerKill;
+            for (var di = 0; di < winningFightDurations.length; di++) durSum += winningFightDurations[di];
+            avgKillSec = durSum / winningFightDurations.length;
+          } else if (ab.lastFightDurations && ab.lastFightDurations.length > 0) {
+            var durSum2 = 0;
+            for (var di2 = 0; di2 < ab.lastFightDurations.length; di2++) durSum2 += ab.lastFightDurations[di2];
+            avgKillSec = durSum2 / ab.lastFightDurations.length;
+          } else if (baseline && baseline.kills > 0 && baseline.secPerKill > 0) {
+            avgKillSec = baseline.secPerKill;
+          }
+
+          var avgAllSec = null;
+          if (completedFightDurations.length > 0) {
+            var durSumAll = 0;
+            for (var dai = 0; dai < completedFightDurations.length; dai++) durSumAll += completedFightDurations[dai];
+            avgAllSec = durSumAll / completedFightDurations.length;
+          } else if (baseline && baseline.simSec && baseline.totalFights) {
+            avgAllSec = baseline.simSec / baseline.totalFights;
           }
 
           return {
             battleTimeMs: ab.battleTime,
             frameTimeMs: ab.frameTime,
-            time: totalSec,
+            currentFightSec: currentFightSec,
+            time: currentFightSec,
             enemyLevel: ab.enemyLevel,
             maxEnemyLevel: ab.maxEnemyLevel,
             dustPs: dps,
@@ -4530,9 +4586,10 @@ function createRawAutoBattle(game, u2Mutations) {
             losses: ab.sessionTrimpsKilled,
             totalFights: totalFights,
             winRate: winRate,
-            secPerKill: secPerKill,
-            timePerKill: avgLast100 > 0 ? avgLast100 : secPerKill,
-            avgLast100Sec: avgLast100 > 0 ? avgLast100 : secPerKill,
+            secPerKill: avgKillSec,
+            timePerKill: avgKillSec,
+            avgLast100Sec: avgKillSec,
+            avgFightDuration: avgAllSec,
             huffyHp: trimp.health || 0,
             huffyMaxHp: trimp.maxHealth || 1,
             huffyAtk: trimp.attack || 0,

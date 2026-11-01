@@ -1833,15 +1833,18 @@
     .sim-debuff-pill.shock { color: #facc15; border-color: rgba(250, 204, 21, 0.3); }
 
     .sim-vs-col {
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-      min-width: 60px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      min-width: 65px;
     }
     .sim-vs-pill {
-      font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 6px;
       background: var(--surface-3); border: 1px solid var(--border); color: var(--muted);
     }
     .sim-timer-pill {
-      font-size: 12px; font-family: var(--mono); font-weight: 700; color: var(--accent);
+      font-size: 13px; font-family: var(--mono); font-weight: 700; color: var(--text);
+    }
+    .sim-avg-pill {
+      font-size: 11px; font-family: var(--mono); font-weight: 600; color: var(--accent); white-space: nowrap;
     }
 
     .sim-controls-bar {
@@ -2244,7 +2247,8 @@
 
           <div class="sim-vs-col">
             <span class="sim-vs-pill">VS</span>
-            <span class="sim-timer-pill" id="simFightTime">0.0s</span>
+            <span class="sim-timer-pill" id="simFightTime" title="Current fight elapsed time">0.0s</span>
+            <span class="sim-avg-pill" id="simAvgTime" title="Average kill duration over completed fights">-- avg</span>
           </div>
 
           <div class="sim-fighter-card enemy">
