@@ -671,17 +671,60 @@
       gap: 7px;
       font-size: 12px;
     }
+    .delta-box.collapsible {
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .delta-box.collapsible:hover {
+      border-color: rgba(251, 191, 36, 0.6);
+      background: color-mix(in srgb, var(--warn) 9%, var(--surface-solid));
+    }
+    .delta-box.aligned {
+      border-color: rgba(45, 206, 137, 0.35);
+      background: color-mix(in srgb, var(--buy) 6%, var(--surface-solid));
+      padding: 8px 12px;
+      gap: 0;
+    }
+    .delta-box.aligned.collapsible:hover {
+      border-color: rgba(45, 206, 137, 0.6);
+      background: color-mix(in srgb, var(--buy) 9%, var(--surface-solid));
+    }
+    .delta-box.collapsed {
+      gap: 0;
+      padding: 8px 12px;
+    }
+    .delta-box.collapsed .delta-rows {
+      display: none;
+    }
     .delta-title {
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--warn);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      width: 100%;
+    }
+    .delta-title-left {
       display: inline-flex;
       align-items: center;
       gap: 6px;
     }
     .delta-title svg { width: 14px; height: 14px; flex: none; }
+    .delta-chevron {
+      display: inline-flex;
+      align-items: center;
+      color: var(--muted);
+      transition: transform 0.15s ease;
+      flex: none;
+    }
+    .delta-box.collapsed .delta-chevron {
+      transform: rotate(-90deg);
+    }
     .delta-rows { display: grid; gap: 5px; }
     .delta-row {
       display: flex;
@@ -1238,8 +1281,15 @@
       position: relative;
       display: inline-flex;
       align-items: center;
-      cursor: help;
+      cursor: pointer;
       outline: none;
+    }
+    .bb-info-pill {
+      cursor: pointer;
+    }
+    .tbl-wrap:has(.bb-info-wrap:hover),
+    .tbl-wrap:has(.bb-info-wrap:focus-within) {
+      z-index: 80;
     }
     .bb-info-pill {
       display: inline-flex;
@@ -1288,8 +1338,9 @@
       display: none;
       position: absolute;
       left: 0;
-      bottom: calc(100% + 8px);
-      z-index: 60;
+      top: calc(100% + 8px);
+      bottom: auto;
+      z-index: 250;
       width: min(440px, calc(100vw - 36px));
       background: var(--tip-bg);
       color: var(--text);
@@ -1308,16 +1359,21 @@
       position: absolute;
       left: 0;
       right: 0;
-      bottom: -10px;
+      top: -10px;
       height: 10px;
     }
-    tbody tr:first-child:not(:last-child) .bb-popover {
-      bottom: auto;
-      top: calc(100% + 8px);
+    tbody tr:nth-last-child(-n+2) .bb-popover {
+      top: auto;
+      bottom: calc(100% + 8px);
     }
-    tbody tr:first-child:not(:last-child) .bb-popover::after {
-      bottom: auto;
-      top: -10px;
+    tbody tr:nth-last-child(-n+2) .bb-popover::after {
+      top: auto;
+      bottom: -10px;
+    }
+    @media (hover: none) {
+      .bb-popover {
+        display: none !important;
+      }
     }
     .bb-info-wrap:hover .bb-popover,
     .bb-info-wrap:focus-within .bb-popover {
@@ -2376,6 +2432,17 @@
         <button type="button" class="btn sm accent" id="btnConfirmLockPrompt">Lock to Plan</button>
       </div>
     </div>
+  </dialog>
+
+  <dialog id="buildDetailsDlg" style="width: min(560px, calc(100vw - 28px));">
+    <div class="dlg-h">
+      <h2>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span id="bddTitle">Build &amp; Swap Guidance</span>
+      </h2>
+      <button type="button" class="icon-btn" style="margin-left:auto" id="btnCloseBuildDetails" title="Close" onclick="window.saCloseBuildDetails&&saCloseBuildDetails()">✕</button>
+    </div>
+    <div class="dlg-b" id="bddBody" style="gap:14px; padding:16px 20px; max-height:80vh; overflow-y:auto;"></div>
   </dialog>
 
   <dialog id="helpDlg">
@@ -7823,7 +7890,8 @@ function createRawAutoBattle(game, u2Mutations) {
     keepPopoverOpen: false,
     saveLoadedAt: null,
     lastAdvisorStep: null,
-    lastPlanSteps: null
+    lastPlanSteps: null,
+    swapGuideCollapsed: false
   };
 
   function $(id) { return document.getElementById(id); }
@@ -8669,6 +8737,8 @@ var ONE_TIMER_MILESTONES = [
         var parsedLp = JSON.parse(lp);
         if (parsedLp && typeof parsedLp === "object") state.lockedPlans = parsedLp;
       }
+      var sgc = localStorage.getItem("saPlanner.swapGuideCollapsed");
+      if (sgc != null) state.swapGuideCollapsed = (sgc === "1");
       var savedStr = localStorage.getItem("saPlanner.saveString");
       var savedTime = localStorage.getItem("saPlanner.saveLoadedAt");
       if (savedStr) {
@@ -10058,6 +10128,83 @@ var ONE_TIMER_MILESTONES = [
     };
   }
 
+  function toggleSwapGuide() {
+    state.swapGuideCollapsed = !state.swapGuideCollapsed;
+    try {
+      localStorage.setItem("saPlanner.swapGuideCollapsed", state.swapGuideCollapsed ? "1" : "0");
+    } catch (e) {}
+    var box = $("swapGuideBox");
+    if (box) {
+      if (state.swapGuideCollapsed) box.classList.add("collapsed");
+      else box.classList.remove("collapsed");
+    }
+  }
+
+  function renderAlignmentGuide(b, delta, titleOverride, isModal) {
+    if (!b || !delta) return "";
+    var title = titleOverride || "Steps to Initiate Plan · Loadout & Ring Changes";
+    var reqMods = formatModList(b.r && b.r.m || []) || "None";
+    var curMods = formatModList(delta.curMods) || "None";
+    var curRingLv = hasRing() ? ringLevel() : 0;
+    var reqRingLv = (b.r && b.r.lv) || 0;
+    var ringLvGap = b.r && curRingLv < reqRingLv;
+
+    var missingMods = delta.missingMods || [];
+    var hasRingModSwap = b.r && (!hasRing() || missingMods.length > 0);
+    var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0);
+    var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap;
+
+    if (!hasAnySwap) {
+      return "<div class='delta-box aligned' style='margin-top:10px;'>" +
+        "<div class='delta-title' style='color:var(--buy);'>" +
+          "<div class='delta-title-left'>" + ICONS.check + "<span>Active Loadout &amp; Ring Mods Aligned</span></div>" +
+        "</div>" +
+      "</div>";
+    }
+
+    var isCollapsed = !isModal && !!state.swapGuideCollapsed;
+    var dRows = [];
+    if (b.r) {
+      if (hasRingModSwap || ringLvGap) {
+        var rFrom = (hasRing() ? ("Lv " + curRingLv) : "Locked") + " (" + curMods + ")";
+        var rTo = "Lv " + reqRingLv + " (" + reqMods + ")";
+        dRows.push(
+          "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
+          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'>" + ICONS.ring + " " + esc(rFrom + " → " + rTo) + "</span></div>"
+        );
+      }
+    }
+    if (delta.toUnequip && delta.toUnequip.length) {
+      var unPills = delta.toUnequip.map(function (k) {
+        return "<span class='pill sm sell'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
+      }).join("");
+      dRows.push("<div class='delta-row'><span class='delta-lbl'>Unequip:</span>" + unPills + "</div>");
+    }
+    if (delta.toEquip && delta.toEquip.length) {
+      var eqPills = delta.toEquip.map(function (k) {
+        var owned = userOwns(k);
+        var myLv = owned ? userLevel(k) : 0;
+        var needLv = b.i[k] || 1;
+        var lvSuffix = !owned ? " (Locked)" : (myLv < needLv ? (" (Lv " + myLv + "→" + needLv + ")") : (" (Lv " + needLv + ")"));
+        return "<span class='pill sm buy'>" + iconForItem(k) + " " + esc(itemName(k) + lvSuffix) + "</span>";
+      }).join("");
+      dRows.push("<div class='delta-row'><span class='delta-lbl'>Equip:</span>" + eqPills + "</div>");
+    }
+
+    var chevronSvg = "<svg class='delta-chevron' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>";
+    var clickAttr = isModal ? "" : " onclick=\"window.saToggleSwapGuide&&saToggleSwapGuide()\" role=\"button\" tabindex=\"0\" onkeydown=\"if(event.key==='Enter'||event.key===' '){event.preventDefault();window.saToggleSwapGuide&&saToggleSwapGuide();}\"";
+    var boxClass = "delta-box" + (isModal ? "" : " collapsible") + (isCollapsed ? " collapsed" : "");
+    var boxId = isModal ? "" : " id='swapGuideBox'";
+
+    return "<div" + boxId + " class='" + boxClass + "' style='margin-top:10px;'" + clickAttr + ">" +
+      "<div class='delta-title'>" +
+        "<div class='delta-title-left'>" + ICONS.warn + "<span>" + esc(title) + "</span></div>" +
+        (isModal ? "" : chevronSvg) +
+      "</div>" +
+      "<div class='delta-rows'>" + dRows.join("") + "</div>" +
+      "</div>";
+  }
+
   function probeBuildSummary(level, rec, rateOverride, stepsOverride) {
     var bnk = bank();
     var r = (typeof rateOverride === "number" && rateOverride > 0)
@@ -10141,116 +10288,36 @@ var ONE_TIMER_MILESTONES = [
 
   function renderRecommended(rec, rate) {
     var el = $("recommend");
-    if (!rec) {
+    var lockedEntry = state.lockedPlans && state.lockedPlans[String(state.level)];
+    var lockedTarget = lockedEntry ? findLockedTarget(state.level, lockedEntry) : null;
+
+    var activeBuild = lockedTarget || rec;
+    var isPlanLocked = !!lockedTarget;
+
+    if (!activeBuild) {
       var summary = probeBuildSummary(state.level, null, rate);
       if (!summary || !summary.target) {
         el.innerHTML = "<div class='rec'><p class='empty'>No sheet build on SA " + state.level + " is recorded in the database.</p></div>";
         return;
       }
-      var target = summary.target;
-      var targetDelta = loadoutDelta(target);
-      var targetMods = formatModList(target.r && target.r.m || []);
-
-      var itemCards = Object.keys(target.i).map(function (k) {
-        var sh = isShards(k);
-        var myLv = userLevel(k);
-        var reqLv = target.i[k];
-        var isEq = !!(userItem(k) && userItem(k).equipped);
-        var under = myLv < reqLv;
-        var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "") + (under ? " underleveled" : "");
-        var tip = (under ? ("Upgrade needed: Lv " + myLv + " → Lv " + reqLv) : ("Requirement met: Lv " + myLv + " >= " + reqLv)) +
-          (isEq ? " · Equipped" : " · Unequipped");
-        var lvText = under ? ("Lv " + myLv + " → " + reqLv) : ("Lv " + reqLv);
-        return "<div class='" + cls + "' title='" + esc(tip) + "'>" +
-          "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
-          "<span class='li-lv'>" + esc(lvText) + "</span>" +
-          "</div>";
-      }).join("");
-
-      var metrics = [];
-      metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(target.d) + "/s</span>");
-      if (target.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + target.k + "s kills</span>");
-      if (target.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((target.wr <= 1 ? target.wr : target.wr / 100) * 100) + "% WR</span>");
-      metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (target.l || "?") + " Limbs</span>");
-      if (target.r) {
-        metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + target.r.lv + (targetMods ? " (" + esc(targetMods) + ")" : "") + "</span>");
-      }
-      if (target.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + target.c + "</span>");
-
-      var remSteps = summary.steps.length;
-      var stepPill = "<span class='pill sm warn-pill'>" + ICONS.bolt + " " + remSteps + " Upgrade" + (remSteps === 1 ? "" : "s") + " Needed</span>";
-
-      var isLocked = summary.pick && summary.pick.isLocked;
-      var simBtn = "<button type='button' class='btn sm ghost sim-plan-btn' id='recSimPlanBtn' title='Load " + esc(target.n) + " into Combat Simulator'>⚔️ Sim</button>";
-      var lockBtn = isLocked
-        ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='recLockPlanBtn' title='Advisor is locked to " + esc(target.n) + ". Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
-        : "<button type='button' class='btn sm ghost lock-plan-btn' id='recLockPlanBtn' title='Lock advisor to " + esc(target.n) + " so recommendations follow this build.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
-
-      var timingBox =
-        "<div class='rec-timing-banner'>" +
-          "<div class='time-stat' title='Time to save required dust/shards for all " + remSteps + " upgrade steps (" + (rate ? (prettify(rate) + "/s dust rate") : "at current rate") + ")'>" +
-            "<span class='time-lbl'>" + ICONS.hammer + " Build Time:</span>" +
-            "<span class='mono' style='font-size:13.5px;font-weight:700;color:" + (summary.buildSec === 0 ? "var(--buy)" : "var(--text)") + ";'>" + esc(summary.buildTimeStr) + "</span>" +
-          "</div>" +
-          "<div class='time-sep'></div>" +
-          "<div class='time-stat' title='Anticipated time to clear SA " + state.level + " once " + esc(target.n) + " is active (" + prettify(summary.remainingKills) + " kills @ ~" + summary.secPerKill.toFixed(1) + "s per kill)'>" +
-            "<span class='time-lbl'>" + ICONS.clock + " Clear Time:</span>" +
-            "<span class='mono' style='font-size:13.5px;font-weight:700;color:var(--accent);'>~" + esc(summary.clearTimeStr) + "</span>" +
-          "</div>" +
-          (summary.totalTimeStr ? (
-            "<div class='time-sep'></div>" +
-            "<div class='time-stat' title='Total duration: Build Time + Clear Time'>" +
-              "<span class='time-lbl'>" + ICONS.spire + " Total:</span>" +
-              "<span class='mono' style='font-size:13.5px;font-weight:700;color:var(--buy);'>~" + esc(summary.totalTimeStr) + "</span>" +
-            "</div>"
-          ) : "") +
-        "</div>";
-
-      var explText = "No sheet build on SA " + state.level + " is currently runnable with your items and levels. " +
-        "Targeting the closest recommended build <b>" + esc(target.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). " +
-        "Follow the Next Upgrade Advisor on the right to progress toward this build.";
-
-      var mode = getLevelMode(state.level);
-      var isFarm = mode === "farm";
-      var lvlTagPill = "<span class='pill sm " + (isFarm ? "buy" : "accent") + "' title='Recommendation Mode: " + (isFarm ? "Farm Mode (Dust rate prioritized)" : "Push Mode (Clear time prioritized)") + "'>" +
-        (isFarm ? ICONS.dust + " Farm Mode" : ICONS.spire + " Push Mode") + "</span>";
-
-      el.innerHTML =
-        "<div class='rec'>" +
-        "<div class='rec-top'>" +
-        "<div class='rec-head'><span style='color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'>Target Build:</span> <span>" + esc(target.n) + "</span></div>" +
-        "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" + lvlTagPill + stepPill + simBtn + lockBtn + "</div>" +
-        "</div>" +
-        timingBox +
-        "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
-        "<div class='loadout-grid'>" + itemCards + "</div>" +
-        "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" + explText + "</span></div>" +
-        "</div>";
-
-      var rLockBtn = $("recLockPlanBtn");
-      if (rLockBtn) {
-        rLockBtn.addEventListener("click", function () {
-          toggleLockBuild(target);
-        });
-      }
-      var rSimBtn = $("recSimPlanBtn");
-      if (rSimBtn) {
-        rSimBtn.addEventListener("click", function () {
-          openSimModal(target);
-        });
-      }
-      return;
+      activeBuild = summary.target;
     }
-    var delta = loadoutDelta(rec);
-    var mods = formatModList(rec.r && rec.r.m || []);
-    var curModTxt = formatModList(delta.curMods) || "None";
-    var itemCards = Object.keys(rec.i).map(function (k) {
+
+    var isTargetOnly = !runnable(activeBuild);
+    var summaryInfo = probeBuildSummary(state.level, activeBuild, rate);
+    var targetDelta = loadoutDelta(activeBuild);
+    var targetMods = formatModList(activeBuild.r && activeBuild.r.m || []);
+
+    var itemCards = Object.keys(activeBuild.i).map(function (k) {
       var sh = isShards(k);
       var myLv = userLevel(k);
+      var reqLv = activeBuild.i[k];
       var isEq = !!(userItem(k) && userItem(k).equipped);
-      var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "");
-      var tip = isEq ? ("Equipped · Your level: Lv " + myLv) : ("Not equipped — equip into loadout · Your level: Lv " + myLv);
-      var lvText = isEq ? ("Lv " + rec.i[k]) : ("Equip · Lv " + rec.i[k]);
+      var under = myLv < reqLv;
+      var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "") + (under ? " underleveled" : "");
+      var tip = (under ? ("Upgrade needed: Lv " + myLv + " → Lv " + reqLv) : ("Requirement met: Lv " + myLv + " >= " + reqLv)) +
+        (isEq ? " · Equipped" : " · Unequipped");
+      var lvText = under ? ("Lv " + myLv + " → " + reqLv) : ("Lv " + reqLv);
       return "<div class='" + cls + "' title='" + esc(tip) + "'>" +
         "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
         "<span class='li-lv'>" + esc(lvText) + "</span>" +
@@ -10260,9 +10327,17 @@ var ONE_TIMER_MILESTONES = [
     var mode = getLevelMode(state.level);
     var recSub = $("recCardSub");
     if (recSub) {
-      recSub.textContent = (mode === "push")
-        ? "Fastest runnable clear setup (Clear Priority)"
-        : "Best runnable farm setup right now (Dust Priority)";
+      if (isPlanLocked) {
+        recSub.textContent = "Custom locked plan for SA " + state.level;
+      } else if (isTargetOnly) {
+        recSub.textContent = (mode === "push")
+          ? "Target clear setup (Upgrades needed)"
+          : "Target farm setup (Upgrades needed)";
+      } else {
+        recSub.textContent = (mode === "push")
+          ? "Fastest runnable clear setup (Clear Priority)"
+          : "Best runnable farm setup right now (Dust Priority)";
+      }
     }
     var isFarm = mode === "farm";
     var lvlTagPill = "<span class='pill sm " + (isFarm ? "buy" : "accent") + "' title='Recommendation Mode: " + (isFarm ? "Farm Mode (Dust rate prioritized)" : "Push Mode (Clear time prioritized)") + "'>" +
@@ -10270,85 +10345,115 @@ var ONE_TIMER_MILESTONES = [
 
     var metrics = [];
     metrics.push(lvlTagPill);
-    metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(rec.d) + "/s</span>");
-    if (rec.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + rec.k + "s kills</span>");
-    if (rec.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((rec.wr <= 1 ? rec.wr : rec.wr / 100) * 100) + "% WR</span>");
-    var recClear = probeBuildSummary(state.level, rec, rate);
-    if (recClear && recClear.clearSec > 0) {
-      metrics.push("<span class='pill sm info' title='Anticipated time to clear SA " + state.level + " with " + esc(rec.n) + " (" + prettify(recClear.remainingKills) + " kills @ " + recClear.secPerKill.toFixed(1) + "s/kill)'>" + ICONS.clock + " Clear: ~" + esc(recClear.clearTimeStr) + "</span>");
+    metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(activeBuild.d) + "/s</span>");
+    if (activeBuild.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + activeBuild.k + "s kills</span>");
+    if (activeBuild.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((activeBuild.wr <= 1 ? activeBuild.wr : activeBuild.wr / 100) * 100) + "% WR</span>");
+    if (summaryInfo && summaryInfo.clearSec > 0) {
+      metrics.push("<span class='pill sm info' title='Anticipated time to clear SA " + state.level + " (" + prettify(summaryInfo.remainingKills) + " kills @ " + summaryInfo.secPerKill.toFixed(1) + "s/kill)'>" + ICONS.clock + " Clear: ~" + esc(summaryInfo.clearTimeStr) + "</span>");
     }
-    metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (rec.l || "?") + " Limbs</span>");
-    if (rec.r) {
-      if (delta.ringMismatch) {
-        metrics.push("<span class='pill sm warn-pill' title='Your Ring is currently set to " + esc(curModTxt) + " — switch to " + esc(mods) + "'>" + ICONS.warn + " Ring " + rec.r.lv + " (" + esc(curModTxt) + " → " + esc(mods) + ")</span>");
+    metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (activeBuild.l || "?") + " Limbs</span>");
+    if (activeBuild.r) {
+      if (targetDelta.ringMismatch) {
+        var curModTxt = formatModList(targetDelta.curMods) || "None";
+        metrics.push("<span class='pill sm warn-pill' title='Your Ring is currently set to " + esc(curModTxt) + " — switch to " + esc(targetMods) + "'>" + ICONS.warn + " Ring " + activeBuild.r.lv + " (" + esc(curModTxt) + " → " + esc(targetMods) + ")</span>");
       } else {
-        metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + rec.r.lv + (mods ? " (" + esc(mods) + ")" : "") + "</span>");
+        metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + activeBuild.r.lv + (targetMods ? " (" + esc(targetMods) + ")" : "") + "</span>");
       }
     }
-    if (rec.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + rec.c + "</span>");
+    if (activeBuild.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + activeBuild.c + "</span>");
 
-    var presetMatch = findBestPresetMatch(rec);
-    var presetBadge = "";
+    var remSteps = summaryInfo ? summaryInfo.steps.length : 0;
+    var simBtn = "<button type='button' class='btn sm ghost sim-plan-btn' id='recSimPlanBtn' title='Load " + esc(activeBuild.n) + " into Combat Simulator'>⚔️ Sim</button>";
+    var lockBtn = (isPlanLocked || (summaryInfo && summaryInfo.pick && summaryInfo.pick.isLocked))
+      ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='recLockPlanBtn' title='Advisor is locked to " + esc(activeBuild.n) + ". Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
+      : "<button type='button' class='btn sm ghost lock-plan-btn' id='recLockPlanBtn' title='Lock advisor to " + esc(activeBuild.n) + " so recommendations follow this build.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
+
+    var statusPills = [];
+    if (isPlanLocked) {
+      statusPills.push("<span class='pill sm accent'>" + ICONS.lock + " Active Plan</span>");
+    }
+    if (isTargetOnly) {
+      statusPills.push("<span class='pill sm warn-pill'>" + ICONS.bolt + " " + remSteps + " Upgrade" + (remSteps === 1 ? "" : "s") + " Needed</span>");
+    } else if (targetDelta.aligned) {
+      statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Active &amp; Aligned</span>");
+    } else {
+      statusPills.push("<span class='pill sm warn-pill'>" + ICONS.warn + " Adjustments Needed</span><span class='pill sm buy'>" + ICONS.check + " Runnable</span>");
+    }
+
+    var presetMatch = findBestPresetMatch(activeBuild);
     if (presetMatch) {
       if (presetMatch.isExact) {
-        presetBadge = "<span class='pill sm buy' style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='Matches in-game " + esc(presetMatch.preset.name) + " (" + presetMatch.preset.slotTag + "). Click to open presets modal.'>" +
-          ICONS.check + " Matches " + esc(presetMatch.preset.slotTag) + ' ("' + esc(presetMatch.preset.name) + '")</span>';
+        statusPills.push("<span class='pill sm buy' style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='Matches in-game " + esc(presetMatch.preset.name) + " (" + presetMatch.preset.slotTag + "). Click to open presets modal.'>" +
+          ICONS.check + " Matches " + esc(presetMatch.preset.slotTag) + ' ("' + esc(presetMatch.preset.name) + '")</span>');
       } else if (presetMatch.isClose) {
         var swapItemNames = presetMatch.missing.map(itemName).join(", ") || "1 mod/item";
-        presetBadge = "<span class='pill sm accent' style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='1 swap from in-game " + esc(presetMatch.preset.name) + " (" + presetMatch.preset.slotTag + "): " + esc(swapItemNames) + ". Click to open presets modal.'>" +
-          ICONS.target + " ~ " + esc(presetMatch.preset.slotTag) + ' (1 swap)</span>';
+        statusPills.push("<span class='pill sm accent' style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='1 swap from in-game " + esc(presetMatch.preset.name) + " (" + presetMatch.preset.slotTag + "): " + esc(swapItemNames) + ". Click to open presets modal.'>" +
+          ICONS.target + " ~ " + esc(presetMatch.preset.slotTag) + ' (1 swap)</span>');
       }
     }
 
-    var recSimBtn = "<button type='button' class='btn sm ghost sim-plan-btn' id='recSimPlanBtn' title='Load " + esc(rec.n) + " into Combat Simulator'>⚔️ Sim</button>";
-    var statusHtml = "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" +
-      (delta.aligned
-        ? "<span class='pill sm buy'>" + ICONS.check + " Active &amp; Aligned</span>"
-        : "<span class='pill sm warn-pill'>" + ICONS.warn + " Adjustments Needed</span><span class='pill sm buy'>" + ICONS.check + " Runnable</span>") +
-      presetBadge +
-      recSimBtn +
-      "</div>";
+    statusPills.push(simBtn);
+    statusPills.push(lockBtn);
 
-    var deltaHtml = "";
-    if (!delta.aligned) {
-      var dRows = [];
-      if (delta.ringMismatch) {
-        dRows.push("<div class='delta-row'><span class='delta-lbl'>Ring Mod:</span><span class='pill sm warn-pill'>" + ICONS.ring + " " + esc(curModTxt) + " → " + esc(mods) + "</span></div>");
-      }
-      if (delta.toUnequip.length) {
-        var unPills = delta.toUnequip.map(function (k) {
-          return "<span class='pill sm sell'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
-        }).join("");
-        dRows.push("<div class='delta-row'><span class='delta-lbl'>Unequip:</span>" + unPills + "</div>");
-      }
-      if (delta.toEquip.length) {
-        var eqPills = delta.toEquip.map(function (k) {
-          return "<span class='pill sm buy'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
-        }).join("");
-        dRows.push("<div class='delta-row'><span class='delta-lbl'>Equip:</span>" + eqPills + "</div>");
-      }
-      deltaHtml = "<div class='delta-box'>" +
-        "<div class='delta-title'>" + ICONS.warn + "<span>Loadout Alignment Guide</span></div>" +
-        "<div class='delta-rows'>" + dRows.join("") + "</div>" +
+    var timingBox = "";
+    if (summaryInfo && (summaryInfo.buildSec > 0 || isTargetOnly || isPlanLocked)) {
+      timingBox =
+        "<div class='rec-timing-banner'>" +
+          "<div class='time-stat' title='Time to save required dust/shards for all " + remSteps + " upgrade steps (" + (rate ? (prettify(rate) + "/s dust rate") : "at current rate") + ")'>" +
+            "<span class='time-lbl'>" + ICONS.hammer + " Build Time:</span>" +
+            "<span class='mono' style='font-size:13.5px;font-weight:700;color:" + (summaryInfo.buildSec === 0 ? "var(--buy)" : "var(--text)") + ";'>" + esc(summaryInfo.buildTimeStr) + "</span>" +
+          "</div>" +
+          "<div class='time-sep'></div>" +
+          "<div class='time-stat' title='Anticipated time to clear SA " + state.level + " once " + esc(activeBuild.n) + " is active (" + prettify(summaryInfo.remainingKills) + " kills @ ~" + summaryInfo.secPerKill.toFixed(1) + "s per kill)'>" +
+            "<span class='time-lbl'>" + ICONS.clock + " Clear Time:</span>" +
+            "<span class='mono' style='font-size:13.5px;font-weight:700;color:var(--accent);'>~" + esc(summaryInfo.clearTimeStr) + "</span>" +
+          "</div>" +
+          (summaryInfo.totalTimeStr ? (
+            "<div class='time-sep'></div>" +
+            "<div class='time-stat' title='Total duration: Build Time + Clear Time'>" +
+              "<span class='time-lbl'>" + ICONS.spire + " Total:</span>" +
+              "<span class='mono' style='font-size:13.5px;font-weight:700;color:var(--buy);'>~" + esc(summaryInfo.totalTimeStr) + "</span>" +
+            "</div>"
+          ) : "") +
         "</div>";
+    }
+
+    var headPrefix = isPlanLocked ? "Target Plan:" : (isTargetOnly ? "Target Build:" : "Recommended Build:");
+    var swapTitle = isPlanLocked ? "Steps to Initiate Plan · Loadout & Ring Changes" : (isTargetOnly ? "Steps to Initiate Plan · Loadout & Ring Changes" : "Steps to Initiate Build · Loadout & Ring Changes");
+    var swapGuideHtml = renderAlignmentGuide(activeBuild, targetDelta, swapTitle);
+
+    var explText = "";
+    if (isPlanLocked && rec && rec.n !== activeBuild.n) {
+      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your plan <b>" + esc(activeBuild.n) + "</b>. Currently running: <b>" + esc(rec.n) + "</b> (" + prettify(rec.d) + "/s). Follow the swap guide above and the Next Upgrade Advisor on the right to transition.</span></div>";
+    } else if (isTargetOnly) {
+      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No sheet build on SA " + state.level + " is currently runnable with your items and levels. Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). Follow the swap guide above and the Next Upgrade Advisor on the right to progress toward this build.</span></div>";
+    } else if (activeBuild.note) {
+      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" + esc(activeBuild.note) + "</span></div>";
     }
 
     el.innerHTML =
       "<div class='rec'>" +
       "<div class='rec-top'>" +
-      "<div class='rec-head'><span>" + esc(rec.n) + "</span></div>" +
-      statusHtml +
+      "<div class='rec-head'><span style='color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'>" + headPrefix + "</span> <span>" + esc(activeBuild.n) + "</span></div>" +
+      "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>" + statusPills.join("") + "</div>" +
       "</div>" +
+      timingBox +
       "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
-      deltaHtml +
+      swapGuideHtml +
+      explText +
       "<div class='loadout-grid'>" + itemCards + "</div>" +
-      (rec.note ? "<div class='notes'>" + ICONS.info + "<span>" + esc(rec.note) + "</span></div>" : "") +
       "</div>";
 
-    var rSimBtn2 = $("recSimPlanBtn");
-    if (rSimBtn2) {
-      rSimBtn2.addEventListener("click", function () {
-        openSimModal(rec);
+    var rLockBtn = $("recLockPlanBtn");
+    if (rLockBtn) {
+      rLockBtn.addEventListener("click", function () {
+        toggleLockBuild(activeBuild);
+      });
+    }
+    var rSimBtn = $("recSimPlanBtn");
+    if (rSimBtn) {
+      rSimBtn.addEventListener("click", function () {
+        openSimModal(activeBuild);
       });
     }
   }
@@ -11305,10 +11410,100 @@ var ONE_TIMER_MILESTONES = [
       (b.note ? "<div class='notes' style='padding:7px 10px;font-size:11.5px;'>" + ICONS.info + "<span>" + esc(b.note) + "</span></div>" : "") +
       "</div>";
 
-    return "<div class='bb-info-wrap' tabindex='0'>" +
-      "<span class='" + pillCls + "' title='Hover for item swaps, Ring settings, and full build loadout'>" + ICONS.info + "<span>" + esc(pillTxt) + "</span></span>" +
+    return "<div class='bb-info-wrap' tabindex='0' data-open-build='" + esc(buildId(b)) + "'>" +
+      "<button type='button' class='" + pillCls + "' data-open-build='" + esc(buildId(b)) + "' title='Click to view item swaps, Ring settings, and build guidance'>" + ICONS.info + "<span>" + esc(pillTxt) + "</span></button>" +
       popHtml +
       "</div>";
+  }
+
+  function openBuildDetailsModal(build) {
+    if (!build) return;
+    var dlg = $("buildDetailsDlg");
+    if (!dlg) return;
+
+    var cur = (state.lastBetterCur != null) ? state.lastBetterCur : (activeDustPs() || 0);
+    var delta = loadoutDelta(build);
+    var gain = (build.d || 0) - cur;
+
+    var bTitle = $("bddTitle");
+    if (bTitle) bTitle.textContent = (build.n || "Build") + " · Swap & Loadout Guidance";
+
+    var bBody = $("bddBody");
+    if (bBody) {
+      var reqMods = formatModList(build.r && build.r.m || []) || "None";
+      var metaPills = [];
+      metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(build.d) + "/s (" + (gain >= 0 ? "+" : "") + prettify(gain) + "/s)</span>");
+      if (build.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + build.k + "s kills</span>");
+      if (build.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((build.wr <= 1 ? build.wr : build.wr / 100) * 100) + "% WR</span>");
+      metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (build.l || "?") + " Limbs</span>");
+      if (build.r) metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " Ring Lv " + build.r.lv + " (" + esc(reqMods) + ")</span>");
+
+      var swapGuideHtml = renderAlignmentGuide(build, delta, "Loadout & Ring Changes Needed (Swaps)", true);
+
+      var itemKeys = Object.keys(build.i || {});
+      var itemCards = itemKeys.map(function (k) {
+        var owned = userOwns(k);
+        var myLv = owned ? userLevel(k) : 0;
+        var needLv = build.i[k] || 1;
+        var isEq = !!(userItem(k) && userItem(k).equipped);
+        var sh = isShards(k);
+        var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "") + (myLv < needLv ? " underleveled" : "");
+        var lvBadge = !owned ? ("Locked · Lv " + needLv) : (myLv < needLv ? ("Lv " + myLv + " → " + needLv) : ("Lv " + needLv));
+        var tip = (isEq ? "Equipped" : "Unequipped") + " · Target: Lv " + needLv + (owned ? (" (Current: Lv " + myLv + ")") : " (Not yet unlocked)");
+        return "<div class='" + cls + "' title='" + esc(tip) + "'>" +
+          "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
+          "<span class='li-lv'>" + esc(lvBadge) + "</span>" +
+          "</div>";
+      }).join("");
+
+      var isLocked = isSameLockedBuild(state.level, build);
+      var bId = buildId(build);
+      var lockBtnHtml = isLocked
+        ? "<button type='button' class='btn sm accent' id='bddLockBtn'>" + ICONS.lock + "<span>Plan Locked</span></button>"
+        : "<button type='button' class='btn sm ghost' id='bddLockBtn'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
+      var simBtnHtml = "<button type='button' class='btn sm ghost' id='bddSimBtn'>⚔️ Sim Build</button>";
+
+      bBody.innerHTML =
+        "<div class='rec-metrics' style='gap:6px;flex-wrap:wrap;'>" + metaPills.join("") + "</div>" +
+        swapGuideHtml +
+        "<div style='display:flex;flex-direction:column;gap:6px;margin-top:6px;'>" +
+        "<div class='bb-pop-kicker'><span>Target Loadout (" + itemKeys.length + " items)</span><span style='color:var(--warn);'>Amber border = not currently equipped</span></div>" +
+        "<div class='loadout-grid' style='grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:6px;'>" + itemCards + "</div>" +
+        "</div>" +
+        "<div style='display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);'>" +
+        simBtnHtml +
+        lockBtnHtml +
+        "<button type='button' class='btn sm ghost' id='bddCloseBtn'>Close</button>" +
+        "</div>";
+
+      var lBtn = $("bddLockBtn");
+      if (lBtn) {
+        lBtn.onclick = function() {
+          toggleLockBuild(build);
+          closeBuildDetailsModal();
+        };
+      }
+      var sBtn = $("bddSimBtn");
+      if (sBtn) {
+        sBtn.onclick = function() {
+          closeBuildDetailsModal();
+          openSimModal(build);
+        };
+      }
+      var cBtn = $("bddCloseBtn");
+      if (cBtn) cBtn.onclick = closeBuildDetailsModal;
+    }
+
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "");
+  }
+
+  function closeBuildDetailsModal() {
+    var dlg = $("buildDetailsDlg");
+    if (dlg) {
+      if (typeof dlg.close === "function") dlg.close();
+      else dlg.removeAttribute("open");
+    }
   }
 
   function renderBetter(rec, rate) {
@@ -11406,6 +11601,15 @@ var ONE_TIMER_MILESTONES = [
         var targetB = (state.lastBetterBuilds || []).find(function(b) { return buildId(b) === sId; }) ||
                       findLockedTarget(state.level, { id: sId });
         if (targetB) openSimModal(targetB);
+        return;
+      }
+      var bBtn = ev.target.closest("[data-open-build]");
+      if (bBtn) {
+        ev.preventDefault();
+        var bId = bBtn.getAttribute("data-open-build");
+        var targetBuild = (state.lastBetterBuilds || []).find(function(b) { return buildId(b) === bId; }) ||
+                          findLockedTarget(state.level, { id: bId });
+        if (targetBuild) openBuildDetailsModal(targetBuild);
         return;
       }
       var btn = ev.target.closest("button[data-lock-build]");
@@ -13092,6 +13296,18 @@ function renderPresetsModal() {
         if (ev.target === $("presetsDlg")) closePresetsModal();
       });
     }
+    if ($("buildDetailsDlg")) {
+      var btnCloseBD = $("btnCloseBuildDetails");
+      if (btnCloseBD) btnCloseBD.addEventListener("click", closeBuildDetailsModal);
+      var bdDlg = $("buildDetailsDlg");
+      if (bdDlg) {
+        bdDlg.addEventListener("click", function (ev) {
+          if (ev.target === bdDlg) closeBuildDetailsModal();
+        });
+        bdDlg.addEventListener("close", closeBuildDetailsModal);
+        bdDlg.addEventListener("cancel", closeBuildDetailsModal);
+      }
+    }
     if ($("simDlg")) {
       var btnS = $("btnOpenSim");
       if (btnS) btnS.addEventListener("click", function() { openSimModal(); });
@@ -13242,9 +13458,12 @@ function renderPresetsModal() {
   window.saResetBankTimer = resetBankTimer;
   window.saOpenPresets = openPresetsModal;
   window.saClosePresets = closePresetsModal;
+  window.saOpenBuildDetails = openBuildDetailsModal;
+  window.saCloseBuildDetails = closeBuildDetailsModal;
   window.saOpenSim = openSimModal;
   window.saCloseSim = closeSimModal;
   window.saCloseLockPrompt = closeSimLockPrompt;
+  window.saToggleSwapGuide = toggleSwapGuide;
   try {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
     else bind();
