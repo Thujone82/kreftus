@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trimps-v49';
+const CACHE_NAME = 'trimps-v50';
 
 const PRECACHE_URLS = [
   './',
