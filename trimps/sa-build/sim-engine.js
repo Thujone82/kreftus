@@ -4077,6 +4077,8 @@ function createRawAutoBattle(game, u2Mutations) {
       if (ab._activate) ab._activate();
       ab.enemyLevel = Number(cfg.level || cfg.enemyLevel || 1);
       ab.maxEnemyLevel = Number(cfg.maxEnemyLevel || ab.enemyLevel);
+      ab.autoLevel = false;
+      ab.nextLevelCount = function() { return Infinity; };
 
       ab._gameMock.global.highestRadonLevelCleared = 205;
       ab._gameMock.global.fluffyExp2 = cfg.fluffyExp2 || 0;
@@ -4150,6 +4152,8 @@ function createRawAutoBattle(game, u2Mutations) {
       if (options.ringLevel) cfg.rings.level = options.ringLevel;
 
       SASimEngine.applyConfig(ab, cfg);
+      ab.autoLevel = false;
+      ab.nextLevelCount = function() { return Infinity; };
 
       var ticks = 0;
       var totalFights = 0;
@@ -4538,7 +4542,7 @@ function createRawAutoBattle(game, u2Mutations) {
             huffyAtkTimer: Math.max(0, (trimp.attackSpeed || 500) - (trimp.lastAttack || 0)),
             huffyMaxAtkTimer: trimp.attackSpeed || 500,
             huffyBuffs: {
-              bleed: trimp.bleed && trimp.bleed.time > 0 ? { dmg: trimp.bleed.mod || 0 } : null,
+              bleed: trimp.bleed && trimp.bleed.time > 0 ? { dmg: trimp.bleed.mod || 0, amp: Math.round((trimp.bleed.mod || 0) * 100) } : null,
               poison: trimp.poison && trimp.poison.time > 0 ? { stacks: trimp.poison.stacks || 0 } : null,
               shock: trimp.shock && trimp.shock.time > 0 ? { amp: Math.round((trimp.shock.mod || 0) * 100) } : null
             },
@@ -4552,7 +4556,7 @@ function createRawAutoBattle(game, u2Mutations) {
             enemyAtkTimer: Math.max(0, (enemy.attackSpeed || 700) - (enemy.lastAttack || 0)),
             enemyMaxAtkTimer: enemy.attackSpeed || 700,
             enemyBuffs: {
-              bleed: enemy.bleed && enemy.bleed.time > 0 ? { dmg: enemy.bleed.mod || 0 } : null,
+              bleed: enemy.bleed && enemy.bleed.time > 0 ? { dmg: enemy.bleed.mod || 0, amp: Math.round((enemy.bleed.mod || 0) * 100) } : null,
               poison: enemy.poison && enemy.poison.time > 0 ? { stacks: enemy.poison.stacks || 0 } : null,
               shock: enemy.shock && enemy.shock.time > 0 ? { amp: Math.round((enemy.shock.mod || 0) * 100) } : null
             },

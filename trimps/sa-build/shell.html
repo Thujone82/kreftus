@@ -512,6 +512,33 @@
     }
     .step-btn:hover { background: var(--surface-3); color: var(--text); }
     .step-btn svg { width: 14px; height: 14px; }
+    .mode-toggle-group {
+      display: inline-flex; align-items: center; flex-shrink: 0;
+      background: var(--surface-2); border: 1px solid var(--border-strong);
+      border-radius: 10px; padding: 2px; gap: 2px;
+    }
+    .mode-toggle-btn {
+      border: 0; border-radius: 7px; padding: 3px 9px;
+      font-size: 11.5px; font-weight: 600; cursor: pointer;
+      background: transparent; color: var(--muted);
+      display: inline-flex; align-items: center; gap: 4px; line-height: 1.2;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    .mode-toggle-btn:hover {
+      color: var(--text); background: var(--surface-3);
+    }
+    .mode-toggle-btn.mode-active-farm {
+      background: color-mix(in srgb, var(--buy) 20%, var(--surface-2)) !important;
+      color: var(--buy) !important;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--buy) 50%, transparent);
+    }
+    .mode-toggle-btn.mode-active-push {
+      background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)) !important;
+      color: var(--accent) !important;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+    }
     .dust-line { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 8px; white-space: nowrap; flex-shrink: 0; }
     .input-wrap {
       position: relative; display: inline-flex; align-items: center; flex-shrink: 0;
@@ -1814,6 +1841,7 @@
                 </button>
               </div>
               <div id="quickLevels" style="display:inline-flex;gap:5px;flex-wrap:nowrap;align-items:center;"></div>
+              <div id="levelModeToggle" style="display:inline-flex;gap:4px;align-items:center;"></div>
             </div>
           </div>
 
