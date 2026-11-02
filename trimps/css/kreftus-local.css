@@ -645,6 +645,55 @@ html, body {
   padding: 4px 8px;
 }
 
+#queueRow {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: nowrap !important;
+  gap: 4px;
+  font-size: clamp(11.5px, 0.88vw, 13.5px) !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  line-height: 1.2 !important;
+}
+
+#queueRow > div {
+  float: none !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  padding: 0 2px !important;
+}
+
+#foremenCount {
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0 !important;
+}
+
+#buildSpeed {
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0 !important;
+}
+
+#autoTrapBtn {
+  white-space: nowrap !important;
+  padding: 3px 8px !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  line-height: 1.2 !important;
+}
+
+#buildingsCollectBtn {
+  white-space: nowrap !important;
+  padding: 3px 10px !important;
+  width: auto !important;
+  line-height: 1.2 !important;
+}
+
 .queueItem {
   border-radius: 6px !important;
   border: 1px solid var(--border-strong) !important;
