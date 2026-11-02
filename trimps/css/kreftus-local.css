@@ -597,7 +597,7 @@ html, body {
 
 #logBtnGroup .btn.btn-danger {
   background: var(--surface-2) !important;
-  border-color: var(--border) !important;
+  border-color: var(--border-strong) !important;
   color: var(--muted) !important;
 }
 
@@ -889,7 +889,7 @@ li.tabNotEnabled:hover {
 #portalTabs > li > a {
   flex: 1 1 auto !important;
   border-radius: var(--radius-sm) !important;
-  border: 1px solid var(--border) !important;
+  border: 1px solid var(--border-strong) !important;
   background: var(--surface-2) !important;
   color: var(--muted) !important;
   font-weight: 600 !important;
@@ -1309,13 +1309,95 @@ li.tabNotEnabled:hover {
   line-height: 1 !important;
 }
 
-/* Combat Side Buttons (Fight, Maps, Portal, Repeat, AutoFight) */
+/* Combat Side Buttons (Fight, Maps, Portal, Repeat, AutoFight, Right Map Actions) */
 .fightBtn {
   border-radius: var(--radius-sm) !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.01em;
-  transition: all 0.15s ease;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  border: 1px solid var(--border-strong) !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.fightBtn.btn-primary,
+#fightBtn {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.38), rgba(29, 78, 216, 0.28)) !important;
+  border-color: rgba(59, 130, 246, 0.65) !important;
+  color: #93c5fd !important;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2) !important;
+}
+
+.fightBtn.btn-primary:hover,
+#fightBtn:hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.48), rgba(29, 78, 216, 0.38)) !important;
+  border-color: #3b82f6 !important;
+  color: #eff6ff !important;
+  box-shadow: 0 3px 10px rgba(59, 130, 246, 0.3) !important;
+}
+
+.fightBtn.btn-success {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.32), rgba(21, 128, 61, 0.25)) !important;
+  border-color: rgba(34, 197, 94, 0.65) !important;
+  color: #4ade80 !important;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.2) !important;
+}
+
+.fightBtn.btn-success:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.42), rgba(21, 128, 61, 0.35)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 3px 10px rgba(34, 197, 94, 0.3) !important;
+}
+
+.fightBtn.btn-danger {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.28), rgba(159, 18, 57, 0.22)) !important;
+  border-color: rgba(244, 63, 94, 0.6) !important;
+  color: #fb7185 !important;
+  box-shadow: 0 2px 6px rgba(244, 63, 94, 0.18) !important;
+}
+
+.fightBtn.btn-danger:hover {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.38), rgba(159, 18, 57, 0.32)) !important;
+  border-color: #f43f5e !important;
+  color: #fff1f2 !important;
+  box-shadow: 0 3px 10px rgba(244, 63, 94, 0.28) !important;
+}
+
+.fightBtn.btn-warning,
+#mapsBtn {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.32), rgba(194, 65, 12, 0.24)) !important;
+  border-color: rgba(247, 147, 26, 0.65) !important;
+  color: #fb923c !important;
+  box-shadow: 0 2px 6px rgba(247, 147, 26, 0.2) !important;
+}
+
+.fightBtn.btn-warning:hover,
+#mapsBtn:hover {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.42), rgba(194, 65, 12, 0.34)) !important;
+  border-color: #f7931a !important;
+  color: #ffedd5 !important;
+  box-shadow: 0 3px 10px rgba(247, 147, 26, 0.3) !important;
+}
+
+.fightBtn.btn-info,
+#portalBtn {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.3), rgba(15, 118, 110, 0.24)) !important;
+  border-color: rgba(45, 212, 191, 0.65) !important;
+  color: #5eead4 !important;
+  box-shadow: 0 2px 6px rgba(45, 212, 191, 0.2) !important;
+}
+
+.fightBtn.btn-info:hover,
+#portalBtn:hover {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.4), rgba(15, 118, 110, 0.34)) !important;
+  border-color: #2dd4bf !important;
+  color: #ccfbf1 !important;
+  box-shadow: 0 3px 10px rgba(45, 212, 191, 0.3) !important;
 }
 
 /* Bone Trader Button */
@@ -1492,31 +1574,267 @@ li.tabNotEnabled:hover {
   border-spacing: 3px 2px;
 }
 
-#settingsTable > tbody > tr > td {
-  background: var(--surface-2);
-  border: 1px solid var(--border) !important;
-  border-radius: 6px;
-  font-weight: 600;
-  color: var(--text);
-  padding: 3px 4px;
-  transition: all 0.15s ease;
+#settingsTable > tbody > tr > td,
+#settingsTable td {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  padding: 4px 6px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
 }
 
-#settingsTable > tbody > tr > td:hover {
-  background: var(--surface-3);
-  border-color: rgba(247, 147, 26, 0.45) !important;
-  color: #fb923c;
+#settingsTable > tbody > tr > td:hover,
+#settingsTable td:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(247, 147, 26, 0.25) !important;
+}
+
+#settingsTable td.tealColor {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.25), rgba(15, 118, 110, 0.18)) !important;
+  border-color: rgba(45, 212, 191, 0.6) !important;
+  color: #5eead4 !important;
+}
+
+#settingsTable td#portalTimer {
+  background: var(--surface-solid) !important;
+  border-color: var(--border) !important;
+  color: var(--muted) !important;
 }
 
 #settingsHere {
   background: var(--surface-solid);
   border-top: 1px solid var(--border-strong);
-  padding: 8px 12px;
+  padding: 12px 14px;
+}
+
+/* Setting Buttons & State Toggles (.settingBtn0..5, .settingBtntrue, .settingBtnfalse) */
+.optionContainer {
+  border-radius: var(--radius-sm, 7px) !important;
+  margin-bottom: 8px !important;
 }
 
 .settingsBtn {
-  border-radius: 6px !important;
-  font-weight: 600;
+  border-radius: var(--radius-sm, 7px) !important;
+  font-weight: 600 !important;
+  font-family: var(--font) !important;
+  padding: 5px 8px !important;
+  min-height: 32px !important;
+  box-sizing: border-box !important;
+  border: 1px solid var(--border-strong) !important;
+  transition: all 0.15s ease !important;
+}
+
+.settingBtntrue,
+.settingBtn1 {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.28), rgba(21, 128, 61, 0.22)) !important;
+  border: 1px solid rgba(34, 197, 94, 0.65) !important;
+  color: #4ade80 !important;
+  box-shadow: 0 1px 4px rgba(34, 197, 94, 0.16) !important;
+}
+
+.settingBtntrue:hover,
+.settingBtn1:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.4), rgba(21, 128, 61, 0.32)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3) !important;
+}
+
+.settingBtnfalse,
+.settingBtn0 {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.24), rgba(159, 18, 57, 0.18)) !important;
+  border: 1px solid rgba(244, 63, 94, 0.55) !important;
+  color: #fb7185 !important;
+  box-shadow: 0 1px 4px rgba(244, 63, 94, 0.14) !important;
+}
+
+.settingBtnfalse:hover,
+.settingBtn0:hover {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.36), rgba(159, 18, 57, 0.28)) !important;
+  border-color: #f43f5e !important;
+  color: #fff1f2 !important;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.25) !important;
+}
+
+.settingBtn2,
+.btn-yellow,
+.colorYellow {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.26), rgba(180, 83, 9, 0.18)) !important;
+  border: 1px solid rgba(251, 191, 36, 0.6) !important;
+  color: #fde047 !important;
+  box-shadow: 0 1px 4px rgba(251, 191, 36, 0.16) !important;
+}
+
+.settingBtn2:hover,
+.btn-yellow:hover,
+.colorYellow:hover {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.38), rgba(180, 83, 9, 0.28)) !important;
+  border-color: #fbbf24 !important;
+  color: #fef08a !important;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.28) !important;
+}
+
+.settingBtn3 {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.26), rgba(15, 118, 110, 0.18)) !important;
+  border: 1px solid rgba(45, 212, 191, 0.6) !important;
+  color: #5eead4 !important;
+  box-shadow: 0 1px 4px rgba(45, 212, 191, 0.16) !important;
+}
+
+.settingBtn3:hover {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.38), rgba(15, 118, 110, 0.28)) !important;
+  border-color: #2dd4bf !important;
+  color: #ccfbf1 !important;
+  box-shadow: 0 2px 8px rgba(45, 212, 191, 0.28) !important;
+}
+
+.settingBtn4 {
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.26), rgba(109, 40, 217, 0.18)) !important;
+  border: 1px solid rgba(167, 139, 250, 0.6) !important;
+  color: #c4b5fd !important;
+  box-shadow: 0 1px 4px rgba(167, 139, 250, 0.16) !important;
+}
+
+.settingBtn4:hover {
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.38), rgba(109, 40, 217, 0.28)) !important;
+  border-color: #a78bfa !important;
+  color: #ede9fe !important;
+  box-shadow: 0 2px 8px rgba(167, 139, 250, 0.28) !important;
+}
+
+.settingBtn5 {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.26), rgba(194, 65, 12, 0.18)) !important;
+  border: 1px solid rgba(247, 147, 26, 0.6) !important;
+  color: #fb923c !important;
+  box-shadow: 0 1px 4px rgba(247, 147, 26, 0.16) !important;
+}
+
+.settingBtn5:hover {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.38), rgba(194, 65, 12, 0.28)) !important;
+  border-color: #f7931a !important;
+  color: #ffedd5 !important;
+  box-shadow: 0 2px 8px rgba(247, 147, 26, 0.28) !important;
+}
+
+.btn-disabled,
+.colorDisabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: var(--muted) !important;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+/* Setting Config Gear Button */
+.settingsBtnConfig {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-right: none !important;
+}
+
+.settingsBtnConfig + button {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-top-right-radius: var(--radius-sm, 7px) !important;
+  border-bottom-right-radius: var(--radius-sm, 7px) !important;
+  color: var(--text) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 8px !important;
+}
+
+.settingsBtnConfig + button:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+/* Category Tabs in Settings Drawer (#settingsTabs) */
+#settingsTabs {
+  margin-top: 10px !important;
+}
+
+#settingsTabs > ul {
+  border-bottom: none !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  padding: 3px !important;
+}
+
+#settingsTabs > ul > li.settingTab {
+  float: none !important;
+  flex: 1 1 0 !important;
+  min-width: 90px !important;
+  display: flex !important;
+}
+
+#settingsTabs > ul > li.settingTab > a {
+  flex: 1 1 auto !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  border: 1px solid var(--border-strong) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  padding: 5px 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: 28px !important;
+  box-sizing: border-box !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+#settingsTabs > ul > li.settingTab > a:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-bright) !important;
+  border-color: var(--accent) !important;
+}
+
+#settingsTabs > ul > li.settingTab.tabSelected > a,
+#settingsTabs > ul > li.settingTab.tabSelected > a:hover {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.24), rgba(247, 147, 26, 0.12)) !important;
+  border-color: rgba(247, 147, 26, 0.65) !important;
+  color: #fb923c !important;
+  box-shadow: 0 1px 4px rgba(247, 147, 26, 0.2) !important;
+}
+
+/* Browse All / Back to Search in Settings */
+.settingTypeBtn,
+.settingsBtn.tealColor,
+.settingsBtn.settingTypeBtn {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.24), rgba(15, 118, 110, 0.18)) !important;
+  border: 1px solid rgba(45, 212, 191, 0.55) !important;
+  color: #5eead4 !important;
+  box-shadow: 0 1px 4px rgba(45, 212, 191, 0.16) !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  padding: 5px 14px !important;
+}
+
+.settingTypeBtn:hover,
+.settingsBtn.tealColor:hover,
+.settingsBtn.settingTypeBtn:hover {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.35), rgba(15, 118, 110, 0.28)) !important;
+  border-color: #2dd4bf !important;
+  color: #ccfbf1 !important;
+  box-shadow: 0 2px 8px rgba(45, 212, 191, 0.28) !important;
 }
 
 /* Theme Toggle Button in #settingTitleBar when SA Theme is Active */
@@ -1646,6 +1964,90 @@ table,
   border: 1px solid var(--border-strong) !important;
   border-radius: 6px;
   padding: 4px 8px;
+}
+
+/* Fluffy / Scruffy Progress Breakdown Modal (#fluffyLevelBreakdown) */
+#fluffyTooltipTopContainer {
+  font-size: clamp(12px, 1.1vw, 14.5px) !important;
+  line-height: 1.45 !important;
+}
+
+#fluffyExpBreakdown:not(:empty) {
+  background-color: var(--surface-2, #191d27) !important;
+  color: var(--muted, #8b94a7) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  margin: 6px 0 !important;
+  padding: 6px 10px !important;
+}
+
+#fluffyLevelBreakdownContainer {
+  max-height: 52vh !important;
+  overflow-y: auto !important;
+  width: 100% !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  background: var(--surface-solid, #14171f) !important;
+  font-size: clamp(11.5px, 1vw, 13.5px) !important;
+  margin-top: 8px !important;
+}
+
+#fluffyLevelBreakdown {
+  border-collapse: collapse !important;
+  border: none !important;
+  width: 100% !important;
+  background: transparent !important;
+}
+
+#fluffyLevelBreakdown tbody tr:first-child td {
+  background: var(--surface-3, #222736) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border: 1px solid var(--border-strong) !important;
+  border-bottom: 2px solid var(--border-strong) !important;
+  padding: 6px 10px !important;
+}
+
+#fluffyLevelBreakdown tbody tr td {
+  border: 1px solid var(--border) !important;
+  padding: 5px 8px !important;
+}
+
+#fluffyLevelBreakdown td:first-child {
+  width: 10% !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+#fluffyLevelBreakdown td:last-child {
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+/* Completed Levels: High-contrast shaded progress */
+#fluffyLevelBreakdown tr.fluffyRowComplete,
+#fluffyLevelBreakdown tr.fluffyRowComplete td {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+#fluffyLevelBreakdown tr.fluffyRowComplete:hover td {
+  background-color: rgba(255, 255, 255, 0.19) !important;
+}
+
+/* Incomplete / Future Levels: Receded & unshaded */
+#fluffyLevelBreakdown tr:not(.fluffyRowComplete):not(:first-child),
+#fluffyLevelBreakdown tr:not(.fluffyRowComplete):not(:first-child) td {
+  background-color: rgba(0, 0, 0, 0.22) !important;
+  color: var(--muted, #8b94a7) !important;
+  font-weight: 400 !important;
+  border-color: var(--border) !important;
+}
+
+#fluffyLevelBreakdown tr:not(.fluffyRowComplete):not(:first-child):hover td {
+  background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 /* Full-Screen Overlays: Portal, Stats, Achievements */
