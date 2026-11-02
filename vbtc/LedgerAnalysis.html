@@ -1398,7 +1398,11 @@
         if (!d.pan && moved > 6) {
           const a = this.px2t(Math.max(this.pl, Math.min(d.x0, d.x1)));
           const b = this.px2t(Math.min(this.w - this.pr, Math.max(d.x0, d.x1)));
-          this.setView(a, b);
+          if (this.opts.onSelectRange) {
+            this.opts.onSelectRange(a, b);
+          } else {
+            this.setView(a, b);
+          }
         } else if (moved <= 3 && this.hoverMarker && this.opts.onMarkerClick) {
           this.opts.onMarkerClick(this.hoverMarker);
         }
@@ -3591,6 +3595,10 @@
     }
     const S = state.sum;
     $('#rangeInfo').textContent = S.count ? int(S.count) + ' trades · ' + dur(S.span) : 'no trades in range';
+    const isCustom = !!(state.range && state.range.preset === 'custom');
+    const isZoomed = !!(charts.main && charts.main.isZoomed());
+    if ($('#btnResetZoom')) $('#btnResetZoom').classList.toggle('hidden', !isCustom && !isZoomed);
+    if ($('#btnApplyZoom')) $('#btnApplyZoom').classList.toggle('hidden', !isZoomed);
   }
   function renderAll(keepView) {
     const S = state.sum;
@@ -4655,6 +4663,7 @@
       $('#btnResetZoom').classList.toggle('hidden', !z && !isCustom);
       $('#btnApplyZoom').classList.toggle('hidden', !z);
     },
+    onSelectRange: (a, b) => setRange('custom', a, b),
     onResetRange: restorePrevRange,
     markerTip: m => rowTip(state.base.rows[m.i]),
     onMarkerClick: m => openRow(m.i),
@@ -4671,8 +4680,8 @@
       return tipRow('Trade vs HODL', usdS(alphaDiff), alphaDiff >= 0 ? PAL.buy : PAL.sell, sgn(alphaDiff));
     },
   });
-  charts.dd = new TimeChart($('#chartDD'), { onHoverT: t => syncFromTime(charts.dd, t), onResetRange: restorePrevRange });
-  charts.roll = new TimeChart($('#chartRoll'), { onHoverT: t => syncFromTime(charts.roll, t), onResetRange: restorePrevRange });
+  charts.dd = new TimeChart($('#chartDD'), { onHoverT: t => syncFromTime(charts.dd, t), onSelectRange: (a, b) => setRange('custom', a, b), onResetRange: restorePrevRange });
+  charts.roll = new TimeChart($('#chartRoll'), { onHoverT: t => syncFromTime(charts.roll, t), onSelectRange: (a, b) => setRange('custom', a, b), onResetRange: restorePrevRange });
   charts.vol = new BarChart($('#chartVol'), { onClick: drillPeriod, onHoverI: i => syncFromBar(charts.vol, i) });
   charts.pnl = new BarChart($('#chartPnl'), { onClick: drillPeriod, onHoverI: i => syncFromBar(charts.pnl, i) });
   charts.dist = new BarChart($('#chartDist'), {});
@@ -4997,7 +5006,16 @@
       const btnB = $('#btnBasis');
       if (btnB) btnB.setAttribute('aria-expanded', 'false');
       if (typing) { e.target.blur(); return; }
-      if (charts.main.isZoomed() || (state.range && state.range.preset === 'custom')) charts.main.resetView();
+      if (charts.main.isZoomed() || charts.dd.isZoomed() || charts.roll.isZoomed() || (state.range && state.range.preset === 'custom')) {
+        const anyLocalZoom = charts.main.isZoomed() || charts.dd.isZoomed() || charts.roll.isZoomed();
+        if (anyLocalZoom) {
+          if (charts.main.isZoomed()) charts.main.resetView();
+          if (charts.dd.isZoomed()) charts.dd.resetView();
+          if (charts.roll.isZoomed()) charts.roll.resetView();
+        } else {
+          restorePrevRange();
+        }
+      }
       return;
     }
     if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
