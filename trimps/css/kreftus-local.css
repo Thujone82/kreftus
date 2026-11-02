@@ -431,8 +431,8 @@ html, body {
 #trimps.playerGather {
   display: flex !important;
   flex-direction: column !important;
-  justify-content: space-between !important;
-  padding: 4px 6px !important;
+  justify-content: flex-start !important;
+  padding: 6px 8px !important;
 }
 
 #trimps.playerGather > br {
@@ -445,77 +445,90 @@ html, body {
 }
 
 #trimps #trimpTitle.title {
-  font-size: clamp(12px, 8cqw, 1.4vw) !important;
+  font-size: clamp(15px, 9.5cqw, 1.75vw) !important;
   font-weight: 800 !important;
 }
 
 #trimps > .ownedArea {
   display: inline-block !important;
-  margin: 1px auto !important;
+  margin: 2px auto !important;
   white-space: nowrap !important;
 }
 
 #trimps > .ownedArea,
 #trimps > .ownedArea span {
-  font-size: clamp(10.5px, 6cqw, 1.2vw) !important;
+  font-size: clamp(16px, 9cqw, 1.85vw) !important;
   font-weight: 700 !important;
 }
 
 #trimps > .resProgress {
   width: 100% !important;
-  height: 9px !important;
-  min-height: 9px !important;
-  max-height: 10px !important;
-  margin: 2px 0 !important;
+  height: 14px !important;
+  min-height: 14px !important;
+  max-height: 14px !important;
+  margin: 3px 0 !important;
   flex-shrink: 0;
 }
 
 #trimps #trimpsTimeToFill {
-  font-size: clamp(8px, 0.6vw, 9.5px) !important;
-  line-height: 9px !important;
+  font-size: 10px !important;
+  line-height: 14px !important;
+  font-weight: 700 !important;
 }
 
 #trimps #unempHide {
   margin-top: auto !important;
+  margin-bottom: 3px !important;
 }
 
 #trimps #empHide {
+  margin-top: 3px !important;
   margin-bottom: auto !important;
 }
 
 #trimps #unempHide,
 #trimps #empHide {
-  font-size: clamp(9px, 0.7vw, 11.5px) !important;
-  line-height: 1.2 !important;
+  font-size: clamp(16px, 1.15vw, 19.5px) !important;
+  line-height: 1.55 !important;
+  font-weight: 600 !important;
+}
+
+#trimps #trimpsUnemployed,
+#trimps #trimpsEmployed,
+#trimps #maxEmployed {
+  font-weight: 700 !important;
 }
 
 #trimps #trimpsPs {
-  font-size: clamp(9px, 0.7vw, 11.5px) !important;
-  line-height: 1.2 !important;
+  font-size: clamp(17px, 1.25vw, 21px) !important;
+  font-weight: 800 !important;
+  color: var(--buy, #22c55e) !important;
+  display: inline-block !important;
+  margin: 2px 0 !important;
 }
 
 #trapArea {
   border: 1px solid var(--border-strong) !important;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.22);
-  padding: 3px 5px !important;
-  width: 94% !important;
-  margin: 2px auto 0 auto !important;
+  padding: 4px 6px !important;
+  width: 92% !important;
+  margin: 0 auto 2px auto !important;
   flex-shrink: 0;
 }
 
 #trapArea #trimpsCollectBtn,
 #trapArea #trimpsCollecting {
-  padding: 2px 6px !important;
-  font-size: clamp(9.5px, 0.72vw, 11.5px) !important;
-  line-height: 1.2 !important;
+  padding: 3px 6px !important;
+  font-size: clamp(11px, 0.78vw, 12.5px) !important;
+  line-height: 1.25 !important;
   margin: 0 !important;
 }
 
 #trapArea #trappingProgress {
-  height: 7px !important;
-  min-height: 7px !important;
-  margin: 2px 0 0 0 !important;
+  height: 9px !important;
+  min-height: 9px !important;
+  margin: 3px 0 0 0 !important;
   margin-bottom: 0 !important;
   border-radius: 4px !important;
 }
@@ -4243,67 +4256,73 @@ table,
   /* Trimps Card (#trimps) - Large Readable Text */
   #trimps.playerGather {
     height: auto !important;
-    padding: 8px 10px !important;
+    padding: 10px 12px !important;
     font-size: 15px !important;
   }
 
   #trimps #trimpTitle.title {
-    font-size: clamp(16px, 5vw, 20px) !important;
+    font-size: 20px !important;
     font-weight: 800 !important;
   }
 
   #trimps #turkimpBuff,
   #trimps #fluffyBox {
-    font-size: 13px !important;
+    font-size: 13.5px !important;
     padding: 3px 5px !important;
     border-radius: 6px;
   }
 
   #trimps .ownedArea,
   #trimps .ownedArea span {
-    font-size: clamp(14px, 4.5vw, 17px) !important;
+    font-size: 17px !important;
     font-weight: 700 !important;
   }
 
   #trimps > .resProgress {
-    height: 10px !important;
-    min-height: 10px !important;
-    margin: 3px 0 !important;
+    height: 14px !important;
+    min-height: 14px !important;
+    margin: 4px 0 !important;
   }
 
   #trimps #trimpsTimeToFill {
-    font-size: 9px !important;
-    line-height: 10px !important;
+    font-size: 10.5px !important;
+    line-height: 14px !important;
+  }
+
+  #trimps .ownedArea,
+  #trimps .ownedArea span {
+    font-size: 20px !important;
+    font-weight: 700 !important;
   }
 
   #trimps #unempHide,
   #trimps #empHide {
-    font-size: clamp(12px, 3.8vw, 15px) !important;
-    line-height: 1.25 !important;
+    font-size: 18px !important;
+    line-height: 1.5 !important;
     font-weight: 600 !important;
   }
 
   #trimps #trimpsPs {
-    font-size: clamp(12px, 3.8vw, 15px) !important;
-    font-weight: 700 !important;
+    font-size: 19px !important;
+    font-weight: 800 !important;
     color: var(--buy) !important;
   }
 
   #trapArea {
-    width: 94% !important;
-    padding: 5px 8px !important;
-    margin: 4px auto 2px auto !important;
+    width: 92% !important;
+    padding: 6px 8px !important;
+    margin: 6px auto 2px auto !important;
   }
 
   #trimpsCollectBtn,
   #trimpsCollecting {
-    font-size: clamp(12px, 3.8vw, 15px) !important;
+    font-size: 15px !important;
     font-weight: 700 !important;
-    padding: 4px 8px !important;
+    padding: 5px 10px !important;
   }
 
   #trappingProgress {
-    height: 8px !important;
+    height: 10px !important;
     margin-top: 4px !important;
     margin-bottom: 0 !important;
   }
