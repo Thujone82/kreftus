@@ -440,8 +440,30 @@ html, body {
 }
 
 #trimps.playerGather > .row {
-  width: 100%;
+  width: 100% !important;
   margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 4px !important;
+  box-sizing: border-box !important;
+}
+
+#trimps.playerGather > .row > .col-xs-3 {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: none !important;
+  padding: 0 !important;
+  float: none !important;
+}
+
+#trimps.playerGather > .row > .col-xs-6 {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: none !important;
+  padding: 0 4px !important;
+  float: none !important;
+  text-align: center !important;
 }
 
 #trimps #trimpTitle.title {
@@ -451,15 +473,16 @@ html, body {
 
 /* Turkimp Buff Box & Scruffy/Fluffy Box */
 #turkimpBuff {
-  width: 100% !important;
-  max-width: 58px !important;
+  width: auto !important;
+  min-width: 48px !important;
+  max-width: 60px !important;
   height: 38px !important;
   min-height: 38px !important;
   max-height: 38px !important;
-  margin: 0 auto !important;
+  margin: 0 !important;
   display: block !important;
   text-align: center !important;
-  padding: 3px 2px 2px 2px !important;
+  padding: 3px 6px 2px 6px !important;
   border-radius: var(--radius-sm, 6px) !important;
   border: 1px solid rgba(247, 147, 26, 0.6) !important;
   background: linear-gradient(180deg, rgba(247, 147, 26, 0.22), rgba(120, 53, 15, 0.28)) !important;
@@ -468,7 +491,6 @@ html, body {
   box-sizing: border-box !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
-  overflow: hidden !important;
 }
 
 #turkimpBuff:hover {
@@ -494,15 +516,16 @@ html, body {
 }
 
 #fluffyBox {
-  width: 100% !important;
-  max-width: 68px !important;
+  width: auto !important;
+  min-width: 62px !important;
+  max-width: 82px !important;
   height: 38px !important;
   min-height: 38px !important;
   max-height: 38px !important;
-  margin: 0 auto !important;
+  margin: 0 !important;
   display: block !important;
   text-align: center !important;
-  padding: 4px 4px 3px 4px !important;
+  padding: 4px 6px 3px 6px !important;
   border-radius: var(--radius-sm, 6px) !important;
   border: 1px solid rgba(192, 132, 252, 0.55) !important;
   background: linear-gradient(180deg, rgba(168, 85, 247, 0.24), rgba(88, 28, 135, 0.32)) !important;
@@ -515,7 +538,6 @@ html, body {
   box-sizing: border-box !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
-  overflow: hidden !important;
 }
 
 #fluffyBox:hover {
