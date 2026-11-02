@@ -449,6 +449,119 @@ html, body {
   font-weight: 800 !important;
 }
 
+/* Turkimp Buff Box & Scruffy/Fluffy Box */
+#turkimpBuff {
+  width: 100% !important;
+  max-width: 58px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  margin: 0 auto !important;
+  display: block !important;
+  text-align: center !important;
+  padding: 3px 2px 2px 2px !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  border: 1px solid rgba(247, 147, 26, 0.6) !important;
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.22), rgba(120, 53, 15, 0.28)) !important;
+  color: #fbbf24 !important;
+  box-shadow: 0 1px 4px rgba(247, 147, 26, 0.2) !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  overflow: hidden !important;
+}
+
+#turkimpBuff:hover {
+  background: linear-gradient(180deg, rgba(247, 147, 26, 0.35), rgba(120, 53, 15, 0.38)) !important;
+  border-color: #f7931a !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(247, 147, 26, 0.3) !important;
+}
+
+#turkimpBuff .icomoon {
+  display: inline-block !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  color: #fbbf24 !important;
+}
+
+#turkimpTime {
+  display: inline-block !important;
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  font-weight: 700 !important;
+  color: #fbbf24 !important;
+}
+
+#fluffyBox {
+  width: 100% !important;
+  max-width: 68px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  margin: 0 auto !important;
+  display: block !important;
+  text-align: center !important;
+  padding: 4px 4px 3px 4px !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  border: 1px solid rgba(192, 132, 252, 0.55) !important;
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.24), rgba(88, 28, 135, 0.32)) !important;
+  color: #f3e8ff !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 4px rgba(168, 85, 247, 0.2) !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  overflow: hidden !important;
+}
+
+#fluffyBox:hover {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.36), rgba(88, 28, 135, 0.42)) !important;
+  border-color: #c084fc !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3) !important;
+}
+
+.fluffyIcon {
+  color: #ffffff !important;
+  text-shadow: 0 0 6px rgba(192, 132, 252, 0.8) !important;
+  display: inline-block !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  vertical-align: 0 !important;
+  margin-right: 2px !important;
+}
+
+#fluffyLevel {
+  color: #f3e8ff !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+}
+
+#fluffyExpContainer {
+  width: 100% !important;
+  height: 5px !important;
+  min-height: 5px !important;
+  max-height: 5px !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  border-radius: 3px !important;
+  overflow: hidden !important;
+  margin: 4px auto 0 auto !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+#fluffyExp {
+  height: 100% !important;
+  background: linear-gradient(90deg, #22c55e, #4ade80) !important;
+  border-radius: 2px !important;
+  display: block !important;
+}
+
 #trimps > .ownedArea {
   display: inline-block !important;
   margin: 2px auto !important;
@@ -682,9 +795,40 @@ html, body {
 
 #autoTrapBtn {
   white-space: nowrap !important;
-  padding: 3px 8px !important;
-  border-radius: var(--radius-sm, 6px) !important;
+  padding: 4px 10px !important;
+  border-radius: var(--radius-sm, 7px) !important;
   line-height: 1.2 !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.15s ease !important;
+}
+
+#autoTrapBtn.colorDanger {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.28), rgba(159, 18, 57, 0.22)) !important;
+  border-color: rgba(244, 63, 94, 0.6) !important;
+  color: #fb7185 !important;
+  box-shadow: 0 1px 4px rgba(244, 63, 94, 0.16) !important;
+}
+
+#autoTrapBtn.colorDanger:hover {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.38), rgba(159, 18, 57, 0.32)) !important;
+  border-color: #f43f5e !important;
+  color: #fff1f2 !important;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.25) !important;
+}
+
+#autoTrapBtn.colorSuccess {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.32), rgba(21, 128, 61, 0.25)) !important;
+  border-color: rgba(34, 197, 94, 0.65) !important;
+  color: #4ade80 !important;
+  box-shadow: 0 1px 4px rgba(34, 197, 94, 0.16) !important;
+}
+
+#autoTrapBtn.colorSuccess:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.42), rgba(21, 128, 61, 0.35)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.28) !important;
 }
 
 #buildingsCollectBtn {
@@ -1964,6 +2108,258 @@ table,
   border: 1px solid var(--border-strong) !important;
   border-radius: 6px;
   padding: 4px 8px;
+}
+
+/* Set Map At Zone Modal (#mazContainer, #tooltipDiv.tooltipExtraGigantic) */
+#tooltipDiv.tooltipExtraGigantic {
+  width: min(94vw, 1200px) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  padding: 16px 20px !important;
+  background: var(--surface-solid, #14171f) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85) !important;
+}
+
+#mazContainer {
+  width: 100% !important;
+  display: block !important;
+}
+
+.mazRow.titles {
+  background: var(--surface-3, #222736) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  color: #ffffff !important;
+  padding: 8px 10px !important;
+  margin: 0 0 8px 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.01em !important;
+}
+
+.mazRow.titles div {
+  text-align: center !important;
+  color: #ffffff !important;
+}
+
+.mazRow:not(.titles) {
+  background: var(--surface-2, #191d27) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  padding: 6px 10px !important;
+  margin: 0 0 6px 0 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  transition: all 0.15s ease !important;
+}
+
+.mazRow:not(.titles):hover {
+  background: var(--surface-3, #222736) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+}
+
+.mazRow:not(.titles) > div {
+  align-self: flex-end !important;
+}
+
+.mazRow div input,
+.mazRow div select {
+  background: #0c0e14 !important;
+  color: var(--text-bright, #ffffff) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 5px !important;
+  padding: 4px 6px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  height: 28px !important;
+  line-height: 18px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.mazRow div input:focus,
+.mazRow div select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-glow) !important;
+  outline: none !important;
+}
+
+.mazDelete {
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  align-self: flex-end !important;
+  transition: transform 0.15s ease !important;
+}
+
+.mazDelete:hover {
+  transform: scale(1.15) !important;
+}
+
+.mazDelete .icomoon {
+  position: static !important;
+  color: #f43f5e !important;
+  font-size: 15px !important;
+  line-height: 1 !important;
+  transition: color 0.15s ease !important;
+}
+
+.mazDelete:hover .icomoon {
+  color: #fb7185 !important;
+}
+
+.mazCheckbox {
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: flex-end !important;
+}
+
+.mazRx,
+.mazTx,
+.mazBwWorld {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  align-self: flex-end !important;
+  gap: 2px !important;
+}
+
+.mazRx div,
+.mazTx div,
+.mazBwWorld div {
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+  margin-bottom: 2px !important;
+  white-space: nowrap !important;
+}
+
+#mazAddRowBtn,
+#mazSwapPresetBtn {
+  border-radius: var(--radius-sm, 7px) !important;
+  font-weight: 700 !important;
+  padding: 6px 14px !important;
+  margin: 10px 6px 10px 0 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.15s ease !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .maxCenter {
+  display: flex !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  margin-top: 14px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--border-strong) !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .maxCenter .btn {
+  border-radius: var(--radius-sm, 7px) !important;
+  font-weight: 700 !important;
+  padding: 7px 16px !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid transparent !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-success {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.32), rgba(21, 128, 61, 0.25)) !important;
+  border-color: rgba(34, 197, 94, 0.65) !important;
+  color: #4ade80 !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-success:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.45), rgba(21, 128, 61, 0.35)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-danger {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.28), rgba(159, 18, 57, 0.22)) !important;
+  border-color: rgba(244, 63, 94, 0.6) !important;
+  color: #fb7185 !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-danger:hover {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.4), rgba(159, 18, 57, 0.32)) !important;
+  border-color: #f43f5e !important;
+  color: #fff1f2 !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-primary {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.35), rgba(29, 78, 216, 0.28)) !important;
+  border-color: rgba(59, 130, 246, 0.65) !important;
+  color: #93c5fd !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-primary:hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.48), rgba(29, 78, 216, 0.38)) !important;
+  border-color: #3b82f6 !important;
+  color: #eff6ff !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-info {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.28), rgba(15, 118, 110, 0.22)) !important;
+  border-color: rgba(45, 212, 191, 0.65) !important;
+  color: #5eead4 !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic .btn-info:hover {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.4), rgba(15, 118, 110, 0.32)) !important;
+  border-color: #2dd4bf !important;
+  color: #ccfbf1 !important;
+}
+
+#mazHelpContainer {
+  background: var(--surface-2, #191d27) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  padding: 12px 16px !important;
+  color: var(--text) !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  margin-top: 10px !important;
+  max-height: 40vh !important;
+  overflow-y: auto !important;
+}
+
+#mazHelpContainer b {
+  color: var(--accent) !important;
+}
+
+/* High-Contrast Readable Heirloom & Glyph Rarity Colors on Dark Surfaces */
+.heirloomRare2,
+span.heirloomRare2 {
+  color: #60a5fa !important;
+}
+
+.heirloomRare3,
+span.heirloomRare3,
+.heirloomRare3 .heirloomMod {
+  color: #c084fc !important;
+}
+
+.heirloomRare3 .heirloomMod:hover,
+.heirloomRare3.rarityBdBox {
+  border-color: #c084fc !important;
+}
+
+.heirloomRare12,
+span.heirloomRare12 {
+  color: #e879f9 !important;
 }
 
 /* Fluffy / Scruffy Progress Breakdown Modal (#fluffyLevelBreakdown) */
