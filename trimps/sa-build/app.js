@@ -1732,12 +1732,12 @@ var ONE_TIMER_MILESTONES = [
     if (fight && SA_DATA.builds[String(fight)]) {
       var fTag = isFarmLevel(fight) ? "Farm" : "Push";
       var isCur = state.level === fight;
-      html += '<button type="button" class="btn sm ' + (isCur ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + fight + ')" title="Fighting SA ' + fight + ' (' + fTag + ' Level)">Fighting (SA ' + fight + ' · ' + fTag + ')</button>';
+      html += '<button type="button" class="btn sm ' + (isCur ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + fight + ')" title="Fighting SA ' + fight + ' (' + fTag + ' Level)">Fighting (SA ' + fight + '<span class="ql-tag"> · ' + fTag + '</span>)</button>';
     }
     if (max && max !== fight && SA_DATA.builds[String(max)]) {
       var mTag = isFarmLevel(max) ? "Farm" : "Push";
       var isMax = state.level === max;
-      html += '<button type="button" class="btn sm ' + (isMax ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + max + ')" title="Highest cleared SA ' + max + ' (' + mTag + ' Level)">Max (SA ' + max + ' · ' + mTag + ')</button>';
+      html += '<button type="button" class="btn sm ' + (isMax ? 'primary' : 'ghost') + '" onclick="window.saSelectLevel&&saSelectLevel(' + max + ')" title="Highest cleared SA ' + max + ' (' + mTag + ' Level)">Max (SA ' + max + '<span class="ql-tag"> · ' + mTag + '</span>)</button>';
     }
     el.innerHTML = html;
   }
