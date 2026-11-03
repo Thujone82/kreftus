@@ -2378,12 +2378,29 @@ table,
 .mazRx,
 .mazTx,
 .mazBwWorld {
-  display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: flex-end !important;
   align-self: flex-end !important;
   gap: 2px !important;
+}
+
+.mazRow.mazBwZoneOn .mazBwWorld,
+.mazRow.mazRxOn .mazRx,
+.mazRow.mazTxOn .mazTx,
+.mazBwZoneOn .mazBwWorld,
+.mazRxOn .mazRx,
+.mazTxOn .mazTx {
+  display: flex !important;
+}
+
+.mazRow.mazBwZoneOff .mazBwWorld,
+.mazRow.mazRxOff .mazRx,
+.mazRow.mazTxOff .mazTx,
+.mazBwZoneOff .mazBwWorld,
+.mazRxOff .mazRx,
+.mazTxOff .mazTx {
+  display: none !important;
 }
 
 .mazRx div,
