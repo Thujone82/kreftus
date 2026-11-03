@@ -1924,6 +1924,13 @@ var ONE_TIMER_MILESTONES = [
 
     // Item 4: Kill & Death Diagnostics + Level Mode
     var diag = combatDiagnostics(rate);
+    var audit = saSettingsAudit();
+    var autoLevelPill = '';
+    if (state.save) {
+      autoLevelPill = !audit.autoLevel
+        ? '<span class="pill sm warn-pill" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;" title="Trimps setting \'AutoLevel\' is OFF. Huffy will NOT automatically advance to the next level when current kill requirement is met.">' + ICONS.warn + 'AutoLevel OFF</span>'
+        : '<span class="pill sm buy" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;" title="Trimps setting \'AutoLevel\' is ON (Auto-advances when cleared)">' + ICONS.check + 'AutoLevel ON</span>';
+    }
     var enemyVal = 'SA ' + (diag.enemyLevel || '—');
     var enemyNote = '';
     var enemyTone = 'tone-accent';
@@ -1960,7 +1967,7 @@ var ONE_TIMER_MILESTONES = [
         "\n\nClick to inspect Presets, Settings & Diagnostics";
 
       enemyKpiHtml = '<div class="kpi tone-accent" id="kpiEnemyLevel" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()" title="' + esc(enemyTitle) + '">' +
-        '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span></div>' +
+        '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span>' + autoLevelPill + '</div>' +
         '<div class="kpi-value">' + esc(enemyVal) + '</div>' +
         '<div class="kpi-note kpi-note-prog">' +
           '<div class="kpi-prog-row">' +
@@ -1996,7 +2003,11 @@ var ONE_TIMER_MILESTONES = [
         (diag.totalKillsPortal > 0 ? ('\n• Kills This Portal: ' + prettify(diag.totalKillsPortal)) : '') +
         '\n\nClick to inspect Presets, Settings & Diagnostics';
 
-      enemyKpiHtml = kpi('Enemy Level', enemyVal, enemyNote, enemyTone, ICONS.spire, "id='kpiEnemyLevel' style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='" + esc(enemyTitleNonPush) + "'");
+      enemyKpiHtml = '<div class="kpi ' + enemyTone + '" id="kpiEnemyLevel" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()" title="' + esc(enemyTitleNonPush) + '">' +
+        '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span>' + autoLevelPill + '</div>' +
+        '<div class="kpi-value">' + esc(enemyVal) + '</div>' +
+        (enemyNote ? '<div class="kpi-note">' + esc(enemyNote) + '</div>' : '') +
+      '</div>';
     }
 
     // Item 2: One-Timer Milestones
@@ -3990,12 +4001,7 @@ var ONE_TIMER_MILESTONES = [
         ICONS.warn + '<b>Practice Mode (0 Dust)</b></div>'
       );
     }
-    if (!audit.autoLevel) {
-      warningFacts.push(
-        '<div class="fact fact-warn" style="border-color:rgba(251,191,36,0.5); background:var(--warn-soft); color:var(--warn);" title="Trimps setting \'AutoLevel\' is OFF. Huffy will NOT automatically advance to the next level when current kill requirement is met.">' +
-        ICONS.warn + '<b>AutoLevel OFF</b></div>'
-      );
-    }
+
     if (audit.loadRingDisabled) {
       warningFacts.push(
         '<div class="fact fact-warn" style="border-color:rgba(251,191,36,0.5); background:var(--warn-soft); color:var(--warn);" title="Trimps setting \'Load Ring\' is OFF. Loading a preset in-game will NOT change your Ring mods.">' +
