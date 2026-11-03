@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Rebuilds the self-contained Trimps Spire Assault planner (trimps/sa.html).
 .DESCRIPTION
