@@ -7779,21 +7779,49 @@ function screenReaderSummary(){
  * @return {Function} Function to handle copy butons
  */
 tooltips.handleCopyButton = function () {
-	var ondisplay;
-	if (document.queryCommandSupported('copy')){
-		ondisplay = function(){
-			document.getElementById('exportArea').select();
-			document.getElementById('clipBoardBtn').addEventListener('click', function(event) {
-				document.getElementById('exportArea').select();
-				  try {
-					document.execCommand('copy');
-				  } catch (err) {
-					document.getElementById('clipBoardBtn').innerHTML = "Error, not copied";
-				  }
+	var doCopy = function(isAuto) {
+		var area = document.getElementById('exportArea');
+		var btn = document.getElementById('clipBoardBtn');
+		if (!area) return;
+		area.select();
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(area.value).then(function() {
+				if (btn) btn.innerHTML = "Copied to Clipboard!";
+			}).catch(function(err) {
+				try {
+					if (document.execCommand('copy')) {
+						if (btn) btn.innerHTML = "Copied to Clipboard!";
+					} else if (btn && !isAuto) {
+						btn.innerHTML = "Error, not copied";
+					}
+				} catch (e) {
+					if (btn && !isAuto) btn.innerHTML = "Error, not copied";
+				}
+			});
+			return;
+		}
+		try {
+			if (document.execCommand('copy')) {
+				if (btn) btn.innerHTML = "Copied to Clipboard!";
+			} else if (btn && !isAuto) {
+				btn.innerHTML = "Error, not copied";
+			}
+		} catch (err) {
+			if (btn && !isAuto) btn.innerHTML = "Error, not copied";
+		}
+	};
+
+	var ondisplay = function() {
+		var area = document.getElementById('exportArea');
+		if (area) area.select();
+		// Automatically copy to clipboard on open of modal
+		doCopy(true);
+		var btn = document.getElementById('clipBoardBtn');
+		if (btn) {
+			btn.addEventListener('click', function(event) {
+				doCopy(false);
 			});
 		}
-	} else {
-		ondisplay = function () {document.getElementById('exportArea').select()};
-	}
+	};
 	return ondisplay;
 };

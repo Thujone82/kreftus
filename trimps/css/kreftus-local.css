@@ -1555,11 +1555,23 @@ li.tabNotEnabled:hover {
   border: 1px solid var(--border-strong) !important;
   transition: all 0.15s ease !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) !important;
-  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
   box-sizing: border-box !important;
+}
+
+.fightBtn:not([style*="display: none"]):not([style*="display:none"]) {
+  display: inline-flex !important;
+}
+
+.fightBtn[style*="display: none"],
+.fightBtn[style*="display:none"],
+.battleSideBtnContainer[style*="display: none"],
+.battleSideBtnContainer[style*="display:none"],
+.battleSideBtnContainer:has(> [style*="display: none"]),
+.battleSideBtnContainer:has(> [style*="display:none"]) {
+  display: none !important;
 }
 
 .fightBtn.btn-primary,
@@ -1636,6 +1648,21 @@ li.tabNotEnabled:hover {
   border-color: #2dd4bf !important;
   color: #ccfbf1 !important;
   box-shadow: 0 3px 10px rgba(45, 212, 191, 0.3) !important;
+}
+
+/* Void Maps Button (when active in Map Chamber) */
+#voidMapsBtn {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.32), rgba(126, 34, 206, 0.24)) !important;
+  border-color: rgba(168, 85, 247, 0.65) !important;
+  color: #d8b4fe !important;
+  box-shadow: 0 2px 6px rgba(168, 85, 247, 0.2) !important;
+}
+
+#voidMapsBtn:hover {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.44), rgba(126, 34, 206, 0.34)) !important;
+  border-color: #c084fc !important;
+  color: #faf5ff !important;
+  box-shadow: 0 3px 10px rgba(168, 85, 247, 0.3) !important;
 }
 
 /* Bone Trader Button */
@@ -2118,6 +2145,131 @@ li.tabNotEnabled:hover {
 #tooltipDiv hr,
 #tooltipDiv2 hr {
   border-color: var(--border-strong) !important;
+}
+
+/* Tooltip / Modal Textareas (Export, Import) */
+#exportArea,
+#importBox {
+  background: #0c0e14 !important;
+  color: #e2e8f0 !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm, 7px) !important;
+  padding: 8px 10px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5) !important;
+  box-sizing: border-box !important;
+  resize: vertical !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+#exportArea:focus,
+#importBox:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-glow), inset 0 2px 6px rgba(0, 0, 0, 0.5) !important;
+  outline: none !important;
+}
+
+/* Tooltip / Modal Action Buttons (Export, Import, Confirmations, etc.) */
+#tooltipDiv #tipCost .btn,
+#tooltipDiv .maxCenter .btn,
+#tooltipDiv2 #tipCost2 .btn,
+#tooltipDiv2 .maxCenter .btn,
+#clipBoardBtn,
+#downloadBtn,
+#confirmTooltipBtn {
+  border-radius: var(--radius-sm, 7px) !important;
+  font-weight: 700 !important;
+  padding: 7px 16px !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid transparent !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+}
+
+/* Info Buttons (e.g. "Got it", "Help") */
+#tooltipDiv .btn-info,
+#tooltipDiv2 .btn-info {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.28), rgba(15, 118, 110, 0.22)) !important;
+  border-color: rgba(45, 212, 191, 0.65) !important;
+  color: #5eead4 !important;
+}
+
+#tooltipDiv .btn-info:hover,
+#tooltipDiv2 .btn-info:hover {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.42), rgba(15, 118, 110, 0.34)) !important;
+  border-color: #2dd4bf !important;
+  color: #ccfbf1 !important;
+  box-shadow: 0 3px 10px rgba(45, 212, 191, 0.3) !important;
+}
+
+/* Success Buttons (e.g. "Copy to Clipboard", "Save and Close") */
+#tooltipDiv .btn-success,
+#tooltipDiv2 .btn-success,
+#clipBoardBtn {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.32), rgba(21, 128, 61, 0.25)) !important;
+  border-color: rgba(34, 197, 94, 0.65) !important;
+  color: #4ade80 !important;
+}
+
+#tooltipDiv .btn-success:hover,
+#tooltipDiv2 .btn-success:hover,
+#clipBoardBtn:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.45), rgba(21, 128, 61, 0.35)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 3px 10px rgba(34, 197, 94, 0.3) !important;
+}
+
+/* Danger Buttons (e.g. "Download as File", "Cancel") */
+#tooltipDiv .btn-danger,
+#tooltipDiv2 .btn-danger,
+#downloadBtn {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.28), rgba(159, 18, 57, 0.22)) !important;
+  border-color: rgba(244, 63, 94, 0.6) !important;
+  color: #fb7185 !important;
+}
+
+#tooltipDiv .btn-danger:hover,
+#tooltipDiv2 .btn-danger:hover,
+#downloadBtn:hover {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.42), rgba(159, 18, 57, 0.32)) !important;
+  border-color: #f43f5e !important;
+  color: #fff1f2 !important;
+  box-shadow: 0 3px 10px rgba(244, 63, 94, 0.3) !important;
+}
+
+/* Primary Buttons */
+#tooltipDiv .btn-primary,
+#tooltipDiv2 .btn-primary {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.35), rgba(29, 78, 216, 0.28)) !important;
+  border-color: rgba(59, 130, 246, 0.65) !important;
+  color: #93c5fd !important;
+}
+
+#tooltipDiv .btn-primary:hover,
+#tooltipDiv2 .btn-primary:hover {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.48), rgba(29, 78, 216, 0.38)) !important;
+  border-color: #3b82f6 !important;
+  color: #eff6ff !important;
+  box-shadow: 0 3px 10px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Modal Button Center Row */
+#tooltipDiv #tipCost .maxCenter,
+#tooltipDiv2 #tipCost2 .maxCenter {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+#downloadLink {
+  text-decoration: none !important;
+  display: inline-block !important;
 }
 
 /* High-Contrast Semantic Text inside Dark Tooltips */
@@ -5764,15 +5916,16 @@ span.heirloomRare12 {
 
   .battleSideBtnContainer.btn-hidden,
   .battleSideBtnContainer[style*="display: none"],
+  .battleSideBtnContainer[style*="display:none"],
   .battleSideBtnContainer:has(> [style*="display: none"]),
+  .battleSideBtnContainer:has(> [style*="display:none"]),
   .battleSideBtnContainer:empty {
     display: none !important;
   }
 
-  #battleBtnsColumn .fightBtn,
-  #extraMapBtns .fightBtn,
-  .fightBtn,
-  #pauseFight {
+  #battleBtnsColumn .fightBtn:not([style*="display: none"]):not([style*="display:none"]),
+  #extraMapBtns .fightBtn:not([style*="display: none"]):not([style*="display:none"]),
+  #pauseFight:not([style*="display: none"]):not([style*="display:none"]) {
     width: 100% !important;
     min-height: 38px !important;
     font-size: 14px !important;
