@@ -78,6 +78,7 @@ type App struct {
 
 	die        dieLevel
 	lastPuzzle [dieLevelCount]int
+	hoverDie   bool
 }
 
 type pasteOutcome struct {
@@ -207,7 +208,8 @@ func (a *App) Update() error {
 	}
 
 	mx, my := ebiten.CursorPosition()
-	if inDie(mx, my) {
+	a.hoverDie = inDie(mx, my)
+	if a.hoverDie {
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
 			a.nextDieLevel()
 		}
@@ -533,40 +535,6 @@ func (a *App) pollPaste() {
 	a.statusColor = color.RGBA{255, 214, 120, 255}
 }
 
-func decodeTextGrid(s string) (Board, bool) {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	var parsed Board
-	count := 0
-	r := 0
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if len(line) == 0 {
-			continue
-		}
-		c := 0
-		for _, ch := range line {
-			if ch >= '1' && ch <= '9' {
-				if r < 9 && c < 9 {
-					parsed[r][c] = int(ch - '0')
-					count++
-					c++
-				}
-			} else if ch == '.' || ch == '0' || ch == '_' || ch == '-' {
-				if r < 9 && c < 9 {
-					parsed[r][c] = 0
-					c++
-				}
-			}
-		}
-		if c > 0 {
-			r++
-		}
-		if r >= 9 {
-			break
-		}
-	}
-	return parsed, count >= 5
-}
 
 // Drawing logic
 func (a *App) Draw(screen *ebiten.Image) {
@@ -581,6 +549,13 @@ func (a *App) Draw(screen *ebiten.Image) {
 
 	text.Draw(screen, "SUDOKU MASTER & OCR SOLVER", basicfont.Face7x13, 35, 22, color.RGBA{100, 210, 255, 255})
 	drawDie(screen, dieX, dieY, a.die.color())
+	if a.hoverDie || inDie(ebiten.CursorPosition()) {
+		line1, line2 := a.die.helpLines()
+		x1 := dieX - 12 - len(line1)*7
+		x2 := dieX - 12 - len(line2)*7
+		text.Draw(screen, line1, basicfont.Face7x13, x1, 14, color.RGBA{200, 220, 245, 255})
+		text.Draw(screen, line2, basicfont.Face7x13, x2, 28, color.RGBA{200, 220, 245, 255})
+	}
 
 	// Draw Sudoku Grid
 	gridLeft, gridTop := 40, 54

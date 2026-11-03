@@ -15,7 +15,7 @@ A pasted image is accepted only when it contains a full Sudoku grid. A cropped f
 - **Clear Grid** — empties every cell
 - **Paste Screenshot** — reads an image from the clipboard (`Ctrl+V` or the button). A progress card shows the read while it runs, and a second paste waits until the first one finishes
 - **Full grid only** — OCR requires a complete 9×9. A partial crop does not fill the board
-- **Clipboard text** — if the clipboard has no image, nine lines of digits (use `.`, `0`, `_`, or `-` for blanks) are loaded when at least five digits are present
+- **Clipboard text** — if the clipboard has no image, pasted text is automatically parsed. Supports 81-character puzzle strings (use `0`, `.`, `_`, `-`, `*`, or `x` for blanks), 9×9 multi-line grids (spaced, unspaced, or ASCII box-art tables), CSV/TSV, and 1D/2D arrays when at least five digits are present
 - **Erase Selected Cell** — clears the highlighted cell. `0`, Backspace, and Delete do the same
 - **Die** — sits in the header, green by default. Left-click loads a random puzzle of the current difficulty. Right-click advances the difficulty and the die color: green Easy, yellow Medium, red Hard, purple Diabolical, then back to Easy. Each difficulty has 250 puzzles sampled from the public-domain [Sudoku Exchange Puzzle Bank](https://github.com/grantm/sudoku-exchange-puzzle-bank)
 
@@ -44,8 +44,14 @@ A pasted image is accepted only when it contains a full Sudoku grid. A cropped f
 
 The image needs a full 9×9 with visible grid lines. A fragment, a blank image, or a picture that is not a puzzle leaves the board as it was and reports **No Sudoku grid found in that image.**
 
-A text grid on the clipboard looks like this:
+Pasted text can be in any common format:
 
+**Continuous 81-character string:**
+```text
+600050004050704020000690000090802450802000901034907060000028000060309080200070009
+```
+
+**9×9 multi-line grid (or with spaces):**
 ```text
 82.6...91
 ..1..8263
@@ -56,6 +62,16 @@ A text grid on the clipboard looks like this:
 .13.62..9
 4981..6..
 .6.....1.
+```
+
+**ASCII box-drawing / table borders, CSV, or 1D/2D arrays:**
+```text
++-------+-------+-------+
+| 8 2 . | 6 . . | . 9 1 |
+| . . 1 | . . 8 | 2 6 3 |
+| 3 . 6 | 2 1 . | 8 . . |
++-------+-------+-------+
+...
 ```
 
 ## Build
@@ -73,7 +89,7 @@ Pass `-upx` to compress the binaries with [UPX](https://upx.github.io/).
 **Quick local build**
 
 ```powershell
-go build -ldflags "-H windowsgui" -o sudoku.exe .
+go build -ldflags "-H windowsgui" -o sudokusolve.exe .
 ```
 
 Windows builds use `-H windowsgui` so a console window does not open with the app. If `sudoku.ico`, `sudoku.rc`, and `windres` are present, `build.ps1` embeds the icon.
@@ -88,10 +104,10 @@ go test -count=1 -timeout 90s .
 
 | Platform | Path |
 | -------- | ---- |
-| Windows x86 | `bin/win/x86/Sudoku.exe` |
-| Windows x64 | `bin/win/x64/Sudoku.exe` |
-| Linux x86 | `bin/linux/x86/Sudoku` |
-| Linux amd64 | `bin/linux/amd64/Sudoku` |
+| Windows x86 | `bin/win/x86/sudokusolve.exe` |
+| Windows x64 | `bin/win/x64/sudokusolve.exe` |
+| Linux x86 | `bin/linux/x86/sudokusolve` |
+| Linux amd64 | `bin/linux/amd64/sudokusolve` |
 
 ## Files
 
@@ -99,9 +115,10 @@ go test -count=1 -timeout 90s .
 | ---- | ---- |
 | `puzzles.txt` | 250 Easy, Medium, Hard, and Diabolical puzzles |
 | `build.ps1` | Windows and Linux build |
-| `bin/win/x64/Sudoku.exe` | Windows x64 app |
+| `bin/win/x64/sudokusolve.exe` | Windows x64 app |
 | `main.go` | Window, input, solver, clipboard paste |
 | `ocr.go` | Grid detection and digit reading |
+| `textgrid.go` | Flexible clipboard text parsing |
 | `sudoku.ico` | Window icon |
 | `README.md` | This document |
 | `README.html` | In-browser viewer for this document |

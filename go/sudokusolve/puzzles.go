@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 
 	"image/color"
@@ -66,6 +67,15 @@ func (d dieLevel) name() string {
 	default:
 		return "Diabolical"
 	}
+}
+
+func (d dieLevel) helpLines() (string, string) {
+	return fmt.Sprintf("Click for %s Puzzle", d.name()), "Right Click Change Difficulty"
+}
+
+func (d dieLevel) helpText() string {
+	l1, l2 := d.helpLines()
+	return l1 + "\n" + l2
 }
 
 func (d dieLevel) color() color.RGBA {

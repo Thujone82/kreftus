@@ -19,7 +19,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-Write-Host "Starting build process for Sudoku..." -ForegroundColor Cyan
+Write-Host "Starting build process for sudokusolve..." -ForegroundColor Cyan
 
 # 1) Cleanup bin
 if (Test-Path "./bin") {
@@ -54,33 +54,33 @@ try {
         $env:GOARCH = "386"
         windres -F pe-i386 -I $PSScriptRoot -i $rcFile -o sudoku.syso
         Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray
-        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x86/Sudoku.exe" .
+        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x86/sudokusolve.exe" .
 
         Write-Host "Building for Windows (x64) with icon..." -ForegroundColor Cyan
         $env:GOARCH = "amd64"
         windres -F pe-x86-64 -I $PSScriptRoot -i $rcFile -o sudoku.syso
         Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray
-        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x64/Sudoku.exe" .
+        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x64/sudokusolve.exe" .
 
         if (Test-Path "sudoku.syso") { Remove-Item "sudoku.syso" -Force }
     } else {
         Write-Host "Building for Windows (x86)..." -ForegroundColor Cyan
         $env:GOARCH = "386"
         Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray
-        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x86/Sudoku.exe" .
+        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x86/sudokusolve.exe" .
 
         Write-Host "Building for Windows (x64)..." -ForegroundColor Cyan
         $env:GOARCH = "amd64"
         Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray
-        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x64/Sudoku.exe" .
+        go build -v -ldflags "$ldflagsWin" -o "./bin/win/x64/sudokusolve.exe" .
     }
 
     # 5) Linux builds
     Write-Host "Building for Linux (x86)..." -ForegroundColor Cyan
-    $env:GOOS = "linux"; $env:GOARCH = "386"; Write-Host "  -> go build (linux/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/linux/x86/Sudoku" .
+    $env:GOOS = "linux"; $env:GOARCH = "386"; Write-Host "  -> go build (linux/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/linux/x86/sudokusolve" .
 
     Write-Host "Building for Linux (amd64)..." -ForegroundColor Cyan
-    $env:GOOS = "linux"; $env:GOARCH = "amd64"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/linux/amd64/Sudoku" .
+    $env:GOOS = "linux"; $env:GOARCH = "amd64"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/linux/amd64/sudokusolve" .
 }
 finally {
     if (Test-Path "sudoku.syso") { Remove-Item "sudoku.syso" -Force }
@@ -94,10 +94,10 @@ if ($upx.IsPresent) {
     if ($upxCmd -and $upxCmd.Path) {
         Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
         $binaries = @(
-            "./bin/win/x86/Sudoku.exe",
-            "./bin/win/x64/Sudoku.exe",
-            "./bin/linux/x86/Sudoku",
-            "./bin/linux/amd64/Sudoku"
+            "./bin/win/x86/sudokusolve.exe",
+            "./bin/win/x64/sudokusolve.exe",
+            "./bin/linux/x86/sudokusolve",
+            "./bin/linux/amd64/sudokusolve"
         )
         foreach ($bin in $binaries) {
             if (Test-Path $bin) {
@@ -112,8 +112,5 @@ if ($upx.IsPresent) {
 } else {
     Write-Host "UPX compression disabled by default. Pass -upx to enable." -ForegroundColor DarkGray
 }
-
-Copy-Item -Force "./bin/win/x64/Sudoku.exe" "./sudoku.exe"
-Write-Host "Updated ./sudoku.exe from the Windows x64 build." -ForegroundColor DarkGray
 
 Write-Host "Build process completed successfully!" -ForegroundColor Green
