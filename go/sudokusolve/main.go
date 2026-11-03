@@ -90,8 +90,8 @@ type pasteOutcome struct {
 
 func NewApp(screenshotPath string) *App {
 	a := &App{
-		selectedRow:    0,
-		selectedCol:    0,
+		selectedRow:    -1,
+		selectedCol:    -1,
 		statusMsg:      "Welcome! Click cells or use arrow keys + numbers 1-9. Paste screenshot with Ctrl+V.",
 		statusColor:    color.RGBA{180, 200, 230, 255},
 		screenshotPath: screenshotPath,
@@ -165,18 +165,40 @@ func (a *App) Update() error {
 		return nil
 	}
 
+	// Escape clears cell focus
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		a.selectedRow = -1
+		a.selectedCol = -1
+	}
+
 	// Handle keyboard navigation
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-		a.selectedRow = (a.selectedRow + 8) % 9
+		if a.selectedRow < 0 || a.selectedCol < 0 {
+			a.selectedRow, a.selectedCol = 0, 0
+		} else {
+			a.selectedRow = (a.selectedRow + 8) % 9
+		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-		a.selectedRow = (a.selectedRow + 1) % 9
+		if a.selectedRow < 0 || a.selectedCol < 0 {
+			a.selectedRow, a.selectedCol = 0, 0
+		} else {
+			a.selectedRow = (a.selectedRow + 1) % 9
+		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-		a.selectedCol = (a.selectedCol + 8) % 9
+		if a.selectedRow < 0 || a.selectedCol < 0 {
+			a.selectedRow, a.selectedCol = 0, 0
+		} else {
+			a.selectedCol = (a.selectedCol + 8) % 9
+		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-		a.selectedCol = (a.selectedCol + 1) % 9
+		if a.selectedRow < 0 || a.selectedCol < 0 {
+			a.selectedRow, a.selectedCol = 0, 0
+		} else {
+			a.selectedCol = (a.selectedCol + 1) % 9
+		}
 	}
 
 	// Handle digit inputs
@@ -188,17 +210,21 @@ func (a *App) Update() error {
 	}
 	for i, k := range numKeys {
 		if inpututil.IsKeyJustPressed(k) {
-			val := (i % 9) + 1
-			a.grid[a.selectedRow][a.selectedCol] = val
-			a.initial[a.selectedRow][a.selectedCol] = true
-			a.statusMsg = fmt.Sprintf("Entered %d at (%d, %d)", val, a.selectedRow+1, a.selectedCol+1)
-			a.statusColor = color.RGBA{200, 220, 240, 255}
+			if a.selectedRow >= 0 && a.selectedCol >= 0 {
+				val := (i % 9) + 1
+				a.grid[a.selectedRow][a.selectedCol] = val
+				a.initial[a.selectedRow][a.selectedCol] = true
+				a.statusMsg = fmt.Sprintf("Entered %d at (%d, %d)", val, a.selectedRow+1, a.selectedCol+1)
+				a.statusColor = color.RGBA{200, 220, 240, 255}
+			}
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) || inpututil.IsKeyJustPressed(ebiten.KeyDelete) || inpututil.IsKeyJustPressed(ebiten.Key0) || inpututil.IsKeyJustPressed(ebiten.KeyNumpad0) {
-		a.grid[a.selectedRow][a.selectedCol] = 0
-		a.initial[a.selectedRow][a.selectedCol] = false
-		a.statusMsg = fmt.Sprintf("Cleared cell (%d, %d)", a.selectedRow+1, a.selectedCol+1)
+		if a.selectedRow >= 0 && a.selectedCol >= 0 {
+			a.grid[a.selectedRow][a.selectedCol] = 0
+			a.initial[a.selectedRow][a.selectedCol] = false
+			a.statusMsg = fmt.Sprintf("Cleared cell (%d, %d)", a.selectedRow+1, a.selectedCol+1)
+		}
 	}
 
 	// Ctrl+V for screenshot paste
@@ -269,11 +295,13 @@ func (a *App) handleClick(mx, my int) {
 			kx := kpLeft + c*(kpSize+kpGap)
 			ky := kpTop + r*(kpSize+kpGap)
 			if mx >= kx && mx <= kx+kpSize && my >= ky && my <= ky+kpSize {
-				num := r*3 + c + 1
-				a.grid[a.selectedRow][a.selectedCol] = num
-				a.initial[a.selectedRow][a.selectedCol] = true
-				a.statusMsg = fmt.Sprintf("Placed %d at (%d, %d)", num, a.selectedRow+1, a.selectedCol+1)
-				a.statusColor = color.RGBA{200, 220, 240, 255}
+				if a.selectedRow >= 0 && a.selectedCol >= 0 {
+					num := r*3 + c + 1
+					a.grid[a.selectedRow][a.selectedCol] = num
+					a.initial[a.selectedRow][a.selectedCol] = true
+					a.statusMsg = fmt.Sprintf("Placed %d at (%d, %d)", num, a.selectedRow+1, a.selectedCol+1)
+					a.statusColor = color.RGBA{200, 220, 240, 255}
+				}
 				return
 			}
 		}
@@ -281,9 +309,11 @@ func (a *App) handleClick(mx, my int) {
 
 	// Keypad Clear Cell
 	if mx >= 530 && mx <= 530+210 && my >= 464 && my <= 464+36 {
-		a.grid[a.selectedRow][a.selectedCol] = 0
-		a.initial[a.selectedRow][a.selectedCol] = false
-		a.statusMsg = fmt.Sprintf("Cleared cell (%d, %d)", a.selectedRow+1, a.selectedCol+1)
+		if a.selectedRow >= 0 && a.selectedCol >= 0 {
+			a.grid[a.selectedRow][a.selectedCol] = 0
+			a.initial[a.selectedRow][a.selectedCol] = false
+			a.statusMsg = fmt.Sprintf("Cleared cell (%d, %d)", a.selectedRow+1, a.selectedCol+1)
+		}
 		return
 	}
 }
@@ -308,6 +338,8 @@ func (a *App) solve() {
 func (a *App) clear() {
 	a.grid = Board{}
 	a.initial = [9][9]bool{}
+	a.selectedRow = -1
+	a.selectedCol = -1
 	a.statusMsg = "Board reset. Enter numbers or paste screenshot."
 	a.statusColor = color.RGBA{200, 220, 240, 255}
 }
@@ -338,6 +370,8 @@ func (a *App) loadRandomPuzzle() {
 	}
 	a.grid = board
 	a.initial = initial
+	a.selectedRow = -1
+	a.selectedCol = -1
 	a.statusMsg = fmt.Sprintf("%s puzzle loaded.", a.die.name())
 	a.statusColor = a.die.color()
 }
@@ -511,6 +545,8 @@ func (a *App) pollPaste() {
 					a.initial[r][c] = out.board[r][c] != 0
 				}
 			}
+			a.selectedRow = -1
+			a.selectedCol = -1
 		}
 		a.statusMsg = out.msg
 		a.statusColor = out.color
@@ -570,13 +606,15 @@ func (a *App) Draw(screen *ebiten.Image) {
 	screen.DrawImage(gridBg, opG)
 
 	// Highlight selected cell
-	selX := gridLeft + a.selectedCol*cellSize
-	selY := gridTop + a.selectedRow*cellSize
-	selImg := ebiten.NewImage(cellSize, cellSize)
-	selImg.Fill(color.RGBA{50, 80, 130, 200})
-	opSel := &ebiten.DrawImageOptions{}
-	opSel.GeoM.Translate(float64(selX), float64(selY))
-	screen.DrawImage(selImg, opSel)
+	if a.selectedRow >= 0 && a.selectedCol >= 0 {
+		selX := gridLeft + a.selectedCol*cellSize
+		selY := gridTop + a.selectedRow*cellSize
+		selImg := ebiten.NewImage(cellSize, cellSize)
+		selImg.Fill(color.RGBA{50, 80, 130, 200})
+		opSel := &ebiten.DrawImageOptions{}
+		opSel.GeoM.Translate(float64(selX), float64(selY))
+		screen.DrawImage(selImg, opSel)
+	}
 
 	// Draw cells & numbers
 	for r := 0; r < 9; r++ {

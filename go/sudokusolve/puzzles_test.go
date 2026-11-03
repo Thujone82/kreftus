@@ -44,3 +44,24 @@ func TestDieHelpText(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadRandomPuzzle_UnfocusesGrid(t *testing.T) {
+	app := NewApp("")
+	if app.selectedRow != -1 || app.selectedCol != -1 {
+		t.Fatalf("expected NewApp to have (-1, -1) focus, got (%d, %d)", app.selectedRow, app.selectedCol)
+	}
+
+	app.selectedRow = 4
+	app.selectedCol = 5
+	app.loadRandomPuzzle()
+	if app.selectedRow != -1 || app.selectedCol != -1 {
+		t.Fatalf("expected loadRandomPuzzle to unfocus grid (-1, -1), got (%d, %d)", app.selectedRow, app.selectedCol)
+	}
+
+	app.selectedRow = 2
+	app.selectedCol = 3
+	app.clear()
+	if app.selectedRow != -1 || app.selectedCol != -1 {
+		t.Fatalf("expected clear to unfocus grid (-1, -1), got (%d, %d)", app.selectedRow, app.selectedCol)
+	}
+}
