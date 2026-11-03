@@ -703,18 +703,50 @@ html, body {
 
 /* Log Container & Log Filter Buttons */
 #logContainer {
+  display: flex !important;
+  flex-direction: column !important;
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius);
   box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.45);
   padding: 4px;
   overflow: hidden;
+  box-sizing: border-box !important;
+  height: 100% !important;
 }
 
 #logBtnGroup.btn-group {
-  display: flex;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 28px !important;
   gap: 3px;
   padding: 2px 2px 4px 2px;
+  position: relative !important;
+  z-index: 5 !important;
+  background: var(--surface) !important;
+  box-sizing: border-box !important;
+}
+
+#logBtnGroup > .btn-group:not(#logConfigHolder) {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+}
+
+#logBtnGroup > .btn-group:not(#logConfigHolder) > .btn.logFlt {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 4px 6px !important;
+  font-size: clamp(11px, 0.85vw, 13px) !important;
+  white-space: nowrap !important;
 }
 
 #logBtnGroup .btn.logFlt {
@@ -722,6 +754,7 @@ html, body {
   border: 1px solid var(--border-strong) !important;
   font-weight: 600;
   transition: all 0.15s ease;
+  box-sizing: border-box !important;
 }
 
 #logBtnGroup .btn.btn-success {
@@ -741,10 +774,27 @@ html, body {
   color: var(--text) !important;
 }
 
+#logConfigHolder {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  display: flex !important;
+}
+
 #logConfigBtn {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
   background: var(--surface-2) !important;
   color: var(--text) !important;
   border-color: var(--border-strong) !important;
+  box-sizing: border-box !important;
 }
 
 #logConfigBtn:hover {
@@ -752,9 +802,31 @@ html, body {
   color: var(--accent) !important;
 }
 
+#logConfigBtn .glyphicon,
+#logConfigBtn .glyphicon-cog {
+  position: static !important;
+  top: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 #log {
+  flex: 1 1 0px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  width: 100% !important;
+  overflow-y: scroll !important;
+  padding: 4px 6px !important;
   font-size: clamp(11px, 0.88vw, 14px);
   line-height: 1.4;
+  position: relative !important;
+  z-index: 1 !important;
+  box-sizing: border-box !important;
 }
 
 .message {
@@ -2134,14 +2206,72 @@ table,
 
 /* Set Map At Zone Modal (#mazContainer, #tooltipDiv.tooltipExtraGigantic) */
 #tooltipDiv.tooltipExtraGigantic {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
   width: min(94vw, 1200px) !important;
+  max-width: 95vw !important;
   max-height: 90vh !important;
-  overflow-y: auto !important;
-  padding: 16px 20px !important;
+  max-height: 90dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 16px 20px 14px 20px !important;
   background: var(--surface-solid, #14171f) !important;
   border: 1px solid var(--border-strong) !important;
   border-radius: 12px !important;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85) !important;
+  box-sizing: border-box !important;
+  z-index: 10000 !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic #tipTitle {
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  text-align: center !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic > hr {
+  flex: 0 0 auto !important;
+  margin: 8px 0 !important;
+  border-color: var(--border-strong) !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic #tipText {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  padding-right: 6px !important;
+}
+
+#tooltipDiv.tooltipExtraGigantic #tipText::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+  background-color: rgba(10, 12, 16, 0.4);
+}
+
+#tooltipDiv.tooltipExtraGigantic #tipText::-webkit-scrollbar-track {
+  background-color: rgba(10, 12, 16, 0.4);
+  border-radius: 6px;
+}
+
+#tooltipDiv.tooltipExtraGigantic #tipText::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+}
+
+#tooltipDiv.tooltipExtraGigantic #tipText::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(247, 147, 26, 0.5);
+}
+
+#tooltipDiv.tooltipExtraGigantic #tipCost {
+  flex: 0 0 auto !important;
+  margin-top: 0 !important;
 }
 
 #mazContainer {
@@ -2283,9 +2413,9 @@ table,
   flex-wrap: wrap !important;
   align-items: center !important;
   justify-content: flex-start !important;
-  margin-top: 14px !important;
-  padding-top: 10px !important;
-  border-top: 1px solid var(--border-strong) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-top: none !important;
 }
 
 #tooltipDiv.tooltipExtraGigantic .maxCenter .btn {
@@ -4010,6 +4140,50 @@ span.heirloomRare12 {
   margin: 6px 0 !important;
 }
 
+/* Equipped Heirloom Frame Slots (#ShieldEquipped, #StaffEquipped, #CoreEquipped) */
+#ShieldEquipped,
+#StaffEquipped,
+#CoreEquipped {
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  min-height: 56px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 6px auto !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm, 8px) !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+  -webkit-box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+  -moz-box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+#ShieldEquipped .heirloomThing,
+#StaffEquipped .heirloomThing,
+#CoreEquipped .heirloomThing {
+  width: 44px !important;
+  height: 44px !important;
+  font-size: 28px !important;
+  line-height: 44px !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
+#ShieldEquipped .icon-sad3,
+#StaffEquipped .icon-sad3,
+#CoreEquipped .icon-sad3 {
+  font-size: 26px !important;
+  margin: 0 !important;
+}
+
 #ShieldEquippedName,
 #CoreEquippedName,
 #StaffEquippedName {
@@ -5238,15 +5412,20 @@ span.heirloomRare12 {
     height: auto !important;
   }
 
-  #logBtnGroup div button,
-  #logConfigBtn {
+  #logBtnGroup > .btn-group:not(#logConfigHolder) > .btn.logFlt {
     font-size: 15px !important;
     font-weight: 700 !important;
     padding: 7px 10px !important;
   }
 
+  #logConfigBtn {
+    padding: 0 !important;
+  }
+
   #log {
-    height: calc(100% - 42px) !important;
+    flex: 1 1 0px !important;
+    height: auto !important;
+    min-height: 0 !important;
     font-size: 15px !important;
   }
 
@@ -6127,6 +6306,15 @@ span.heirloomRare12 {
     min-height: 110px !important;
   }
 
+  #ShieldEquipped,
+  #StaffEquipped,
+  #CoreEquipped {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+  }
+
   .heirloomEquippedContainer .heirloomThing {
     width: 38px !important;
     height: 38px !important;
@@ -6168,6 +6356,15 @@ span.heirloomRare12 {
   .heirloomEquippedContainer.col-xs-6 {
     min-height: 96px !important;
     padding: 6px 2px !important;
+  }
+
+  #ShieldEquipped,
+  #StaffEquipped,
+  #CoreEquipped {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
   }
 
   .heirloomEquippedContainer .heirloomThing {
