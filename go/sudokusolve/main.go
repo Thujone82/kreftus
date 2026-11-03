@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"flag"
@@ -268,20 +268,28 @@ func (a *App) handleClick(mx, my int) {
 	bw := 240
 	bh := 42
 
-	// Solve button (y: 54)
+	// Hint button (y: 54)
 	if mx >= bx && mx <= bx+bw && my >= 54 && my <= 54+bh {
+		a.hint()
+		return
+	}
+
+	// Solve button (y: 109)
+	if mx >= bx && mx <= bx+bw && my >= 109 && my <= 109+bh {
 		a.solve()
 		return
 	}
 
-	// Clear button (y: 109)
-	if mx >= bx && mx <= bx+bw && my >= 109 && my <= 109+bh {
+	// Row for Clear Grid & Paste Screenshot (y: 164, shared row)
+	splitW := 115
+	gap := 10
+	// Clear Grid (left half)
+	if mx >= bx && mx <= bx+splitW && my >= 164 && my <= 164+bh {
 		a.clear()
 		return
 	}
-
-	// Paste Screenshot button (y: 164)
-	if mx >= bx && mx <= bx+bw && my >= 164 && my <= 164+bh {
+	// Paste Screenshot (right half)
+	if mx >= bx+splitW+gap && mx <= bx+bw && my >= 164 && my <= 164+bh {
 		a.startPaste()
 		return
 	}
@@ -318,6 +326,47 @@ func (a *App) handleClick(mx, my int) {
 	}
 }
 
+func (a *App) hint() {
+	if !validateInitialBoard(&a.grid) {
+		a.statusMsg = "Invalid board! Conflicting numbers detected."
+		a.statusColor = color.RGBA{255, 100, 100, 255}
+		return
+	}
+
+	// Find the easiest next move
+	h, ok := findHint(&a.grid)
+	if !ok {
+		// Either already solved, or unsolvable
+		full := true
+		for r := 0; r < 9; r++ {
+			for c := 0; c < 9; c++ {
+				if a.grid[r][c] == 0 {
+					full = false
+					break
+				}
+			}
+			if !full {
+				break
+			}
+		}
+		if full {
+			a.statusMsg = "Puzzle is already completed!"
+			a.statusColor = color.RGBA{100, 255, 140, 255}
+		} else {
+			a.statusMsg = "No valid solution exists for this puzzle."
+			a.statusColor = color.RGBA{255, 120, 100, 255}
+		}
+		return
+	}
+
+	// Apply the hint
+	a.grid[h.row][h.col] = h.val
+	a.selectedRow = h.row
+	a.selectedCol = h.col
+	a.statusMsg = fmt.Sprintf("Hint: Placed %d at (%d, %d) [%s]", h.val, h.row+1, h.col+1, h.reason)
+	a.statusColor = color.RGBA{100, 220, 255, 255}
+}
+
 func (a *App) solve() {
 	if !validateInitialBoard(&a.grid) {
 		a.statusMsg = "Invalid board! Conflicting numbers detected."
@@ -327,6 +376,8 @@ func (a *App) solve() {
 	copyGrid := a.grid
 	if solveSudoku(&copyGrid) {
 		a.grid = copyGrid
+		a.selectedRow = -1
+		a.selectedCol = -1
 		a.statusMsg = "Puzzle solved successfully!"
 		a.statusColor = color.RGBA{100, 255, 140, 255}
 	} else {
@@ -646,14 +697,17 @@ func (a *App) Draw(screen *ebiten.Image) {
 	bw := 240
 	bh := 42
 
-	// Solve button
-	drawButton(screen, bx, 54, bw, bh, "Solve Puzzle", buttonFace, color.RGBA{38, 140, 85, 255}, color.RGBA{255, 255, 255, 255})
+	// Hint button (first)
+	drawButton(screen, bx, 54, bw, bh, "Hint (Next Step)", buttonFace, color.RGBA{45, 120, 205, 255}, color.RGBA{255, 255, 255, 255})
 
-	// Clear button
-	drawButton(screen, bx, 109, bw, bh, "Clear Grid", buttonFace, color.RGBA{160, 50, 65, 255}, color.RGBA{255, 255, 255, 255})
+	// Solve button (second)
+	drawButton(screen, bx, 109, bw, bh, "Solve Puzzle", buttonFace, color.RGBA{38, 140, 85, 255}, color.RGBA{255, 255, 255, 255})
 
-	// Paste Screenshot button
-	drawButton(screen, bx, 164, bw, bh, "Paste Screenshot (Ctrl+V)", buttonFace, color.RGBA{115, 65, 180, 255}, color.RGBA{255, 255, 255, 255})
+	// Row for Clear Grid & Paste Screenshot (shared row: 115px each, 10px gap)
+	splitW := 115
+	gap := 10
+	drawButton(screen, bx, 164, splitW, bh, "Clear Grid", buttonFace, color.RGBA{160, 50, 65, 255}, color.RGBA{255, 255, 255, 255})
+	drawButton(screen, bx+splitW+gap, 164, splitW, bh, "Paste", buttonFace, color.RGBA{115, 65, 180, 255}, color.RGBA{255, 255, 255, 255})
 
 	// Keypad section label
 	text.Draw(screen, "Number Keypad (or press 1-9)", basicfont.Face7x13, bx+15, 227, color.RGBA{170, 185, 210, 255})

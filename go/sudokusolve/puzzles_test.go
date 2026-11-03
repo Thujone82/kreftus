@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import "testing"
 
@@ -63,5 +63,14 @@ func TestLoadRandomPuzzle_UnfocusesGrid(t *testing.T) {
 	app.clear()
 	if app.selectedRow != -1 || app.selectedCol != -1 {
 		t.Fatalf("expected clear to unfocus grid (-1, -1), got (%d, %d)", app.selectedRow, app.selectedCol)
+	}
+
+	// Solving puzzle should also unfocus grid
+	app.loadSample()
+	app.selectedRow = 1
+	app.selectedCol = 1
+	app.solve()
+	if app.selectedRow != -1 || app.selectedCol != -1 {
+		t.Fatalf("expected solve to unfocus grid (-1, -1), got (%d, %d)", app.selectedRow, app.selectedCol)
 	}
 }
