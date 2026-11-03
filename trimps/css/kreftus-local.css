@@ -1616,6 +1616,30 @@ li.tabNotEnabled:hover {
   display: inline-flex !important;
 }
 
+/* Right-side Extra Map Action Buttons (#extraMapBtns) */
+#extraMapBtns {
+  padding-left: 0 !important;
+  padding-right: 2px !important;
+}
+
+#extraMapBtns .fightBtn {
+  width: 100% !important;
+  font-size: clamp(9.5px, 0.85vw, 12px) !important;
+  line-height: 1.15 !important;
+  padding: 3px 4px !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  min-height: 24px !important;
+}
+
+#togglemapAtZone2 {
+  font-size: clamp(9px, 0.8vw, 11px) !important;
+  letter-spacing: -0.01em !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  line-height: 1.15 !important;
+}
+
 .fightBtn[style*="display: none"],
 .fightBtn[style*="display:none"],
 .battleSideBtnContainer[style*="display: none"],
