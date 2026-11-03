@@ -4962,7 +4962,12 @@ span.heirloomRare12 {
   cursor: pointer !important;
 }
 
-#modReplaceBtn {
+#modReplaceSelect[style*="display: none"],
+#modReplaceSelect[style*="display:none"] {
+  display: none !important;
+}
+
+#modReplaceBtn:not([style*="display: none"]):not([style*="display:none"]) {
   width: 100% !important;
   margin: 0 !important;
   padding: 6px 12px !important;
@@ -4973,6 +4978,11 @@ span.heirloomRare12 {
   font-size: 12px !important;
 }
 
+#modReplaceBtn[style*="display: none"],
+#modReplaceBtn[style*="display:none"] {
+  display: none !important;
+}
+
 #modCantReplace {
   font-size: 11.5px !important;
   color: var(--muted) !important;
@@ -4980,9 +4990,27 @@ span.heirloomRare12 {
   font-style: italic !important;
   text-align: center !important;
   min-height: 16px !important;
-  display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  flex: 1 1 auto !important;
+}
+
+#modCantReplace:not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+}
+
+#modCantReplace[style*="display: none"],
+#modCantReplace[style*="display:none"] {
+  display: none !important;
+}
+
+#modUpgradeBox:not([style*="display: none"]):not([style*="display:none"]) {
+  display: grid !important;
+}
+
+#modUpgradeBox[style*="display: none"],
+#modUpgradeBox[style*="display:none"] {
+  display: none !important;
 }
 
 #modUpgradeCost {

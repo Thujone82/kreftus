@@ -10087,7 +10087,9 @@ var ONE_TIMER_MILESTONES = [
     } else if (state.simulatedDustPs && state.simulatedDustPs > 0) {
       var farmLvl = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || state.level;
       $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(state.simulatedDustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + farmLvl + ")</span>";
-      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvl + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "--") + "s/kill).\nClick Simulator to view live combat.";
+      var muts = (state.save && state.save.global && state.save.global.u2MutationData) || {};
+      var mutNote = muts.Dust2 ? " • Mutators: Dusty & Dustier (+50% Dust)" : (muts.Dust ? " • Mutators: Dusty (+25% Dust)" : "");
+      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvl + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "--") + "s/kill)" + mutNote + ".\nClick Simulator to view live combat.";
       if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride) {
         $("dustOverride").placeholder = prettify(state.simulatedDustPs) + "/s";
       }
@@ -11697,6 +11699,8 @@ var ONE_TIMER_MILESTONES = [
     var contract = state.ab.activeContract;
     var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
     var mb = macroBonusInfo();
+    var muts = (state.save && state.save.global && state.save.global.u2MutationData) || {};
+    var mutStr = muts.Dust2 ? "Dusty & Dustier (+50% Dust)" : (muts.Dust ? "Dusty (+25% Dust)" : "");
 
     var saveTooltip = "Trimps Save Snapshot:" +
       "\n• Highest Zone U2: Z" + (state.radon + 1) + " (Void maps to Z" + (state.radon + 1) + ")" +
@@ -11705,6 +11709,7 @@ var ONE_TIMER_MILESTONES = [
       "\n• Contracts Completed: " + contracts + " / " + contractItems +
       "\n• Ring Mods: " + (hasRing() ? (mods || "None") : "Locked") +
       "\n• Spire Buffs: +" + mb.radonPct + "% Radon · +" + mb.statsPct + "% Stats · " + mb.scaffoldLvl + " Scaffolding" +
+      (mutStr ? ("\n• Mutators: " + mutStr) : "") +
       "\n• Loaded in planner: " + (loadedTimeStr || "—") + (exportTimeStr ? (" (Exported: " + exportTimeStr + ")") : "");
 
     var statusEl = $("sourceStatus");
