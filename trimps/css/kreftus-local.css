@@ -1245,6 +1245,57 @@ li.tabNotEnabled:hover {
   border-radius: var(--radius-sm) !important;
   text-align: center !important;
   border: 1px solid var(--border-strong) !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+}
+
+.autoUpgradeBtn.colorDanger,
+#autoUpgradeBtn.colorDanger {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.24), rgba(159, 18, 57, 0.18)) !important;
+  border: 1px solid rgba(244, 63, 94, 0.55) !important;
+  color: #fb7185 !important;
+  box-shadow: 0 1px 4px rgba(244, 63, 94, 0.14) !important;
+}
+
+.autoUpgradeBtn.colorDanger:hover,
+#autoUpgradeBtn.colorDanger:hover {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.36), rgba(159, 18, 57, 0.28)) !important;
+  border-color: #f43f5e !important;
+  color: #fff1f2 !important;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.25) !important;
+}
+
+.autoUpgradeBtn.colorSuccess,
+#autoUpgradeBtn.colorSuccess {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.28), rgba(21, 128, 61, 0.22)) !important;
+  border: 1px solid rgba(34, 197, 94, 0.65) !important;
+  color: #4ade80 !important;
+  box-shadow: 0 1px 4px rgba(34, 197, 94, 0.16) !important;
+}
+
+.autoUpgradeBtn.colorSuccess:hover,
+#autoUpgradeBtn.colorSuccess:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.4), rgba(21, 128, 61, 0.32)) !important;
+  border-color: #22c55e !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3) !important;
+}
+
+.autoUpgradeBtn.colorYellow,
+#autoUpgradeBtn.colorYellow {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.26), rgba(180, 83, 9, 0.18)) !important;
+  border: 1px solid rgba(251, 191, 36, 0.6) !important;
+  color: #fde047 !important;
+  box-shadow: 0 1px 4px rgba(251, 191, 36, 0.16) !important;
+}
+
+.autoUpgradeBtn.colorYellow:hover,
+#autoUpgradeBtn.colorYellow:hover {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.38), rgba(180, 83, 9, 0.28)) !important;
+  border-color: #fbbf24 !important;
+  color: #fef08a !important;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.28) !important;
 }
 
 /* Buy Container, Buy Content & Section Title Bars */
@@ -1896,7 +1947,9 @@ li.tabNotEnabled:hover {
 }
 
 .settingBtntrue,
-.settingBtn1 {
+.settingBtn1,
+.colorSuccess,
+.successColor {
   background: linear-gradient(180deg, rgba(34, 197, 94, 0.28), rgba(21, 128, 61, 0.22)) !important;
   border: 1px solid rgba(34, 197, 94, 0.65) !important;
   color: #4ade80 !important;
@@ -1904,7 +1957,9 @@ li.tabNotEnabled:hover {
 }
 
 .settingBtntrue:hover,
-.settingBtn1:hover {
+.settingBtn1:hover,
+.colorSuccess:hover,
+.successColor:hover {
   background: linear-gradient(180deg, rgba(34, 197, 94, 0.4), rgba(21, 128, 61, 0.32)) !important;
   border-color: #22c55e !important;
   color: #ecfdf5 !important;
@@ -1912,7 +1967,10 @@ li.tabNotEnabled:hover {
 }
 
 .settingBtnfalse,
-.settingBtn0 {
+.settingBtn0,
+.colorDanger,
+.dangerColor,
+.stateDanger {
   background: linear-gradient(180deg, rgba(244, 63, 94, 0.24), rgba(159, 18, 57, 0.18)) !important;
   border: 1px solid rgba(244, 63, 94, 0.55) !important;
   color: #fb7185 !important;
@@ -1920,7 +1978,10 @@ li.tabNotEnabled:hover {
 }
 
 .settingBtnfalse:hover,
-.settingBtn0:hover {
+.settingBtn0:hover,
+.colorDanger:hover,
+.dangerColor:hover,
+.stateDanger:hover {
   background: linear-gradient(180deg, rgba(244, 63, 94, 0.36), rgba(159, 18, 57, 0.28)) !important;
   border-color: #f43f5e !important;
   color: #fff1f2 !important;
