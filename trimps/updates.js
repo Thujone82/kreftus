@@ -1456,15 +1456,16 @@ function tooltip(what, isItIn, event, textString, attachFunction, numCheck, rena
 	}
 	if (what == "Import"){
 		tooltipText = "Import your save string! It'll be fun, I promise.<br/><br/><textarea spellcheck='false' id='importBox' style='width: 100%' rows='5'></textarea>";
-		costText="<div class='maxCenter'><div id='confirmTooltipBtn' class='btn btn-info' onclick='cancelTooltip(); load(true);'>Import</div>"
+		costText = "<div class='maxCenter'><div id='confirmTooltipBtn' class='btn btn-info' onclick='cancelTooltip(); load(true);'>Import</div>";
+		costText += "<div id='pasteSaveBtn' class='btn btn-success' onclick='tooltips.pasteFromClipboard(\"importBox\", this)'>Paste from Clipboard</div>";
 		if (playFabId != -1) costText += "<div class='btn btn-primary' onclick='loadFromPlayFab()'>Import From PlayFab</div>";
-		costText += "<div class='btn btn-info' role=button tabindex=0 onclick='cancelTooltip()'>Cancel</div></div>";
+		costText += "<div class='btn btn-danger' role=button tabindex=0 onclick='cancelTooltip()'>Cancel</div></div>";
 		game.global.lockTooltip = true;
 		elem.style.left = "33.75%";
 		elem.style.top = "25%";
 		ondisplay = function () {
 			document.getElementById('importBox').focus();
-		}
+		};
 	}
 	if (what == "Import Perks"){
 		if (game.global.challengeActive == "Hypothermia"){
@@ -1473,9 +1474,12 @@ function tooltip(what, isItIn, event, textString, attachFunction, numCheck, rena
 			return;
 		}
 		tooltipText = "Import your perks from a text string!<br/><br/><textarea spellcheck='false' id='perkImportBox' style='width: 100%' rows='5'></textarea>";
-		costText = "<p class='red'></p>";
-		costText += "<div id='confirmTooltipBtn' class='btn btn-info' onclick='this.previousSibling.innerText = importPerks()'>Import</div>";
-		costText += "<div class='btn btn-info' role=button tabindex=0 onclick='cancelTooltip()'>Cancel</div></div>";
+		costText = "<p id='perkImportError' class='red'></p>";
+		costText += "<div class='maxCenter'>";
+		costText += "<div id='confirmTooltipBtn' class='btn btn-info' onclick='var err = document.getElementById(\"perkImportError\"); if (err) err.innerText = (importPerks() || \"\");'>Import</div>";
+		costText += "<div id='pastePerksBtn' class='btn btn-success' onclick='tooltips.pasteFromClipboard(\"perkImportBox\", this)'>Paste from Clipboard</div>";
+		costText += "<div class='btn btn-danger' role=button tabindex=0 onclick='cancelTooltip()'>Cancel</div>";
+		costText += "</div>";
 		game.global.lockTooltip = true;
 		elem.style.left = "33.75%";
 		elem.style.top = "25%";
@@ -7824,4 +7828,57 @@ tooltips.handleCopyButton = function () {
 		}
 	};
 	return ondisplay;
+};
+
+/**
+ * Helper to paste text from the clipboard into a target textarea
+ * @param {string} targetId The id of the input/textarea element
+ * @param {HTMLElement} btnElem The button triggering the paste
+ */
+tooltips.pasteFromClipboard = function (targetId, btnElem) {
+	var box = document.getElementById(targetId);
+	if (!box) return;
+	var origText = (btnElem) ? (btnElem.getAttribute('data-orig-text') || btnElem.innerHTML) : "Paste from Clipboard";
+	if (btnElem && !btnElem.getAttribute('data-orig-text')) {
+		btnElem.setAttribute('data-orig-text', origText);
+	}
+	var flashButton = function(msg) {
+		if (!btnElem) return;
+		btnElem.innerHTML = msg;
+		setTimeout(function() {
+			if (btnElem) btnElem.innerHTML = origText;
+		}, 1600);
+	};
+
+	if (navigator.clipboard && navigator.clipboard.readText) {
+		navigator.clipboard.readText().then(function(clipText) {
+			if (typeof clipText === 'string' && clipText.length > 0) {
+				box.value = clipText;
+				box.focus();
+				flashButton("Pasted!");
+			} else {
+				box.focus();
+				flashButton("Clipboard Empty");
+			}
+		}).catch(function(err) {
+			box.focus();
+			try {
+				if (document.execCommand('paste')) {
+					flashButton("Pasted!");
+					return;
+				}
+			} catch (e) {}
+			flashButton("Paste blocked (use Ctrl+V)");
+		});
+		return;
+	}
+
+	box.focus();
+	try {
+		if (document.execCommand('paste')) {
+			flashButton("Pasted!");
+			return;
+		}
+	} catch (e) {}
+	flashButton("Use Ctrl+V");
 };
