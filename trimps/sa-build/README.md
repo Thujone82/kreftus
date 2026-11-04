@@ -33,7 +33,33 @@ Rather than presenting a monolithic, unordered shopping list, the Next Upgrade A
 
 ---
 
-### 3. Community Build Sourcing & Database
+### 3. High-Precision Sequential Time Estimation (Compounding Step Simulation & Bank Decrementing)
+Standard planners calculate roadmap duration assuming a static earning rate throughout the entire plan (Total Cost / Current Rate). In reality, as you purchase intermediary upgrades—such as leveling currently equipped items, advancing The Ring tier, or activating dust-boosting contracts—your actual earning velocity increases *while* you work through the plan.
+
+The Next Upgrade Advisor models this dynamic reality with a high-precision sequential simulation and time-decrementing engine:
+
+- **Sequential Step-by-Step Simulation (`calculateStepWaitTimes`)**:
+  - Rather than treating the roadmap as a static sum, the engine evaluates each step sequentially.
+  - For any step that improves combat stats in your active farming loadout (equipped gear upgrades, Ring levels, Ring unlocks, and contracts), the planner simulates **9,001 headless Monte Carlo fights** using your live save state.
+  - The newly simulated dust/second rate (`_stepRate`) is assigned to that step, and that compounded velocity is used to calculate the accumulation duration for the *next* step.
+- **Parallel Currency Modeling (Dust vs. Blood Shards)**:
+  - Tracks dust and blood shard generation independently.
+  - Accumulation times are calculated in parallel as $\max(\text{dustWait}, \text{shardWait})$, accurately identifying whether dust reserves or blood shard production represents the critical path bottleneck.
+- **CPU-Optimized Invariant Caching (`planRatesCache` & `stepSimCache`)**:
+  - A 9,001-fight combat simulation determines the physical earning capacity after an upgrade, which is invariant over time for a given save configuration.
+  - Results are cached persistently by step signature (`planRatesCache`). Once a roadmap has been simulated, it executes in **0.0 ms** on subsequent evaluations with **zero background simulation runs**.
+- **Pure Arithmetic Time Decrementing**:
+  - Second-by-second live updates (`updateLiveBank`) run zero combat simulations.
+  - As time elapses and your live bank accumulates dust and shards, remaining wait times are decremented purely by arithmetic ($\text{wait} = (\text{cost} - \text{current\_bank}) / \text{step\_rate}$), requiring negligible CPU.
+- **Strict Invalidation Rules**:
+  - Simulations re-run **only** when a new save is pasted/loaded, or when the user manually changes the step order via drag-and-drop or order reset.
+- **Synchronized Across All Views**:
+  - Total build times are fully unified across the **Target Plan** header card (`Build Time`), the **Next Upgrade Advisor** atomic step pill (`Build:`), the **Roadmap Popover** (`Est. wait`), and the **Better Builds** table (`Earn / Return` column).
+  - Tooltips display both compact decimal days (e.g. `7.8d`) and precise day/hour breakdowns (e.g. `7d 19h`) with explicit `Sim 9001` badges.
+
+---
+
+### 4. Community Build Sourcing & Database
 The advisor's progression roadmap and runnable builds are sourced and synchronized directly from the player-maintained [Community Spire Assault Spreadsheet](https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs):
 
 - **Comprehensive Level Coverage**: Catalogs 3,500+ battle-tested configurations submitted and vetted by the Trimps community across all 157 Spire Assault zones.
@@ -44,7 +70,7 @@ The advisor's progression roadmap and runnable builds are sourced and synchroniz
 
 ---
 
-### 4. In-Browser Combat Simulator & Sandbox Modal
+### 5. In-Browser Combat Simulator & Sandbox Modal
 The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle combat engine ([`AutoBattle.js`](../AutoBattle.js)) inside [`sim-engine.js`](./sim-engine.js).
 
 - **Full Affix & Mechanic Simulation**: Faithfully models all enemy properties (Berserking, Poisoning, Shocking, Bleed, Lifestealing, Fast x2/x3, Defensive, Slowing Aura, Enrage, etc.) and Huffy stats (Attack, Defense, Lifesteal, Dust Mult, Resists, Limbs, The Ring).
@@ -59,7 +85,7 @@ The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle
 
 ---
 
-### 5. Auto-Calibrated Dust Rates (9,001 Simulated Battles)
+### 6. Auto-Calibrated Dust Rates (9,001 Simulated Battles)
 - **Zero-Input Accuracy**: When you import a Trimps save string or change enemy levels, the planner automatically executes an accelerated **9,001-fight headless Monte Carlo simulation** using your live gear and enemy level.
 - **Exact Game Parity**: Replaces generic sheet baselines with the exact dust/second earned in real gameplay (e.g. `7.22B/s`).
 - **Streamlined Custom Dust Override**:
@@ -69,7 +95,7 @@ The Spire Assault Simulator accurately reproduces the official Trimps AutoBattle
 
 ---
 
-### 6. Monte Carlo Push Test
+### 7. Monte Carlo Push Test
 Located in Tab 2 of the Simulator modal:
 
 - **Push Viability Heatmap**: Tests your current sandbox build across higher Spire Assault levels to identify push boundaries.
@@ -80,7 +106,7 @@ Located in Tab 2 of the Simulator modal:
 
 ---
 
-### 7. Ring Mod Optimizer
+### 8. Ring Mod Optimizer
 Located in Tab 3 of the Simulator modal:
 
 - **Exhaustive Permutation Search**: Simulates every valid combination of Ring mods (Attack, Dust, Health, Defense, Lifesteal) for your current Ring level.
@@ -89,7 +115,7 @@ Located in Tab 3 of the Simulator modal:
 
 ---
 
-### 8. Upgrade Value (Upgrade Sensitivity & Payback ROI)
+### 9. Upgrade Value (Upgrade Sensitivity & Payback ROI)
 Located in Tab 4 of the Simulator modal:
 
 - **Immediate Progression ROI**: Tests the impact of upgrading each equipped item by +1 level or upgrading The Ring by +1 level.
