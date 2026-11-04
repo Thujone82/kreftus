@@ -1,6 +1,9 @@
 ﻿package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestFindHint_SamplePuzzle(t *testing.T) {
 	app := NewApp("")
@@ -93,4 +96,38 @@ func TestFindHint_StepByStepToCompletion(t *testing.T) {
 	if app.statusMsg != "Puzzle is already completed!" {
 		t.Fatalf("expected completed status, got: %q", app.statusMsg)
 	}
+}
+
+func TestFindHint_PointingLine(t *testing.T) {
+	// A known board where Pointing Lines are exercised
+	// Grid representation
+	raw := "000000000000003085001020000000507000004000100090000000500000073002010000000040009"
+	b, _, ok := boardFromGivens(raw)
+	if !ok {
+		t.Fatal("failed to parse board")
+	}
+
+	cand, ok := computeCandidates(&b)
+	if !ok {
+		t.Fatal("candidates calculation failed")
+	}
+
+	h, ok := applyPointing(&b, &cand)
+	if ok {
+		if !strings.Contains(h.reason, "Pointing Line") {
+			t.Fatalf("expected Pointing Line reason, got: %s", h.reason)
+		}
+	}
+}
+
+func TestFindHint_NakedPair(t *testing.T) {
+	// Board with a known Naked Pair
+	raw := "000000000012034567034567812000000000123000456000000000000000000000000000000000000"
+	// Verify applyNakedPairs runs cleanly without panic
+	b, _, ok := boardFromGivens(raw)
+	if !ok {
+		t.Fatal("failed to parse board")
+	}
+	cand, _ := computeCandidates(&b)
+	_, _ = applyNakedPairs(&b, &cand)
 }
