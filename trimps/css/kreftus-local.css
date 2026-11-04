@@ -1616,10 +1616,17 @@ li.tabNotEnabled:hover {
   display: inline-flex !important;
 }
 
+/* Combat Grid Row (#gridRow) - Prevent Bootstrap -15px margin-right overflow */
+#gridRow {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
 /* Right-side Extra Map Action Buttons (#extraMapBtns) */
 #extraMapBtns {
-  padding-left: 0 !important;
-  padding-right: 2px !important;
+  padding-left: 4px !important;
+  padding-right: 0 !important;
+  box-sizing: border-box !important;
 }
 
 #extraMapBtns .fightBtn {
