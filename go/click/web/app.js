@@ -759,7 +759,7 @@
     const selMacro = (appState.macros || []).find((m) => m.id === macroId);
     const name = ($("#schedName").value || "").trim() || (selMacro ? selMacro.name : "Scheduled Macro");
     const startVal = $("#schedStart").value;
-    const startDate = startVal ? new Date(startVal) : new Date(Date.now() + 60000);
+    const startDate = parseLocalDateTimeInput(startVal);
 
     let mask = 0;
     $$("#fieldWeekdays input[type=checkbox]").forEach((cb) => {
@@ -771,14 +771,14 @@
     const ws = parseHHMMInput($("#schedWinStart").value);
     const we = parseHHMMInput($("#schedWinEnd").value);
     const endUntilVal = $("#schedEndUntil").value;
-    const endAt = endUntilVal ? new Date(endUntilVal).toISOString() : null;
+    const endAt = endUntilVal ? toLocalISOString(parseLocalDateTimeInput(endUntilVal)) : null;
 
     return {
       id: $("#schedId").value || "",
       macroId: macroId,
       name: name,
       enabled: $("#schedEnabled").checked,
-      start: startDate.toISOString(),
+      start: toLocalISOString(startDate),
       repeat: $("#schedRepeat").value,
       intervalMs: parseDurationToMs($("#schedInterval").value, 900000),
       weekdays: mask,
@@ -1151,7 +1151,55 @@
     }
   }
 
+  function parseLocalDateTimeInput(val) {
+    if (!val) return new Date(Date.now() + 60000);
+    const parts = String(val).trim().split("T");
+    if (parts.length === 2) {
+      const dParts = parts[0].split("-").map((x) => parseInt(x, 10));
+      const tParts = parts[1].split(":").map((x) => parseInt(x, 10));
+      if (dParts.length === 3 && tParts.length >= 2) {
+        return new Date(
+          dParts[0],
+          dParts[1] - 1,
+          dParts[2],
+          tParts[0],
+          tParts[1],
+          tParts[2] || 0
+        );
+      }
+    }
+    return new Date(val);
+  }
+
+  function toLocalISOString(d) {
+    if (!d || isNaN(d.getTime())) return null;
+    const pad = (n) => String(n).padStart(2, "0");
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? "+" : "-";
+    const absOff = Math.abs(off);
+    const offH = pad(Math.floor(absOff / 60));
+    const offM = pad(absOff % 60);
+    return (
+      d.getFullYear() +
+      "-" +
+      pad(d.getMonth() + 1) +
+      "-" +
+      pad(d.getDate()) +
+      "T" +
+      pad(d.getHours()) +
+      ":" +
+      pad(d.getMinutes()) +
+      ":" +
+      pad(d.getSeconds()) +
+      sign +
+      offH +
+      ":" +
+      offM
+    );
+  }
+
   function toLocalDateTimeInput(d) {
+    if (!d || isNaN(d.getTime())) return "";
     const pad = (n) => String(n).padStart(2, "0");
     return (
       d.getFullYear() +

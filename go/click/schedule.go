@@ -126,16 +126,15 @@ func ComputeNextRun(s Schedule, after time.Time) *time.Time {
 		return nil
 	}
 
-	loc := s.Start.Location()
-	after = after.In(loc)
-	start := s.Start
+	start := s.Start.Local()
+	after = after.Local()
 
 	// Check end time boundary
 	var cutoff *time.Time
 	switch s.End {
 	case EndUntilTime:
 		if s.EndAt != nil {
-			t := s.EndAt.In(loc)
+			t := s.EndAt.Local()
 			cutoff = &t
 		}
 	case EndForDuration:
@@ -230,22 +229,26 @@ func ComputeNextRun(s Schedule, after time.Time) *time.Time {
 	if cutoff != nil && candidate.After(*cutoff) {
 		return nil
 	}
-	return &candidate
+	res := candidate.Local()
+	return &res
 }
 
 func shouldRunMissedDaily(s Schedule, now time.Time) bool {
-	todayTarget := timeOnDay(now, s.Start.Hour(), s.Start.Minute(), s.Start.Second())
-	if now.Before(todayTarget) || todayTarget.Before(s.Start) {
+	start := s.Start.Local()
+	now = now.Local()
+	todayTarget := timeOnDay(now, start.Hour(), start.Minute(), start.Second())
+	if now.Before(todayTarget) || todayTarget.Before(start) {
 		return false
 	}
 	if s.LastRun == nil {
 		return true
 	}
-	return s.LastRun.Before(todayTarget)
+	return s.LastRun.Local().Before(todayTarget)
 }
 
 func timeOnDay(day time.Time, hr, min, sec int) time.Time {
-	return time.Date(day.Year(), day.Month(), day.Day(), hr, min, sec, 0, day.Location())
+	day = day.Local()
+	return time.Date(day.Year(), day.Month(), day.Day(), hr, min, sec, 0, time.Local)
 }
 
 // adjustForWindowAndDays advances `t` until it falls within the allowed active
@@ -254,9 +257,11 @@ func adjustForWindowAndDays(t time.Time, s Schedule, step time.Duration) time.Ti
 	if step <= 0 {
 		step = time.Minute
 	}
+	t = t.Local()
+	start := s.Start.Local()
 	for i := 0; i < 366*2; i++ {
 		if s.Weekdays != 0 && (s.Weekdays&(1<<uint(t.Weekday()))) == 0 {
-			nextDay := timeOnDay(t.AddDate(0, 0, 1), s.Start.Hour(), s.Start.Minute(), s.Start.Second())
+			nextDay := timeOnDay(t.AddDate(0, 0, 1), start.Hour(), start.Minute(), start.Second())
 			if s.WindowStart != nil {
 				nextDay = timeOnDay(t.AddDate(0, 0, 1), s.WindowStart.Hour, s.WindowStart.Minute, 0)
 			}
@@ -284,6 +289,7 @@ func adjustForWindowAndDays(t time.Time, s Schedule, step time.Duration) time.Ti
 }
 
 // PreviewNextRuns returns up to `count` upcoming run timestamps starting from `now`.
+// All returned timestamps are converted to the local timezone (time.Local).
 func PreviewNextRuns(s Schedule, now time.Time, count int) []time.Time {
 	if count <= 0 {
 		count = 5
@@ -291,41 +297,42 @@ func PreviewNextRuns(s Schedule, now time.Time, count int) []time.Time {
 	sim := s
 	sim.Enabled = true
 	var out []time.Time
-	cursor := now
+	cursor := now.Local()
 	for i := 0; i < count; i++ {
 		next := ComputeNextRun(sim, cursor)
 		if next == nil {
 			break
 		}
-		out = append(out, *next)
+		locNext := next.Local()
+		out = append(out, locNext)
 		sim.RunCount++
-		t := *next
-		sim.LastRun = &t
+		sim.LastRun = &locNext
 		if sim.Repeat == RepeatNone || sim.Repeat == "" {
 			break
 		}
-		cursor = next.Add(time.Second)
+		cursor = locNext.Add(time.Second)
 	}
 	return out
 }
 
-// DescribeSchedule produces a human-readable summary of a Schedule.
+// DescribeSchedule produces a human-readable summary of a Schedule in the local timezone.
 func DescribeSchedule(s Schedule) string {
+	start := s.Start.Local()
 	var parts []string
 	switch s.Repeat {
 	case RepeatNone, "":
-		parts = append(parts, "Once at "+s.Start.Format("Jan 2, 3:04 PM"))
+		parts = append(parts, "Once at "+start.Format("Jan 2, 3:04 PM"))
 	case RepeatEveryInterval:
 		iv := time.Duration(s.IntervalMs) * time.Millisecond
 		parts = append(parts, "Every "+formatShortDuration(iv))
 	case RepeatDaily:
-		parts = append(parts, "Daily at "+s.Start.Format("3:04 PM"))
+		parts = append(parts, "Daily at "+start.Format("3:04 PM"))
 	case RepeatWeekly:
 		days := formatWeekdays(s.Weekdays)
 		if days == "" {
-			days = s.Start.Weekday().String()[:3]
+			days = start.Weekday().String()[:3]
 		}
-		parts = append(parts, fmt.Sprintf("Weekly (%s) at %s", days, s.Start.Format("3:04 PM")))
+		parts = append(parts, fmt.Sprintf("Weekly (%s) at %s", days, start.Format("3:04 PM")))
 	}
 	if s.WindowStart != nil && s.WindowEnd != nil {
 		parts = append(parts, fmt.Sprintf("%s–%s", s.WindowStart.String(), s.WindowEnd.String()))
@@ -337,7 +344,7 @@ func DescribeSchedule(s Schedule) string {
 		}
 	case EndUntilTime:
 		if s.EndAt != nil {
-			parts = append(parts, "until "+s.EndAt.Format("Jan 2, 3:04 PM"))
+			parts = append(parts, "until "+s.EndAt.Local().Format("Jan 2, 3:04 PM"))
 		}
 	case EndForDuration:
 		if s.EndDurationMs > 0 {

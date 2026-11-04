@@ -59,7 +59,7 @@ func (a *application) buildSnapshot() AppSnapshot {
 		}
 		var prevStrs []string
 		for _, t := range PreviewNextRuns(sc, now, 5) {
-			prevStrs = append(prevStrs, t.Format("Mon Jan 2, 3:04:05 PM"))
+			prevStrs = append(prevStrs, t.Local().Format("Mon Jan 2, 2006 · 3:04:05 PM"))
 		}
 		schedViews[i] = ScheduleView{
 			Schedule:  sc,
@@ -280,7 +280,7 @@ func (a *application) registerBridge() error {
 		}
 		var prev []string
 		for _, t := range PreviewNextRuns(saved, time.Now(), 5) {
-			prev = append(prev, t.Format("Mon Jan 2, 3:04:05 PM"))
+			prev = append(prev, t.Local().Format("Mon Jan 2, 2006 · 3:04:05 PM"))
 		}
 		return ScheduleView{
 			Schedule:  saved,
@@ -329,7 +329,7 @@ func (a *application) registerBridge() error {
 		runs := PreviewNextRuns(sc, time.Now(), 5)
 		out := make([]string, len(runs))
 		for i, t := range runs {
-			out[i] = t.Format("Mon Jan 2, 2006 · 3:04:05 PM")
+			out[i] = t.Local().Format("Mon Jan 2, 2006 · 3:04:05 PM")
 		}
 		return out, nil
 	})

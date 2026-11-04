@@ -120,7 +120,23 @@ func (s *Store) loadAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_ = readJSONWithBackup(s.macrosPath(), &s.macros)
-	_ = readJSONWithBackup(s.schedulesPath(), &s.schedules)
+	if err := readJSONWithBackup(s.schedulesPath(), &s.schedules); err == nil {
+		for i := range s.schedules {
+			s.schedules[i].Start = s.schedules[i].Start.Local()
+			if s.schedules[i].EndAt != nil {
+				t := s.schedules[i].EndAt.Local()
+				s.schedules[i].EndAt = &t
+			}
+			if s.schedules[i].NextRun != nil {
+				t := s.schedules[i].NextRun.Local()
+				s.schedules[i].NextRun = &t
+			}
+			if s.schedules[i].LastRun != nil {
+				t := s.schedules[i].LastRun.Local()
+				s.schedules[i].LastRun = &t
+			}
+		}
+	}
 	_ = readJSONWithBackup(s.settingsPath(), &s.settings)
 	_ = readJSONWithBackup(s.historyPath(), &s.history)
 	if s.settings.Theme == "" {
@@ -287,6 +303,19 @@ func (s *Store) UpsertSchedule(sc Schedule, now time.Time) (Schedule, error) {
 		}
 	}
 	sc.Name = NextScheduleName(s.schedules, baseName, sc.ID)
+	sc.Start = sc.Start.Local()
+	if sc.EndAt != nil {
+		t := sc.EndAt.Local()
+		sc.EndAt = &t
+	}
+	if sc.NextRun != nil {
+		t := sc.NextRun.Local()
+		sc.NextRun = &t
+	}
+	if sc.LastRun != nil {
+		t := sc.LastRun.Local()
+		sc.LastRun = &t
+	}
 	if sc.PlaysPerRun <= 0 {
 		sc.PlaysPerRun = 1
 	}
