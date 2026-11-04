@@ -174,6 +174,7 @@ function Compare-SaDataJson {
     $newLevels = @($newObj.builds.PSObject.Properties)
     $result.ItemCount = $newItems.Count
     $result.LevelCount = $newLevels.Count
+    $result.LastSynced = if ($newObj.lastSynced) { $newObj.lastSynced } else { "Unknown" }
     foreach ($prop in $newLevels) {
         $result.BuildCount += @($prop.Value).Count
     }
@@ -294,6 +295,14 @@ Write-Host "╠$Bar╣" -ForegroundColor Cyan
 Write-BoxRow "Action :" " $ActionTitle" "DarkCyan" "Yellow" "Cyan" $BoxWidth
 Write-BoxRow "Sheet  :" " $SheetId" "DarkCyan" "Gray" "Cyan" $BoxWidth
 Write-BoxRow "Cache  :" " $CacheStatus" "DarkCyan" "Gray" "Cyan" $BoxWidth
+if (Test-Path -LiteralPath $DataFile) {
+    try {
+        $curJson = Get-Content -LiteralPath $DataFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $syncInfo = if ($curJson.lastSynced) { $curJson.lastSynced } else { "Unknown" }
+        $buildInfo = if ($curJson.totalBuilds) { $curJson.totalBuilds } else { "3,582" }
+        Write-BoxRow "Data   :" " $syncInfo ($buildInfo builds)" "DarkCyan" "Gray" "Cyan" $BoxWidth
+    } catch {}
+}
 Write-BoxRow "Target :" " $OutFile" "DarkCyan" "Gray" "Cyan" $BoxWidth
 Write-Host "╚$Bar╝" -ForegroundColor Cyan
 Write-Host ""
@@ -447,6 +456,7 @@ try {
     Write-BoxRow "Output   :" " $(Format-ByteSize $PostHtml.Size) · $($PostHtml.Lines) lines · $EolStatus" "DarkGreen" "White" "Green" $BoxWidth
     Write-BoxRow "Payload  :" (" shell {0:N1}KB | app {1:N1}KB | data {2:N2}MB | lz {3:N1}KB" -f ($ShellSize/1KB), ($AppSize/1KB), ($PostData.Size/1MB), ($LzSize/1KB)) "DarkGreen" "Gray" "Green" $BoxWidth
     Write-BoxRow "Dataset  :" " $($DataDiff.LevelCount) SA levels · $($DataDiff.BuildCount) community builds · $($DataDiff.ItemCount) items" "DarkGreen" "Gray" "Green" $BoxWidth
+    Write-BoxRow "Synced   :" " $($DataDiff.LastSynced)" "DarkGreen" "White" "Green" $BoxWidth
 
     # Section: Changes Made During This Run
     Write-BoxSection "CHANGES MADE (THIS RUN)" "Green" "White" $BoxWidth

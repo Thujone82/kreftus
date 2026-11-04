@@ -2121,7 +2121,7 @@ var ONE_TIMER_MILESTONES = [
          "\nUnlock Cost: " + prettify(oneTimerRingCost()) + " shards" +
          "\nRequires 42 items owned to unlock in Spire Assault.");
 
-    var pick = bestNextUpgrade(rec);
+    var pick = bestNextUpgrade(rec, rate);
     var lastKpiHtml = (pick && pick.isLocked)
       ? renderNextActionKpi(pick, rate, bnk)
       : kpi("U2 Progress", "Z" + (state.radon + 1), ab.activeContract ? ("Active: " + itemName(ab.activeContract)) : "No active contract", "tone-violet", ICONS.contract, "id='kpiU2Progress'");
@@ -2260,7 +2260,7 @@ var ONE_TIMER_MILESTONES = [
     return next;
   }
 
-  function betterBuilds(rec) {
+  function betterBuilds(rec, rateOverride) {
     var mode = getLevelMode(state.level);
     if (mode === "push") {
       var curK = rec ? buildSecPerKill(rec, state.level) : Infinity;
@@ -2269,14 +2269,18 @@ var ONE_TIMER_MILESTONES = [
         return (!rec || bk < curK - 0.01) && !runnable(b) && allowedUpgrade(b);
       });
     }
-    var cur = rec ? rec.d || 0 : 0;
+    var cur = (typeof rateOverride === "number" && rateOverride > 0)
+      ? rateOverride
+      : (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
     return buildsFor(state.level).filter(function (b) {
       return (b.d || 0) > cur + 1e-9 && !runnable(b) && allowedUpgrade(b);
     });
   }
 
-  function bestNextUpgrade(rec) {
-    var cur = rec ? rec.d || 0 : 0;
+  function bestNextUpgrade(rec, rateOverride) {
+    var cur = (typeof rateOverride === "number" && rateOverride > 0)
+      ? rateOverride
+      : (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
     var bnk = bank();
     var lockedEntry = state.lockedPlans && state.lockedPlans[String(state.level)];
     if (lockedEntry) {
@@ -2340,7 +2344,7 @@ var ONE_TIMER_MILESTONES = [
         }
       }
     }
-    var list = betterBuilds(rec);
+    var list = betterBuilds(rec, cur);
     var mode = getLevelMode(state.level);
     var curK = rec ? buildSecPerKill(rec, state.level) : Infinity;
     var seen = {};
@@ -2601,7 +2605,7 @@ var ONE_TIMER_MILESTONES = [
     var r = (typeof rateOverride === "number" && rateOverride > 0)
       ? rateOverride
       : (activeDustPs(rec) || (state.ab ? activeDustPs(bestRunnable(level)) : 0));
-    var pick = (rec && runnable(rec)) ? null : bestNextUpgrade(rec);
+    var pick = (rec && runnable(rec)) ? null : bestNextUpgrade(rec, r);
     var target = (rec && rec.n) ? rec : (pick && pick.build ? pick.build : null);
     var allSteps = stepsOverride || null;
 
@@ -2700,7 +2704,7 @@ var ONE_TIMER_MILESTONES = [
     }
 
     var isTargetOnly = !runnable(activeBuild);
-    var pickForRec = bestNextUpgrade(rec);
+    var pickForRec = bestNextUpgrade(rec, rate);
     var pStepsForRec = (pickForRec && pickForRec.build && buildId(pickForRec.build) === buildId(activeBuild)) ? pickForRec.allSteps : null;
     var summaryInfo = probeBuildSummary(state.level, activeBuild, rate, pStepsForRec);
     var targetDelta = loadoutDelta(activeBuild);
@@ -3632,7 +3636,7 @@ var ONE_TIMER_MILESTONES = [
 
   function renderNext(rec, rate) {
     var el = $("nextUpgrade");
-    var pick = bestNextUpgrade(rec);
+    var pick = bestNextUpgrade(rec, rate);
     if (!pick) {
       el.innerHTML = rec
         ? "<div class='next'><div class='next-kicker'>" + ICONS.check + " Peak Build Reached</div><p class='empty'>You already match the strongest sheet farm on SA " + state.level + ".</p></div>"
@@ -4292,9 +4296,11 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function renderBetter(rec, rate) {
-    var cur = rec ? rec.d || 0 : 0;
+    var cur = (typeof rate === "number" && rate > 0)
+      ? rate
+      : (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
     var bnk = bank();
-    var list = betterBuilds(rec);
+    var list = betterBuilds(rec, cur);
     var mode = getLevelMode(state.level);
     var curK = rec ? buildSecPerKill(rec, state.level) : Infinity;
     list.sort(function (a, b) {
@@ -4326,8 +4332,9 @@ var ONE_TIMER_MILESTONES = [
     state.lastBetterBuilds = list;
     state.lastBetterCur = cur;
     if (!list.length) {
+      var curTxt = (cur && cur > 0) ? (" (" + prettify(cur) + "/s)") : "";
       $("better").innerHTML = rec
-        ? "<p class='empty'>You already match the strongest runnable sheet build on this level, or nothing cheaper is listed with the current filters.</p>"
+        ? "<p class='empty'>Your current dust rate" + curTxt + " matches or exceeds all listed sheet builds on this level, or nothing cheaper is listed with the current filters.</p>"
         : "<p class='empty'>No builds on this tab match the current filters.</p>";
       return;
     }
@@ -4563,7 +4570,7 @@ var ONE_TIMER_MILESTONES = [
 
   function shouldDisableContractsOnLoad(level) {
     var rec = bestRunnable(level);
-    var cur = rec ? rec.d || 0 : 0;
+    var cur = (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
     var allBetter = buildsFor(level).filter(function (b) {
       return (b.d || 0) > cur + 1e-9 && !runnable(b);
     });
@@ -4576,7 +4583,7 @@ var ONE_TIMER_MILESTONES = [
 
     var savedContract = state.filters.contract;
     state.filters.contract = true;
-    var visible = betterBuilds(rec);
+    var visible = betterBuilds(rec, cur);
     state.filters.contract = savedContract;
     visible.sort(function (a, b) {
       var ca = stepsCostDust(gapSteps(a)).combined;
@@ -4710,7 +4717,7 @@ var ONE_TIMER_MILESTONES = [
 
     var naCard = $("kpiNextAction");
     if (naCard) {
-      var pick = bestNextUpgrade(rec);
+      var pick = bestNextUpgrade(rec, rate);
       if (pick && pick.isLocked) {
         if (pick.mode === "completed") {
           var valEl = $("kpiNextActionVal");
@@ -5318,6 +5325,19 @@ function renderPresetsModal() {
         var item = simState.config.items[k];
         var lv = typeof item === "number" ? item : (item.level || 0);
         var sh = isShards(k);
+        var cat = itemCat(k);
+        var isUnupgradable = !cat || !!cat.noUp || (cat.max && cat.max <= 1);
+        if (isUnupgradable) {
+          lv = 1;
+          if (typeof item === "number") simState.config.items[k] = 1;
+          else if (item && typeof item === "object") item.level = 1;
+        }
+
+        var stepperHtml = isUnupgradable
+          ? "<span class='sim-step-val " + (sh ? "tone-teal" : "") + "' style='min-width:32px;padding:0 4px;'>Lv 1</span>"
+          : "<button type='button' class='sim-step-btn' data-item-minus='" + esc(k) + "' title='Decrease level'>−</button>" +
+            "<span class='sim-step-val " + (sh ? "tone-teal" : "") + "'>Lv " + lv + "</span>" +
+            "<button type='button' class='sim-step-btn' data-item-plus='" + esc(k) + "' title='Increase level'>+</button>";
 
         return "<div class='sim-item-row equipped' data-item-key='" + esc(k) + "'>" +
           "<div class='sim-item-info' title='Active item in combat simulation'>" +
@@ -5325,9 +5345,7 @@ function renderPresetsModal() {
           "<span class='sim-item-name'>" + esc(itemName(k)) + "</span>" +
           "</div>" +
           "<div class='sim-stepper'>" +
-          "<button type='button' class='sim-step-btn' data-item-minus='" + esc(k) + "' title='Decrease level'>−</button>" +
-          "<span class='sim-step-val " + (sh ? "tone-teal" : "") + "'>Lv " + lv + "</span>" +
-          "<button type='button' class='sim-step-btn' data-item-plus='" + esc(k) + "' title='Increase level'>+</button>" +
+          stepperHtml +
           "</div>" +
           "</div>";
       }).join("");
@@ -5336,10 +5354,12 @@ function renderPresetsModal() {
         var minusTarget = ev.target.closest("[data-item-minus]");
         if (minusTarget) {
           var k = minusTarget.getAttribute("data-item-minus");
+          var cat = itemCat(k);
+          if (cat && (cat.noUp || (cat.max && cat.max <= 1))) return;
           if (simState.config.items[k]) {
-            if (typeof simState.config.items[k] === "number" && simState.config.items[k] > 0) {
+            if (typeof simState.config.items[k] === "number" && simState.config.items[k] > 1) {
               simState.config.items[k]--;
-            } else if (simState.config.items[k].level > 0) {
+            } else if (simState.config.items[k].level > 1) {
               simState.config.items[k].level--;
             }
             renderSimSandboxUI();
@@ -5352,6 +5372,10 @@ function renderPresetsModal() {
         var plusTarget = ev.target.closest("[data-item-plus]");
         if (plusTarget) {
           var k = plusTarget.getAttribute("data-item-plus");
+          var cat = itemCat(k);
+          if (cat && (cat.noUp || (cat.max && cat.max <= 1))) return;
+          var curVal = (typeof simState.config.items[k] === "number") ? simState.config.items[k] : ((simState.config.items[k] && simState.config.items[k].level) || 0);
+          if (cat && cat.max && curVal >= cat.max) return;
           if (!simState.config.items[k]) simState.config.items[k] = { level: 0, equipped: true };
           if (typeof simState.config.items[k] === "number") {
             simState.config.items[k]++;
@@ -5989,6 +6013,9 @@ function renderPresetsModal() {
           if (type === "ring") {
             simState.config.ring.level++;
           } else if (type === "item" && key && simState.config.items[key]) {
+            var cat = itemCat(key);
+            if (cat && (cat.noUp || (cat.max && cat.max <= 1))) return;
+            if (cat && cat.max && simState.config.items[key].level >= cat.max) return;
             simState.config.items[key].level++;
           }
           renderSimSandboxUI();
@@ -6199,9 +6226,26 @@ function renderPresetsModal() {
         fitKpiValue($("kpiNextActionVal"));
       });
     }
+    updateFooterDbMeta();
     loadPrefs();
     setTheme(state.theme);
     if ($("saveBox") && !$("saveEditor").hidden) $("saveBox").focus();
+  }
+
+  function updateFooterDbMeta() {
+    var el = $("footerDbMeta");
+    if (!el || typeof SA_DATA === "undefined") return;
+    var count = SA_DATA.totalBuilds;
+    if (!count && SA_DATA.builds) {
+      count = 0;
+      for (var k in SA_DATA.builds) count += (SA_DATA.builds[k] || []).length;
+    }
+    var lvls = SA_DATA.levelCount || (SA_DATA.builds ? Object.keys(SA_DATA.builds).length : 0);
+    var syncDate = SA_DATA.lastSynced || "";
+    var countTxt = count ? (count.toLocaleString ? count.toLocaleString() : count) : "3,582";
+    var lvlTxt = lvls ? (" across " + lvls + " levels") : "";
+    var syncTxt = syncDate ? (" · Last synced " + syncDate) : "";
+    el.textContent = " · " + countTxt + " builds" + lvlTxt + syncTxt;
   }
 
   window.saLoad = onLoad;

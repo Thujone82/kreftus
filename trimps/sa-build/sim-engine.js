@@ -4064,6 +4064,10 @@ function createRawAutoBattle(game, u2Mutations) {
           var reqLv = targetBuild.i[reqKey];
           var existingLv = (cfg.items[reqKey] && cfg.items[reqKey].level) || 0;
           var finalLv = Math.max(existingLv, reqLv);
+          if (typeof SA_DATA !== 'undefined' && SA_DATA.items && SA_DATA.items[reqKey]) {
+            var itemMeta = SA_DATA.items[reqKey];
+            if (itemMeta.noUp || (itemMeta.max && itemMeta.max <= 1)) finalLv = 1;
+          }
           cfg.items[reqKey] = { level: finalLv, equipped: true };
           cfg.equipped.push(reqKey);
         }
@@ -4123,10 +4127,10 @@ function createRawAutoBattle(game, u2Mutations) {
         it.owned = true;
         var def = cfg.items && cfg.items[itKey];
         if (typeof def === 'number') {
-          it.level = def;
+          it.level = it.noUpgrade ? 1 : def;
           it.equipped = !!eqSet[itKey];
         } else if (def && typeof def === 'object') {
-          it.level = def.level || 1;
+          it.level = it.noUpgrade ? 1 : (def.level || 1);
           it.equipped = (cfg.equipped && cfg.equipped.length) ? !!eqSet[itKey] : !!def.equipped;
         } else {
           it.level = 1;
@@ -4348,6 +4352,9 @@ function createRawAutoBattle(game, u2Mutations) {
       // 2. Test equipped items
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
+        if (typeof SA_DATA !== 'undefined' && SA_DATA.items && SA_DATA.items[k]) {
+          if (SA_DATA.items[k].noUp || (SA_DATA.items[k].max && SA_DATA.items[k].max <= 1)) continue;
+        }
         var itemObj = cfg.items[k] || { level: 1, equipped: true };
         var curLv = itemObj.level || 1;
         var testCfg = JSON.parse(JSON.stringify(cfg));

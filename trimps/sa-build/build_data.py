@@ -379,6 +379,7 @@ def main():
     fresh = "--fresh" in sys.argv
     verbose = "--verbose" in sys.argv
     cache = ROOT / "_sa.xlsx"
+    network_synced = False
     if (not fresh) and cache.exists() and cache.stat().st_size > 100000:
         xlsx = cache.read_bytes()
         print(f"Workbook : Using cached _sa.xlsx ({len(xlsx):,} bytes)", flush=True)
@@ -389,6 +390,7 @@ def main():
             xlsx = resp.read()
         cache.write_bytes(xlsx)
         print(f"Workbook : Downloaded _sa.xlsx ({len(xlsx):,} bytes)", flush=True)
+        network_synced = True
     zf = zipfile.ZipFile(io.BytesIO(xlsx))
     shared = parse_shared_strings(zf)
     sheets = workbook_sheets(zf)
@@ -452,8 +454,32 @@ def main():
     objects = (TRIMPS / "objects.js").read_text(encoding="utf-8", errors="replace")
     items = extract_items_from_objects(objects)
     print(f"Catalog  : {len(items)} items extracted from objects.js", flush=True)
+
+    existing_dest = ROOT / "data.json"
+    existing_sync = None
+    if existing_dest.exists():
+        try:
+            import json as _json
+            existing_data = _json.loads(existing_dest.read_text(encoding="utf-8"))
+            existing_sync = existing_data.get("lastSynced")
+        except Exception:
+            pass
+
+    if network_synced:
+        last_synced = time.strftime("%Y-%m-%d")
+    elif existing_sync:
+        last_synced = existing_sync
+    elif cache.exists():
+        import datetime
+        last_synced = datetime.datetime.fromtimestamp(cache.stat().st_mtime).strftime("%Y-%m-%d")
+    else:
+        last_synced = time.strftime("%Y-%m-%d")
+
     out = {
         "sheet": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}",
+        "lastSynced": last_synced,
+        "totalBuilds": total_builds,
+        "levelCount": len(builds),
         "items": items,
         "builds": builds,
         "farmLevels": farm_levels,
