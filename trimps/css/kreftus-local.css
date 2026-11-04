@@ -813,6 +813,13 @@ html, body {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  transform-origin: center center !important;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.15s ease !important;
+}
+
+#logConfigBtn:hover .glyphicon,
+#logConfigBtn:hover .glyphicon-cog {
+  transform: rotate(30deg) !important;
 }
 
 #log {
@@ -1228,9 +1235,11 @@ li.tabNotEnabled:hover {
   color: #ffffff !important;
   display: inline-block !important;
   opacity: 0.95 !important;
+  transform-origin: center center !important;
   transition: transform 0.2s ease, opacity 0.2s ease !important;
 }
 
+.toggleConfigBtn:hover div span.glyphicon-cog,
 .toggleConfigBtn div:nth-child(2):hover span.glyphicon,
 .toggleConfigBtn div:nth-child(2):hover span.glyphicon-cog {
   opacity: 1 !important;
@@ -1716,6 +1725,33 @@ li.tabNotEnabled:hover {
   box-shadow: 0 3px 10px rgba(247, 147, 26, 0.3) !important;
 }
 
+/* Maps Button Config Gear (#mapsBtn) */
+#mapsBtn div:nth-child(2) {
+  background: rgba(0, 0, 0, 0.25) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease !important;
+}
+
+#mapsBtn div:nth-child(2):hover {
+  background: rgba(0, 0, 0, 0.45) !important;
+}
+
+#mapsBtn div:nth-child(2) span.glyphicon,
+#mapsBtn div span.glyphicon-cog {
+  display: inline-block !important;
+  transform-origin: center center !important;
+  opacity: 0.95 !important;
+  transition: transform 0.2s ease, opacity 0.2s ease !important;
+}
+
+#mapsBtn:hover div span.glyphicon-cog,
+#mapsBtn div:nth-child(2):hover span.glyphicon,
+#mapsBtn div:nth-child(2):hover span.glyphicon-cog {
+  opacity: 1 !important;
+  transform: rotate(30deg) !important;
+}
+
 .fightBtn.btn-info,
 #portalBtn {
   background: linear-gradient(180deg, rgba(45, 212, 191, 0.3), rgba(15, 118, 110, 0.24)) !important;
@@ -2114,6 +2150,44 @@ li.tabNotEnabled:hover {
   background: var(--surface-3) !important;
   border-color: var(--accent) !important;
   color: #fff !important;
+}
+
+.settingsBtnConfig + button .glyphicon,
+.settingsBtnConfig + button .glyphicon-cog {
+  display: inline-block !important;
+  transform-origin: center center !important;
+  transition: transform 0.2s ease, opacity 0.2s ease !important;
+}
+
+.settingsBtnConfig + button:hover .glyphicon,
+.settingsBtnConfig + button:hover .glyphicon-cog {
+  transform: rotate(30deg) !important;
+}
+
+/* Dimensional Generator Supervision Config Gear (#generatorStateConfigBtn) */
+#generatorStateConfigBtn .glyphicon,
+#generatorStateConfigBtn .glyphicon-cog {
+  display: inline-block !important;
+  transform-origin: center center !important;
+  transition: transform 0.2s ease, opacity 0.2s ease !important;
+}
+
+#generatorStateConfigBtn:hover .glyphicon,
+#generatorStateConfigBtn:hover .glyphicon-cog {
+  transform: rotate(30deg) !important;
+}
+
+/* Bottom Nav Settings Button Gear (#settingsText) */
+#settingsText .glyphicon,
+#settingsText .glyphicon-cog {
+  display: inline-block !important;
+  transform-origin: center center !important;
+  transition: transform 0.2s ease, opacity 0.2s ease !important;
+}
+
+#settingsTable td:hover #settingsText .glyphicon-cog,
+#settingsText:hover .glyphicon-cog {
+  transform: rotate(30deg) !important;
 }
 
 /* Category Tabs in Settings Drawer (#settingsTabs) */

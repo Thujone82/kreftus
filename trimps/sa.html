@@ -212,6 +212,14 @@
     .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .icon-btn svg { width: 17px; height: 17px; flex: none; }
     .icon-btn .lbl { font-size: 12px; font-weight: 650; font-family: var(--mono); }
+    #dustGearIcon {
+      transform-origin: center;
+      transition: transform 0.2s ease, color 0.15s ease;
+    }
+    #btnDustToggleOverride:hover #dustGearIcon {
+      color: var(--accent);
+      transform: rotate(30deg);
+    }
 
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
