@@ -88,7 +88,7 @@
   }
 
   function levelTag(level) {
-    return getLevelMode(level) === "farm" ? "Farm" : "Push";
+    return isFarmLevel(level) ? "Farm" : "Push";
   }
 
   function isLevelCleared(level) {
