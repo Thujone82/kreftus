@@ -195,6 +195,8 @@
     saveLoadedAt: null,
     lastAdvisorStep: null,
     lastPlanSteps: null,
+    lastSimulatedStepsSig: null,
+    planSimInProgress: false,
     swapGuideCollapsed: false
   };
 
@@ -861,6 +863,80 @@ var ONE_TIMER_MILESTONES = [
     };
   }
 
+  function calculateStepWaitTimes(steps, bnk, defaultRate) {
+    if (!steps || !steps.length) {
+      return {
+        cumDustSec: 0,
+        cumShardSec: 0,
+        totalWait: 0,
+        waitDust: 0,
+        waitShards: 0,
+        remDust: 0,
+        remShards: 0,
+        totalCostDust: 0,
+        totalCostShards: 0
+      };
+    }
+    var availD = bnk ? (bnk.dust || 0) : 0;
+    var availS = bnk ? (bnk.shards || 0) : 0;
+    var cumDustSec = 0;
+    var cumShardSec = 0;
+    var remDustTotal = 0;
+    var remShardsTotal = 0;
+    var totalCostDust = 0;
+    var totalCostShards = 0;
+
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      if (s.completed) {
+        s.estWait = 0;
+        continue;
+      }
+      var cost = stepFullCost(s);
+      var stepR = (s._stepRate && s._stepRate > 0) ? s._stepRate : defaultRate;
+      if (s.shards) {
+        totalCostShards += cost;
+        if (availS >= cost) {
+          availS -= cost;
+          s.estWait = cumShardSec;
+        } else {
+          var needS = cost - availS;
+          availS = 0;
+          remShardsTotal += needS;
+          var farmSec = (canEarnShards() && stepR > 0) ? (needS * SHARD_DUST) / stepR : Infinity;
+          cumShardSec += farmSec;
+          s.estWait = cumShardSec;
+        }
+      } else {
+        totalCostDust += cost;
+        if (availD >= cost) {
+          availD -= cost;
+          s.estWait = cumDustSec;
+        } else {
+          var needD = cost - availD;
+          availD = 0;
+          remDustTotal += needD;
+          var farmSec = stepR > 0 ? (needD / stepR) : Infinity;
+          cumDustSec += farmSec;
+          s.estWait = cumDustSec;
+        }
+      }
+    }
+
+    var totalWait = Math.max(cumDustSec, cumShardSec);
+    return {
+      cumDustSec: cumDustSec,
+      cumShardSec: cumShardSec,
+      totalWait: totalWait,
+      waitDust: cumDustSec,
+      waitShards: cumShardSec,
+      remDust: remDustTotal,
+      remShards: remShardsTotal,
+      totalCostDust: totalCostDust,
+      totalCostShards: totalCostShards
+    };
+  }
+
   function sheetDustPs(build) { return build && build.d ? build.d : 0; }
 
   function getLoadoutSignature() {
@@ -1151,6 +1227,7 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function clearLockedBuild(level) {
+    state.lastSimulatedStepsSig = null;
     if (state.lockedPlans && state.lockedPlans[String(level)]) {
       var entry = state.lockedPlans[String(level)];
       var target = findLockedTarget(level, entry);
@@ -1390,6 +1467,7 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function toggleLockBuild(buildOrId) {
+    state.lastSimulatedStepsSig = null;
     var target = (buildOrId && typeof buildOrId === "object")
       ? buildOrId
       : findLockedTarget(state.level, { id: String(buildOrId), name: String(buildOrId) });
@@ -1715,6 +1793,7 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function selectLevel(lv) {
+    state.lastSimulatedStepsSig = null;
     var sel = $("levelSelect");
     if (!sel) return;
     if (SA_DATA.builds[String(lv)]) {
@@ -2565,7 +2644,8 @@ var ONE_TIMER_MILESTONES = [
       allSteps = [];
     }
 
-    var wInfo = allSteps.length ? stepsWaitInfo(allSteps, r, bnk) : { wait: 0, remDust: 0, remShards: 0, remDustEq: 0 };
+    var wInfo = allSteps.length ? calculateStepWaitTimes(allSteps, bnk, r) : { totalWait: 0, wait: 0, remDust: 0, remShards: 0, remDustEq: 0 };
+    wInfo.wait = wInfo.totalWait;
     var buildSec = runnable(target) ? 0 : wInfo.wait;
     var neededKills = saLevelReq(level);
     var isCurrentLevel = state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel) === level;
@@ -2775,6 +2855,168 @@ var ONE_TIMER_MILESTONES = [
     }
   }
 
+  var planSimToken = 0;
+
+  function updatePlanSimIndicator(inProgress, currentStep, totalSteps) {
+    state.planSimInProgress = !!inProgress;
+    var el = $("spSimStatus");
+    if (!el) return;
+    if (inProgress) {
+      el.style.display = "inline-flex";
+      el.className = "sp-sim-status simulating";
+      el.textContent = "⚡ Simulating (" + currentStep + "/" + totalSteps + ")...";
+    } else {
+      el.className = "sp-sim-status";
+      el.style.display = "inline-flex";
+      el.textContent = "⚡ 9001x Calibrated";
+      setTimeout(function () {
+        if (el && !state.planSimInProgress) {
+          el.textContent = "⚡ 9001x";
+        }
+      }, 3500);
+    }
+  }
+
+  function refreshPlanPopoverWaitTimes() {
+    if (!state.lastPlanSteps || !state.lastPlanSteps.length) return;
+    var bnk = bank();
+    var defaultRate = activeDustPs(bestRunnable(state.level));
+    var calc = calculateStepWaitTimes(state.lastPlanSteps, bnk, defaultRate);
+
+    var listEl = $("spStepList");
+    if (listEl) {
+      var timeEls = listEl.querySelectorAll(".sp-time");
+      var subEls = listEl.querySelectorAll(".sp-sub");
+      var pSteps = state.lastPlanSteps;
+      for (var pi = 0; pi < pSteps.length; pi++) {
+        var pst = pSteps[pi];
+        var tEl = timeEls[pi];
+        if (!tEl || pst.completed) continue;
+        var pw = pst.estWait != null ? pst.estWait : 0;
+        var pStr = pw === 0 ? "Ready now" : (pw != null && isFinite(pw) ? fmtTime(pw) : "—");
+        if (tEl.textContent !== pStr) tEl.textContent = pStr;
+        if (pw === 0) {
+          if (!tEl.classList.contains("ready")) tEl.classList.add("ready");
+        } else {
+          if (tEl.classList.contains("ready")) tEl.classList.remove("ready");
+        }
+        if (pst._stepRate && isFinite(pst._stepRate) && Math.abs(pst._stepRate - defaultRate) > 1e6) {
+          tEl.title = "Wait: " + pStr + " @ " + prettify(pst._stepRate) + "/s simulated earn rate (9001 fights)";
+          if (subEls && subEls[pi]) {
+            var subText = subEls[pi].textContent || "";
+            if (!subText.includes("Sim:")) {
+              subEls[pi].textContent = subText + " · Sim: " + prettify(pst._stepRate) + "/s";
+            }
+          }
+        }
+      }
+    }
+
+    var totalWaitEl = $("spTotalWait");
+    if (totalWaitEl) {
+      var twStr = calc.totalWait === 0 ? "Ready now" : fmtTime(calc.totalWait);
+      if (totalWaitEl.textContent !== twStr) totalWaitEl.textContent = twStr;
+    }
+
+    var advWaitBadge = $("advisorWaitBadge");
+    if (advWaitBadge && state.lastPlanSteps) {
+      var firstPending = state.lastPlanSteps.find(function (s) { return !s.completed; });
+      if (firstPending) {
+        var fw = firstPending.estWait != null ? firstPending.estWait : 0;
+        if (fw === 0) {
+          advWaitBadge.className = "pill sm buy";
+          advWaitBadge.innerHTML = ICONS.check + " Ready now";
+        } else {
+          advWaitBadge.className = "pill sm";
+          advWaitBadge.innerHTML = ICONS.clock + " " + fmtTime(fw);
+        }
+      }
+    }
+  }
+
+  function triggerPlanStepSimulation(build, steps, defaultRate) {
+    if (typeof SASimEngine === "undefined" || !state.save || !steps || steps.length <= 1) return;
+
+    var pending = steps.filter(function (s) { return !s.completed; });
+    if (!pending.length) return;
+
+    var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
+    var stepsSig = pending.map(function (s) { return stepKey(s) + "@" + (s.to || 1); }).join(";");
+    var loadoutSig = getLoadoutSignature();
+    var fullSig = "sig:" + fightLevel + "|" + loadoutSig + "|" + stepsSig;
+
+    if (state.lastSimulatedStepsSig === fullSig) {
+      return;
+    }
+
+    var currentToken = ++planSimToken;
+    updatePlanSimIndicator(true, 0, pending.length);
+
+    var baseCfg = SASimEngine.normalizeConfig({ save: state.save, level: fightLevel });
+    var currentCfg = JSON.parse(JSON.stringify(baseCfg));
+    var currentRate = (state.simulatedDustPs && state.simulatedDustPs > 0) ? state.simulatedDustPs : defaultRate;
+
+    var stepIdx = 0;
+
+    function runNextStep() {
+      if (currentToken !== planSimToken) return;
+
+      if (stepIdx >= pending.length) {
+        state.lastSimulatedStepsSig = fullSig;
+        updatePlanSimIndicator(false, pending.length, pending.length);
+        refreshPlanPopoverWaitTimes();
+        return;
+      }
+
+      var st = pending[stepIdx];
+      st._stepRate = currentRate;
+
+      var affectsCombat = false;
+      if (st.kind === "level" || st.kind === "contract") {
+        if (!currentCfg.items[st.key]) {
+          currentCfg.items[st.key] = { level: st.to || 1, equipped: false };
+        } else {
+          currentCfg.items[st.key].level = st.to || (st.from != null ? st.from + 1 : 1);
+        }
+        if (st.after && st.after.to) {
+          currentCfg.items[st.key].level = Math.max(currentCfg.items[st.key].level, st.after.to);
+        }
+        if (currentCfg.equipped.indexOf(st.key) !== -1 || (currentCfg.items[st.key] && currentCfg.items[st.key].equipped)) {
+          affectsCombat = true;
+        }
+      } else if (st.kind === "ring") {
+        var rNext = st.to || (st.from != null ? st.from + 1 : (currentCfg.ring.level + 1));
+        currentCfg.ring.level = rNext;
+        currentCfg.rings.level = rNext;
+        affectsCombat = true;
+      } else if (st.kind === "ringUnlock") {
+        currentCfg.oneTimers.The_Ring = true;
+        affectsCombat = true;
+      }
+
+      if (affectsCombat) {
+        try {
+          var simRes = SASimEngine.runBatch(currentCfg, { kills: 9001, maxKills: 9001, maxFights: 9001, fights: 9001, ticks: 1000000 });
+          if (simRes && simRes.dustPs > 0) {
+            currentRate = simRes.dustPs;
+          }
+        } catch (err) {
+          console.warn("Step sim error:", err);
+        }
+      }
+
+      st._postRate = currentRate;
+      stepIdx++;
+
+      updatePlanSimIndicator(true, stepIdx, pending.length);
+      refreshPlanPopoverWaitTimes();
+
+      setTimeout(runNextStep, 0);
+    }
+
+    setTimeout(runNextStep, 0);
+  }
+
   function stepFullCost(st) {
     var c = st.cost || 0;
     if (st.after && (!st.after.shards === !st.shards)) {
@@ -2794,10 +3036,9 @@ var ONE_TIMER_MILESTONES = [
     var activeIdx = pick.activeIndex != null ? pick.activeIndex : completedCount;
     var canDrag = pendingSteps.length > 1;
     var isCustom = canDrag && hasCustomStepOrder(state.level, pick.build);
-    var availDust = bnk ? (bnk.dust || 0) : 0;
-    var availShards = bnk ? (bnk.shards || 0) : 0;
-    var cumDustSec = 0;
-    var cumShardSec = 0;
+
+    var calc = calculateStepWaitTimes(steps, bnk, rate);
+
     var itemsHtml = steps.map(function (st, idx) {
       if (st.completed) {
         var doneSub = "Step " + (idx + 1) + " of " + totalSteps + " · Completed";
@@ -2815,30 +3056,7 @@ var ONE_TIMER_MILESTONES = [
       }
       var isAct = idx === activeIdx;
       var totalStepCost = stepFullCost(st);
-      var w;
-      if (st.shards) {
-        if (availShards >= totalStepCost) {
-          availShards -= totalStepCost;
-          w = cumShardSec;
-        } else {
-          var needS = totalStepCost - availShards;
-          availShards = 0;
-          var farmSec = (canEarnShards() && rate > 0) ? (needS * SHARD_DUST) / rate : Infinity;
-          cumShardSec += farmSec;
-          w = cumShardSec;
-        }
-      } else {
-        if (availDust >= totalStepCost) {
-          availDust -= totalStepCost;
-          w = cumDustSec;
-        } else {
-          var needD = totalStepCost - availDust;
-          availDust = 0;
-          var farmSec = rate > 0 ? (needD / rate) : Infinity;
-          cumDustSec += farmSec;
-          w = cumDustSec;
-        }
-      }
+      var w = st.estWait != null ? st.estWait : 0;
       var costStr = totalStepCost ? (prettify(totalStepCost) + (st.shards ? " shards" : " dust")) : "—";
       var timeStr = w === 0 ? "Ready now" : (w != null && isFinite(w) ? fmtTime(w) : "—");
       var subLines = [];
@@ -2850,6 +3068,11 @@ var ONE_TIMER_MILESTONES = [
       } else {
         subLines.push("Step " + (idx + 1) + " of " + totalSteps);
       }
+      var timeTip = "";
+      if (st._stepRate && isFinite(st._stepRate) && Math.abs(st._stepRate - rate) > 1e6) {
+        subLines.push("Sim: " + prettify(st._stepRate) + "/s");
+        timeTip = " title='Estimated wait: " + esc(timeStr) + " @ " + prettify(st._stepRate) + "/s simulated earn rate (9001 fights)'";
+      }
       return "<li class='sp-item" + (isAct ? " active" : "") + "'" +
         (canDrag ? " draggable='true' data-step-idx='" + idx + "' data-step-key='" + esc(stepKey(st)) + "' title='Drag or touch to reorder step priority'" : "") + ">" +
         (canDrag ? "<span class='sp-grip'>" + ICONS.grip + "</span>" : "") +
@@ -2860,27 +3083,26 @@ var ONE_TIMER_MILESTONES = [
         "</div>" +
         "<div class='sp-right'>" +
         "<span class='sp-cost'>" + esc(costStr) + "</span>" +
-        "<span class='sp-time" + (w === 0 ? " ready" : "") + "'>" + esc(timeStr) + "</span>" +
+        "<span class='sp-time" + (w === 0 ? " ready" : "") + "'" + timeTip + ">" + esc(timeStr) + "</span>" +
         "</div>" +
         "</li>";
     }).join("");
 
-    var wInfo = stepsWaitInfo(pendingSteps.length ? pendingSteps : steps, rate, bnk);
     var costParts = [];
-    if (wInfo.dust > 0) costParts.push(prettify(wInfo.dust) + " dust");
-    if (wInfo.shards > 0) costParts.push(prettify(wInfo.shards) + " shards");
+    if (calc.totalCostDust > 0) costParts.push(prettify(calc.totalCostDust) + " dust");
+    if (calc.totalCostShards > 0) costParts.push(prettify(calc.totalCostShards) + " shards");
     var totalCostLabel = costParts.length ? costParts.join(" + ") : "0 dust";
-    var totalWaitStr = wInfo.wait === 0 ? "Ready now" : fmtTime(wInfo.wait);
+    var totalWaitStr = calc.totalWait === 0 ? "Ready now" : fmtTime(calc.totalWait);
 
     var remParts = [];
-    if (wInfo.dust > 0) remParts.push(prettify(wInfo.remDust) + " dust");
-    if (wInfo.shards > 0) remParts.push(prettify(wInfo.remShards) + " shards");
+    if (calc.remDust > 0) remParts.push(prettify(calc.remDust) + " dust");
+    if (calc.remShards > 0) remParts.push(prettify(calc.remShards) + " shards");
     var parHtml = "";
-    if (wInfo.dust > 0 && wInfo.shards > 0) {
-      var wdStr = wInfo.waitDust === 0 ? "0s" : fmtTime(wInfo.waitDust);
-      var wsStr = wInfo.waitShards === 0 ? "0s" : fmtTime(wInfo.waitShards);
+    if (calc.totalCostDust > 0 && calc.totalCostShards > 0) {
+      var wdStr = calc.cumDustSec === 0 ? "0s" : fmtTime(calc.cumDustSec);
+      var wsStr = calc.cumShardSec === 0 ? "0s" : fmtTime(calc.cumShardSec);
       parHtml = "<div class='sp-foot-sub'><span>Need: " + esc(remParts.join(" + ")) + "</span><span>Total: " + esc(wdStr) + " dust ∥ " + esc(wsStr) + " shards</span></div>";
-    } else if ((wInfo.dust > 0 && (bnk.dust || 0) > 0) || (wInfo.shards > 0 && (bnk.shards || 0) > 0)) {
+    } else if ((calc.totalCostDust > 0 && (bnk.dust || 0) > 0) || (calc.totalCostShards > 0 && (bnk.shards || 0) > 0)) {
       parHtml = "<div class='sp-foot-sub'><span>Need after bank: " + esc(remParts.join(" + ")) + "</span><span></span></div>";
     }
 
@@ -2895,10 +3117,15 @@ var ONE_TIMER_MILESTONES = [
       titleTxt = "Unlock Roadmap · " + totalSteps + " Steps";
     }
     var hintHtml = canDrag ? (isCustom ? "<button type='button' class='sp-reset-btn' id='spResetOrderBtn' title='Restore default step order'>Reset order</button>" : "<span class='sp-hint'>(drag to reorder)</span>") : "";
+    var simBadgeHtml = "<span class='sp-sim-status" + (state.planSimInProgress ? " simulating" : "") + "' id='spSimStatus'" +
+      (!state.lastSimulatedStepsSig && !state.planSimInProgress ? " style='display:none;'" : "") + ">" +
+      (state.planSimInProgress ? "⚡ Simulating 9001x..." : (state.lastSimulatedStepsSig ? "⚡ 9001x" : "")) +
+      "</span>";
+
     return "<div class='step-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.clock + "<span>" + esc(titleTxt) + "</span>" + hintHtml + "</span>" +
-      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span></div>" +
+      "<div class='sp-head-right'>" + simBadgeHtml + "<span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span></div>" +
       "</div>" +
       "<ol class='sp-list' id='spStepList'>" + itemsHtml + "</ol>" +
       "<div class='sp-foot'>" +
@@ -2953,6 +3180,7 @@ var ONE_TIMER_MILESTONES = [
       resetBtn.addEventListener("click", function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
+        state.lastSimulatedStepsSig = null;
         resetStepOrder(state.level, pick.build);
         if (state.lockedPlans && state.lockedPlans[String(state.level)]) {
           var entry = state.lockedPlans[String(state.level)];
@@ -2983,6 +3211,7 @@ var ONE_TIMER_MILESTONES = [
       var pending = stepsCopy.filter(function (s) { return !s.completed; });
       stepsCopy = done.concat(pending);
       var keys = stepsCopy.map(stepKey);
+      state.lastSimulatedStepsSig = null;
       saveStepOrder(state.level, pick.build, keys);
       if (state.lockedPlans && state.lockedPlans[String(state.level)]) {
         var entry = state.lockedPlans[String(state.level)];
@@ -3268,6 +3497,9 @@ var ONE_TIMER_MILESTONES = [
     var s = pick.step;
     state.lastAdvisorStep = s;
     state.lastPlanSteps = pick.allSteps || [s];
+    if (pick.allSteps && pick.allSteps.length > 1) {
+      triggerPlanStepSimulation(pick.build, pick.allSteps, rate);
+    }
     var bnk = bank();
     var rawCost = s.cost || 0;
     var wait = timeForCost(rawCost, !!s.shards, rate, s.shards ? 0 : bnk.dust, s.shards ? bnk.shards : 0);
@@ -4283,57 +4515,9 @@ var ONE_TIMER_MILESTONES = [
       }
     }
 
-    var totalWaitEl = $("spTotalWait");
-    if (totalWaitEl && state.lastPlanSteps && state.lastPlanSteps.length) {
-      var wInfo = stepsWaitInfo(state.lastPlanSteps, rate, bnk);
-      totalWaitEl.textContent = wInfo.wait === 0 ? "Ready now" : fmtTime(wInfo.wait);
-    }
-
     var listEl = $("spStepList");
     if (listEl && state.lastPlanSteps && state.lastPlanSteps.length) {
-      var timeEls = listEl.querySelectorAll(".sp-time");
-      var pSteps = state.lastPlanSteps;
-      var availD = bnk.dust || 0;
-      var availS = bnk.shards || 0;
-      var cD = 0;
-      var cS = 0;
-      for (var pi = 0; pi < pSteps.length; pi++) {
-        var pst = pSteps[pi];
-        var tEl = timeEls[pi];
-        if (!tEl || pst.completed) continue;
-        var pCost = stepFullCost(pst);
-        var pw = 0;
-        if (pst.shards) {
-          if (availS >= pCost) {
-            availS -= pCost;
-            pw = cS;
-          } else {
-            var nS = pCost - availS;
-            availS = 0;
-            var fS = (canEarnShards() && rate > 0) ? (nS * SHARD_DUST) / rate : Infinity;
-            cS += fS;
-            pw = cS;
-          }
-        } else {
-          if (availD >= pCost) {
-            availD -= pCost;
-            pw = cD;
-          } else {
-            var nD = pCost - availD;
-            availD = 0;
-            var fD = rate > 0 ? (nD / rate) : Infinity;
-            cD += fD;
-            pw = cD;
-          }
-        }
-        var pStr = pw === 0 ? "Ready now" : (pw != null && isFinite(pw) ? fmtTime(pw) : "—");
-        if (tEl.textContent !== pStr) tEl.textContent = pStr;
-        if (pw === 0) {
-          if (!tEl.classList.contains("ready")) tEl.classList.add("ready");
-        } else {
-          if (tEl.classList.contains("ready")) tEl.classList.remove("ready");
-        }
-      }
+      refreshPlanPopoverWaitTimes();
     }
 
     if (state.lastBetterBuilds && state.lastBetterBuilds.length) {
@@ -4426,6 +4610,7 @@ var ONE_TIMER_MILESTONES = [
       var rawVal = $("saveBox").value;
       var decoded = decodeSave(rawVal);
       state.save = decoded.save;
+      state.lastSimulatedStepsSig = null;
       state.ab = decoded.ab;
       state.radon = decoded.radon;
       if (!isRestore || !state.saveLoadedAt) {
