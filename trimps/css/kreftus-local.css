@@ -946,12 +946,27 @@ html, body {
   padding: 1px 6px;
 }
 
+#buyCol {
+  height: calc(100vh - 18vw - 58px) !important;
+  max-height: calc(100vh - 18vw - 58px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+}
+
 #outerBuyContainer {
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 6px;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+  margin-bottom: 0 !important;
+  overflow: hidden !important;
 }
 
 /* ==========================================================================
@@ -1308,7 +1323,18 @@ li.tabNotEnabled:hover {
 }
 
 /* Buy Container, Buy Content & Section Title Bars */
-#buyContainer {
+#buyTabs,
+#numTabs {
+  flex: 0 0 auto !important;
+}
+
+#buyContainer,
+.buyContainerSizeSm,
+.buyContainerSizeLg {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-y: auto !important;
   overflow-x: hidden !important;
   box-sizing: border-box !important;
 }
@@ -1317,7 +1343,7 @@ li.tabNotEnabled:hover {
   width: 100% !important;
   box-sizing: border-box !important;
   overflow-x: hidden !important;
-  padding: 4px 6px !important;
+  padding: 4px 6px 12px 6px !important;
 }
 
 .titleDiv {
