@@ -1456,8 +1456,9 @@ function tooltip(what, isItIn, event, textString, attachFunction, numCheck, rena
 	}
 	if (what == "Import"){
 		tooltipText = "Import your save string! It'll be fun, I promise.<br/><br/><textarea spellcheck='false' id='importBox' style='width: 100%' rows='5'></textarea>";
-		costText = "<div class='maxCenter'><div id='confirmTooltipBtn' class='btn btn-info' onclick='cancelTooltip(); load(true);'>Import</div>";
-		costText += "<div id='pasteSaveBtn' class='btn btn-success' onclick='tooltips.pasteFromClipboard(\"importBox\", this)'>Paste from Clipboard</div>";
+		costText = "<p id='saveImportError' class='red'></p>";
+		costText += "<div class='maxCenter'><div id='confirmTooltipBtn' class='btn btn-info' onclick='cancelTooltip(); load(true);'>Import</div>";
+		costText += "<div id='importClipSaveBtn' class='btn btn-success' onclick='tooltips.importFromClipboard(\"importBox\", \"save\", this)'>Import from Clipboard</div>";
 		if (playFabId != -1) costText += "<div class='btn btn-primary' onclick='loadFromPlayFab()'>Import From PlayFab</div>";
 		costText += "<div class='btn btn-danger' role=button tabindex=0 onclick='cancelTooltip()'>Cancel</div></div>";
 		game.global.lockTooltip = true;
@@ -1477,7 +1478,7 @@ function tooltip(what, isItIn, event, textString, attachFunction, numCheck, rena
 		costText = "<p id='perkImportError' class='red'></p>";
 		costText += "<div class='maxCenter'>";
 		costText += "<div id='confirmTooltipBtn' class='btn btn-info' onclick='var err = document.getElementById(\"perkImportError\"); if (err) err.innerText = (importPerks() || \"\");'>Import</div>";
-		costText += "<div id='pastePerksBtn' class='btn btn-success' onclick='tooltips.pasteFromClipboard(\"perkImportBox\", this)'>Paste from Clipboard</div>";
+		costText += "<div id='importClipPerksBtn' class='btn btn-success' onclick='tooltips.importFromClipboard(\"perkImportBox\", \"perks\", this)'>Import from Clipboard</div>";
 		costText += "<div class='btn btn-danger' role=button tabindex=0 onclick='cancelTooltip()'>Cancel</div>";
 		costText += "</div>";
 		game.global.lockTooltip = true;
@@ -7831,14 +7832,16 @@ tooltips.handleCopyButton = function () {
 };
 
 /**
- * Helper to paste text from the clipboard into a target textarea
+ * Helper to import from clipboard into a target textarea, and if the clipboard contains
+ * an appropriate string, immediately execute the import.
  * @param {string} targetId The id of the input/textarea element
- * @param {HTMLElement} btnElem The button triggering the paste
+ * @param {string} type 'perks' or 'save'
+ * @param {HTMLElement} btnElem The button triggering the import
  */
-tooltips.pasteFromClipboard = function (targetId, btnElem) {
+tooltips.importFromClipboard = function (targetId, type, btnElem) {
 	var box = document.getElementById(targetId);
 	if (!box) return;
-	var origText = (btnElem) ? (btnElem.getAttribute('data-orig-text') || btnElem.innerHTML) : "Paste from Clipboard";
+	var origText = (btnElem) ? (btnElem.getAttribute('data-orig-text') || btnElem.innerHTML) : "Import from Clipboard";
 	if (btnElem && !btnElem.getAttribute('data-orig-text')) {
 		btnElem.setAttribute('data-orig-text', origText);
 	}
@@ -7847,28 +7850,78 @@ tooltips.pasteFromClipboard = function (targetId, btnElem) {
 		btnElem.innerHTML = msg;
 		setTimeout(function() {
 			if (btnElem) btnElem.innerHTML = origText;
-		}, 1600);
+		}, 1800);
+	};
+
+	var handleImport = function(clipText) {
+		if (typeof clipText !== 'string' || !clipText.trim()) {
+			box.focus();
+			flashButton("Clipboard Empty");
+			return;
+		}
+
+		var raw = clipText.trim();
+		box.value = raw;
+		box.focus();
+
+		if (type === 'perks') {
+			var errElem = document.getElementById('perkImportError');
+			var err = importPerks();
+			if (!err) {
+				// importPerks() applied the perks and called cancelTooltip()
+				return;
+			}
+			if (errElem) errElem.innerText = err;
+			flashButton("Invalid Perk String");
+		} else if (type === 'save') {
+			var errElem = document.getElementById('saveImportError');
+			var clean = raw.replace(/(\r\n|\n|\r|\s)/gm, "");
+			var validSave = false;
+			var errMsg = "";
+			try {
+				var decompressed = LZString.decompressFromBase64(clean);
+				if (decompressed) {
+					var parsed = JSON.parse(decompressed);
+					if (parsed && typeof parsed === 'object') {
+						if (parsed.global && parsed.resources) {
+							validSave = true;
+						} else {
+							errMsg = "This looks like a perk string, rather than a save string.";
+						}
+					} else {
+						errMsg = "Invalid save data structure.";
+					}
+				} else {
+					errMsg = "Unable to decompress save string.";
+				}
+			} catch (e) {
+				errMsg = "This doesn't look like a valid save string.";
+			}
+
+			if (validSave) {
+				cancelTooltip();
+				load(true);
+			} else {
+				if (errElem) errElem.innerText = errMsg || "Invalid Save String";
+				flashButton("Invalid Save String");
+			}
+		} else {
+			flashButton("Pasted!");
+		}
 	};
 
 	if (navigator.clipboard && navigator.clipboard.readText) {
 		navigator.clipboard.readText().then(function(clipText) {
-			if (typeof clipText === 'string' && clipText.length > 0) {
-				box.value = clipText;
-				box.focus();
-				flashButton("Pasted!");
-			} else {
-				box.focus();
-				flashButton("Clipboard Empty");
-			}
+			handleImport(clipText);
 		}).catch(function(err) {
 			box.focus();
 			try {
 				if (document.execCommand('paste')) {
-					flashButton("Pasted!");
+					handleImport(box.value);
 					return;
 				}
 			} catch (e) {}
-			flashButton("Paste blocked (use Ctrl+V)");
+			flashButton("Clipboard blocked (use Ctrl+V)");
 		});
 		return;
 	}
@@ -7876,9 +7929,14 @@ tooltips.pasteFromClipboard = function (targetId, btnElem) {
 	box.focus();
 	try {
 		if (document.execCommand('paste')) {
-			flashButton("Pasted!");
+			handleImport(box.value);
 			return;
 		}
 	} catch (e) {}
 	flashButton("Use Ctrl+V");
+};
+
+// Backwards-compatibility alias
+tooltips.pasteFromClipboard = function(targetId, btnElem) {
+	tooltips.importFromClipboard(targetId, (targetId === 'perkImportBox' ? 'perks' : (targetId === 'importBox' ? 'save' : '')), btnElem);
 };
