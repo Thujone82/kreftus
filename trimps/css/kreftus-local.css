@@ -1012,17 +1012,37 @@ li.tabNotEnabled:hover {
 /* Buy Category & Quantity Multiplier Tabs */
 .buyTabsUl {
   border-bottom: none !important;
-  display: flex;
-  gap: 4px;
-  padding: 2px;
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  padding: 2px !important;
 }
 
 .buyTabsUl > li {
   float: none !important;
-  flex: 1 1 0;
+  flex: 1 1 0 !important;
+  display: flex !important;
+}
+
+.buyTabsUl > li[style*="display: none"],
+.buyTabsUl > li[style*="display:none"] {
+  display: none !important;
+}
+
+.buyTabsUl > li:not([style*="display: none"]):not([style*="display:none"]) {
+  display: flex !important;
+  flex: 1 1 0 !important;
 }
 
 .buyTabsUl > li > a {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
   border-radius: var(--radius-sm) !important;
   border: 1px solid var(--border) !important;
   background: var(--surface-2) !important;
@@ -1104,14 +1124,19 @@ li.tabNotEnabled:hover {
 #equalityA {
   white-space: normal !important;
   text-align: center !important;
-  line-height: 1.15 !important;
+  line-height: 1.2 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-wrap: wrap !important;
+  gap: 2px !important;
 }
 
 #equalityA .equalityScaling {
   display: inline-block;
   white-space: nowrap;
   font-size: 0.88em;
-  margin-left: 3px;
+  margin-left: 0;
 }
 
 .buyTabsUl > li#alchemyTab > a {
