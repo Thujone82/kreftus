@@ -1,13 +1,14 @@
-const CACHE_NAME = 'trimps-v52';
+const CACHE_NAME = 'trimps-v53';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
+  'sa.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?30',
+  'css/kreftus-local.css?72',
   'js/kreftus-local.js',
-  'js/kreftus-local.js?30',
+  'js/kreftus-local.js?50',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -39,7 +40,13 @@ self.addEventListener('activate', function (event) {
 
 function isLocalOverlay(request, url) {
   var path = url.pathname + url.search;
-  return request.destination === 'style' || request.destination === 'script' || /kreftus-local\.(css|js)/i.test(path);
+  return (
+    request.mode === 'navigate' ||
+    request.destination === 'document' ||
+    request.destination === 'style' ||
+    request.destination === 'script' ||
+    /kreftus-local\.(css|js)|sa\.html/i.test(path)
+  );
 }
 
 self.addEventListener('fetch', function (event) {

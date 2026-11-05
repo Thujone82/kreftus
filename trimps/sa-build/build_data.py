@@ -116,6 +116,15 @@ RING_MOD_MAP = {
 }
 
 
+def safe_xml_fromstring(data: bytes) -> ET.Element:
+    if len(data) > 50_000_000:
+        raise ValueError("XML payload exceeds 50 MB safety limit")
+    head = data[:4096].upper()
+    if b"<!DOCTYPE" in head or b"<!ENTITY" in head:
+        raise ValueError("XML DTD / entity declarations are disallowed")
+    return ET.fromstring(data)
+
+
 def col_letter_to_index(col: str) -> int:
     n = 0
     for ch in col:
@@ -128,7 +137,7 @@ def col_letter_to_index(col: str) -> int:
 
 def parse_shared_strings(zf: zipfile.ZipFile) -> list[str]:
     data = zf.read("xl/sharedStrings.xml")
-    root = ET.fromstring(data)
+    root = safe_xml_fromstring(data)
     out = []
     for si in root.findall("m:si", NS):
         texts = [t.text or "" for t in si.findall(".//m:t", NS)]
@@ -137,7 +146,7 @@ def parse_shared_strings(zf: zipfile.ZipFile) -> list[str]:
 
 
 def sheet_rows(zf: zipfile.ZipFile, path: str, shared: list[str]) -> list[list]:
-    root = ET.fromstring(zf.read(path))
+    root = safe_xml_fromstring(zf.read(path))
     sd = root.find(SD_TAG)
     if sd is None:
         return []
@@ -194,8 +203,8 @@ def sheet_rows(zf: zipfile.ZipFile, path: str, shared: list[str]) -> list[list]:
 
 
 def workbook_sheets(zf: zipfile.ZipFile) -> list[tuple[str, str]]:
-    wb = ET.fromstring(zf.read("xl/workbook.xml"))
-    rels = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+    wb = safe_xml_fromstring(zf.read("xl/workbook.xml"))
+    rels = safe_xml_fromstring(zf.read("xl/_rels/workbook.xml.rels"))
     rel_map = {}
     for rel in rels:
         rel_map[rel.attrib["Id"]] = rel.attrib["Target"]
@@ -337,8 +346,8 @@ def extract_items_from_objects(text: str) -> dict:
         no_up = "noUpgrade:" in body
         items[key] = {
             "name": key.replace("__", "-").replace("_", " "),
-            "start": float(start_m.group(1)) if start_m else 5,
-            "mod": float(price_m.group(1)) if price_m else 3,
+            "start": round_sig(float(start_m.group(1)), 6) if start_m else 5,
+            "mod": round_sig(float(price_m.group(1)), 6) if price_m else 3,
             "upgrade": upgrade_m.group(1) if upgrade_m else "",
         }
         if zone_m:
@@ -354,24 +363,39 @@ def extract_items_from_objects(text: str) -> dict:
     return items
 
 
+def round_sig(val, sig: int = 6):
+    if val is None or not isinstance(val, (int, float)):
+        return val
+    if val == 0:
+        return 0
+    rounded = float(f"{val:.{sig}g}")
+    if rounded.is_integer() and abs(rounded) < 1e15:
+        return int(rounded)
+    return rounded
+
+
 def compact_build(b: dict) -> dict:
     out = {"n": b["n"], "i": b["i"]}
     if b.get("d") is not None:
-        out["d"] = b["d"]
+        out["d"] = round_sig(b["d"], 6)
     if b.get("k") is not None:
-        out["k"] = b["k"]
+        k_val = round(float(b["k"]), 2)
+        out["k"] = int(k_val) if k_val.is_integer() else k_val
     if b.get("l") is not None:
         out["l"] = b["l"]
     if b.get("r"):
-        out["r"] = b["r"]
+        r_obj = {"lv": b["r"]["lv"]}
+        if b["r"].get("m"):
+            r_obj["m"] = b["r"]["m"]
+        out["r"] = r_obj
     if b.get("note"):
         out["note"] = b["note"]
     if b.get("c"):
         out["c"] = b["c"]
-    if b.get("dc") is not None:
-        out["dc"] = b["dc"]
-    if b.get("sc") is not None:
-        out["sc"] = b["sc"]
+    if b.get("dc"):
+        out["dc"] = round_sig(b["dc"], 6)
+    if b.get("sc"):
+        out["sc"] = round_sig(b["sc"], 6)
     return out
 
 
@@ -431,7 +455,7 @@ def main():
     farm_levels = []
     index_sheets = [path for name, path in sheets if "index" in name.lower()]
     if index_sheets:
-        sh_tree = ET.fromstring(zf.read(index_sheets[0]))
+        sh_tree = safe_xml_fromstring(zf.read(index_sheets[0]))
         for row in sh_tree.findall(".//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row"):
             for c in row.findall("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c"):
                 ref = c.attrib.get("r", "")

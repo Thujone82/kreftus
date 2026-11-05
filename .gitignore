@@ -1,0 +1,4 @@
+__pycache__/
+*.py[cod]
+*$py.class
+trimps/sa-build/_sa.xlsx

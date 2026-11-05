@@ -701,14 +701,40 @@ var ONE_TIMER_MILESTONES = [
 
   function decodeSave(raw) {
     var s = String(raw || "").replace(/\s+/g, "");
-    if (!s) throw new Error("Paste a Trimps export string.");
-    var json = LZString.decompressFromBase64(s);
-    if (!json) throw new Error("Could not decode that string.");
-    var data = JSON.parse(json);
-    if (!data || !data.global) throw new Error("That does not look like a full Trimps save.");
+    if (!s) throw new Error("Paste a Trimps export string (in Trimps, click Export and copy to clipboard).");
+    if (s.length > 2000000) throw new Error("Save string exceeds maximum allowed size.");
+    var json = null;
+    try {
+      json = LZString.decompressFromBase64(s);
+    } catch (e) {
+      json = null;
+    }
+    if (!json || json.charAt(0) !== "{") {
+      throw new Error("Could not decode that export string. Make sure you copied the full Base64 save string from Trimps → Export.");
+    }
+    var data;
+    try {
+      data = JSON.parse(json);
+    } catch (e) {
+      throw new Error("Decoded string is not valid JSON. Check that the export string was not truncated.");
+    }
+    if (!data || typeof data !== "object" || !data.global) {
+      throw new Error("That does not look like a full Trimps save export.");
+    }
     var ab = data.global.autoBattleData;
-    if (!ab) throw new Error("This save has no Spire Assault data. Unlock SA in U2 first.");
-    return { save: data, ab: ab, radon: data.global.highestRadonLevelCleared || 0 };
+    var highestRadon = Number(data.global.highestRadonLevelCleared) || 0;
+    if (!ab || typeof ab !== "object" || !ab.items) {
+      throw new Error("This save has no Spire Assault data yet. Reach Universe 2 (Radon) to unlock Spire Assault.");
+    }
+    ab.enemyLevel = Math.max(1, Math.min(999, Math.floor(Number(ab.enemyLevel) || 1)));
+    ab.maxEnemyLevel = Math.max(1, Math.min(999, Math.floor(Number(ab.maxEnemyLevel) || ab.enemyLevel || 1)));
+    ab.dust = Math.max(0, Number(ab.dust) || 0);
+    ab.shards = Math.max(0, Number(ab.shards) || 0);
+    ab.shardDust = Math.max(0, Number(ab.shardDust) || 0);
+    ab.enemiesKilled = Math.max(0, Number(ab.enemiesKilled) || 0);
+    ab.sessionEnemiesKilled = Math.max(0, Number(ab.sessionEnemiesKilled) || 0);
+    ab.sessionTrimpsKilled = Math.max(0, Number(ab.sessionTrimpsKilled) || 0);
+    return { save: data, ab: ab, radon: Math.max(0, Math.floor(highestRadon)) };
   }
 
   function sheetLevels() {
@@ -2122,6 +2148,9 @@ var ONE_TIMER_MILESTONES = [
          "\nRequires 42 items owned to unlock in Spire Assault.");
 
     var pick = bestNextUpgrade(rec, rate);
+    state._cachedRec = rec;
+    state._cachedDiag = diag;
+    state._cachedPick = pick;
     var lastKpiHtml = (pick && pick.isLocked)
       ? renderNextActionKpi(pick, rate, bnk)
       : kpi("U2 Progress", "Z" + (state.radon + 1), ab.activeContract ? ("Active: " + itemName(ab.activeContract)) : "No active contract", "tone-violet", ICONS.contract, "id='kpiU2Progress'");
@@ -2206,58 +2235,66 @@ var ONE_TIMER_MILESTONES = [
     return s;
   }
 
-  function snapshotFarm() {
-    return {
-      items: JSON.parse(JSON.stringify(state.ab.items || {})),
-      bonuses: JSON.parse(JSON.stringify(state.ab.bonuses || {})),
-      oneTimers: JSON.parse(JSON.stringify(state.ab.oneTimers || {})),
-      rings: JSON.parse(JSON.stringify(state.ab.rings || {}))
-    };
-  }
-
-  function restoreFarm(snap) {
-    state.ab.items = snap.items;
-    state.ab.bonuses = snap.bonuses;
-    state.ab.oneTimers = snap.oneTimers;
-    state.ab.rings = snap.rings;
-  }
-
-  function applyAtomic(s) {
-    if (s.kind === "contract" || s.kind === "missing") {
-      if (!state.ab.items) state.ab.items = {};
-      state.ab.items[s.key] = { owned: true, level: 1, equipped: false };
-      return;
-    }
-    if (s.kind === "level") {
-      if (!state.ab.items) state.ab.items = {};
-      if (!state.ab.items[s.key]) state.ab.items[s.key] = { owned: true, level: 1 };
-      state.ab.items[s.key].owned = true;
-      state.ab.items[s.key].level = (state.ab.items[s.key].level || 1) + 1;
-      return;
-    }
-    if (s.kind === "limbs") {
-      if (!state.ab.bonuses) state.ab.bonuses = {};
-      state.ab.bonuses.Extra_Limbs = extraLimbs() + 1;
-      return;
-    }
-    if (s.kind === "ringUnlock") {
-      if (!state.ab.oneTimers) state.ab.oneTimers = {};
-      state.ab.oneTimers.The_Ring = true;
-      if (!state.ab.rings) state.ab.rings = { level: 1, mods: [] };
-      return;
-    }
-    if (s.kind === "ring") {
-      if (!state.ab.rings) state.ab.rings = { level: 1, mods: [] };
-      state.ab.rings.level = (state.ab.rings.level || 1) + 1;
-    }
-  }
-
   function bestAfter(step) {
-    var snap = snapshotFarm();
-    applyAtomic(step);
-    var next = bestRunnable(state.level);
-    restoreFarm(snap);
-    return next;
+    if (!state.ab || !step) return bestRunnable(state.level);
+    var items = state.ab.items || (state.ab.items = {});
+    var bonuses = state.ab.bonuses || (state.ab.bonuses = {});
+    var oneTimers = state.ab.oneTimers || (state.ab.oneTimers = {});
+    var rings = state.ab.rings || (state.ab.rings = { level: 1, mods: [] });
+
+    var hadItem = false, prevItem = null, prevOwned = false, prevLv = 1;
+    var prevExtraLimbs = bonuses.Extra_Limbs;
+    var prevTheRing = oneTimers.The_Ring;
+    var prevRingLv = rings.level;
+
+    if (step.kind === "contract" || step.kind === "missing" || step.kind === "level") {
+      hadItem = Object.prototype.hasOwnProperty.call(items, step.key);
+      prevItem = items[step.key];
+      if (prevItem && typeof prevItem === "object") {
+        prevOwned = prevItem.owned;
+        prevLv = prevItem.level;
+      }
+    }
+
+    try {
+      if (step.kind === "contract" || step.kind === "missing") {
+        items[step.key] = { owned: true, level: 1, equipped: false };
+      } else if (step.kind === "level") {
+        if (!items[step.key] || typeof items[step.key] !== "object") {
+          items[step.key] = { owned: true, level: 2 };
+        } else {
+          items[step.key].owned = true;
+          items[step.key].level = (items[step.key].level || 1) + 1;
+        }
+      } else if (step.kind === "limbs") {
+        bonuses.Extra_Limbs = extraLimbs() + 1;
+      } else if (step.kind === "ringUnlock") {
+        oneTimers.The_Ring = true;
+        if (!rings.level) rings.level = 1;
+      } else if (step.kind === "ring") {
+        rings.level = (rings.level || 1) + 1;
+      }
+      return bestRunnable(state.level);
+    } finally {
+      if (step.kind === "contract" || step.kind === "missing" || step.kind === "level") {
+        if (!hadItem) {
+          delete items[step.key];
+        } else {
+          items[step.key] = prevItem;
+          if (prevItem && typeof prevItem === "object") {
+            prevItem.owned = prevOwned;
+            prevItem.level = prevLv;
+          }
+        }
+      } else if (step.kind === "limbs") {
+        bonuses.Extra_Limbs = prevExtraLimbs;
+      } else if (step.kind === "ringUnlock") {
+        oneTimers.The_Ring = prevTheRing;
+        rings.level = prevRingLv;
+      } else if (step.kind === "ring") {
+        rings.level = prevRingLv;
+      }
+    }
   }
 
   function betterBuilds(rec, rateOverride) {
@@ -3637,6 +3674,8 @@ var ONE_TIMER_MILESTONES = [
   function renderNext(rec, rate) {
     var el = $("nextUpgrade");
     var pick = bestNextUpgrade(rec, rate);
+    state._cachedRec = rec;
+    state._cachedPick = pick;
     if (!pick) {
       el.innerHTML = rec
         ? "<div class='next'><div class='next-kicker'>" + ICONS.check + " Peak Build Reached</div><p class='empty'>You already match the strongest sheet farm on SA " + state.level + ".</p></div>"
@@ -4365,8 +4404,8 @@ var ONE_TIMER_MILESTONES = [
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
-        (blocked ? "<span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + (b.c || "?") + "</span>" : "") +
-        "</div><div class='sub mono' style='margin-top:3px;'>" + prettify(b.d) + "/s" + (b.k != null ? " · " + b.k + "s" : "") + "</div></td>" +
+        (blocked ? "<span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + esc(String(b.c || "?")) + "</span>" : "") +
+        "</div><div class='sub mono' style='margin-top:3px;'>" + prettify(b.d) + "/s" + (b.k != null ? " · " + esc(String(b.k)) + "s" : "") + "</div></td>" +
         "<td><div class='steps'>" + steps.map(function (s) {
           return stepBadgeHtml(s);
         }).join("") + "</div></td>" +
@@ -4524,6 +4563,9 @@ var ONE_TIMER_MILESTONES = [
     if ($("btnPresets")) {
       $("btnPresets").style.display = (state.ab && collapsed) ? "inline-flex" : "none";
     }
+    if ($("btnShareBuild")) {
+      $("btnShareBuild").style.display = (state.ab && collapsed) ? "inline-flex" : "none";
+    }
     if ($("updateBtn")) {
       $("updateBtn").style.display = (state.ab && collapsed) ? "inline-flex" : "none";
     }
@@ -4597,17 +4639,18 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function updateLiveBank() {
+    if (document.hidden) return;
     if (!state.ab || !state.saveLoadedAt) return;
     if ($("saveEditor") && !$("saveEditor").hidden) return;
     if (document.activeElement === $("dustOverride")) return;
 
-    var rec = bestRunnable(state.level);
+    var rec = state._cachedRec !== undefined ? state._cachedRec : bestRunnable(state.level);
     var rate = activeDustPs(rec);
     var bnk = bank();
 
     var eCard = $("kpiEnemyLevel");
     if (eCard) {
-      var eDiag = combatDiagnostics();
+      var eDiag = state._cachedDiag || combatDiagnostics(rate);
       if (eDiag.isPushing && eDiag.etaSec > 0) {
         var liveRemSec = Math.max(0, eDiag.etaSec - bnk.elapsedSec);
         var liveEtaDur = liveRemSec > 0 ? ("~" + fmtDuration(liveRemSec)) : "Ready to clear";
@@ -4717,7 +4760,7 @@ var ONE_TIMER_MILESTONES = [
 
     var naCard = $("kpiNextAction");
     if (naCard) {
-      var pick = bestNextUpgrade(rec, rate);
+      var pick = state._cachedPick !== undefined ? state._cachedPick : bestNextUpgrade(rec, rate);
       if (pick && pick.isLocked) {
         if (pick.mode === "completed") {
           var valEl = $("kpiNextActionVal");
@@ -5564,7 +5607,8 @@ function renderPresetsModal() {
     if (!logWrap) return;
     var line = document.createElement("div");
     line.className = "sim-log-line";
-    line.innerHTML = "<span class='sim-log-time'>" + esc(timeStr) + "</span><span class='sim-log-msg " + (type || "") + "'>" + esc(msg) + "</span>";
+    var safeType = /^(init|hit|crit|bleed|poison|shock|kill|death|info|warn)$/.test(type) ? type : "";
+    line.innerHTML = "<span class='sim-log-time'>" + esc(timeStr) + "</span><span class='sim-log-msg " + safeType + "'>" + esc(msg) + "</span>";
     if (typeof logWrap.insertBefore === "function") {
       logWrap.insertBefore(line, logWrap.firstChild);
     } else if (typeof logWrap.appendChild === "function") {
@@ -6156,10 +6200,6 @@ function renderPresetsModal() {
 
       var btnPush = $("simBtnRunPush");
       if (btnPush) btnPush.addEventListener("click", function () { runMonteCarloPush(true); });
-      var btnRingOpt = $("simBtnRunRingOpt");
-      if (btnRingOpt) btnRingOpt.addEventListener("click", runRingOptimizer);
-      var btnSens = $("simBtnRunSensitivity");
-      if (btnSens) btnSens.addEventListener("click", runUpgradeSensitivity);
     }
 
     if ($("simLockPromptDlg")) {
@@ -6226,10 +6266,200 @@ function renderPresetsModal() {
         fitKpiValue($("kpiNextActionVal"));
       });
     }
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) updateLiveBank();
+    });
+    window.addEventListener("hashchange", function () {
+      loadSharedBuildFromHash(true);
+    });
     updateFooterDbMeta();
     loadPrefs();
+    loadSharedBuildFromHash(false);
     setTheme(state.theme);
     if ($("saveBox") && !$("saveEditor").hidden) $("saveBox").focus();
+  }
+
+  function shareBuildUrl() {
+    if (!state.ab) {
+      toast("Load a save or build first to share a link.");
+      return;
+    }
+    var lvl = state.level || (state.ab && state.ab.enemyLevel) || 1;
+    var activeB = null;
+    if (simState.active && simState.config) {
+      lvl = simState.config.level || lvl;
+      var sItems = [];
+      for (var sk in simState.config.items) {
+        var sit = simState.config.items[sk];
+        if (sit && (sit.equipped || (typeof sit === "number" && simState.config.equipped && simState.config.equipped.indexOf(sk) !== -1))) {
+          var slv = typeof sit === "number" ? sit : (sit.level || 1);
+          sItems.push(sk + ":" + slv);
+        }
+      }
+      var sRingLv = (simState.config.ring && simState.config.ring.level) || 0;
+      var sRingMods = (simState.config.ring && simState.config.ring.mods) ? simState.config.ring.mods.join(",") : "";
+      var sLimbs = (simState.config.extraLimbs || 0) + 4;
+      var sHash = "#lv=" + encodeURIComponent(lvl) +
+        "&limbs=" + encodeURIComponent(sLimbs) +
+        "&ring=" + encodeURIComponent(sRingLv + (sRingMods ? ":" + sRingMods : "")) +
+        "&items=" + encodeURIComponent(sItems.join(","));
+      copyShareHash(sHash, "SA " + lvl + " sandbox build");
+      return;
+    }
+    var lockedEntry = state.lockedPlans && state.lockedPlans[String(lvl)];
+    var lockedTarget = lockedEntry ? findLockedTarget(lvl, lockedEntry) : null;
+    var rec = bestRunnable(lvl);
+    activeB = lockedTarget || rec;
+
+    var itemPairs = [];
+    var limbsCount = maxSlots();
+    var rLv = hasRing() ? ringLevel() : 0;
+    var rModsStr = hasRing() ? ringMods().join(",") : "";
+
+    if (activeB && activeB.i) {
+      Object.keys(activeB.i).forEach(function (k) {
+        var lv = Math.max(userLevel(k) || 0, activeB.i[k] || 1);
+        itemPairs.push(k + ":" + lv);
+      });
+      limbsCount = activeB.l || Object.keys(activeB.i).length || limbsCount;
+      if (activeB.r) {
+        rLv = Math.max(rLv, activeB.r.lv || 1);
+        if (activeB.r.m && activeB.r.m.length) rModsStr = activeB.r.m.join(",");
+      }
+    } else {
+      ownedItemKeys().forEach(function (k) {
+        var uIt = userItem(k);
+        if (uIt && uIt.equipped) {
+          itemPairs.push(k + ":" + (uIt.level || 1));
+        }
+      });
+    }
+
+    var hash = "#lv=" + encodeURIComponent(lvl) +
+      "&limbs=" + encodeURIComponent(limbsCount) +
+      "&ring=" + encodeURIComponent(rLv + (rModsStr ? ":" + rModsStr : "")) +
+      "&items=" + encodeURIComponent(itemPairs.join(","));
+    copyShareHash(hash, (activeB && activeB.n) ? (activeB.n + " (SA " + lvl + ")") : ("SA " + lvl + " loadout"));
+  }
+
+  function copyShareHash(hash, label) {
+    try {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, "", hash);
+      } else {
+        window.location.hash = hash;
+      }
+    } catch (e) {}
+    var fullUrl = window.location.origin + window.location.pathname + hash;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(fullUrl).then(function () {
+        toast("Copied share link for " + label + "!");
+      }).catch(function () {
+        toast("Share link updated in address bar (" + label + ")");
+      });
+    } else {
+      toast("Share link updated in address bar (" + label + ")");
+    }
+  }
+
+  function loadSharedBuildFromHash(isHashChange) {
+    var rawHash = (window.location.hash || "").replace(/^#/, "").trim();
+    if (!rawHash || rawHash.indexOf("lv=") === -1) return;
+    var params = {};
+    rawHash.split("&").forEach(function (pair) {
+      var eq = pair.indexOf("=");
+      if (eq > 0) {
+        var k = decodeURIComponent(pair.slice(0, eq));
+        var v = decodeURIComponent(pair.slice(eq + 1));
+        params[k] = v;
+      }
+    });
+    var lv = Math.max(1, Math.min(200, Math.floor(Number(params.lv) || 0)));
+    if (!lv) return;
+
+    var limbs = Math.max(4, Math.min(16, Math.floor(Number(params.limbs) || 4)));
+    var rLv = 0;
+    var rMods = [];
+    if (params.ring) {
+      var rParts = String(params.ring).split(":");
+      rLv = Math.max(0, Math.min(999, Math.floor(Number(rParts[0]) || 0)));
+      if (rParts[1]) {
+        rParts[1].split(",").forEach(function (m) {
+          var cleanM = m.trim();
+          if (RING_MOD_NAMES[cleanM] || /^(Attack|Health|Defense|Lifesteal|Dust)$/.test(cleanM)) {
+            rMods.push(cleanM);
+          }
+        });
+      }
+    }
+
+    var itemMap = {};
+    if (params.items) {
+      String(params.items).split(",").forEach(function (entry) {
+        var p = entry.split(":");
+        var ik = (p[0] || "").trim();
+        var ilv = Math.max(1, Math.min(999, Math.floor(Number(p[1]) || 1)));
+        if (ik && SA_DATA && SA_DATA.items && SA_DATA.items[ik]) {
+          itemMap[ik] = ilv;
+        }
+      });
+    }
+    var itemKeys = Object.keys(itemMap);
+    if (!itemKeys.length) return;
+
+    var sharedBuild = {
+      n: "Shared SA " + lv + " Build",
+      d: 0,
+      l: Math.max(limbs, itemKeys.length),
+      r: rLv > 0 ? { lv: rLv, m: rMods } : null,
+      i: itemMap,
+      saLevel: lv
+    };
+
+    if (!state.ab) {
+      var synthItems = {};
+      Object.keys(SA_DATA.items).forEach(function (k) {
+        if (itemMap[k]) {
+          synthItems[k] = { owned: true, equipped: true, level: itemMap[k] };
+        } else if (!SA_DATA.items[k].zone) {
+          synthItems[k] = { owned: true, equipped: false, level: 1 };
+        }
+      });
+      var synthAb = {
+        enemyLevel: lv,
+        maxEnemyLevel: Math.max(lv, 60),
+        dust: 0,
+        shards: 0,
+        shardDust: 0,
+        enemiesKilled: 0,
+        sessionEnemiesKilled: 0,
+        sessionTrimpsKilled: 0,
+        autoLevel: true,
+        items: synthItems,
+        bonuses: { Extra_Limbs: Math.max(0, sharedBuild.l - 4), Radon: 0, Stats: 0, Scaffolding: 0 },
+        oneTimers: { The_Ring: rLv > 0, Dusty_Tome: true, Master_of_Arms: true, Whirlwind_of_Arms: true },
+        rings: { level: Math.max(1, rLv), mods: rMods },
+        presets: { names: ["Shared Build", "Preset 2", "Preset 3"], p1: itemKeys.slice(), p2: [], p3: [] },
+        settings: { practice: { enabled: 0 }, loadRing: { enabled: 1 }, loadLevel: { enabled: 1 } }
+      };
+      state.ab = synthAb;
+      state.radon = 250;
+      state.save = { global: { autoBattleData: synthAb, highestRadonLevelCleared: 250, u2MutationData: {} }, stats: { saKills: { value: 0, valueTotal: 0 } } };
+      state.saveLoadedAt = Date.now();
+      fillLevels(lv);
+      autoCalibrateSaveRate();
+      if (state.simulatedDustPs > 0) sharedBuild.d = Math.round(state.simulatedDustPs);
+      $("workspace").hidden = false;
+      renderSaveFacts();
+      setSaveCollapsed(true);
+      render();
+      startLiveBankTimer();
+      toast("Loaded shared SA " + lv + " build from URL link!");
+    } else if (isHashChange) {
+      selectLevel(lv);
+      openSimModal(sharedBuild);
+      toast("Loaded shared SA " + lv + " build into Combat Simulator");
+    }
   }
 
   function updateFooterDbMeta() {
@@ -6267,6 +6497,7 @@ function renderPresetsModal() {
   window.saCloseSim = closeSimModal;
   window.saCloseLockPrompt = closeSimLockPrompt;
   window.saToggleSwapGuide = toggleSwapGuide;
+  window.saShareBuildUrl = shareBuildUrl;
   try {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
     else bind();

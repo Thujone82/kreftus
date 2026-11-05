@@ -85,6 +85,7 @@
     for (var i = 0; i < nodes.length; i++) {
       nodes[i].style.transform = '';
       nodes[i].style.transformOrigin = '';
+      nodes[i]._kreftusLastText = '';
     }
     var tip = document.getElementById('tooltipDiv');
     if (tip) {
@@ -127,7 +128,7 @@
       MVIEW_TABS.forEach(function (t) {
         document.body.classList.toggle('kreftus-mview-' + t.id, t.id === savedView);
       });
-      fitResourceBoxText();
+      fitResourceBoxText(true);
       adjustSpireAssaultPopup();
     }
   }
@@ -203,13 +204,17 @@
     }
   }
 
-  function fitResourceBoxText() {
-    if (!isThemeEnabled()) return;
+  function fitResourceBoxText(forceReset) {
+    if (!isThemeEnabled() || document.hidden) return;
 
     var nodes = document.querySelectorAll(FIT_SELECTORS.join(','));
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
       if (!el || el.offsetParent === null) continue;
+      var txt = el.textContent || '';
+      if (!forceReset && el._kreftusLastText === txt) continue;
+      el._kreftusLastText = txt;
+
       var isRateInCollectRow = el.id === 'foodPs' || el.id === 'woodPs' || el.id === 'metalPs' || el.id === 'sciencePs';
       var box = isRateInCollectRow ? el.closest('.col-xs-6') : el.closest('.playerGather');
       if (!box) continue;
@@ -256,6 +261,7 @@
       try {
         localStorage.setItem(MVIEW_STORAGE_KEY, viewId);
       } catch (e) {}
+      fitResourceBoxText(true);
     }
 
     MVIEW_TABS.forEach(function (t) {
@@ -404,14 +410,20 @@
       childList: true
     });
 
-
     window.addEventListener('resize', function () {
       adjustSpireAssaultPopup();
-      fitResourceBoxText();
+      fitResourceBoxText(true);
+    });
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) {
+        fitResourceBoxText(true);
+      }
     });
 
     setInterval(function () {
-      fitResourceBoxText();
+      if (document.hidden) return;
+      fitResourceBoxText(false);
       formatEqualityTab();
       updateHeliumIcon();
       enhanceViewPerksBtn();
@@ -419,7 +431,7 @@
       hookStatsEnhancements();
     }, 600);
     setTimeout(function () {
-      fitResourceBoxText();
+      fitResourceBoxText(true);
     }, 150);
   }
 

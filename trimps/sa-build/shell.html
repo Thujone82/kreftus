@@ -3,9 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none';">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#08090c">
   <title>Spire Assault Planner — Trimps</title>
-  <meta name="description" content="Self-contained Spire Assault build advisor, upgrade ROI calculator, and item progression board for Trimps.">
+  <meta name="description" content="Self-contained Spire Assault build advisor, live combat simulator, upgrade ROI calculator, and item progression board for Trimps.">
+  <meta property="og:title" content="Spire Assault Planner — Trimps">
+  <meta property="og:description" content="Interactive Spire Assault build advisor, live combat simulator, upgrade ROI calculator, and community sheet browser for Trimps.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kreft.us/trimps/sa.html">
+  <meta property="og:image" content="https://kreft.us/trimps/icons/512.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Spire Assault Planner — Trimps">
+  <meta name="twitter:description" content="Interactive Spire Assault build advisor, live combat simulator, and upgrade ROI calculator for Trimps.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffc061'/%3E%3Cstop offset='0.55' stop-color='%23f7931a'/%3E%3Cstop offset='1' stop-color='%23d86f00'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 10L18 28h9l-4 14h18l-4-14h9L32 10zm-9 35h18v4H23v-4zm-3 6h24v3H20v-3z' fill='%231a1000'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="icons/192.png">
   <style>
     :root {
       --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -2031,7 +2043,6 @@
     }
     .sim-ring-mod-chk.active { background: var(--teal-soft); color: var(--teal); border-color: rgba(45,212,191,0.35); font-weight: 600; }
 
-    .sim-ext-panel { display: flex; flex-direction: column; gap: 12px; }
     .sim-ext-ctrls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .sim-ext-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .sim-ext-table th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border-strong); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -2040,6 +2051,11 @@
   </style>
 </head>
 <body>
+  <noscript>
+    <div style="padding:16px 20px;background:#ef4444;color:#fff;font-family:sans-serif;font-weight:600;text-align:center;">
+      JavaScript is required to run the Trimps Spire Assault Planner. All calculations run 100% locally in your browser.
+    </div>
+  </noscript>
   <header class="header">
     <div class="bar">
       <a class="brand" href="./sa.html" title="Spire Assault Planner">
@@ -2065,6 +2081,14 @@
         <button type="button" class="btn sm" id="btnPresets" title="Inspect In-Game Presets, Milestones & Diagnostics (P)" onclick="window.saOpenPresets&&saOpenPresets()" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
           Presets &amp; Milestones
+        </button>
+        <button type="button" class="btn sm" id="btnShareBuild" title="Copy shareable link to your current SA build &amp; level" onclick="window.saShareBuildUrl&&saShareBuildUrl()" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Share Link
+        </button>
+        <button type="button" class="btn sm" id="btnShareBuild" title="Copy shareable link to your current SA build &amp; level" onclick="window.saShareBuildUrl&&saShareBuildUrl()" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Share Link
         </button>
         <button type="button" class="btn sm" id="updateBtn" title="Update or change save (U)" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -2190,7 +2214,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
                 Recommended build
               </h2>
-              <span class="sub">Best runnable setup right now</span>
+              <span class="sub" id="recCardSub">Best runnable setup right now</span>
             </div>
             <div id="recommend"></div>
           </div>
@@ -2200,7 +2224,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
                 Next upgrade advisor
               </h2>
-              <span class="sub">Highest ROI progression step</span>
+              <span class="sub" id="nextCardSub">Highest ROI progression step</span>
             </div>
             <div id="nextUpgrade"></div>
           </div>
