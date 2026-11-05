@@ -152,14 +152,23 @@
       width: 100%;
       min-width: 0;
       margin: 0 auto;
-      padding: 10px 20px;
+      padding: 8px 16px;
+      display: grid;
+      align-items: center;
+      grid-template-columns: auto auto 1fr auto;
+      grid-template-areas: "brand status . actions";
+      gap: 10px;
+    }
+    .brand {
+      grid-area: brand;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
+      gap: 10px;
+      color: inherit;
+      text-decoration: none;
+      flex-shrink: 0;
+      min-width: 0;
     }
-    .brand { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; min-width: 0; }
     .brand:hover { text-decoration: none; }
     .logo {
       flex: none;
@@ -174,7 +183,126 @@
     .brand-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
     .brand-text b { font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
     .brand-text small { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-    .top-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .top-status-group {
+      grid-area: status;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .top-actions {
+      grid-area: actions;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-self: end;
+    }
+
+    /* Narrower Desktop & Tablet (1140px down to 769px): Pills drop to row 2 right-justified under buttons */
+    @media (max-width: 1140px) and (min-width: 769px) {
+      .bar {
+        grid-template-columns: auto 1fr;
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          "brand actions"
+          "status status";
+        row-gap: 6px;
+        column-gap: 12px;
+      }
+      .brand {
+        grid-area: brand;
+        align-self: center;
+      }
+      .top-actions {
+        grid-area: actions;
+        justify-self: end;
+        align-self: center;
+      }
+      .top-status-group {
+        grid-area: status;
+        grid-column: 1 / -1;
+        justify-self: end;
+        align-self: center;
+      }
+    }
+
+    /* Standardized Animated Action Buttons (Simulator thru ?) */
+    .top-actions .top-btn {
+      height: 32px;
+      min-width: 32px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: #ffffff;
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      overflow: hidden;
+      white-space: nowrap;
+      text-decoration: none;
+      box-sizing: border-box;
+      outline: none;
+      transition: background 0.22s ease,
+                  border-color 0.22s ease,
+                  color 0.22s ease,
+                  box-shadow 0.22s ease,
+                  padding 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .top-actions .top-btn svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      color: #ffffff;
+      transition: color 0.22s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .top-actions .top-btn .top-btn-label {
+      max-width: 0;
+      opacity: 0;
+      margin-left: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      color: #ffffff;
+      display: inline-block;
+      transform: translateX(-4px);
+      transition: max-width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                  margin-left 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                  color 0.22s ease;
+    }
+    .top-actions .top-btn:hover,
+    .top-actions .top-btn:focus-visible {
+      background: var(--surface-3);
+      border-color: rgba(247, 147, 26, 0.6);
+      color: var(--accent, #f7931a);
+      box-shadow: 0 2px 12px rgba(247, 147, 26, 0.22);
+      padding: 0 11px;
+    }
+    .top-actions .top-btn:hover svg,
+    .top-actions .top-btn:focus-visible svg {
+      color: var(--accent, #f7931a);
+      transform: scale(1.08);
+    }
+    .top-actions .top-btn:hover .top-btn-label,
+    .top-actions .top-btn:focus-visible .top-btn-label {
+      max-width: 180px;
+      opacity: 1;
+      margin-left: 6px;
+      color: var(--accent, #f7931a);
+      transform: translateX(0);
+    }
+    [data-theme="light"] .top-actions .top-btn:not(:hover) {
+      color: #1e293b;
+    }
+    [data-theme="light"] .top-actions .top-btn:not(:hover) svg,
+    [data-theme="light"] .top-actions .top-btn:not(:hover) .top-btn-label {
+      color: #1e293b;
+    }
 
     /* ---------- pills & buttons ---------- */
     .pill {
@@ -507,6 +635,7 @@
     .fact b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .top-loaded-fact {
       font-size: 11.5px; padding: 4px 9px;
+      flex-shrink: 0;
     }
     .control-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px 12px; flex: 0 0 auto; }
     .field {
@@ -1564,31 +1693,92 @@
       .fact { font-size: 11px; padding: 2.5px 7px; }
     }
 
-    /* ---------- Mobile & Small Screen Responsiveness (< 860px) ---------- */
-    @media (max-width: 860px) {
+    /* ---------- Mobile Header (< 768px) ---------- */
+    @media (max-width: 768px) {
       .header { position: relative; }
       .bar {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        grid-template-areas:
+          "brand"
+          "actions"
+          "status";
+        row-gap: 8px;
         padding: 8px 12px;
-        gap: 8px 10px;
       }
-      .brand { flex: 0 1 auto; }
+      .brand {
+        grid-area: brand;
+        justify-self: start;
+        width: 100%;
+      }
       .brand-text b { font-size: 14px; }
       .brand-text small { display: none; }
+
       .top-actions {
+        grid-area: actions;
+        justify-self: start;
         width: 100%;
-        margin-left: 0;
+        display: flex;
         flex-wrap: wrap;
-        gap: 5px;
+        gap: 5px 6px;
         justify-content: flex-start;
         border-top: 1px solid var(--border);
-        padding-top: 6px;
+        padding-top: 7px;
+      }
+      .top-actions .top-btn {
+        height: 28px;
+        min-width: auto;
+        padding: 0 8px;
+        font-size: 11px;
+      }
+      .top-actions .top-btn svg {
+        width: 13px;
+        height: 13px;
+      }
+      /* Visible text on mobile mode since touch users cannot easily hover */
+      .top-actions .top-btn .top-btn-label {
+        display: inline-block !important;
+        max-width: none !important;
+        opacity: 1 !important;
+        margin-left: 5px !important;
+        transform: none !important;
+        color: inherit !important;
+      }
+      .top-actions .top-btn:hover,
+      .top-actions .top-btn:focus-visible {
+        padding: 0 8px;
+      }
+      .top-actions .top-btn:hover .top-btn-label,
+      .top-actions .top-btn:focus-visible .top-btn-label {
+        transform: none;
+        margin-left: 5px;
+        color: var(--accent, #f7931a) !important;
+      }
+
+      .top-status-group {
+        grid-area: status;
+        justify-self: start;
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
       }
       #sourceStatus {
         white-space: normal;
-        line-height: 1.3;
+        line-height: 1.35;
+        font-size: 11px;
+        padding: 4px 8px;
+        max-width: 100%;
+        word-break: break-word;
+      }
+      .top-loaded-fact {
         font-size: 11px;
         padding: 3px 8px;
       }
+    }
+
+    /* ---------- Mobile & Small Screen Responsiveness (< 860px) ---------- */
+    @media (max-width: 860px) {
       .btn.sm { font-size: 11px; padding: 0 8px; height: 28px; }
       .top-loaded-fact { font-size: 11px; padding: 3px 7px; }
       .icon-btn { height: 28px; padding: 0 7px; font-size: 11px; }
@@ -2067,44 +2257,43 @@
           <small>Trimps · AutoBattle build &amp; upgrade advisor</small>
         </span>
       </a>
-      <div class="top-actions">
+      <div class="top-status-group">
         <span id="sourceStatus" class="pill">No save loaded</span>
         <div class="fact top-loaded-fact" id="factLoaded" style="display:none; cursor:pointer;" title="Click to reset bank accumulation timer" onclick="window.saResetBankTimer&&saResetBankTimer()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <span>Loaded</span>
           <b id="factLoadedTime">just now</b>
         </div>
-        <button type="button" class="btn sm" id="btnOpenSim" title="Inspect Combat Simulation &amp; Sandbox" onclick="window.saOpenSim&&saOpenSim()" style="display:none;">
+      </div>
+      <div class="top-actions">
+        <button type="button" class="top-btn" id="btnOpenSim" title="Inspect Combat Simulation &amp; Sandbox" onclick="window.saOpenSim&&saOpenSim()" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
-          Simulator
+          <span class="top-btn-label">Simulator</span>
         </button>
-        <button type="button" class="btn sm" id="btnPresets" title="Inspect In-Game Presets, Milestones & Diagnostics (P)" onclick="window.saOpenPresets&&saOpenPresets()" style="display:none;">
+        <button type="button" class="top-btn" id="btnPresets" title="Inspect In-Game Presets, Milestones &amp; Diagnostics (P)" onclick="window.saOpenPresets&&saOpenPresets()" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-          Presets &amp; Milestones
+          <span class="top-btn-label">Presets &amp; Milestones</span>
         </button>
-        <button type="button" class="btn sm" id="btnShareBuild" title="Copy shareable link to your current SA build &amp; level" onclick="window.saShareBuildUrl&&saShareBuildUrl()" style="display:none;">
+        <button type="button" class="top-btn" id="btnShareBuild" title="Copy shareable link to your current SA build &amp; level" onclick="window.saShareBuildUrl&&saShareBuildUrl()" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-          Share Link
+          <span class="top-btn-label">Share</span>
         </button>
-        <button type="button" class="btn sm" id="btnShareBuild" title="Copy shareable link to your current SA build &amp; level" onclick="window.saShareBuildUrl&&saShareBuildUrl()" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-          Share Link
-        </button>
-        <button type="button" class="btn sm" id="updateBtn" title="Update or change save (U)" style="display:none;">
+        <button type="button" class="top-btn" id="updateBtn" title="Update or change save (U)" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Update Save
+          <span class="top-btn-label">Update Save</span>
         </button>
-        <button type="button" class="icon-btn" id="btnQuickPaste" title="Paste save from clipboard (V)" onclick="window.saPaste&&saPaste()">
+        <button type="button" class="top-btn" id="btnQuickPaste" title="Paste save from clipboard (V)" onclick="window.saPaste&&saPaste()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-          <span class="lbl">PASTE</span>
+          <span class="top-btn-label">Paste</span>
         </button>
-        <button type="button" class="icon-btn" id="themeBtn" title="Toggle theme (T)">
+        <button type="button" class="top-btn" id="themeBtn" title="Toggle theme (T)">
           <svg id="icoSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
           <svg id="icoMoon" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-          <span class="lbl" id="themeLbl">Light</span>
+          <span class="top-btn-label" id="themeLbl">Light</span>
         </button>
-        <button type="button" class="icon-btn" id="btnHelp" title="Shortcuts &amp; glossary (?)">
-          <span class="lbl">?</span>
+        <button type="button" class="top-btn" id="btnHelp" title="Shortcuts &amp; glossary (?)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="top-btn-label">Help</span>
         </button>
       </div>
     </div>

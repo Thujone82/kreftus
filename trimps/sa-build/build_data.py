@@ -489,6 +489,9 @@ def main():
         except Exception:
             pass
 
+    # The sync date reflects the last time the actual sheet was pulled down over the network
+    # (either via an explicit --fresh sync or a network fallback download when no local cache is present).
+    # Local refreshes using the cached workbook preserve the existing sync timestamp.
     if network_synced:
         last_synced = time.strftime("%Y-%m-%d")
     elif existing_sync:
