@@ -1819,19 +1819,24 @@ li.tabNotEnabled:hover {
   box-shadow: 0 3px 10px rgba(45, 212, 191, 0.3) !important;
 }
 
-/* Void Maps Button (when active in Map Chamber) */
-#voidMapsBtn {
-  background: linear-gradient(180deg, rgba(168, 85, 247, 0.32), rgba(126, 34, 206, 0.24)) !important;
-  border-color: rgba(168, 85, 247, 0.65) !important;
+/* Void Maps & Heirlooms Combat Column Buttons */
+#voidMapsBtn,
+#heirloomsBtn,
+.heirloomsBtnColor {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.3), rgba(126, 34, 206, 0.22)) !important;
+  border: 1px solid rgba(192, 132, 252, 0.7) !important;
+  border-color: rgba(192, 132, 252, 0.7) !important;
   color: #d8b4fe !important;
   box-shadow: 0 2px 6px rgba(168, 85, 247, 0.2) !important;
 }
 
-#voidMapsBtn:hover {
+#voidMapsBtn:hover,
+#heirloomsBtn:hover,
+.heirloomsBtnColor:hover {
   background: linear-gradient(180deg, rgba(168, 85, 247, 0.44), rgba(126, 34, 206, 0.34)) !important;
   border-color: #c084fc !important;
   color: #faf5ff !important;
-  box-shadow: 0 3px 10px rgba(168, 85, 247, 0.3) !important;
+  box-shadow: 0 3px 10px rgba(168, 85, 247, 0.35) !important;
 }
 
 /* Bone Trader Button */
