@@ -863,8 +863,9 @@ html, body {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  flex-wrap: nowrap !important;
-  gap: 4px;
+  flex-wrap: wrap !important;
+  row-gap: 6px !important;
+  column-gap: 4px !important;
   font-size: clamp(11.5px, 0.88vw, 13.5px) !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
@@ -5890,6 +5891,13 @@ span.heirloomRare12 {
     font-size: 15px !important;
   }
 
+  #queueRow {
+    flex-wrap: wrap !important;
+    row-gap: 6px !important;
+    column-gap: 8px !important;
+    margin-bottom: 4px !important;
+  }
+
   #foremenCount,
   #buildSpeed,
   #autoTrapBtn,
@@ -5897,6 +5905,14 @@ span.heirloomRare12 {
   #noQueue,
   .queueItem {
     font-size: 15px !important;
+  }
+
+  #buildingsCollectBtn {
+    min-height: 28px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 4px 12px !important;
   }
 
   .buyTabsUl {
