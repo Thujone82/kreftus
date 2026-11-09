@@ -75,14 +75,31 @@
     render();
   };
 
+  var buildKillTimeCache = {};
   function buildSecPerKill(b, level) {
     if (!b) return Infinity;
     if (b.k && b.k > 0) return b.k;
-    if (b.d && b.d > 0) {
-      var lvl = level || state.level || 1;
-      var baseReward = (1 + ((lvl - 1) * 5)) * Math.pow(1.19, lvl - 1);
-      if (lvl >= 50) baseReward *= Math.pow(1.1, lvl - 49);
-      return (baseReward * 4.3) / b.d;
+    var lvl = Number(level || state.level || (state.ab && state.ab.enemyLevel) || 1);
+    var bId = (typeof buildId === "function") ? buildId(b) : ((b.n || "") + "_" + (b.d || 0));
+    var cacheKey = bId + "@" + lvl;
+    if (buildKillTimeCache[cacheKey] !== undefined) {
+      return buildKillTimeCache[cacheKey];
+    }
+    if (typeof SASimEngine !== "undefined" && state.save) {
+      try {
+        var res = SASimEngine.runBatch({ save: state.save, build: b, level: lvl }, { kills: 25, maxFights: 40 });
+        if (res && res.kills > 0 && res.secPerKill > 0) {
+          var wr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 1;
+          var effK = res.secPerKill / wr;
+          buildKillTimeCache[cacheKey] = effK;
+          return effK;
+        } else if (res && res.winRate === 0) {
+          buildKillTimeCache[cacheKey] = Infinity;
+          return Infinity;
+        }
+      } catch (e) {
+        console.warn("Simulation fallback for buildSecPerKill failed:", e);
+      }
     }
     return 15;
   }
@@ -467,19 +484,78 @@ var ONE_TIMER_MILESTONES = [
     return 190 + (15 * (l - 19));
   }
 
+  function getActiveBuildForLevel(lvl) {
+    var l = Number(lvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
+    var lockedEntry = state.lockedPlans && state.lockedPlans[String(l)];
+    var lockedTarget = lockedEntry ? findLockedTarget(l, lockedEntry) : null;
+    if (lockedTarget) return lockedTarget;
+    if (simState.config && Number(simState.config.level) === l && simState.config.items) {
+      var sItems = {};
+      var sLimbs = 0;
+      var eqList = simState.config.equipped || [];
+      for (var ik in simState.config.items) {
+        var sit = simState.config.items[ik];
+        var isEq = false;
+        var itLv = 1;
+        if (typeof sit === "object" && sit) {
+          isEq = !!sit.equipped;
+          itLv = sit.level || 1;
+        } else if (typeof sit === "number") {
+          isEq = eqList.indexOf(ik) !== -1;
+          itLv = sit;
+        }
+        if (isEq) {
+          sItems[ik] = itLv;
+          sLimbs++;
+        }
+      }
+      if (sLimbs > 0) {
+        return {
+          n: (simState.pendingLockBuild && simState.pendingLockBuild.n) || "Simulator Loadout",
+          i: sItems,
+          l: sLimbs,
+          r: simState.config.ring ? { lv: simState.config.ring.level, m: (simState.config.ring.mods || []).slice() } : undefined
+        };
+      }
+    }
+    var rec = bestRunnable(l);
+    if (rec) return rec;
+    return null;
+  }
+
   var pushSimCache = {};
   function getPushSecPerKill(enemyLvl) {
-    var l = Number(enemyLvl) || 1;
-    if (state.simulatedLevel === l && state.simulatedDustTimePerKill > 0) {
-      var wr = (state.simulatedDustWinRate && state.simulatedDustWinRate > 0) ? (state.simulatedDustWinRate / 100) : 1;
-      return state.simulatedDustTimePerKill / wr;
+    var l = Number(enemyLvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
+    var activeB = getActiveBuildForLevel(l);
+
+    // 1. If simulator has live session results for this level, use them directly
+    if (simState.session && simState.config && Number(simState.config.level) === l) {
+      var snap = simState.session.getState();
+      if (snap) {
+        var sKillSec = (snap.avgLast100Sec && snap.avgLast100Sec > 0) ? snap.avgLast100Sec : snap.timePerKill;
+        if (sKillSec && sKillSec > 0) {
+          var sWr = (snap.winRate && snap.winRate > 0) ? (snap.winRate / 100) : 1;
+          return sKillSec / sWr;
+        }
+      }
     }
+
+    // 2. If an active target build exists (locked plan or best runnable), simulate that build's items
+    if (activeB) {
+      var bK = buildSecPerKill(activeB, l);
+      if (bK && bK > 0 && isFinite(bK)) {
+        return bK;
+      }
+    }
+
+    // 3. Fall back to live save items simulated against this level
     if (pushSimCache[String(l)] !== undefined) {
       return pushSimCache[String(l)];
     }
     if (typeof SASimEngine !== "undefined" && state.save) {
       try {
-        var res = SASimEngine.runBatch({ save: state.save, level: l }, { kills: 30, maxFights: 60 });
+        var simCfg = activeB ? { save: state.save, build: activeB, level: l } : { save: state.save, level: l };
+        var res = SASimEngine.runBatch(simCfg, { kills: 30, maxFights: 60 });
         if (res && res.kills > 0 && res.secPerKill > 0) {
           var effWr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 1;
           var effSpk = res.secPerKill / effWr;
@@ -493,6 +569,12 @@ var ONE_TIMER_MILESTONES = [
         console.warn("Push sim error for level " + l, e);
       }
     }
+
+    if (state.simulatedLevel === l && state.simulatedDustTimePerKill > 0) {
+      var wr = (state.simulatedDustWinRate && state.simulatedDustWinRate > 0) ? (state.simulatedDustWinRate / 100) : 1;
+      return state.simulatedDustTimePerKill / wr;
+    }
+
     return null;
   }
 
@@ -546,6 +628,8 @@ var ONE_TIMER_MILESTONES = [
 
     var secPerKill = null;
     var etaSec = null;
+    var activeTargetBuild = getActiveBuildForLevel(enemyLvl);
+    var buildName = activeTargetBuild ? (activeTargetBuild.n || "Build") : null;
     var dustPerKill = 0;
     if (curRec && curRec.d && curRec.k) {
       dustPerKill = curRec.d * curRec.k;
@@ -596,6 +680,7 @@ var ONE_TIMER_MILESTONES = [
       dustPerKill: dustPerKill,
       secPerKill: secPerKill,
       etaSec: etaSec,
+      buildName: buildName,
       totalKillsAllTime: totalKillsAllTime,
       totalKillsPortal: totalKillsPortal,
       sessionKills: sKills,
@@ -1518,6 +1603,8 @@ var ONE_TIMER_MILESTONES = [
       clearLockedBuild(state.level);
       toast("Unlocked advisor for SA " + state.level);
     }
+    pushSimCache = {};
+    state._cachedDiag = null;
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
     renderChips(rec, rate);
@@ -2071,7 +2158,7 @@ var ONE_TIMER_MILESTONES = [
         "\n• Progress: " + prettify(curKills) + " / " + prettify(diag.neededKills) + " kills (" + curPct.toFixed(1) + "%)" +
         (killsEarned > 0 ? ("\n• Estimated Kills Since Load: +" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
         "\n• Remaining: " + prettify(curRemaining) + " kills to clear SA " + diag.enemyLevel +
-        (diag.secPerKill && isFinite(diag.secPerKill) ? ("\n• Speed: ~" + diag.secPerKill.toFixed(1) + "s per kill") : "") +
+        (diag.secPerKill && isFinite(diag.secPerKill) ? ("\n• Speed: ~" + diag.secPerKill.toFixed(1) + "s per kill" + (diag.buildName ? " (" + diag.buildName + ")" : " (Simulated)")) : "") +
         "\n• Estimated Completion: " + etaCombined +
         "\n• AutoLevel: " + (diag.autoLevel ? "ON (Auto-advances when cleared)" : "OFF (Will NOT advance when cleared!)") +
         "\n\nCombat Statistics:" +
@@ -4667,7 +4754,7 @@ var ONE_TIMER_MILESTONES = [
 
     var eCard = $("kpiEnemyLevel");
     if (eCard) {
-      var eDiag = state._cachedDiag || combatDiagnostics(rate);
+      var eDiag = (simState.session && simState.active) ? combatDiagnostics(rate) : (state._cachedDiag || combatDiagnostics(rate));
       if (eDiag.isPushing && eDiag.etaSec > 0) {
         var liveRemSec = Math.max(0, eDiag.etaSec - bnk.elapsedSec);
         var liveEtaDur = liveRemSec > 0 ? ("~" + fmtDuration(liveRemSec)) : "Ready to clear";
@@ -4930,6 +5017,7 @@ var ONE_TIMER_MILESTONES = [
       stepSimCache = {};
       planRatesCache = {};
       pushSimCache = {};
+      buildKillTimeCache = {};
       betterSimToken++;
       if (state.lastBetterBuilds) {
         state.lastBetterBuilds.forEach(function (b) {
