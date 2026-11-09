@@ -2610,13 +2610,24 @@ var ONE_TIMER_MILESTONES = [
       if (first) break;
     }
 
-    // In push mode without a locked plan: if no faster clear build exists, use simulator Upgrade Value
-    if (mode === "push" && !lockedEntry) {
-      var curCombatK = getCurrentCombatSecPerKill(state.level);
-      var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
-      var hasFasterPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
-      var isCurOptimal = (curCombatK && curCombatK > 0 && curCombatK <= recK + 0.01);
-      if (!hasFasterPath || isCurOptimal || !p || !first) {
+    // If no better build exists in push or farm mode without a locked plan, use simulator Upgrade Value
+    if (!lockedEntry) {
+      var shouldFallbackROI = false;
+      if (mode === "push") {
+        var curCombatK = getCurrentCombatSecPerKill(state.level);
+        var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+        var hasFasterPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
+        var isCurOptimal = (curCombatK && curCombatK > 0 && curCombatK <= recK + 0.01);
+        if (!hasFasterPath || isCurOptimal || !p || !first) {
+          shouldFallbackROI = true;
+        }
+      } else if (mode === "farm") {
+        var hasBetterFarmPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
+        if (!hasBetterFarmPath || !p || !first) {
+          shouldFallbackROI = true;
+        }
+      }
+      if (shouldFallbackROI) {
         if (typeof SASimEngine !== "undefined" && state.save) {
           try {
             var cfgSrc = (simState.config && simState.config.items) ? simState.config : { save: state.save, level: state.level };
@@ -2959,6 +2970,7 @@ var ONE_TIMER_MILESTONES = [
     var isPlanLocked = !!lockedTarget;
     var mode = getLevelMode(state.level);
     var isOptimalClear = false;
+    var isOptimalFarm = false;
     var currentCombatSec = null;
 
     if (mode === "push" && !isPlanLocked) {
@@ -2970,6 +2982,26 @@ var ONE_TIMER_MILESTONES = [
           activeBuild = curCombatBuild;
           activeBuild.k = currentCombatSec;
           isOptimalClear = true;
+        }
+      }
+    } else if (mode === "farm" && !isPlanLocked) {
+      var curDust = activeDustPs() || (state.simulatedDustPs || 0);
+      var recDust = rec ? (rec.d || 0) : 0;
+      if (curDust > recDust) {
+        // Current loadout outperforms the runnable sheet build.
+        // Check if there is a better income sheet available via the advisor:
+        var farmPick = bestNextUpgrade(rec, curDust);
+        if (farmPick && farmPick.build && (farmPick.build.d || 0) > curDust) {
+          // Target the better income sheet build (e.g. anon1)
+          activeBuild = farmPick.build;
+        } else {
+          // No better income sheet build available: set Current Loadout as optimal farm
+          var curFarmBuild = getCurrentEquippedCombatBuild(state.level);
+          if (curFarmBuild) {
+            activeBuild = curFarmBuild;
+            activeBuild.d = curDust;
+            isOptimalFarm = true;
+          }
         }
       }
     }
@@ -2987,6 +3019,7 @@ var ONE_TIMER_MILESTONES = [
     var pickForRec = bestNextUpgrade(rec, rate);
     var pStepsForRec = (pickForRec && pickForRec.build && buildId(pickForRec.build) === buildId(activeBuild)) ? pickForRec.allSteps : null;
     var summaryInfo = probeBuildSummary(state.level, activeBuild, rate, pStepsForRec);
+    state.lastActiveBuild = activeBuild;
     var targetDelta = loadoutDelta(activeBuild);
     var targetMods = formatModList(activeBuild.r && activeBuild.r.m || []);
 
@@ -3012,6 +3045,8 @@ var ONE_TIMER_MILESTONES = [
         recSub.textContent = "Custom locked plan for SA " + state.level;
       } else if (isOptimalClear) {
         recSub.textContent = "Current loadout is optimal for push (Fastest Clear Active)";
+      } else if (isOptimalFarm) {
+        recSub.textContent = "Current loadout is optimal for farm (Highest Dust Active)";
       } else if (isTargetOnly) {
         recSub.textContent = (mode === "push")
           ? "Target clear setup (Upgrades needed)"
@@ -3028,8 +3063,8 @@ var ONE_TIMER_MILESTONES = [
 
     var metrics = [];
     metrics.push(lvlTagPill);
-    var dispD = activeBuild.d || (isOptimalClear ? rate : 0);
-    if (dispD > 0) metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(dispD) + "/s</span>");
+    var dispD = activeBuild.d || ((isOptimalClear || isOptimalFarm) ? rate : 0);
+    if (dispD > 0) metrics.push("<span class='pill sm buy' title='Expected Dust Earning Rate: " + prettify(dispD) + "/s'>" + ICONS.dust + " " + prettify(dispD) + "/s</span>");
     if (activeBuild.k != null && isFinite(activeBuild.k)) metrics.push("<span class='pill sm info'>" + ICONS.clock + " ~" + Number(activeBuild.k).toFixed(1) + "s kills" + (isOptimalClear ? " (Fastest)" : "") + "</span>");
     if (activeBuild.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((activeBuild.wr <= 1 ? activeBuild.wr : activeBuild.wr / 100) * 100) + "% WR</span>");
     if (summaryInfo && summaryInfo.clearSec > 0) {
@@ -3058,6 +3093,9 @@ var ONE_TIMER_MILESTONES = [
     }
     if (isOptimalClear) {
       statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Fastest Clear Active</span>");
+      statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Optimal &amp; In Play</span>");
+    } else if (isOptimalFarm) {
+      statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Highest Dust Active</span>");
       statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Optimal &amp; In Play</span>");
     } else if (isTargetOnly) {
       statusPills.push("<span class='pill sm warn-pill'>" + ICONS.bolt + " " + remSteps + " Upgrade" + (remSteps === 1 ? "" : "s") + " Needed</span>");
@@ -3105,20 +3143,28 @@ var ONE_TIMER_MILESTONES = [
         "</div>";
     }
 
-    var headPrefix = isPlanLocked ? "Target Plan:" : (isOptimalClear ? "Current Loadout (Optimal Clear):" : (isTargetOnly ? "Target Build:" : "Recommended Build:"));
-    var swapTitle = isPlanLocked ? "Steps to Initiate Plan · Loadout & Ring Changes" : (isOptimalClear ? "Current Combat Loadout · Fully Aligned" : (isTargetOnly ? "Steps to Initiate Plan · Loadout & Ring Changes" : "Steps to Initiate Build · Loadout & Ring Changes"));
-    var swapGuideHtml = isOptimalClear
+    var headPrefix = isPlanLocked ? "Target Plan:" : ((isOptimalClear || isOptimalFarm) ? ("Current Loadout (" + (isOptimalFarm ? "Optimal Farm" : "Optimal Clear") + "):") : (isTargetOnly ? "Target Build:" : "Recommended Build:"));
+    var swapTitle = isPlanLocked ? "Steps to Initiate Plan · Loadout & Ring Changes" : ((isOptimalClear || isOptimalFarm) ? "Current Combat Loadout · Fully Aligned" : (isTargetOnly ? "Steps to Initiate Plan · Loadout & Ring Changes" : "Steps to Initiate Build · Loadout & Ring Changes"));
+    var swapGuideHtml = (isOptimalClear || isOptimalFarm)
       ? ("<div class='delta-box' style='margin-top:4px;border-color:rgba(45,206,137,0.35);background:color-mix(in srgb,var(--buy) 6%,var(--surface-solid));'>" +
           "<div class='delta-title' style='color:var(--buy);'>" + ICONS.check + "<span>Current Loadout Is Optimal · No Slower Swaps Recommended</span></div>" +
-          "<div style='color:var(--muted);font-size:12px;'>Your current equipped items clear SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill, which is faster than all recorded runnable sheet builds. Keep this loadout active while pushing.</div>" +
+          "<div style='color:var(--muted);font-size:12px;'>" +
+          (isOptimalFarm
+            ? ("Your current equipped items earn " + prettify(rate) + "/s, which is higher than all recorded runnable sheet builds. Keep this loadout active while farming.")
+            : ("Your current equipped items clear SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill, which is faster than all recorded runnable sheet builds. Keep this loadout active while pushing.")) +
+          "</div>" +
           "</div>")
       : renderAlignmentGuide(activeBuild, targetDelta, swapTitle);
 
     var explText = "";
     if (isPlanLocked && rec && rec.n !== activeBuild.n) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your plan <b>" + esc(activeBuild.n) + "</b>. Currently running: <b>" + esc(rec.n) + "</b> (" + prettify(rec.d) + "/s). Follow the swap guide above and the Next Upgrade Advisor on the right to transition.</span></div>";
-    } else if (isOptimalClear) {
-      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Your current equipped loadout clears SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill. No faster runnable clear build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.</span></div>";
+    } else if (isOptimalClear || isOptimalFarm) {
+      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" +
+        (isOptimalFarm
+          ? ("Your current equipped loadout earns " + prettify(rate) + "/s. No higher-income runnable sheet build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")
+          : ("Your current equipped loadout clears SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill. No faster runnable clear build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")) +
+        "</span></div>";
     } else if (isTargetOnly) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No sheet build on SA " + state.level + " is currently runnable with your items and levels. Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). Follow the swap guide above and the Next Upgrade Advisor on the right to progress toward this build.</span></div>";
     } else if (activeBuild.note) {
@@ -4200,6 +4246,10 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function activeTargetBuild(rec, rate) {
+    if (state.lastActiveBuild && state.lastActiveBuild.i) return state.lastActiveBuild;
+    var lockedEntry = state.lockedPlans && state.lockedPlans[String(state.level)];
+    var lockedTarget = lockedEntry ? findLockedTarget(state.level, lockedEntry) : null;
+    if (lockedTarget && lockedTarget.i) return lockedTarget;
     if (rec && rec.i) return rec;
     var summary = probeBuildSummary(state.level, null, rate);
     return (summary && summary.target) ? summary.target : null;
