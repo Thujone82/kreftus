@@ -2316,6 +2316,10 @@ function ConvertTo-GfWeatherCacheSnapshot {
     if ($null -ne $script:wildFireIncidents) {
         $wildFireForCache = @($script:wildFireIncidents | Where-Object { $null -ne $_ })
     }
+    $snapLocKey = Get-LocationKeyFromCityState -City $City -State $State -Lat $Lat -Lon $Lon
+    if (-not $snapLocKey) { $snapLocKey = $script:locationKey }
+    $snapStationId = if ($snapLocKey) { Get-CachedStationId -LocationKey $snapLocKey } else { $null }
+    if (-not $snapStationId) { $snapStationId = $script:observationStationId }
     return [ordered]@{
         fetchedAt            = $fetchedAt
         writtenAt            = (Get-Date).ToUniversalTime().ToString('o')
@@ -2328,8 +2332,8 @@ function ConvertTo-GfWeatherCacheSnapshot {
         timeZone             = $script:timeZone
         radarStation         = $script:radarStation
         elevationFeet        = $script:elevationFeet
-        observationStationId = $script:observationStationId
-        locationKey          = $script:locationKey
+        observationStationId = $snapStationId
+        locationKey          = $snapLocKey
         forecastData         = $script:forecastData
         hourlyData           = $script:hourlyData
         alertsData           = $script:alertsData
@@ -2440,6 +2444,19 @@ function Restore-GfWeatherCacheSnapshot {
         $script:lastManualRefreshTime = $null
         $writtenUtc = Get-GfWeatherCacheEntryTimestampUtc -Entry $Entry
         $script:gfCacheWrittenAt = if ($writtenUtc) { $writtenUtc } else { (Get-Date).ToUniversalTime() }
+
+        $expectedLocKey = Get-LocationKeyFromCityState -City $Entry.city -State $Entry.state -Lat $Entry.lat -Lon $Entry.lon
+        if ($expectedLocKey -and $Entry.locationKey -and ($Entry.locationKey -ne $expectedLocKey)) {
+            Write-Verbose "Rejecting corrupted weatherCache snapshot: locationKey '$($Entry.locationKey)' does not match expected '$expectedLocKey'"
+            return $false
+        }
+        if ($expectedLocKey) {
+            $cachedStation = Get-CachedStationId -LocationKey $expectedLocKey
+            if ($cachedStation -and $Entry.observationStationId -and ($Entry.observationStationId -ne $cachedStation)) {
+                Write-Verbose "Rejecting corrupted weatherCache snapshot: station '$($Entry.observationStationId)' does not match cached '$cachedStation'"
+                return $false
+            }
+        }
 
         $script:forecastData = $Entry.forecastData
         $script:hourlyData = $Entry.hourlyData
@@ -4800,6 +4817,20 @@ function Switch-GfAdvancedFavoriteInProcess {
         $fromCache = $false
         $refreshed = $false
 
+        $targetLocKey = Get-LocationKeyFromCityState -City $cityV -State $stateV -Lat $latV -Lon $lonV
+        $script:locationKey = $targetLocKey
+        $script:observationStationId = if ($targetLocKey) { Get-CachedStationId -LocationKey $targetLocKey } else { $null }
+        $script:observationsData = $null
+        $script:observationsLastFetchTime = $null
+        $script:pointsDataForObservations = $null
+        $script:timeZoneForObservations = $null
+        $script:currentObservationTime = $null
+        $script:currentTimeLocal = $null
+        $script:usesObservation = $false
+        $script:radarStation = $null
+        $script:elevationFeet = $null
+        $script:timeZone = $null
+
         if ($entry) {
             if (Restore-GfWeatherCacheSnapshot -Entry $entry) {
                 $fromCache = $true
@@ -4832,7 +4863,7 @@ function Switch-GfAdvancedFavoriteInProcess {
                 }
             }
             Write-Host "Loading $($cityV), $($stateV)..." -ForegroundColor Yellow
-            $ok = Update-WeatherData -Lat ([string]$latV) -Lon ([string]$lonV) -Headers $hdrs -TimeZone $script:timeZone -UseRetryLogic $false
+            $ok = Update-WeatherData -Lat ([string]$latV) -Lon ([string]$lonV) -Headers $hdrs -TimeZone $script:timeZone -UseRetryLogic $false -City $cityV -State $stateV
             if ($ok) {
                 $refreshed = $true
                 Save-GfActiveWeatherCacheIfLeader -CacheKey $cacheKey -LocationQuery (Get-GfFavoriteLocationQuery -Favorite $fav) -Lat $latV -Lon $lonV -City $cityV -State $stateV
@@ -4860,7 +4891,7 @@ function Switch-GfAdvancedFavoriteInProcess {
                     if ($Headers) { $hdrs = $Headers } else {
                         $hdrs = @{ "Accept" = "application/geo+json"; "User-Agent" = $script:USER_AGENT }
                     }
-                    $ok = Update-WeatherData -Lat ([string]$latV) -Lon ([string]$lonV) -Headers $hdrs -TimeZone $script:timeZone -UseRetryLogic $false
+                    $ok = Update-WeatherData -Lat ([string]$latV) -Lon ([string]$lonV) -Headers $hdrs -TimeZone $script:timeZone -UseRetryLogic $false -City $cityV -State $stateV
                     if ($ok) {
                         $refreshed = $true
                         Save-GfActiveWeatherCacheIfLeader -CacheKey $cacheKey -LocationQuery (Get-GfFavoriteLocationQuery -Favorite $fav) -Lat $latV -Lon $lonV -City $cityV -State $stateV
@@ -5942,7 +5973,6 @@ function Update-CurrentObservationOnly {
     try {
         Write-Verbose "Light refresh: latest observation only"
         $stationId = Get-CachedStationId -LocationKey $LocationKey
-        if (-not $stationId) { $stationId = $script:observationStationId }
         if (-not $stationId) {
             $pointsUrl = "https://api.weather.gov/points/$Lat,$Lon"
             $pointsJob = Start-ApiJob -Url $pointsUrl -Headers $Headers -JobName "PointsForObsOnly"
@@ -6413,7 +6443,9 @@ function Update-WeatherData {
         [string]$Lon,
         [hashtable]$Headers,
         [string]$TimeZone,
-        [bool]$UseRetryLogic = $true
+        [bool]$UseRetryLogic = $true,
+        [string]$City = $null,
+        [string]$State = $null
     )
     
     $maxRetries = if ($UseRetryLogic) { 10 } else { 1 }  # Only retry if UseRetryLogic is true
@@ -6465,7 +6497,11 @@ function Update-WeatherData {
         
         $pointsData = $pointsJson | ConvertFrom-Json
         
-        # Update script-scoped points data for observations refresh
+        # Update timezone directly from Points API response (canonical source)
+        if ($pointsData.properties.timeZone) {
+            $TimeZone = $pointsData.properties.timeZone
+            $script:timeZone = $pointsData.properties.timeZone
+        }
         $script:pointsDataForObservations = $pointsData
         if ($TimeZone) {
             $script:timeZoneForObservations = $TimeZone
@@ -6535,16 +6571,15 @@ function Update-WeatherData {
             $script:wildFireIncidents = @()
         }
         
-        $locationKeyForObs = $script:locationKey
-        if (-not $locationKeyForObs) {
-            $locationKeyForObs = Get-LocationKeyFromCityState -City $city -State $state -Lat $lat -Lon $lon
-            if ($locationKeyForObs) { $script:locationKey = $locationKeyForObs }
-        }
+        $targetCity = if ($City) { $City } else { $city }
+        $targetState = if ($State) { $State } else { $state }
+        $locationKeyForObs = Get-LocationKeyFromCityState -City $targetCity -State $targetState -Lat $lat -Lon $lon
+        if ($locationKeyForObs) { $script:locationKey = $locationKeyForObs }
+
         $cachedStationForLatest = $null
         if ($locationKeyForObs) {
             $cachedStationForLatest = Get-CachedStationId -LocationKey $locationKeyForObs
         }
-        if (-not $cachedStationForLatest) { $cachedStationForLatest = $script:observationStationId }
 
         $refreshLatestObsJob = $null
         if ($cachedStationForLatest) {
@@ -6564,7 +6599,7 @@ function Update-WeatherData {
             } catch {}
             Write-Verbose "Historical observations fresh (age=${ageMin}m, stale after $($script:OBSERVATIONS_STALE_SECONDS)s); skipping 7-day re-fetch"
         }
-        if ($TimeZone -and $pointsData.properties.observationStations -and -not $cachedStationForLatest) {
+        if ($TimeZone -and $pointsData.properties.observationStations -and (-not $cachedStationForLatest -or $needHistoricalObservations)) {
             $observationStationsUrl = $pointsData.properties.observationStations
             Write-Verbose "Fetching observation stations from: $observationStationsUrl"
             $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $headers -JobName "ObservationStations"
@@ -6996,8 +7031,8 @@ function Update-WeatherData {
                 }
             }
             Remove-Job -Job $refreshLatestObsJob -Force -ErrorAction SilentlyContinue
-        } elseif ($stationId) {
-            $latestObservationFeature = Get-NWSLatestObservation -StationId $stationId -Headers $headers
+        } elseif ($script:observationStationId) {
+            $latestObservationFeature = Get-NWSLatestObservation -StationId $script:observationStationId -Headers $headers
         }
         
         # Update current conditions (only if hourly data is available)
@@ -14065,11 +14100,25 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             $city = $sw.City
                             $state = $sw.State
                             if ($sw.TimeZone) { $timeZone = $sw.TimeZone; $script:timeZone = $sw.TimeZone }
+                            if ($null -ne $sw.ElevationFeet) { $elevationFeet = $sw.ElevationFeet; $script:elevationFeet = $sw.ElevationFeet }
+                            if ($sw.RadarStation) { $radarStation = $sw.RadarStation; $script:radarStation = $sw.RadarStation }
                             Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
                             $todayForecast = $script:todayForecast
                             $todayPeriodName = $script:todayPeriodName
                             $tomorrowForecast = $script:tomorrowForecast
                             $tomorrowPeriodName = $script:tomorrowPeriodName
+                            $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
+                            try {
+                                $tzInfoSwitch = if ($timeZone) { Get-ResolvedTimeZoneInfo -TimeZoneId $timeZone } else { $null }
+                                $locationTodaySwitch = if ($tzInfoSwitch) { [System.TimeZoneInfo]::ConvertTime((Get-Date), $tzInfoSwitch).Date } else { (Get-Date).Date }
+                                $sunTimesSwitch = Get-SunriseSunset -Latitude ([double]$lat) -Longitude ([double]$lon) -Date $locationTodaySwitch -TimeZoneId $timeZone
+                                $sunriseTime = $sunTimesSwitch.Sunrise
+                                $sunsetTime = $sunTimesSwitch.Sunset
+                                $script:sunriseTime = $sunriseTime
+                                $script:sunsetTime = $sunsetTime
+                                $script:isPolarNight = $sunTimesSwitch.IsPolarNight
+                                $script:isPolarDay = $sunTimesSwitch.IsPolarDay
+                            } catch {}
                             Clear-HostWithDelay
                             Show-GfInteractiveCurrentView
                         }
