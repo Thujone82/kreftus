@@ -484,6 +484,78 @@ var ONE_TIMER_MILESTONES = [
     return 190 + (15 * (l - 19));
   }
 
+  function getCurrentEquippedCombatBuild(lvl) {
+    var l = Number(lvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
+    if (!state.ab) return null;
+
+    var eqItems = {};
+    var count = 0;
+    var abItems = state.ab.items || {};
+    for (var ik in abItems) {
+      var it = abItems[ik];
+      if (it && typeof it === "object" && it.equipped) {
+        eqItems[ik] = it.level || 1;
+        count++;
+      } else if (typeof it === "number" && state.ab.equipped && state.ab.equipped.indexOf(ik) !== -1) {
+        eqItems[ik] = it;
+        count++;
+      }
+    }
+    if (count === 0) return null;
+
+    var rObj = state.ab.rings || state.ab.ring || {};
+    var rLv = Number(rObj.level || rObj.lv || 1);
+    var rMods = (rObj.mods || rObj.m || []).slice();
+
+    return {
+      n: "Current Loadout",
+      i: eqItems,
+      l: count,
+      r: { lv: rLv, m: rMods },
+      isCurrentEquipped: true
+    };
+  }
+
+  function getCurrentCombatSecPerKill(lvl) {
+    var l = Number(lvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
+    // 1. Live simulator session if active on this level
+    if (simState.session && simState.config && Number(simState.config.level) === l) {
+      var snap = simState.session.getState();
+      if (snap) {
+        var sKillSec = (snap.avgLast100Sec && snap.avgLast100Sec > 0) ? snap.avgLast100Sec : snap.timePerKill;
+        if (sKillSec && sKillSec > 0) {
+          var sWr = (snap.winRate && snap.winRate > 0) ? (snap.winRate / 100) : 1;
+          return sKillSec / sWr;
+        }
+      }
+    }
+    // 2. Cached simulated kill duration for current equipped items
+    var cacheKey = "curEquipped@" + l;
+    if (pushSimCache[cacheKey] !== undefined) {
+      return pushSimCache[cacheKey];
+    }
+    if (typeof SASimEngine !== "undefined" && state.save) {
+      try {
+        var curB = getCurrentEquippedCombatBuild(l);
+        if (curB) {
+          var res = SASimEngine.runBatch({ save: state.save, build: curB, level: l }, { kills: 25, maxFights: 40 });
+          if (res && res.kills > 0 && res.secPerKill > 0) {
+            var wr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 1;
+            var effK = res.secPerKill / wr;
+            pushSimCache[cacheKey] = effK;
+            return effK;
+          } else if (res && res.winRate === 0) {
+            pushSimCache[cacheKey] = Infinity;
+            return Infinity;
+          }
+        }
+      } catch (e) {
+        console.warn("Error simulating current combat secPerKill:", e);
+      }
+    }
+    return null;
+  }
+
   function getActiveBuildForLevel(lvl) {
     var l = Number(lvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
     var lockedEntry = state.lockedPlans && state.lockedPlans[String(l)];
@@ -526,7 +598,6 @@ var ONE_TIMER_MILESTONES = [
   var pushSimCache = {};
   function getPushSecPerKill(enemyLvl) {
     var l = Number(enemyLvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
-    var activeB = getActiveBuildForLevel(l);
 
     // 1. If simulator has live session results for this level, use them directly
     if (simState.session && simState.config && Number(simState.config.level) === l) {
@@ -540,33 +611,28 @@ var ONE_TIMER_MILESTONES = [
       }
     }
 
-    // 2. If an active target build exists (locked plan or best runnable), simulate that build's items
-    if (activeB) {
-      var bK = buildSecPerKill(activeB, l);
+    // 2. If a plan is explicitly locked for this level, use that locked build's simulated speed
+    var lockedEntry = state.lockedPlans && state.lockedPlans[String(l)];
+    var lockedTarget = lockedEntry ? findLockedTarget(l, lockedEntry) : null;
+    if (lockedTarget) {
+      var bK = buildSecPerKill(lockedTarget, l);
       if (bK && bK > 0 && isFinite(bK)) {
         return bK;
       }
     }
 
-    // 3. Fall back to live save items simulated against this level
-    if (pushSimCache[String(l)] !== undefined) {
-      return pushSimCache[String(l)];
+    // 3. Use user's active combat loadout speed against this level
+    var curCombatK = getCurrentCombatSecPerKill(l);
+    if (curCombatK && curCombatK > 0 && isFinite(curCombatK)) {
+      return curCombatK;
     }
-    if (typeof SASimEngine !== "undefined" && state.save) {
-      try {
-        var simCfg = activeB ? { save: state.save, build: activeB, level: l } : { save: state.save, level: l };
-        var res = SASimEngine.runBatch(simCfg, { kills: 30, maxFights: 60 });
-        if (res && res.kills > 0 && res.secPerKill > 0) {
-          var effWr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 1;
-          var effSpk = res.secPerKill / effWr;
-          pushSimCache[String(l)] = effSpk;
-          return effSpk;
-        } else if (res && res.winRate === 0) {
-          pushSimCache[String(l)] = Infinity;
-          return Infinity;
-        }
-      } catch (e) {
-        console.warn("Push sim error for level " + l, e);
+
+    // 4. Fall back to best runnable sheet build
+    var rec = bestRunnable(l);
+    if (rec) {
+      var recK = buildSecPerKill(rec, l);
+      if (recK && recK > 0 && isFinite(recK)) {
+        return recK;
       }
     }
 
@@ -628,8 +694,10 @@ var ONE_TIMER_MILESTONES = [
 
     var secPerKill = null;
     var etaSec = null;
-    var activeTargetBuild = getActiveBuildForLevel(enemyLvl);
-    var buildName = activeTargetBuild ? (activeTargetBuild.n || "Build") : null;
+    var lockedEntry = state.lockedPlans && state.lockedPlans[String(enemyLvl)];
+    var lockedTarget = lockedEntry ? findLockedTarget(enemyLvl, lockedEntry) : null;
+    var activeTargetBuild = lockedTarget || getActiveBuildForLevel(enemyLvl);
+    var buildName = lockedTarget ? lockedTarget.n : (mode === "pushing" ? "Current Loadout" : (activeTargetBuild ? (activeTargetBuild.n || "Build") : null));
     var dustPerKill = 0;
     if (curRec && curRec.d && curRec.k) {
       dustPerKill = curRec.d * curRec.k;
@@ -2404,7 +2472,9 @@ var ONE_TIMER_MILESTONES = [
   function betterBuilds(rec, rateOverride) {
     var mode = getLevelMode(state.level);
     if (mode === "push") {
-      var curK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+      var curCombatK = getCurrentCombatSecPerKill(state.level);
+      var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+      var curK = (curCombatK && curCombatK > 0) ? Math.min(curCombatK, recK) : recK;
       return buildsFor(state.level).filter(function (b) {
         var bk = buildSecPerKill(b, state.level);
         return (!rec || bk < curK - 0.01) && !runnable(b) && allowedUpgrade(b);
@@ -2487,7 +2557,11 @@ var ONE_TIMER_MILESTONES = [
     }
     var list = betterBuilds(rec, cur);
     var mode = getLevelMode(state.level);
-    var curK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+    var curCombatK = (mode === "push") ? getCurrentCombatSecPerKill(state.level) : null;
+    var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+    var curK = (mode === "push" && curCombatK && curCombatK > 0)
+      ? Math.min(curCombatK, recK)
+      : recK;
     var seen = {};
     var immediate = [];
     list.forEach(function (b) {
@@ -2535,6 +2609,54 @@ var ONE_TIMER_MILESTONES = [
       }
       if (first) break;
     }
+
+    // In push mode without a locked plan: if no faster clear build exists, use simulator Upgrade Value
+    if (mode === "push" && !lockedEntry) {
+      var curCombatK = getCurrentCombatSecPerKill(state.level);
+      var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+      var hasFasterPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
+      var isCurOptimal = (curCombatK && curCombatK > 0 && curCombatK <= recK + 0.01);
+      if (!hasFasterPath || isCurOptimal || !p || !first) {
+        if (typeof SASimEngine !== "undefined" && state.save) {
+          try {
+            var cfgSrc = (simState.config && simState.config.items) ? simState.config : { save: state.save, level: state.level };
+            var roiResults = SASimEngine.evaluateUpgradeROI(cfgSrc, { maxKills: 20 });
+            if (roiResults && roiResults.length > 0) {
+              var top = roiResults[0];
+              var uStep = (top.type === "ring")
+                ? { kind: "ring", from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards }
+                : { kind: "level", key: top.key, from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards };
+              var curBld = getCurrentEquippedCombatBuild(state.level) || { n: "Current Loadout" };
+              var newK = (top.newSecPerKill && top.newSecPerKill > 0) ? top.newSecPerKill : (curCombatK || 15);
+              var cloneBld = Object.assign({}, curBld, { k: newK });
+              return {
+                step: uStep,
+                mode: "upgradeValue",
+                isLocked: false,
+                isOptimal: true,
+                remaining: 1,
+                totalSteps: 1,
+                completedCount: 0,
+                allSteps: [uStep],
+                activeIndex: 0,
+                gain: top.deltaDustPs,
+                cost: top.cost,
+                shards: top.shards,
+                label: top.label,
+                paybackSec: top.paybackSec,
+                currentCombatSec: curCombatK || top.baselineSecPerKill,
+                newCombatSec: newK,
+                deltaSecPerKill: top.deltaSecPerKill,
+                build: cloneBld
+              };
+            }
+          } catch (e) {
+            console.warn("Simulator evaluateUpgradeROI fallback failed:", e);
+          }
+        }
+      }
+    }
+
     if (!p || !first) return null;
     return {
       step: first,
@@ -2791,15 +2913,16 @@ var ONE_TIMER_MILESTONES = [
     var buildSec = runnable(target) ? 0 : wInfo.wait;
     var neededKills = saLevelReq(level);
     var isCurrentLevel = state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel) === level;
-    var remainingKills = isLevelCleared(level) ? 0 : (isCurrentLevel ? Math.max(0, neededKills - (state.ab.enemiesKilled || 0)) : neededKills);
-
-    var secPerKill = (target.k && target.k > 0) ? target.k : 0;
-    if (!secPerKill && target.d && target.d > 0) {
-      var baseReward = (1 + ((level - 1) * 5)) * Math.pow(1.19, level - 1);
-      if (level >= 50) baseReward *= Math.pow(1.1, level - 49);
-      secPerKill = (baseReward * 4.3) / target.d;
+    var liveKillsEarned = 0;
+    if (isCurrentLevel && bnk && bnk.elapsedSec > 0) {
+      var liveSpk = getPushSecPerKill(level) || 15;
+      liveKillsEarned = Math.floor(bnk.elapsedSec / liveSpk);
     }
-    if (!secPerKill) secPerKill = 15;
+    var totalKillsDone = (state.ab && state.ab.enemiesKilled) ? (state.ab.enemiesKilled + liveKillsEarned) : liveKillsEarned;
+    var remainingKills = isLevelCleared(level) ? 0 : (isCurrentLevel ? Math.max(0, neededKills - totalKillsDone) : neededKills);
+
+    var secPerKill = (target.k && target.k > 0) ? target.k : buildSecPerKill(target, level);
+    if (!secPerKill || !isFinite(secPerKill) || secPerKill <= 0) secPerKill = 15;
 
     var clearSec = remainingKills * secPerKill;
     var totalSec = (isFinite(buildSec) && isFinite(clearSec)) ? (buildSec + clearSec) : null;
@@ -2834,6 +2957,22 @@ var ONE_TIMER_MILESTONES = [
 
     var activeBuild = lockedTarget || rec;
     var isPlanLocked = !!lockedTarget;
+    var mode = getLevelMode(state.level);
+    var isOptimalClear = false;
+    var currentCombatSec = null;
+
+    if (mode === "push" && !isPlanLocked) {
+      currentCombatSec = getCurrentCombatSecPerKill(state.level);
+      var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+      if (currentCombatSec && currentCombatSec > 0 && (recK >= currentCombatSec - 0.01 || !rec)) {
+        var curCombatBuild = getCurrentEquippedCombatBuild(state.level);
+        if (curCombatBuild) {
+          activeBuild = curCombatBuild;
+          activeBuild.k = currentCombatSec;
+          isOptimalClear = true;
+        }
+      }
+    }
 
     if (!activeBuild) {
       var summary = probeBuildSummary(state.level, null, rate);
@@ -2867,11 +3006,12 @@ var ONE_TIMER_MILESTONES = [
         "</div>";
     }).join("");
 
-    var mode = getLevelMode(state.level);
     var recSub = $("recCardSub");
     if (recSub) {
       if (isPlanLocked) {
         recSub.textContent = "Custom locked plan for SA " + state.level;
+      } else if (isOptimalClear) {
+        recSub.textContent = "Current loadout is optimal for push (Fastest Clear Active)";
       } else if (isTargetOnly) {
         recSub.textContent = (mode === "push")
           ? "Target clear setup (Upgrades needed)"
@@ -2888,8 +3028,9 @@ var ONE_TIMER_MILESTONES = [
 
     var metrics = [];
     metrics.push(lvlTagPill);
-    metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(activeBuild.d) + "/s</span>");
-    if (activeBuild.k != null) metrics.push("<span class='pill sm info'>" + ICONS.clock + " " + activeBuild.k + "s kills</span>");
+    var dispD = activeBuild.d || (isOptimalClear ? rate : 0);
+    if (dispD > 0) metrics.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(dispD) + "/s</span>");
+    if (activeBuild.k != null && isFinite(activeBuild.k)) metrics.push("<span class='pill sm info'>" + ICONS.clock + " ~" + Number(activeBuild.k).toFixed(1) + "s kills" + (isOptimalClear ? " (Fastest)" : "") + "</span>");
     if (activeBuild.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((activeBuild.wr <= 1 ? activeBuild.wr : activeBuild.wr / 100) * 100) + "% WR</span>");
     if (summaryInfo && summaryInfo.clearSec > 0) {
       metrics.push("<span class='pill sm info' title='Anticipated time to clear SA " + state.level + " (" + prettify(summaryInfo.remainingKills) + " kills @ " + summaryInfo.secPerKill.toFixed(1) + "s/kill)'>" + ICONS.clock + " Clear: ~" + esc(summaryInfo.clearTimeStr) + "</span>");
@@ -2915,7 +3056,10 @@ var ONE_TIMER_MILESTONES = [
     if (isPlanLocked) {
       statusPills.push("<span class='pill sm accent'>" + ICONS.lock + " Active Plan</span>");
     }
-    if (isTargetOnly) {
+    if (isOptimalClear) {
+      statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Fastest Clear Active</span>");
+      statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Optimal &amp; In Play</span>");
+    } else if (isTargetOnly) {
       statusPills.push("<span class='pill sm warn-pill'>" + ICONS.bolt + " " + remSteps + " Upgrade" + (remSteps === 1 ? "" : "s") + " Needed</span>");
     } else if (targetDelta.aligned) {
       statusPills.push("<span class='pill sm buy'>" + ICONS.check + " Active &amp; Aligned</span>");
@@ -2961,13 +3105,20 @@ var ONE_TIMER_MILESTONES = [
         "</div>";
     }
 
-    var headPrefix = isPlanLocked ? "Target Plan:" : (isTargetOnly ? "Target Build:" : "Recommended Build:");
-    var swapTitle = isPlanLocked ? "Steps to Initiate Plan · Loadout & Ring Changes" : (isTargetOnly ? "Steps to Initiate Plan · Loadout & Ring Changes" : "Steps to Initiate Build · Loadout & Ring Changes");
-    var swapGuideHtml = renderAlignmentGuide(activeBuild, targetDelta, swapTitle);
+    var headPrefix = isPlanLocked ? "Target Plan:" : (isOptimalClear ? "Current Loadout (Optimal Clear):" : (isTargetOnly ? "Target Build:" : "Recommended Build:"));
+    var swapTitle = isPlanLocked ? "Steps to Initiate Plan · Loadout & Ring Changes" : (isOptimalClear ? "Current Combat Loadout · Fully Aligned" : (isTargetOnly ? "Steps to Initiate Plan · Loadout & Ring Changes" : "Steps to Initiate Build · Loadout & Ring Changes"));
+    var swapGuideHtml = isOptimalClear
+      ? ("<div class='delta-box' style='margin-top:4px;border-color:rgba(45,206,137,0.35);background:color-mix(in srgb,var(--buy) 6%,var(--surface-solid));'>" +
+          "<div class='delta-title' style='color:var(--buy);'>" + ICONS.check + "<span>Current Loadout Is Optimal · No Slower Swaps Recommended</span></div>" +
+          "<div style='color:var(--muted);font-size:12px;'>Your current equipped items clear SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill, which is faster than all recorded runnable sheet builds. Keep this loadout active while pushing.</div>" +
+          "</div>")
+      : renderAlignmentGuide(activeBuild, targetDelta, swapTitle);
 
     var explText = "";
     if (isPlanLocked && rec && rec.n !== activeBuild.n) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your plan <b>" + esc(activeBuild.n) + "</b>. Currently running: <b>" + esc(rec.n) + "</b> (" + prettify(rec.d) + "/s). Follow the swap guide above and the Next Upgrade Advisor on the right to transition.</span></div>";
+    } else if (isOptimalClear) {
+      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Your current equipped loadout clears SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill. No faster runnable clear build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.</span></div>";
     } else if (isTargetOnly) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No sheet build on SA " + state.level + " is currently runnable with your items and levels. Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). Follow the swap guide above and the Next Upgrade Advisor on the right to progress toward this build.</span></div>";
     } else if (activeBuild.note) {
@@ -3906,6 +4057,11 @@ var ONE_TIMER_MILESTONES = [
       } else {
         why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (" + pick.remaining + " " + remWord + " remaining). Mid-plan recommendations will not switch until you click Unlock.";
       }
+    } else if (pick.mode === "upgradeValue") {
+      var saveNote = (pick.deltaSecPerKill && pick.deltaSecPerKill > 0)
+        ? (" (saving ~" + pick.deltaSecPerKill.toFixed(1) + "s per kill)")
+        : "";
+      why = "Your current loadout clears SA " + state.level + " in ~" + (pick.currentCombatSec ? pick.currentCombatSec.toFixed(1) : "6.6") + "s per kill (faster than all recorded runnable sheet builds). The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + saveNote + " as the highest-value upgrade to improve combat performance.";
     } else if (pick.mode === "unlocks") {
       why = (mode === "push")
         ? "Largest clear time improvement among single-step upgrades that immediately unlock a faster sheet build (click Lock Plan to latch)."
@@ -3925,11 +4081,15 @@ var ONE_TIMER_MILESTONES = [
 
     var kickerHtml = pick.isLocked
       ? "<div class='next-kicker' style='color:var(--accent);'>" + ICONS.target + " Active Plan</div>"
-      : "<div class='next-kicker'>Recommended Next Action</div>";
+      : (pick.mode === "upgradeValue"
+        ? "<div class='next-kicker' style='color:var(--buy);'>" + ICONS.bolt + " Optimal Clear Active · Upgrade Value Recommendation</div>"
+        : "<div class='next-kicker'>Recommended Next Action</div>");
 
-    var pillInner = (pick.mode === "unlocks" || totalPlanSteps === 1)
-      ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
-      : "<span class='pill sm info'>" + ICONS.clock + " Step " + currentStepNum + " of " + totalPlanSteps + "</span>";
+    var pillInner = (pick.mode === "upgradeValue")
+      ? "<span class='pill sm buy'>" + ICONS.bolt + " #1 Upgrade Value</span>"
+      : ((pick.mode === "unlocks" || totalPlanSteps === 1)
+        ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
+        : "<span class='pill sm info'>" + ICONS.clock + " Step " + currentStepNum + " of " + totalPlanSteps + "</span>");
     var badgeHtml = "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
     var waitBadge = wait === 0
       ? "<span class='pill sm buy' id='advisorWaitBadge'>" + ICONS.check + " Ready now</span>"
@@ -3957,8 +4117,34 @@ var ONE_TIMER_MILESTONES = [
           return "<span class='pill sm' id='advPlanBuildTime' title='Farming time to unlock " + esc(pick.build.n) + ": " + pSum.buildTimeStr + " (SA " + state.level + " already cleared)'>" +
             ICONS.hammer + " Build: " + pSum.buildTimeStr + "</span>";
         }
-        return "<span class='pill sm' id='advPlanBuildTime' title='Farming time to unlock " + esc(pick.build.n) + ": " + pSum.buildTimeStr + " · Clear time with " + esc(pick.build.n) + ": ~" + pSum.clearTimeStr + (pSum.totalTimeStr ? (" (Total: ~" + pSum.totalTimeStr + ")") : "") + "'>" +
+        var mainPill = "<span class='pill sm' id='advPlanBuildTime' title='Farming time to unlock " + esc(pick.build.n) + ": " + pSum.buildTimeStr + " · Clear time with " + esc(pick.build.n) + ": ~" + pSum.clearTimeStr + (pSum.totalTimeStr ? (" (Total: ~" + pSum.totalTimeStr + ")") : "") + "'>" +
           ICONS.clock + " Build: " + pSum.buildTimeStr + " · Clear: ~" + pSum.clearTimeStr + "</span>";
+
+        if (mode === "push") {
+          var curK = getCurrentCombatSecPerKill(state.level);
+          if (!curK || curK <= 0) {
+            curK = pick.currentCombatSec || (rec ? buildSecPerKill(rec, state.level) : 15);
+          }
+          var targetK = pSum.secPerKill;
+          var curClearSec = pSum.remainingKills * curK;
+          var newClearSec = pSum.clearSec;
+          var savedSec = (curK > targetK && pSum.remainingKills > 0) ? Math.max(0, curClearSec - newClearSec) : 0;
+          if (pick.mode === "upgradeValue" && pick.deltaSecPerKill && pick.deltaSecPerKill > 0 && pSum.remainingKills > 0) {
+            var simSaved = pSum.remainingKills * pick.deltaSecPerKill;
+            if (simSaved > savedSec) {
+              savedSec = simSaved;
+            }
+          }
+          if (savedSec > 0) {
+            var savedTitle = "Time saved to clear SA " + state.level + " if this upgrade is performed\n" +
+              "• Current estimated clear time: ~" + fmtDuration(curClearSec) + " (~" + curK.toFixed(1) + "s/kill)\n" +
+              "• Estimated clear time after upgrade: ~" + fmtDuration(newClearSec) + " (~" + targetK.toFixed(1) + "s/kill)\n" +
+              "• Time saved (Δ): ~" + fmtDuration(savedSec) + " across " + prettify(pSum.remainingKills) + " remaining kills";
+            mainPill += "<span class='pill sm buy' id='advPlanSavedTime' title='" + esc(savedTitle) + "'>" +
+              ICONS.bolt + " Saved: ~" + fmtDuration(savedSec) + "</span>";
+          }
+        }
+        return mainPill;
       })() +
       (function () {
         var pMatch = findBestPresetMatch(pick.build);
@@ -3973,6 +4159,13 @@ var ONE_TIMER_MILESTONES = [
         return "";
       })() +
       (function () {
+        if (pick.mode === "upgradeValue") {
+          var gainTxt = (pick.gain && pick.gain > 0) ? ("+" + prettify(pick.gain) + "/s Δ Dust") : "";
+          var payTxt = (pick.paybackSec && isFinite(pick.paybackSec) && pick.paybackSec > 0) ? ("Payback ~" + fmtTime(pick.paybackSec)) : "";
+          return (gainTxt ? ("<span class='pill sm buy'>" + ICONS.dust + " " + esc(gainTxt) + "</span>") : "") +
+            (payTxt ? ("<span class='pill sm info'>" + ICONS.clock + " " + esc(payTxt) + "</span>") : "") +
+            "<span class='pill sm accent' style='cursor:pointer;' onclick=\"window.saOpenSimTab&&saOpenSimTab('sensitivity')\" title='Open Simulator Upgrade Value analysis'>⚔️ View in Simulator</span>";
+        }
         if (mode === "push") {
           var targetK = buildSecPerKill(pick.build, state.level);
           var recK = rec ? buildSecPerKill(rec, state.level) : null;
@@ -5405,7 +5598,8 @@ function renderPresetsModal() {
 
       renderSimSandboxUI();
       startSimSession();
-      switchSimTab("arena");
+      var targetTab = (options && options.tab) ? options.tab : "arena";
+      switchSimTab(targetTab);
 
       if (typeof dlg.showModal === "function") dlg.showModal();
       else dlg.setAttribute("open", "");
@@ -6582,6 +6776,9 @@ function renderPresetsModal() {
     document.addEventListener("visibilitychange", function () {
       if (!document.hidden) updateLiveBank();
     });
+    window.saOpenSimTab = function (tabName) {
+      openSimModal(null, { tab: tabName || "sensitivity" });
+    };
     window.addEventListener("hashchange", function () {
       loadSharedBuildFromHash(true);
     });

@@ -3444,6 +3444,7 @@ function createRawAutoBattle(game, u2Mutations) {
       ringCfg.rings.level = ringCfg.ring.level;
       var ringSim = SASimEngine.runBatch(ringCfg, { kills: options.maxKills || 30, maxFights: 40 });
       var ringDelta = ringSim.dustPs - baseline.dustPs;
+      var ringDeltaK = Math.max(0, (baseline.secPerKill || 0) - (ringSim.secPerKill || 0));
       results.push({
         type: 'ring',
         key: 'ring',
@@ -3455,6 +3456,9 @@ function createRawAutoBattle(game, u2Mutations) {
         baselineDustPs: baseline.dustPs,
         newDustPs: ringSim.dustPs,
         deltaDustPs: ringDelta,
+        baselineSecPerKill: baseline.secPerKill,
+        newSecPerKill: ringSim.secPerKill,
+        deltaSecPerKill: ringDeltaK,
         paybackSec: ringDelta > 0 ? ((Math.ceil(15 * Math.pow(2, cfg.ring.level)) * 1e9) / ringDelta) : Infinity,
         pctGain: baseline.dustPs > 0 ? ((ringDelta / baseline.dustPs) * 100) : 0
       });
@@ -3475,6 +3479,7 @@ function createRawAutoBattle(game, u2Mutations) {
 
         var sim = SASimEngine.runBatch(testCfg, { kills: options.maxKills || 30, maxFights: 40 });
         var delta = sim.dustPs - baseline.dustPs;
+        var deltaK = Math.max(0, (baseline.secPerKill || 0) - (sim.secPerKill || 0));
         var label = (typeof itemName === 'function' ? itemName(k) : k.replace(/_/g, ' ')) + ' Lv ' + curLv + ' → ' + (curLv + 1);
 
         var itemCost = 0;
@@ -3506,6 +3511,9 @@ function createRawAutoBattle(game, u2Mutations) {
           baselineDustPs: baseline.dustPs,
           newDustPs: sim.dustPs,
           deltaDustPs: delta,
+          baselineSecPerKill: baseline.secPerKill,
+          newSecPerKill: sim.secPerKill,
+          deltaSecPerKill: deltaK,
           paybackSec: itemPaybackSec,
           pctGain: baseline.dustPs > 0 ? ((delta / baseline.dustPs) * 100) : 0
         });
