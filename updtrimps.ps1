@@ -92,7 +92,7 @@ try {
   }
   # --- Copy only files that are new or changed (skip .git, .vscode); skip local-owned files when they already exist ---
   # Do not overwrite local-owned files when they already exist. Overlay CSS/JS are
-  # rewritten from here-strings below; sa.html is the self-contained planner (not a here-string).
+  # rewritten from here-strings below; sa.html and surky.html are self-contained planners (not here-strings).
   $localOwnedFiles = @{
     'index.html' = $true
     'manifest.json' = $true
@@ -102,6 +102,7 @@ try {
     'js\kreftus-local.js' = $true
     'js/kreftus-local.js' = $true
     'sa.html' = $true
+    'surky.html' = $true
     'icons\192.png' = $true
     'icons/192.png' = $true
     'icons\512.png' = $true
@@ -114,8 +115,8 @@ try {
     $rel = $_.FullName.Substring($cloneBaseLen)
     $dest = Join-Path $trimpsPath $rel
     $relNorm = $rel -replace '\\', '/'
-    $saBuildOwned = $relNorm -eq 'sa-build' -or $relNorm.StartsWith('sa-build/')
-    if (($localOwnedFiles.ContainsKey($rel) -or $saBuildOwned) -and (Test-Path -LiteralPath $dest)) {
+    $buildOwned = $relNorm -match '^(sa|surky)-build(/|$)'
+    if (($localOwnedFiles.ContainsKey($rel) -or $buildOwned) -and (Test-Path -LiteralPath $dest)) {
       Write-Verbose "Skipped (local owned): $rel"
       $skipCount++
       return 
@@ -517,16 +518,18 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v50';
+const CACHE_NAME = 'trimps-v54';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
+  'sa.html',
+  'surky.html',
   'manifest.json',
   'css/kreftus-local.css',
-  'css/kreftus-local.css?30',
+  'css/kreftus-local.css?72',
   'js/kreftus-local.js',
-  'js/kreftus-local.js?30',
+  'js/kreftus-local.js?50',
   'icons/192.png',
   'icons/512.png',
   'favicon.ico'
@@ -558,7 +561,13 @@ self.addEventListener('activate', function (event) {
 
 function isLocalOverlay(request, url) {
   var path = url.pathname + url.search;
-  return request.destination === 'style' || request.destination === 'script' || /kreftus-local\.(css|js)/i.test(path);
+  return (
+    request.mode === 'navigate' ||
+    request.destination === 'document' ||
+    request.destination === 'style' ||
+    request.destination === 'script' ||
+    /kreftus-local\.(css|js)|sa\.html|surky\.html/i.test(path)
+  );
 }
 
 self.addEventListener('fetch', function (event) {

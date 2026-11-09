@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trimps Surky Perk Optimizer &mdash; Documentation</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffc061'/%3E%3Cstop offset='0.55' stop-color='%23f7931a'/%3E%3Cstop offset='1' stop-color='%23d86f00'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%231a1000'/%3E%3Cellipse cx='32' cy='32' rx='22' ry='9' fill='none' stroke='%231a1000' stroke-width='3.6' transform='rotate(-30 32 32)'/%3E%3Cellipse cx='32' cy='32' rx='22' ry='9' fill='none' stroke='%231a1000' stroke-width='3.6' transform='rotate(30 32 32)'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "Cascadia Code", "SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+      --radius: 12px;
+    }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #08090c;
+      --bg2: #14171f;
+      --bg-grad: radial-gradient(1100px 600px at -10% -15%, rgba(247, 147, 26, 0.13), transparent 60%),
+                 radial-gradient(900px 520px at 110% -10%, rgba(96, 165, 250, 0.09), transparent 60%);
+      --surface: rgba(20, 23, 31, 0.85);
+      --surface-solid: #14171f;
+      --surface-2: #191d27;
+      --surface-3: #222736;
+      --card: #191d27;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text: #e8ecf4;
+      --muted: #8b94a7;
+      --faint: #5f687c;
+      --accent: #f7931a;
+      --accent-soft: rgba(247, 147, 26, 0.14);
+      --buy: #22c55e;
+      --buy-soft: rgba(34, 197, 94, 0.14);
+      --warn: #fbbf24;
+      --warn-soft: rgba(251, 191, 36, 0.14);
+      --bad: #f43f5e;
+      --info: #60a5fa;
+      --info-soft: rgba(96, 165, 250, 0.14);
+      --teal: #2dd4bf;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      --code-bg: #12151c;
+      --code-border: rgba(255, 255, 255, 0.08);
+    }
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: #f3f4f7;
+      --bg2: #ffffff;
+      --bg-grad: radial-gradient(1100px 600px at -10% -15%, rgba(228, 125, 0, 0.10), transparent 60%),
+                 radial-gradient(900px 520px at 110% -10%, rgba(37, 99, 235, 0.07), transparent 60%);
+      --surface: rgba(255, 255, 255, 0.90);
+      --surface-solid: #ffffff;
+      --surface-2: #f6f7fa;
+      --surface-3: #eaedf2;
+      --card: #ffffff;
+      --border: rgba(15, 23, 42, 0.09);
+      --border-strong: rgba(15, 23, 42, 0.18);
+      --text: #0f172a;
+      --muted: #5b6478;
+      --faint: #959cad;
+      --accent: #e47d00;
+      --accent-soft: rgba(228, 125, 0, 0.11);
+      --buy: #16a34a;
+      --buy-soft: rgba(22, 163, 74, 0.11);
+      --warn: #d97706;
+      --warn-soft: rgba(217, 119, 6, 0.12);
+      --bad: #e11d48;
+      --info: #2563eb;
+      --info-soft: rgba(37, 99, 235, 0.10);
+      --teal: #0d9488;
+      --shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+      --code-bg: #e9ecef;
+      --code-border: rgba(15, 23, 42, 0.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font);
+      background-color: var(--bg);
+      background-image: var(--bg-grad);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---------- Header / Nav ---------- */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .nav-brand-logo {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #ffc061, #f7931a 55%, #d86f00);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #1a1000;
+      box-shadow: 0 0 14px rgba(247, 147, 26, 0.4);
+    }
+    .nav-brand-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--surface-3);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .pill.accent { background: var(--accent-soft); color: var(--accent); border-color: rgba(247, 147, 26, 0.35); }
+    .pill.buy { background: var(--buy-soft); color: var(--buy); border-color: rgba(34, 197, 94, 0.35); }
+    .pill.info { background: var(--info-soft); color: var(--info); border-color: rgba(96, 165, 250, 0.35); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .nav-btn:hover {
+      background: var(--surface-3);
+      border-color: var(--border-strong);
+    }
+    .nav-btn.accent {
+      background: var(--accent-soft);
+      border-color: rgba(247, 147, 26, 0.35);
+      color: var(--accent);
+    }
+    .nav-btn.accent:hover {
+      background: rgba(247, 147, 26, 0.22);
+    }
+
+    /* ---------- Container & Markdown Article ---------- */
+    .page-wrap {
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 64px;
+      flex: 1;
+    }
+
+    /* Jump TOC Bar */
+    .toc-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .toc-title {
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toc-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .toc-chip {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 7px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .toc-chip:hover {
+      color: var(--accent);
+      border-color: rgba(247, 147, 26, 0.4);
+      background: var(--accent-soft);
+    }
+
+    /* Markdown Body */
+    .markdown-body {
+      color: var(--text);
+      font-size: 14.5px;
+      line-height: 1.7;
+    }
+    .markdown-body h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin: 0 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .markdown-body h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin: 36px 0 16px;
+      color: var(--text);
+      scroll-margin-top: 70px;
+    }
+    .markdown-body h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 24px 0 12px;
+      color: var(--accent);
+      scroll-margin-top: 70px;
+    }
+    .markdown-body h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 18px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .markdown-body p, .markdown-body ul, .markdown-body ol {
+      margin: 0 0 16px;
+    }
+    .markdown-body ul, .markdown-body ol {
+      padding-left: 24px;
+    }
+    .markdown-body li {
+      margin-bottom: 6px;
+    }
+    .markdown-body a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .markdown-body a:hover {
+      text-decoration: underline;
+    }
+    .markdown-body hr {
+      height: 1px;
+      border: 0;
+      background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+      margin: 32px 0;
+    }
+    .markdown-body blockquote {
+      margin: 18px 0;
+      padding: 12px 18px;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      color: var(--text);
+    }
+    .markdown-body blockquote p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Inline Code & Code Blocks */
+    .markdown-body code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 5px;
+      color: var(--accent);
+    }
+    .markdown-body pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-x: auto;
+      margin: 18px 0;
+      position: relative;
+    }
+    .markdown-body pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      font-size: 13px;
+      color: var(--text);
+      display: block;
+      line-height: 1.5;
+    }
+
+    /* Tables */
+    .markdown-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 24px;
+      font-size: 13px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .markdown-body th {
+      text-align: left;
+      padding: 10px 14px;
+      background: var(--surface-3);
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border-strong);
+      font-weight: 700;
+    }
+    .markdown-body td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .markdown-body tr:last-child td {
+      border-bottom: 0;
+    }
+    .markdown-body tr:hover td {
+      background: var(--surface-3);
+    }
+
+    /* Footer */
+    .page-footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 20px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--surface);
+    }
+    .page-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .page-footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body id="top">
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="top-nav">
+    <a href="../surky.html" class="nav-brand" title="Open Surky Perk Optimizer">
+      <div class="nav-brand-logo">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/>
+          <ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(-30 12 12)"/>
+          <ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(30 12 12)"/>
+        </svg>
+      </div>
+      <div class="nav-brand-title">
+        <span>Surky Perk Optimizer</span>
+        <span class="pill accent">Documentation</span>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <a href="../surky.html" class="nav-btn accent" title="Open the Surky Universe 2 Perk Optimizer">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Open Optimizer</span>
+      </a>
+      <a href="README.md" class="nav-btn" title="View raw Markdown source">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Raw MD</span>
+      </a>
+      <button type="button" class="nav-btn" id="themeBtn" title="Toggle theme">
+        <span id="themeIco">☀️</span>
+        <span id="themeTxt">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Page Content Container -->
+  <main class="page-wrap">
+    <!-- Dynamic Jump TOC -->
+    <nav class="toc-card" id="tocCard" style="display:none;">
+      <div class="toc-title">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>Quick Navigation</span>
+      </div>
+      <div class="toc-chips" id="tocChips"></div>
+    </nav>
+
+    <!-- Markdown Target -->
+    <article class="markdown-body" id="readmeContent">
+      <div style="padding:40px;text-align:center;color:var(--muted);">Loading Surky Perk Optimizer Documentation&hellip;</div>
+    </article>
+  </main>
+
+  <!-- Footer -->
+  <footer class="page-footer">
+    <div>Trimps Surky Perk Optimizer &middot; <a href="../surky.html">Launch Application</a> &middot; <a href="README.md">Raw Markdown</a> &middot; <a href="#top">Back to Top &uarr;</a></div>
+  </footer>
+
+  <!-- Embedded Markdown Fallback for Offline / local file:// Protocol -->
+  <script type="text/markdown" id="embeddedReadme">
+# Trimps Surky Perk Optimizer (`trimps/surky.html`)
+
+A self-contained, offline-ready single-page application ([`trimps/surky.html`](../surky.html)) for optimizing **Trimps Universe 2 (Radon) perks**, evaluating preset weight profiles, and calculating Golden Upgrade, Runetrinket, and zone-push recommendations.
+
+Built on top of **Surky** by **[nsheetz](https://github.com/nsheetz/perks)** ([upstream live calculator](https://nsheetz.github.io/perks/), original UI adapted from **justme**), wrapped in a non-destructive build pipeline (`trimps/surky-build/`) that preserves 100% of upstream perk math while adding a modern dark/light theme overhaul, one-click clipboard import/export with save validation, live status pills, and keyboard shortcuts.
+
+---
+
+## ✨ Features & User Guide
+
+### 1. Universe 2 Radon Perk Optimization Engine
+- **Marginal Efficiency Ranking**: Evaluates every unlocked Universe 2 perk (`Resilience`, `Masterfulness`, `Criticality`, `Prismal`, `Tenacity`, `Greed`, `Frenzy`, `Meta-Leaching`, `Championism`, `Observation`, `Carpentry`, `Expansion`, `Smithology`, `Hunger`, `Artisanistry`, `Equality`, `Motivation`, `Looting`, `Power`, `Toughness`, `Range`, `Agility`, `Bait`, `Trumps`, `Pheromones`) and highlights rows by relative marginal efficiency ("the greener, the better").
+- **Best Next Perk Indicator**: Automatically surfaces the single highest-efficiency next perk in the top header bar (`Best: <Perk>`) and highlights its row in the perk list.
+- **Autobuy Modes**:
+  - **Autobuy (respec available)** (`A`): Clears unlocked, non-level-locked perks and purchases the optimal Radon allocation from scratch.
+  - **Autobuy (no respec)** (`B`): Retains your current perk levels and spends only remaining unallocated Radon on optimal upgrades.
+- **Granular Level Locks**: Toggle **Show level locks** to pin individual perks at fixed minimum levels while optimizing the rest of your Radon budget.
+- **Strategy Callouts**: Automatically computes Golden Upgrade buying order (`Suggested GU strategy`), Runetrinket farming projections, and next trinket-cache zone push value.
+
+---
+
+### 2. Built-In Challenge & Playstyle Presets
+Select from 14 curated preset profiles in the right-hand panel:
+
+- **Basic Presets**:
+  - **Easy Radon Challenge**: Pure Radon/trinket farming when completing your Radon challenge requires minimal combat push.
+  - **Tough Radon Challenge**: Balanced Attack, Health/Equality, and Radon weights for standard progression runs.
+  - **Push / C^3 / Mayhem**: Maximizes combat and survivability stats with zero weight on Radon growth.
+- **Special Challenge Presets**:
+  - **Alchemy**: Optimizes for Runetrinket drop rate alongside Finding Potions.
+  - **Trappa** & **Max Carpentry**: Tailored for Trappapalooza trapping hours or pre-portal Carpentry maxing.
+  - **Downsize**, **Berserk/^3**, **Smithless/^3**, **Duel/^3**: Applies challenge-specific mechanical rules (housing limits, Frenzy disable, Smithology disable, sub-100% crit chance).
+  - **Equipment farming**, **Combat Respec**, **Resource farming (+maps / -maps)**: Specialized mid-run or pre-respec optimization modes.
+
+---
+
+### 3. Enhanced Copy & Paste Workflow
+- **One-Click Paste Save (`V`)**:
+  - Click **Paste Save** in the sticky header, click **Paste from Clipboard** below the save box, or press `V` anywhere on the page.
+  - **Pre-Flight Save Validation**: Decompresses and inspects the clipboard payload *before* touching your active session. Distinguishes valid Trimps save strings from perk export strings or unrelated clipboard text and displays a clear toast notification instead of overwriting your save box with an error message.
+  - **Auto-Collapsing Save Panel (`U`)**: Once a valid save is imported, the save acquisition panel automatically collapses to maximize screen space for perks and run inputs. Click **Update Save** (`U`) in the header at any time to expand the panel, inspect or retrieve your raw save string, or paste a new save (`Esc` collapses it back).
+- **One-Click Copy Perks (`C`)**:
+  - Click **Copy Perks** in the header, click **Copy** next to the export field, or press `C`.
+  - Automatically runs `exportPerkString()`, copies the LZString-compressed perk allocation to your clipboard via the async Clipboard API (with `execCommand` fallback), and displays a confirmation toast ready for **Trimps → Portal → Import Perks**.
+- **Shared Browser Save Integration (`L`)**:
+  - When hosted on the same origin as other Trimps tools that store a save in `localStorage` (`saPlanner.saveString`), a **Use Saved Save** button automatically appears in the header and save toolbar for 1-click loading.
+- **Restore Previous Save (`R`)**:
+  - Instantly reloads the last Trimps save imported into Surky from `localStorage` (`trimpsSave`).
+
+---
+
+### 4. Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `V` | Paste and validate Trimps save string from clipboard |
+| `U` | Expand / collapse the save acquisition panel to edit or retrieve your save string |
+| `C` | Export and copy compressed perk string to clipboard |
+| `A` | Clear & Autobuy optimal perks (respec available) |
+| `B` | Autobuy optimal perks keeping current levels (no respec) |
+| `R` | Restore previous save stored in Surky |
+| `L` | Load shared save string from browser `localStorage` (when available) |
+| `T` | Toggle between Dark and Light themes |
+| `?` | Open the Shortcuts, Workflow & Credits dialog |
+
+---
+
+## 🎨 Design System & Theme Overhaul (`theme.css`)
+
+`theme.css` is injected after the upstream stylesheet to harmonize every visual surface with our dark/light design system while leaving Surky's DOM IDs and calculation hooks untouched:
+
+| Upstream Element / Class | Overhauled Design Token / Treatment |
+|---|---|
+| `body`, `.container-fluid` | Ambient `#08090c` dark canvas (`#f3f4f7` light) with subtle orange/blue radial gradients and centered `1480px` max-width container. |
+| `#perks-col`, `#aux-col`, `.form-group` | Elevated `--surface` cards (`#14171f` / `#ffffff`) with `14px` border radius, subtle 1px borders, and ambient shadows. |
+| `.bg-success` / `.bg-success-dark` | Semantic emerald surface (`--buy-soft`) with a 3px solid `--buy` (`#22c55e`) left accent bar for required user inputs. |
+| `.bg-primary` / `.bg-primary-dark` | Semantic royal-blue surface (`--info-soft`) with a 3px solid `--info` (`#60a5fa`) left accent bar for fields loaded from any save. |
+| `.bg-danger` / `.bg-danger-dark` | Semantic rose surface (`--sell-soft`) with a 3px solid `--sell` (`#f43f5e`) left accent bar for end-of-run U2 save fields. |
+| `.bg-warning` / `.bg-warning-dark` | Semantic amber surface (`--warn-soft`) with a 3px solid `--warn` (`#fbbf24`) left accent bar for challenge-specific fields and input warnings. |
+| `.form-control`, `#preset-select` | Monospace tabular-numeral inputs (`--mono`) on `--surface-2` with orange accent focus rings (`--accent`). |
+| `#input-dark-mode` | Replaced by the sticky header Dark/Light toggle (`#btnTopTheme`), which synchronizes both `data-theme` and Surky's internal `props.darkMode` opacity math. |
+
+---
+
+## 🧩 Non-Destructive Overlay Architecture
+
+Rather than hand-editing a fork of `nsheetz/perks`, `surky-build/` keeps the pristine upstream `index.html` in `upstream/index.html` and applies our theme and UX layer at build time via `assemble.py`.
+
+### Structural Injection Anchors
+`assemble.py` verifies that all 7 structural regex anchors match **exactly once** before building. If an upstream update alters the page structure in a way that breaks any anchor, the build aborts with a diagnostic error and leaves your existing `surky.html` untouched:
+
+| Anchor | Pattern | Purpose |
+|---|---|---|
+| `html_open` | `<html>` | Prepends `<!DOCTYPE html>`, build provenance comment, and `<html lang="en" data-theme="dark">`. |
+| `head_open` | `<head>` | Injects [`head-inject.html`](./head-inject.html) (strict CSP, metadata, inline SVG favicon, pre-paint theme script). |
+| `title_tag` | `<title>.*?</title>` | Sets clean page title (`Surky Perk Optimizer — Trimps`). |
+| `style_head_close` | `</style>\s*</head>` | Appends [`theme.css`](./theme.css) inside `<style id="surky-sa-theme">` right after upstream CSS. |
+| `body_open` | `<body>` | Injects [`body-inject.html`](./body-inject.html) (sticky header, status pills, toast host, help dialog). |
+| `main_script` | `<script type="text/javascript">...</script>` | Extracts upstream JS for `node --check` validation and appends [`overlay.js`](./overlay.js). |
+| `body_close` | `</body>` | Validates document termination. |
+
+### Stripped External Dependencies (100% Offline & CSP-Safe)
+Upstream `index.html` references 6 Google Fonts `@font-face` blocks (`fonts.gstatic.com`) and 3 unused CDN `<script>` tags (`code.jquery.com`, `cdnjs.cloudflare.com/ajax/libs/popper.js`, `maxcdn.bootstrapcdn.com/bootstrap`). `assemble.py` strips these automatically and runs a post-assembly **self-containment check** confirming zero external scripts, stylesheets, fonts, or parent-directory (`../`) asset dependencies remain.
+
+---
+
+## 📦 Standalone Self-Hosting & Portability
+
+- **To host the calculator**: Copy [`trimps/surky.html`](../surky.html) to any static web server, GitHub Pages site, or open it directly via `file://`. It has **zero external file or network dependencies**.
+- **To rebuild or pull upstream updates**: Copy the `surky-build/` folder anywhere. It requires only **Python 3** (standard library only; no `pip` packages) and **PowerShell** (`node` and `git` are optional enhancements for syntax checking and working-tree diff display).
+
+---
+
+## 📁 Architecture & File Layout
+
+| File | Purpose |
+|---|---|
+| [`upstream/index.html`](./upstream/index.html) | Pristine, unmodified snapshot of `index.html` from [`github.com/nsheetz/perks`](https://github.com/nsheetz/perks). |
+| [`upstream.json`](./upstream.json) | Upstream commit SHA, commit date, commit message, fetch timestamp, and SHA-256 checksum. |
+| [`head-inject.html`](./head-inject.html) | Content-Security-Policy, metadata, inline SVG data-URI icons, and pre-paint theme initializer. |
+| [`body-inject.html`](./body-inject.html) | Sticky top header bar, live status pills, animated action buttons, toast container, and help `<dialog>`. |
+| [`theme.css`](./theme.css) | Dark & light design system variables, card surfaces, semantic field highlights, and responsive grid overrides. |
+| [`overlay.js`](./overlay.js) | Non-invasive IIFE handling clipboard paste/copy, save validation, theme sync, status pills, and keyboard shortcuts. |
+| [`fetch_upstream.py`](./fetch_upstream.py) | Python downloader that pulls the latest `nsheetz/perks` commit metadata and `index.html` snapshot. |
+| [`assemble.py`](./assemble.py) | Anchor-checked Python bundler that strips CDN tags, injects overlays, verifies self-containment, and writes `surky.html` (CRLF). |
+| [`refresh.ps1`](./refresh.ps1) | PowerShell build pipeline coordinating upstream fetch, `node --check` syntax validation, diff reporting, and assembly. |
+| [`README.html`](./README.html) | Interactive HTML documentation viewer with live Markdown rendering, Dark/Light theme toggle, and `file://` fallback. |
+
+---
+
+## 🚀 Build Pipeline (`refresh.ps1`)
+
+Run from PowerShell inside `trimps/surky-build/`:
+
+```powershell
+# Fast build: Validates JavaScript syntax and compiles surky.html from local files
+.\refresh.ps1 -AssembleOnly
+
+# Standard offline build: Validates snapshot + overlays and compiles ..\surky.html
+.\refresh.ps1
+
+# Fresh upstream sync: Downloads latest nsheetz/perks index.html, reports perk/preset diffs, and rebuilds surky.html
+.\refresh.ps1 -Fresh
+
+# Pin to a specific upstream commit or branch and output to a custom path
+.\refresh.ps1 -Fresh -Ref c57fd98 -OutFile C:\path\to\surky.html
+```
+
+### Script Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `-AssembleOnly` | Switch | Skips upstream snapshot fetch and rapidly validates & compiles `surky.html` from local files. |
+| `-Fresh` | Switch | Downloads the latest `index.html` and commit metadata from `github.com/nsheetz/perks` before rebuilding. |
+| `-Ref` | String | Git branch or commit SHA to fetch when `-Fresh` is specified (default: `master`). |
+| `-OutFile` | String | Custom output file path (default: `..\surky.html` relative to `surky-build/`). |
+| `-Help` | Switch | Displays full parameter documentation and usage examples. |
+
+---
+
+## 🛡️ Upstream Protection (`updtrimps.ps1`)
+
+When hosted inside the main Trimps repository, `updtrimps.ps1` synchronizes `trimps/` with upstream `Trimps.github.io` while explicitly preserving both `trimps/surky.html` and the entire `trimps/surky-build/` directory alongside `trimps/sw.js` offline precaching.
+  </script>
+
+  <!-- Marked Parser from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" crossorigin="anonymous"></script>
+
+  <script>
+    // ---------- Theme Management ----------
+    function initTheme() {
+      var saved = "dark";
+      try {
+        saved = localStorage.getItem("saPlanner.theme") || "dark";
+      } catch (e) {}
+      applyTheme(saved);
+
+      var btn = document.getElementById("themeBtn");
+      if (btn) {
+        btn.addEventListener("click", function() {
+          var cur = document.documentElement.getAttribute("data-theme") || "dark";
+          var next = cur === "dark" ? "light" : "dark";
+          applyTheme(next);
+          try {
+            localStorage.setItem("saPlanner.theme", next);
+          } catch (e) {}
+        });
+      }
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      var ico = document.getElementById("themeIco");
+      var txt = document.getElementById("themeTxt");
+      if (ico && txt) {
+        if (theme === "dark") {
+          ico.textContent = "☀️";
+          txt.textContent = "Light";
+        } else {
+          ico.textContent = "🌙";
+          txt.textContent = "Dark";
+        }
+      }
+    }
+
+    initTheme();
+
+    // ---------- Offline Markdown Parser Fallback ----------
+    function formatInlineMd(s) {
+      return s
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    }
+
+    function fallbackMarkdownParse(md) {
+      var lines = md.split(/\r?\n/);
+      var html = [];
+      var inList = false;
+      var inCode = false;
+      var inTable = false;
+      var codeBuf = [];
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        if (line.startsWith("```")) {
+          if (inCode) {
+            html.push("<pre><code>" + escapeHtml(codeBuf.join("\n")) + "</code></pre>");
+            codeBuf = [];
+            inCode = false;
+          } else {
+            if (inList) { html.push("</ul>"); inList = false; }
+            if (inTable) { html.push("</tbody></table>"); inTable = false; }
+            inCode = true;
+          }
+          continue;
+        }
+
+        if (inCode) {
+          codeBuf.push(line);
+          continue;
+        }
+
+        if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+          if (inList) { html.push("</ul>"); inList = false; }
+          var cells = line.trim().slice(1, -1).split("|").map(function (c) { return c.trim(); });
+          if (cells.every(function (c) { return /^[-:]+$/.test(c); })) {
+            continue;
+          }
+          if (!inTable) {
+            html.push("<table><thead><tr>" + cells.map(function (c) { return "<th>" + formatInlineMd(escapeHtml(c)) + "</th>"; }).join("") + "</tr></thead><tbody>");
+            inTable = true;
+          } else {
+            html.push("<tr>" + cells.map(function (c) { return "<td>" + formatInlineMd(escapeHtml(c)) + "</td>"; }).join("") + "</tr>");
+          }
+          continue;
+        } else if (inTable) {
+          html.push("</tbody></table>");
+          inTable = false;
+        }
+
+        if (line.startsWith("# ")) {
+          html.push("<h1>" + formatInlineMd(line.substring(2)) + "</h1>");
+        } else if (line.startsWith("## ")) {
+          html.push("<h2>" + formatInlineMd(line.substring(3)) + "</h2>");
+        } else if (line.startsWith("### ")) {
+          html.push("<h3>" + formatInlineMd(line.substring(4)) + "</h3>");
+        } else if (line.startsWith("---")) {
+          html.push("<hr>");
+        } else if (line.startsWith("- ") || line.startsWith("  - ")) {
+          if (!inList) { html.push("<ul>"); inList = true; }
+          html.push("<li>" + formatInlineMd(line.replace(/^\s*-\s+/, "")) + "</li>");
+        } else {
+          if (inList) { html.push("</ul>"); inList = false; }
+          if (line.trim().length > 0) {
+            html.push("<p>" + formatInlineMd(line) + "</p>");
+          }
+        }
+      }
+      if (inList) html.push("</ul>");
+      if (inTable) html.push("</tbody></table>");
+      return html.join("\n");
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // ---------- Build Table of Contents Chips ----------
+    function buildTOC() {
+      var content = document.getElementById("readmeContent");
+      var chips = document.getElementById("tocChips");
+      var card = document.getElementById("tocCard");
+      if (!content || !chips || !card) return;
+
+      var headings = content.querySelectorAll("h2");
+      if (headings.length < 2) return;
+
+      chips.innerHTML = "";
+      headings.forEach(function(h, idx) {
+        var text = h.textContent.trim();
+        if (/upstream\s*protection/i.test(text)) return;
+        if (!h.id) {
+          h.id = "sec-" + (idx + 1) + "-" + text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        }
+        var a = document.createElement("a");
+        a.className = "toc-chip";
+        a.href = "#" + h.id;
+        a.textContent = text;
+        chips.appendChild(a);
+      });
+      card.style.display = "block";
+    }
+
+    // ---------- Load and Render Markdown ----------
+    async function loadDocumentation() {
+      var mdText = "";
+
+      try {
+        var resp = await fetch("README.md", { cache: "no-cache" });
+        if (resp.ok) {
+          mdText = await resp.text();
+        }
+      } catch (err) {
+        console.warn("fetch('README.md') unavailable (standard under file:// protocol), using embedded fallback:", err);
+      }
+
+      if (!mdText) {
+        var emb = document.getElementById("embeddedReadme");
+        if (emb) mdText = emb.textContent.trim();
+      }
+
+      var target = document.getElementById("readmeContent");
+      if (!target) return;
+
+      if (!mdText) {
+        target.innerHTML = "<p style='color:var(--bad);'>Could not load documentation.</p>";
+        return;
+      }
+
+      if (window.marked && typeof window.marked.parse === "function") {
+        target.innerHTML = window.marked.parse(mdText);
+      } else {
+        target.innerHTML = fallbackMarkdownParse(mdText);
+      }
+
+      buildTOC();
+    }
+
+    loadDocumentation();
+  </script>
+</body>
+</html>

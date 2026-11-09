@@ -1,9 +1,10 @@
-const CACHE_NAME = 'trimps-v53';
+const CACHE_NAME = 'trimps-v54';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
   'sa.html',
+  'surky.html',
   'manifest.json',
   'css/kreftus-local.css',
   'css/kreftus-local.css?72',
@@ -45,7 +46,7 @@ function isLocalOverlay(request, url) {
     request.destination === 'document' ||
     request.destination === 'style' ||
     request.destination === 'script' ||
-    /kreftus-local\.(css|js)|sa\.html/i.test(path)
+    /kreftus-local\.(css|js)|sa\.html|surky\.html/i.test(path)
   );
 }
 

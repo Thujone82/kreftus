@@ -1,0 +1,117 @@
+  <noscript>
+    <div style="padding:16px 20px;background:#ef4444;color:#fff;font-family:sans-serif;font-weight:600;text-align:center;">
+      JavaScript is required to run the Surky Perk Optimizer. All calculations run 100% locally in your browser.
+    </div>
+  </noscript>
+  <header class="header" id="surkyHeader">
+    <div class="bar">
+      <a class="brand" href="#top" title="Surky Perk Optimizer — Trimps Universe 2">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/>
+            <ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-30 12 12)"/>
+            <ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(30 12 12)"/>
+          </svg>
+        </span>
+        <span class="brand-text">
+          <b>Surky Perk Optimizer</b>
+          <small>Trimps U2 · Radon perk calculator by nsheetz</small>
+        </span>
+      </a>
+      <div class="top-status-group">
+        <span id="surkyStatusPill" class="pill">No save loaded</span>
+        <span id="surkyRadonPill" class="pill accent hidden" title="Radon available for perks"></span>
+        <span id="surkyBestPerkPill" class="pill ok hidden" title="Highest-efficiency next perk upgrade"></span>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="top-btn hidden" id="btnTopUpdateSave" title="View, edit, or retrieve save string (U)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span class="top-btn-label">Update Save</span>
+        </button>
+        <button type="button" class="top-btn" id="btnTopPaste" title="Paste Trimps save from clipboard (V)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+          <span class="top-btn-label">Paste Save</span>
+        </button>
+        <button type="button" class="top-btn hidden" id="btnTopSharedSave" title="Load save string stored in browser localStorage (L)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="top-btn-label">Use Saved Save</span>
+        </button>
+        <button type="button" class="top-btn hidden" id="btnTopRestore" title="Restore last imported save in Surky (R)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          <span class="top-btn-label">Restore</span>
+        </button>
+        <button type="button" class="top-btn" id="btnTopAutobuy" title="Clear and Autobuy optimal perks (A)" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span class="top-btn-label">Autobuy</span>
+        </button>
+        <button type="button" class="top-btn" id="btnTopCopyPerks" title="Export and copy perk string to clipboard (C)" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span class="top-btn-label">Copy Perks</span>
+        </button>
+        <button type="button" class="top-btn" id="btnTopTheme" title="Toggle Dark / Light theme (T)">
+          <svg id="surkyIcoSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg id="surkyIcoMoon" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <span class="top-btn-label" id="surkyThemeLbl">Light</span>
+        </button>
+        <button type="button" class="top-btn" id="btnTopHelp" title="Shortcuts, workflow &amp; credits (?)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="top-btn-label">Help</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="toasts" id="surkyToasts" aria-live="polite"></div>
+
+  <dialog id="surkyHelpDlg">
+    <div class="dlg-h">
+      <h2>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Shortcuts, Workflow &amp; Credits</span>
+      </h2>
+      <button type="button" class="icon-btn" style="margin-left:auto" id="btnCloseSurkyHelp" title="Close (Esc)">✕</button>
+    </div>
+    <div class="dlg-b">
+      <div>
+        <h4>Keyboard Shortcuts</h4>
+        <div class="keys">
+          <div><span>Paste save from clipboard</span><kbd class="kbd">V</kbd></div>
+          <div><span>Open / edit save string box</span><kbd class="kbd">U</kbd></div>
+          <div><span>Copy exported perk string</span><kbd class="kbd">C</kbd></div>
+          <div><span>Clear &amp; Autobuy perks (respec)</span><kbd class="kbd">A</kbd></div>
+          <div><span>Autobuy perks (keep current)</span><kbd class="kbd">B</kbd></div>
+          <div><span>Restore previous Surky save</span><kbd class="kbd">R</kbd></div>
+          <div><span>Use saved browser save</span><kbd class="kbd">L</kbd></div>
+          <div><span>Toggle Dark / Light theme</span><kbd class="kbd">T</kbd></div>
+          <div><span>Open this help dialog</span><kbd class="kbd">?</kbd></div>
+        </div>
+      </div>
+      <div>
+        <h4>Quick Workflow &amp; Field Legend</h4>
+        <dl class="gloss">
+          <dt>1. Import Save</dt>
+          <dd>In Trimps, click <b>Export</b> to copy your save string, then press <kbd class="kbd">V</kbd> or click <b>Paste Save</b>. The save box automatically collapses once loaded (click <b>Update Save</b> or press <kbd class="kbd">U</kbd> anytime to view or edit it).</dd>
+          <dt>2. Choose Preset</dt>
+          <dd>Select a preset on the right (e.g., <i>Easy Radon Challenge</i>, <i>Tough Radon Challenge</i>, <i>Push/C^3/Mayhem</i>, <i>Alchemy</i>, <i>Trappa</i>, etc.) and review the weight inputs.</dd>
+          <dt>3. Optimize &amp; Copy</dt>
+          <dd>Click <b>Autobuy (respec available)</b> or press <kbd class="kbd">A</kbd>, then click <b>Copy Perks</b> (<kbd class="kbd">C</kbd>) to copy the compressed perk string for Trimps' <b>Portal → Import Perks</b> dialog.</dd>
+          <dt>Green Inputs</dt>
+          <dd>Required user inputs (target zone, weights, coord-limited). Presets populate suggested weights, which you can fine-tune.</dd>
+          <dt>Blue Inputs</dt>
+          <dd>Automatically populated when importing any U1 or U2 save (Radon for perks, Runetrinkets).</dd>
+          <dt>Red Inputs</dt>
+          <dd>Populated from a Universe 2 save near the end of your run (Rn/run, weapon/armor levels, tributes, meteorologists, collectors, smithies). Check <b>Lock "red" inputs</b> before importing a mid-run or U1 save.</dd>
+        </dl>
+      </div>
+      <div class="surky-help-footer">
+        <div>
+          <b>Surky: A Trimps U2 Perk Calculator</b> by <a href="https://github.com/nsheetz/perks" target="_blank" rel="noopener">nsheetz</a> (original UI adapted from justme · <a href="https://nsheetz.github.io/perks/" target="_blank" rel="noopener">upstream live calculator</a>).
+          <div style="font-size:11.5px;color:var(--muted);margin-top:3px;">/*__UPSTREAM_META__*/</div>
+        </div>
+        <a href="surky-build/README.html" target="_blank" rel="noopener" class="btn sm ghost" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:600;">
+          <svg viewBox="0 0 24 24" width="13.5" height="13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Documentation (README.html)</span>
+        </a>
+      </div>
+    </div>
+  </dialog>
