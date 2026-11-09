@@ -7635,6 +7635,35 @@ var ONE_TIMER_MILESTONES = [
     return 190 + (15 * (l - 19));
   }
 
+  var pushSimCache = {};
+  function getPushSecPerKill(enemyLvl) {
+    var l = Number(enemyLvl) || 1;
+    if (state.simulatedLevel === l && state.simulatedDustTimePerKill > 0) {
+      var wr = (state.simulatedDustWinRate && state.simulatedDustWinRate > 0) ? (state.simulatedDustWinRate / 100) : 1;
+      return state.simulatedDustTimePerKill / wr;
+    }
+    if (pushSimCache[String(l)] !== undefined) {
+      return pushSimCache[String(l)];
+    }
+    if (typeof SASimEngine !== "undefined" && state.save) {
+      try {
+        var res = SASimEngine.runBatch({ save: state.save, level: l }, { kills: 30, maxFights: 60 });
+        if (res && res.kills > 0 && res.secPerKill > 0) {
+          var effWr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 1;
+          var effSpk = res.secPerKill / effWr;
+          pushSimCache[String(l)] = effSpk;
+          return effSpk;
+        } else if (res && res.winRate === 0) {
+          pushSimCache[String(l)] = Infinity;
+          return Infinity;
+        }
+      } catch (e) {
+        console.warn("Push sim error for level " + l, e);
+      }
+    }
+    return null;
+  }
+
   function combatDiagnostics(rateOverride) {
     var ab = state.ab || {};
     var saveStats = (state.save && state.save.stats) || {};
@@ -7685,47 +7714,35 @@ var ONE_TIMER_MILESTONES = [
 
     var secPerKill = null;
     var etaSec = null;
+    var dustPerKill = 0;
+    if (curRec && curRec.d && curRec.k) {
+      dustPerKill = curRec.d * curRec.k;
+    } else {
+      var baseReward = (1 + ((enemyLvl - 1) * 5)) * Math.pow(1.19, enemyLvl - 1);
+      if (enemyLvl >= 50) baseReward *= Math.pow(1.1, enemyLvl - 49);
+      dustPerKill = baseReward * 4.3;
+    }
+
     if (mode === "pushing" && remaining > 0) {
-      // 1. Determine dust reward per kill for this enemy level
-      var dustPerKill = 0;
-      if (curRec && curRec.d && curRec.k) {
-        dustPerKill = curRec.d * curRec.k;
-      } else {
-        var anyBuilds = buildsFor(enemyLvl);
-        for (var bIdx = 0; bIdx < anyBuilds.length; bIdx++) {
-          var b = anyBuilds[bIdx];
-          if (b.d && b.k) {
-            // If CubeSoldier (which uses end-game Gaseous Greataxe), prefer a standard build if available
-            if (b.n !== "CubeSoldier" && b.d < 600000000) {
-              dustPerKill = b.d * b.k;
-              break;
-            }
-            if (!dustPerKill) dustPerKill = b.d * b.k;
-          }
-        }
-      }
-
-      if (!dustPerKill) {
-        var baseReward = (1 + ((enemyLvl - 1) * 5)) * Math.pow(1.19, enemyLvl - 1);
-        if (enemyLvl >= 50) baseReward *= Math.pow(1.1, enemyLvl - 49);
-        dustPerKill = baseReward * 4.3; // Standard dust multiplier in SA ~4.3
-      }
-
-      // 2. Compute secPerKill from userRate or fall back to sheet build k
-      if (userRate > 0 && dustPerKill > 0) {
-        secPerKill = Math.max(0.05, dustPerKill / userRate);
-      } else if (curRec && curRec.k) {
+      // 1. Accurately simulated kill time from live save combat
+      var simSpk = getPushSecPerKill(enemyLvl);
+      if (simSpk && simSpk > 0 && isFinite(simSpk)) {
+        secPerKill = simSpk;
+      } else if (curRec && curRec.k && curRec.k > 0) {
         secPerKill = curRec.k;
       } else {
         var anyBuilds2 = buildsFor(enemyLvl);
-        if (anyBuilds2[0] && anyBuilds2[0].k) {
-          secPerKill = anyBuilds2[0].k;
-        } else {
-          secPerKill = 15;
+        var foundK = null;
+        for (var bIdx = 0; bIdx < anyBuilds2.length; bIdx++) {
+          if (anyBuilds2[bIdx] && anyBuilds2[bIdx].k && anyBuilds2[bIdx].k > 0) {
+            foundK = anyBuilds2[bIdx].k;
+            break;
+          }
         }
+        secPerKill = foundK || 15;
       }
 
-      if (secPerKill && secPerKill > 0) {
+      if (secPerKill && secPerKill > 0 && isFinite(secPerKill)) {
         etaSec = remaining * secPerKill;
       }
     }
@@ -9222,7 +9239,7 @@ var ONE_TIMER_MILESTONES = [
         "\n• Progress: " + prettify(curKills) + " / " + prettify(diag.neededKills) + " kills (" + curPct.toFixed(1) + "%)" +
         (killsEarned > 0 ? ("\n• Estimated Kills Since Load: +" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
         "\n• Remaining: " + prettify(curRemaining) + " kills to clear SA " + diag.enemyLevel +
-        (diag.secPerKill ? ("\n• Speed: ~" + diag.secPerKill.toFixed(1) + "s per kill" + (rate ? " (at " + prettify(rate) + "/s dust rate)" : "")) : "") +
+        (diag.secPerKill && isFinite(diag.secPerKill) ? ("\n• Speed: ~" + diag.secPerKill.toFixed(1) + "s per kill") : "") +
         "\n• Estimated Completion: " + etaCombined +
         "\n• AutoLevel: " + (diag.autoLevel ? "ON (Auto-advances when cleared)" : "OFF (Will NOT advance when cleared!)") +
         "\n\nCombat Statistics:" +
@@ -12080,6 +12097,7 @@ var ONE_TIMER_MILESTONES = [
       state.isBetterSimRunning = false;
       stepSimCache = {};
       planRatesCache = {};
+      pushSimCache = {};
       betterSimToken++;
       if (state.lastBetterBuilds) {
         state.lastBetterBuilds.forEach(function (b) {
