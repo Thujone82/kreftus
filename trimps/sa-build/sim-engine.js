@@ -3151,6 +3151,14 @@ function createRawAutoBattle(game, u2Mutations) {
       if (source.equipped && Array.isArray(source.equipped)) {
         cfg.equipped = source.equipped.slice();
         for (var k in cfg.items) cfg.items[k].equipped = (cfg.equipped.indexOf(k) !== -1);
+        for (var ei = 0; ei < cfg.equipped.length; ei++) {
+          var eqK = cfg.equipped[ei];
+          if (!cfg.items[eqK]) {
+            cfg.items[eqK] = { level: 1, equipped: true };
+          } else if (typeof cfg.items[eqK] === 'object') {
+            cfg.items[eqK].equipped = true;
+          }
+        }
       }
 
       if (targetBuild && targetBuild.i) {
@@ -3460,6 +3468,9 @@ function createRawAutoBattle(game, u2Mutations) {
         var itemObj = cfg.items[k] || { level: 1, equipped: true };
         var curLv = itemObj.level || 1;
         var testCfg = JSON.parse(JSON.stringify(cfg));
+        if (!testCfg.items[k] || typeof testCfg.items[k] !== 'object') {
+          testCfg.items[k] = { level: curLv, equipped: true };
+        }
         testCfg.items[k].level = curLv + 1;
 
         var sim = SASimEngine.runBatch(testCfg, { kills: options.maxKills || 30, maxFights: 40 });
