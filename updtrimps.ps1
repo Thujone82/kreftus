@@ -518,7 +518,7 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v54';
+const CACHE_NAME = 'trimps-v55';
 
 const PRECACHE_URLS = [
   './',

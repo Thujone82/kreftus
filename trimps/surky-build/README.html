@@ -453,7 +453,7 @@
 
 A self-contained, offline-ready single-page application ([`trimps/surky.html`](../surky.html)) for optimizing **Trimps Universe 2 (Radon) perks**, evaluating preset weight profiles, and calculating Golden Upgrade, Runetrinket, and zone-push recommendations.
 
-Built on top of **Surky** by **[nsheetz](https://github.com/nsheetz/perks)** ([upstream live calculator](https://nsheetz.github.io/perks/), original UI adapted from **justme**), wrapped in a non-destructive build pipeline (`trimps/surky-build/`) that preserves 100% of upstream perk math while adding a modern dark/light theme overhaul, one-click clipboard import/export with save validation, live status pills, and keyboard shortcuts.
+Built on top of **Surky** by **[nsheetz](https://github.com/nsheetz/perks)** ([upstream live calculator](https://nsheetz.github.io/perks/), original UI adapted from **justme**), wrapped in a non-destructive build pipeline (`trimps/surky-build/`) that preserves upstream perk math while adding a **Trimps 5.10.1 compatibility layer** (covering v5.8.0–5.10.1 mechanics omitted upstream), a modern dark/light theme overhaul, one-click clipboard import/export with save validation, live status pills, and keyboard shortcuts.
 
 ---
 
@@ -516,6 +516,23 @@ Select from 14 curated preset profiles in the right-hand panel:
 
 ---
 
+### 5. Trimps 5.10.1 Compatibility Layer (`overlay.js`)
+
+Upstream `nsheetz/perks` (`c57fd98`, 2024-04-20) has not been updated for Trimps `5.10.0` / `5.10.1` and never parsed Universe 2 Mutators (`game.global.u2MutationData`) introduced in `5.8.0`–`5.9.0`. `overlay.js` non-destructively extends Surky's evaluation pipeline at runtime so [`upstream/index.html`](./upstream/index.html) remains 100% unmodified while delivering full **Trimps 5.10.1** accuracy:
+
+| Trimps Patch | Game Mechanic | Upstream Surky Behavior | `surky.html` 5.10.1 Behavior |
+|---|---|---|---|
+| **v5.10.0** | **Glass Reward Radon Cap at Z400** (`glassDone` stops doubling VM Radon at Z400+) | Treated `vmZone >= 400` as still receiving 2x Radon per zone (`Greed` over-valued at Z400+) | Caps `props.glassRadon` strictly below Z400 (`(vmZone > 174 && vmZone < 200) \|\| (vmZone > 200 && vmZone < 400)`). |
+| **v5.9.0** | **`Runed` Mutator** (+50% `Observation` Runetrinket cap: `1,000` -> `1,500` per level) | Hardcoded `1,000` per `Observation` level (`max 51,000` at L50) in `getTrinketValues`, `getObservationGains`, and `iterateValueFeedback` | Dynamically uses `1,500` per `Observation` level (`max 76,500` at L50) when `u2MutationData.Runed` is purchased and updates strategy callouts. |
+| **v5.8.0** | **`Trimps` ("Small Trimps") Mutator** (`1.5x` max housing) | Ignored in `Combat-only respec` (`populatePerks()`), causing 4–5 wasted levels of `Carpentry` to reach current population | Multiplies `props.maxTrimps` by `1.5` when `u2MutationData.Trimps` is purchased. |
+| **v5.8.0–5.9.0** | **`GeneAttack` / `GeneHealth` & Imp-ort Mutators** (`50x` slower breeding each; `Randimp1`/`2` & `Tauntimps` extra cell spawns) | Ignored in `potency` and `imperzone` (under-bought `Pheromones` during `Trappapalooza` / `Alchemy`) | Divides `props.potency` by `50` per active Gene mutator and adds `+0.6`/`+1.2` (`Randimp1`/`2`) and `+0.2` (`Tauntimps`) to `props.imperzone`. |
+| **v5.8.0+** | **Z201+ Mutated Enemy Stat Scaling** (`1.01x` Attack & `1.02x` Health per zone at Z201+) | Only modeled `Z300+` `1.15x` scaling | Adds `Math.log(1.01) + Math.log(1.02)` to `props.logEnemyScaling` when `targetZone >= 201`. |
+| **UI Bug** | **`#input-smithology` & `#input-expansion` HTML `max="30"`** | Copy-pasted `max="30"` attribute from `Observation` triggered HTML5 invalid warnings above level 30 | Strips the erroneous `max` attribute from both unlimited perks at startup. |
+
+When a loaded save has purchased Universe 2 Mutators (`u2MutationData`), the header status pill (`#surkyStatusPill`) displays `Mut <count>` and lists the active perk-affecting mutators in its tooltip.
+
+---
+
 ## 🎨 Design System & Theme Overhaul (`theme.css`)
 
 `theme.css` is injected after the upstream stylesheet to harmonize every visual surface with our dark/light design system while leaving Surky's DOM IDs and calculation hooks untouched:
@@ -571,7 +588,7 @@ Upstream `index.html` references 6 Google Fonts `@font-face` blocks (`fonts.gsta
 | [`head-inject.html`](./head-inject.html) | Content-Security-Policy, metadata, inline SVG data-URI icons, and pre-paint theme initializer. |
 | [`body-inject.html`](./body-inject.html) | Sticky top header bar, live status pills, animated action buttons, toast container, and help `<dialog>`. |
 | [`theme.css`](./theme.css) | Dark & light design system variables, card surfaces, semantic field highlights, and responsive grid overrides. |
-| [`overlay.js`](./overlay.js) | Non-invasive IIFE handling clipboard paste/copy, save validation, theme sync, status pills, and keyboard shortcuts. |
+| [`overlay.js`](./overlay.js) | Non-invasive IIFE handling Trimps 5.10.1 mechanics (`Runed`, `Glass` Z400 cap, U2 mutators, Z201+ scaling), clipboard paste/copy, save validation, theme sync, status pills, and keyboard shortcuts. |
 | [`fetch_upstream.py`](./fetch_upstream.py) | Python downloader that pulls the latest `nsheetz/perks` commit metadata and `index.html` snapshot. |
 | [`assemble.py`](./assemble.py) | Anchor-checked Python bundler that strips CDN tags, injects overlays, verifies self-containment, and writes `surky.html` (CRLF). |
 | [`refresh.ps1`](./refresh.ps1) | PowerShell build pipeline coordinating upstream fetch, `node --check` syntax validation, diff reporting, and assembly. |
