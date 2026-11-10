@@ -15,7 +15,7 @@ type coloredLine struct {
 	color tcell.Color
 }
 
-var setupTitles = map[string]string{modeAI: "Play against an AI", modeLocal: "Play against someone", setupHost: "Host an online game"}
+var setupTitles = map[string]string{modeAI: "Play against an AI", modeLocal: "Play against someone", setupHost: "Host Game"}
 
 var difficultyHints = map[string]string{
 	diffEasy:   "Ratau drops dice anywhere.",
@@ -32,8 +32,8 @@ func (g *game) menuLabels() [menuCount]string {
 	return [menuCount]string{
 		menuAI:    "Play against an AI",
 		menuLocal: "Play against someone (same keyboard)",
-		menuHost:  "Host an online game",
-		menuJoin:  "Join an online game",
+		menuHost:  "Host Game",
+		menuJoin:  "Join Game",
 		menuGuide: "How to play",
 		menuStats: "Stats",
 		menuName:  "Name: " + g.save.Name,

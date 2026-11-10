@@ -45,7 +45,7 @@ func (g *game) render() {
 	case viewName:
 		g.drawPrompt("Your name", "Shown to your opponent and on your Top 10.", g.input)
 	case viewJoin:
-		g.drawPrompt("Join an online game", "Host address (host:port)", g.input)
+		g.drawPrompt("Join Game", "Host address (host:port)", g.input)
 	case viewLobby:
 		g.drawLobby()
 	case viewPlay:
@@ -514,7 +514,7 @@ func (g *game) drawLobby() {
 		drawCentered(g.screen, w/2, h-1, "Esc cancel", g.st(g.pal.dim))
 		return
 	}
-	g.drawBox(bx, by, bw, 8, "Join an online game")
+	g.drawBox(bx, by, bw, 8, "Join Game")
 	if e := l.lobbyError(); e != "" {
 		for i, line := range wrap(lobbyErrorText(e), bw-6) {
 			drawCentered(g.screen, w/2, by+2+i, line, g.st(g.pal.lose))
@@ -1056,7 +1056,7 @@ var guideText = []guideLine{
 	{"• Flinky (Medium) takes the biggest immediate swing.", 0},
 	{"• Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it.", 0},
 	{"Online play", 1},
-	{"One player picks Host an online game and shares an address shown in the lobby; the other picks Join and types it. The host rolls the dice. Turns can be timed; three timeouts lose the match. A player who drops has 30 seconds to reconnect. After a game, both players choose the same option to play again.", 0},
+	{"One player picks Host Game and shares an address shown in the lobby; the other picks Join Game and types it. The host rolls the dice. Turns can be timed; three timeouts lose the match. A player who drops has 30 seconds to reconnect. After a game, both players choose the same option to play again.", 0},
 	{"Credits", 1},
 	{"The original Knucklebones game in Cult of the Lamb was created by Massive Monster. This is a fan-made game and not an official implementation. Rules and strategy notes follow the dice.now Knucklebones guide.", 0},
 }

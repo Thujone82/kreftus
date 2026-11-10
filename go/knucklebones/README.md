@@ -27,7 +27,7 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 
 ## Features
 
-- **Start menu**: Play against an AI, Play against someone (same keyboard), Host an online game, Join an online game, How to play, Stats, Name, Theme, and Quit
+- **Start menu**: Play against an AI, Play against someone (same keyboard), Host Game, Join Game, How to play, Stats, Name, Theme, and Quit
 - **AI opponents**: Ratau (Easy) places in a random open column. Flinky (Medium) takes the biggest immediate swing. Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it
 - **Game settings**: AI difficulty, number of rounds (Best of 1, 3, 5, or Free play), and house rules. Your last choices are remembered
 - **House rules** (from the dice.now guide): turn destruction off, roll two dice and place one, or play until both boards are full
@@ -125,8 +125,8 @@ The best column is 54, so the best board is 162. The game stops as soon as any b
 
 ## Online play
 
-1. The host picks **Host an online game**, sets the rounds, turn timer, port, and house rules, then **Start game**. The lobby lists this computer's addresses.
-2. The other player picks **Join an online game** and types one of those addresses, for example `192.168.1.20:8647`. A bare host name uses port 8647.
+1. The host picks **Host Game**, sets the rounds, turn timer, port, and house rules, then **Start game**. The lobby lists this computer's addresses.
+2. The other player picks **Join Game** and types one of those addresses, for example `192.168.1.20:8647`. A bare host name uses port 8647.
 3. The game starts as soon as the guest connects. The host's copy runs the game and rolls the dice.
 
 The game is played directly between the two computers, so both must reach each other (same network, VPN, or a forwarded port). Windows may ask to allow Knucklebones through the firewall the first time you host. A room holds two players; a third connection is turned away.

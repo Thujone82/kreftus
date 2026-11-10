@@ -300,7 +300,7 @@ func (a *guiApp) Draw(dst *ebiten.Image) {
 	case viewName:
 		a.drawPrompt(dst, "Your name", "Shown to your opponent and on your Top 10.", "Save")
 	case viewJoin:
-		a.drawPrompt(dst, "Join an online game", "Host address (host:port)", "Join")
+		a.drawPrompt(dst, "Join Game", "Host address (host:port)", "Join")
 	case viewLobby:
 		a.drawLobby(dst)
 	case viewPlay:
@@ -462,7 +462,7 @@ func (a *guiApp) drawLobby(dst *ebiten.Image) {
 		a.footer(dst, "Esc cancel")
 		return
 	}
-	a.card(dst, c, "Join an online game")
+	a.card(dst, c, "Join Game")
 	if e := l.lobbyError(); e != "" {
 		y := c.Y + 100
 		for _, line := range wrapPx(lobbyErrorText(e), 18, fontRegular, c.W-80) {
