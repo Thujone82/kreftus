@@ -205,8 +205,7 @@ func (h *netHost) handle(ev netEvent, now time.Time) bool {
 	switch ev.kind {
 	case evAccepted:
 		if h.conn != nil || h.opponentLeft || (h.s != nil && h.s.Phase == phaseGameOver && h.s.Forfeit != nil) {
-			_ = sendMsg(ev.conn, netMsg{Type: msgError, Text: errRoomFull})
-			ev.conn.Close()
+			rejectConn(ev.conn, errRoomFull)
 			return false
 		}
 		h.nextID++
@@ -228,10 +227,29 @@ func (h *netHost) handle(ev netEvent, now time.Time) bool {
 	return false
 }
 
+func rejectConn(conn net.Conn, text string) {
+	if conn == nil {
+		return
+	}
+	// Finish on a goroutine so the peer can attach its reader and consume the
+	// error line. Closing immediately races that attach and Windows aborts the
+	// socket before room-full (or similar) is read.
+	go func() {
+		defer conn.Close()
+		_ = sendMsg(conn, netMsg{Type: msgError, Text: text})
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		buf := make([]byte, 256)
+		for {
+			if _, err := conn.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+}
+
 func (h *netHost) reject(text string) {
 	if h.conn != nil {
-		_ = sendMsg(h.conn, netMsg{Type: msgError, Text: text})
-		h.conn.Close()
+		rejectConn(h.conn, text)
 	}
 	h.conn, h.connID = nil, 0
 }
@@ -471,6 +489,16 @@ func (c *netClient) dial() {
 	id, addr, out, done := c.nextID, c.addr, c.events, c.done
 	go func() {
 		conn, err := net.DialTimeout("tcp", addr, dialTimeout)
+		// Prefer done over a send so leave()/shutdown cannot lose the race
+		// and rejoin a host that is waiting out a disconnect forfeit.
+		select {
+		case <-done:
+			if conn != nil {
+				conn.Close()
+			}
+			return
+		default:
+		}
 		select {
 		case out <- netEvent{kind: evDialed, id: id, conn: conn, err: err}:
 		case <-done:

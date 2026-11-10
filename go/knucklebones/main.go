@@ -217,6 +217,15 @@ func main() {
 		}
 		mode = modeTUI
 	}
+	// Ebitengine's package init is skipped on SSH/-tui (see ebiten_boot.go).
+	// Still refuse RunGame in blocked sessions if init was not skipped.
+	if mode == modeGUI && guiBlockedSession() {
+		if f.gui {
+			fmt.Fprintln(os.Stderr, "knucklebones: the GUI needs a local desktop session; over SSH use -tui")
+			os.Exit(1)
+		}
+		mode = modeTUI
+	}
 	if mode == modeGUI {
 		if !terminal {
 			detachConsole()

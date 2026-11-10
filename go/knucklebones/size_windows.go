@@ -27,22 +27,25 @@ type consoleScreenBufferInfo struct {
 }
 
 // resizeToPreferred sets the console to preferredCols × preferredRows when possible.
+// Win32 buffer/window sizing is skipped over SSH; those hosts get a VT resize only.
 func resizeToPreferred() {
-	h, _, _ := procGetStdHandle.Call(stdOutputHandle)
-	if h != 0 && h != uintptr(syscall.InvalidHandle) {
-		cols := int16(preferredCols)
-		rows := int16(preferredRows)
+	if needWin32ConsoleUI(consoleWindow() != 0, remoteSSH()) {
+		h, _, _ := procGetStdHandle.Call(stdOutputHandle)
+		if h != 0 && h != uintptr(syscall.InvalidHandle) {
+			cols := int16(preferredCols)
+			rows := int16(preferredRows)
 
-		// Shrink the visible window first so the buffer can be resized freely.
-		minWin := smallRect{0, 0, 0, 0}
-		_, _, _ = procSetConsoleWindowInfo.Call(h, 1, uintptr(unsafe.Pointer(&minWin)))
+			// Shrink the visible window first so the buffer can be resized freely.
+			minWin := smallRect{0, 0, 0, 0}
+			_, _, _ = procSetConsoleWindowInfo.Call(h, 1, uintptr(unsafe.Pointer(&minWin)))
 
-		// COORD is passed by value as a DWORD: low word = X, high word = Y.
-		packed := uintptr(uint32(uint16(cols)) | uint32(uint16(rows))<<16)
-		_, _, _ = procSetConsoleScreenBufferSize.Call(h, packed)
+			// COORD is passed by value as a DWORD: low word = X, high word = Y.
+			packed := uintptr(uint32(uint16(cols)) | uint32(uint16(rows))<<16)
+			_, _, _ = procSetConsoleScreenBufferSize.Call(h, packed)
 
-		win := smallRect{Left: 0, Top: 0, Right: cols - 1, Bottom: rows - 1}
-		_, _, _ = procSetConsoleWindowInfo.Call(h, 1, uintptr(unsafe.Pointer(&win)))
+			win := smallRect{Left: 0, Top: 0, Right: cols - 1, Bottom: rows - 1}
+			_, _, _ = procSetConsoleWindowInfo.Call(h, 1, uintptr(unsafe.Pointer(&win)))
+		}
 	}
 
 	// Also emit VT resize for Windows Terminal / hosts that ignore Win32 sizing.

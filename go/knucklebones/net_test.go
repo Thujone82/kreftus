@@ -159,8 +159,11 @@ func TestOnlineDisconnectForfeit(t *testing.T) {
 	defer func() { reconnectWindow = old }()
 
 	h, c := startPair(t, hostConfig{BestOf: 1})
-	close(c.done)
-	c.conn.Close()
+	// Drop the guest without a clean bye, and stop it from dialing back so
+	// the host's reconnect window can expire into a disconnect forfeit.
+	c.fatal = true
+	h.ln.Close()
+	c.closeConn()
 	pump(t, h, c, func() bool { return h.s.Forfeit != nil })
 	if h.s.Forfeit.Reason != reasonDisconnect || h.s.Forfeit.Loser != 1 {
 		t.Fatalf("forfeit %+v", h.s.Forfeit)
@@ -204,6 +207,10 @@ func TestRoomFull(t *testing.T) {
 		case ev := <-other.events:
 			other.handle(ev, time.Now())
 		case <-time.After(10 * time.Millisecond):
+			now := time.Now()
+			h.tick(now)
+			c.tick(now)
+			other.tick(now)
 		}
 	}
 	if other.errText != errRoomFull {

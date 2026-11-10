@@ -52,6 +52,7 @@ var consoleFontFaces = []string{
 // enableUTF8Console switches the Windows console to UTF-8 (CP65001),
 // enables VT processing, and selects a Unicode-capable console font
 // so box-drawing and gameplay glyphs render instead of replacement boxes.
+// Font changes are skipped over SSH, where there is no interactive console UI.
 func enableUTF8Console() {
 	_, _, _ = procSetConsoleOutputCP.Call(uintptr(utf8CodePage))
 	_, _, _ = procSetConsoleCP.Call(uintptr(utf8CodePage))
@@ -66,7 +67,9 @@ func enableUTF8Console() {
 		mode |= enableProcessedOutput | enableWrapAtEOLOutput | enableVirtualTerminalProcessing
 		_, _, _ = procSetConsoleMode.Call(h, uintptr(mode))
 	}
-	setUnicodeConsoleFont(h)
+	if needWin32ConsoleUI(consoleWindow() != 0, remoteSSH()) {
+		setUnicodeConsoleFont(h)
+	}
 }
 
 func setUnicodeConsoleFont(h uintptr) {

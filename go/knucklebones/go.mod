@@ -12,7 +12,14 @@ require (
 	golang.org/x/term v0.17.0
 )
 
+// Ebiten's hideconsole FreeConsoles at init; the GUI helper manages the console itself.
+replace github.com/ebitengine/hideconsole => ./internal/hideconsolestub
+
+// Conditional GLFW skip for SSH/-tui in the unified Windows exe (see internal/ebitennoinit).
+replace github.com/bstkhq/go-ebiten-noinit => ./internal/ebitennoinit
+
 require (
+	github.com/bstkhq/go-ebiten-noinit v0.1.1
 	github.com/ebitengine/gomobile v0.0.0-20250923094054-ea854a63cce1 // indirect
 	github.com/ebitengine/hideconsole v1.0.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect

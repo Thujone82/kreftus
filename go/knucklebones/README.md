@@ -21,7 +21,7 @@ On Windows, Knucklebones switches the console to UTF-8 and prefers **Cascadia Mo
 
 `-gui` and `-tui` cannot be combined. Both modes share the same save file, settings, AI, and online play, so a terminal player can host or join a window player.
 
-On Windows the program stays a console app so the terminal UI works. A double-click briefly shows a console window, which closes as the game window opens. With `-tui` from a shortcut, a new console opens for the game.
+On Windows the program stays a console app so the terminal UI works. A double-click briefly shows a console window, which closes as the game window opens. With `-tui` from a shortcut, a new console opens for the game. Over SSH or with `-tui` / `KNUCKLEBONES_TUI=1` it skips Ebitengine's window setup entirely (that init runs before `main` and would otherwise fail in Session 0) and plays in the terminal only.
 
 The graphical window uses `die.png` for its icon and logo. It resizes freely and scales to fit, and every keyboard control below works in it too.
 
