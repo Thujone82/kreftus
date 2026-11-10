@@ -2304,6 +2304,55 @@
     .sim-ext-table th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border-strong); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
     .sim-ext-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
     .sim-ext-table tr:hover { background: var(--surface-2); }
+
+    /* ---------- Simulator Upgrade Value Cost Hover Panel ---------- */
+    .sim-cost-cell { position: relative; cursor: help; }
+    .sim-cost-wrap { position: relative; display: inline-flex; flex-direction: column; vertical-align: middle; }
+    .sim-cost-main { display: inline-flex; align-items: baseline; gap: 6px; }
+    .sim-cost-sub { font-size: 10.5px; font-weight: 600; padding: 1px 5px; border-radius: 4px; border: 1px solid transparent; }
+    .sim-cost-sub.ready { color: var(--buy); background: var(--buy-soft); border-color: rgba(45, 206, 137, 0.25); }
+    .sim-cost-sub.wait { color: var(--warn); background: var(--warn-soft); border-color: rgba(245, 158, 11, 0.25); }
+
+    .sim-cost-popover {
+      display: none;
+      position: absolute;
+      left: 0;
+      z-index: 60;
+      min-width: 250px;
+      max-width: 320px;
+      background: var(--tip-bg);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.75);
+      font-family: var(--font);
+      font-size: 11.5px;
+      line-height: 1.45;
+      pointer-events: none;
+    }
+    .sim-cost-popover.pop-down { top: calc(100% + 4px); }
+    .sim-cost-popover.pop-up { bottom: calc(100% + 4px); }
+    .sim-cost-cell:hover .sim-cost-popover,
+    .sim-cost-wrap:focus-within .sim-cost-popover {
+      display: block;
+      animation: fadein 0.12s ease;
+    }
+    .scp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+    .scp-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .scp-badge svg { width: 12px; height: 12px; }
+    .scp-badge.ready { color: var(--buy); background: var(--buy-soft); }
+    .scp-badge.wait { color: var(--warn); background: var(--warn-soft); }
+    .scp-pct { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .scp-body { display: grid; gap: 4px; }
+    .scp-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .scp-lbl { color: var(--muted); font-size: 11px; }
+    .scp-val { font-size: 11.5px; font-weight: 600; }
+    .scp-row.highlight { padding: 4px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); margin: 2px 0; border: 1px solid var(--border); }
+    .scp-val.buy { color: var(--buy); }
+    .scp-val.accent { color: var(--accent); }
+    .scp-val.warn { color: var(--warn); }
+    .scp-footer { font-size: 10.5px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 5px; margin-top: 3px; }
   </style>
 </head>
 <body>

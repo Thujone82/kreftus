@@ -6653,8 +6653,75 @@ function renderPresetsModal() {
           return;
         }
 
+        var bnk = bank();
+        var earnRate = activeDustPs() || (state.simulatedDustPs || 0);
+        if (!earnRate || earnRate <= 0) {
+          var rec = bestRunnable(state.level);
+          earnRate = (rec && rec.d) ? rec.d : 0;
+        }
+
         var rows = results.map(function (r, idx) {
-          var costTxt = r.cost ? (prettify(r.cost) + (r.shards ? " shards" : " dust")) : "0";
+          var cost = Number(r.cost) || 0;
+          var isSh = !!r.shards;
+          var resName = isSh ? "shards" : "dust";
+          var curFunds = isSh ? (bnk.shards || 0) : (bnk.dust || 0);
+          var isReady = (cost <= 0) || (curFunds >= cost);
+          var costTxt = cost ? (prettify(cost) + " " + resName) : "Free";
+
+          var costSubTxt = "";
+          var costSubCls = "";
+          var popoverHtml = "";
+          var titleText = "";
+
+          if (isReady) {
+            var pctOfTotal = curFunds > 0 ? ((cost / curFunds) * 100) : 0;
+            var pctStr = (pctOfTotal < 0.1 && pctOfTotal > 0) ? "<0.1%" : (pctOfTotal.toFixed(1) + "%");
+            var remAfter = Math.max(0, curFunds - cost);
+            costSubTxt = cost > 0 ? (pctStr + " of bank") : "Free";
+            costSubCls = "ready";
+
+            titleText = "Cost: " + costTxt + "\n" +
+              "• Status: Ready to buy now!\n" +
+              "• Takes: " + pctStr + " of your current " + resName + " (" + prettify(cost) + " / " + prettify(curFunds) + ")\n" +
+              "• Balance remaining after purchase: " + prettify(remAfter) + " " + resName;
+
+            popoverHtml = "<div class='sim-cost-popover " + (idx >= results.length / 2 ? "pop-up" : "pop-down") + "'>" +
+              "<div class='scp-head'><span class='scp-badge ready'>" + ICONS.check + " Ready to Buy</span><span class='scp-pct'>" + pctStr + " of total</span></div>" +
+              "<div class='scp-body'>" +
+                "<div class='scp-row'><span class='scp-lbl'>Cost:</span><span class='mono scp-val'>" + prettify(cost) + " " + resName + "</span></div>" +
+                "<div class='scp-row'><span class='scp-lbl'>Your Bank:</span><span class='mono scp-val'>" + prettify(curFunds) + " " + resName + "</span></div>" +
+                "<div class='scp-row highlight'><span class='scp-lbl'>Will take:</span><span class='mono scp-val buy'>" + pctStr + " of total " + resName + "</span></div>" +
+                "<div class='scp-row'><span class='scp-lbl'>Remaining after:</span><span class='mono scp-val'>" + prettify(remAfter) + " " + resName + "</span></div>" +
+              "</div>" +
+            "</div>";
+          } else {
+            var need = Math.max(0, cost - curFunds);
+            var waitSec = timeForCost(cost, isSh, earnRate, bnk.dust, bnk.shards);
+            var waitStr = (isFinite(waitSec) && waitSec > 0) ? fmtTime(waitSec) : (waitSec === 0 ? "Ready now" : "Unattainable");
+            var progressPct = cost > 0 ? Math.min(99.9, (curFunds / cost) * 100) : 0;
+            var shardRate = (canEarnShards() && earnRate > 0) ? (earnRate / SHARD_DUST) : 0;
+            var earnStr = isSh ? (prettify(shardRate) + "/s shards (~" + prettify(earnRate) + "/s dust)") : (prettify(earnRate) + "/s dust");
+            costSubTxt = "~" + waitStr;
+            costSubCls = "wait";
+
+            titleText = "Cost: " + costTxt + "\n" +
+              "• Status: Saving required (~" + waitStr + ")\n" +
+              "• Need: " + prettify(need) + " more " + resName + " (" + progressPct.toFixed(1) + "% funded: " + prettify(curFunds) + " / " + prettify(cost) + ")\n" +
+              "• Time to finish saving: ~" + waitStr + "\n" +
+              "• Earning rate from main build: " + earnStr;
+
+            popoverHtml = "<div class='sim-cost-popover " + (idx >= results.length / 2 ? "pop-up" : "pop-down") + "'>" +
+              "<div class='scp-head'><span class='scp-badge wait'>" + ICONS.clock + " Saving Required</span><span class='scp-pct'>~" + waitStr + "</span></div>" +
+              "<div class='scp-body'>" +
+                "<div class='scp-row'><span class='scp-lbl'>Cost:</span><span class='mono scp-val'>" + prettify(cost) + " " + resName + "</span></div>" +
+                "<div class='scp-row'><span class='scp-lbl'>Your Bank:</span><span class='mono scp-val'>" + prettify(curFunds) + " " + resName + " (" + progressPct.toFixed(1) + "% funded)</span></div>" +
+                "<div class='scp-row highlight'><span class='scp-lbl'>Time to finish:</span><span class='mono scp-val accent'>~" + waitStr + "</span></div>" +
+                "<div class='scp-row'><span class='scp-lbl'>Still needed:</span><span class='mono scp-val warn'>" + prettify(need) + " " + resName + "</span></div>" +
+                "<div class='scp-footer'>Based on main build earn rate: <b class='mono'>" + earnStr + "</b></div>" +
+              "</div>" +
+            "</div>";
+          }
+
           var diffStr = r.deltaDustPs > 0 ? ("+" + prettify(r.deltaDustPs) + "/s") : ("-" + prettify(Math.abs(r.deltaDustPs)) + "/s");
           var diffCls = r.deltaDustPs > 0 ? "pos" : (r.deltaDustPs < 0 ? "neg" : "muted");
           var paybackStr = (r.paybackSec != null && isFinite(r.paybackSec) && r.paybackSec > 0) ? fmtTime(r.paybackSec) : (r.deltaDustPs > 0 ? "Instant" : "Never");
@@ -6662,7 +6729,15 @@ function renderPresetsModal() {
           return "<tr>" +
             "<td>#" + (idx + 1) + "</td>" +
             "<td><b>" + esc(r.label) + "</b></td>" +
-            "<td class='mono'>" + esc(costTxt) + "</td>" +
+            "<td class='mono sim-cost-cell' title='" + esc(titleText) + "'>" +
+              "<div class='sim-cost-wrap' tabindex='0'>" +
+                "<div class='sim-cost-main'>" +
+                  "<span>" + esc(costTxt) + "</span>" +
+                  "<span class='sim-cost-sub " + costSubCls + "'>" + esc(costSubTxt) + "</span>" +
+                "</div>" +
+                popoverHtml +
+              "</div>" +
+            "</td>" +
             "<td class='mono " + diffCls + "'><b>" + esc(diffStr) + "</b></td>" +
             "<td class='mono'>" + esc(paybackStr) + "</td>" +
             "<td><button type='button' class='btn sm ghost' data-apply-upgrade='" + esc(r.type + ":" + (r.key || "")) + "'>Apply to Sandbox</button></td>" +
