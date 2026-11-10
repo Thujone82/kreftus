@@ -2,4 +2,5 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/kreftus/public_html/
-    - /usr/bin/rsync -a --exclude='.git' --exclude='.cpanel.yml' . $DEPLOYPATH
+    - /usr/bin/rsync -a --chmod=D755,F644 --exclude='.git' --exclude='.cpanel.yml' . $DEPLOYPATH
+    - chmod 755 $DEPLOYPATH
