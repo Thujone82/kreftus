@@ -10040,31 +10040,218 @@ var ONE_TIMER_MILESTONES = [
     return (mods || []).map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
   }
 
-  function loadoutDelta(rec) {
+  var optimalExtraLimbCache = {};
+  function findOptimalExtraLimbItems(targetBuild, level, mode, extraCount) {
+    if (!targetBuild || !state.save || extraCount <= 0) {
+      return { bestItems: [], isCurOptimal: true };
+    }
+    var lvl = Number(level || state.level || 1);
+    var m = mode || getLevelMode(lvl);
+    var bId = (typeof buildId === "function") ? buildId(targetBuild) : ((targetBuild.n || "") + "_" + (targetBuild.d || 0));
+
+    var ownedKeys = ownedItemKeys().filter(function (k) {
+      return userOwns(k) && userLevel(k) > 0;
+    });
+    var candidateKeys = ownedKeys.filter(function (k) {
+      return !(targetBuild.i && targetBuild.i[k]);
+    });
+    if (candidateKeys.length === 0) {
+      return { bestItems: [], isCurOptimal: true };
+    }
+
+    var curExtraEquipped = ownedKeys.filter(function (k) {
+      return userItem(k) && userItem(k).equipped && !(targetBuild.i && targetBuild.i[k]);
+    });
+
+    var cacheKey = bId + "@" + lvl + "@" + m + "@" + extraCount + "@" + curExtraEquipped.sort().join(",") + "@" + candidateKeys.map(function (k) { return k + ":" + userLevel(k); }).sort().join(",");
+    if (optimalExtraLimbCache[cacheKey]) {
+      return optimalExtraLimbCache[cacheKey];
+    }
+
+    var baseItems = Object.assign({}, targetBuild.i || {});
+    var chosen = [];
+    var available = candidateKeys.slice();
+
+    for (var slot = 0; slot < extraCount && available.length > 0; slot++) {
+      var bestCand = null;
+      var bestScore = -Infinity;
+      var curEquippedInSlot = curExtraEquipped[slot] || null;
+      var curCandScore = -Infinity;
+
+      for (var ci = 0; ci < available.length; ci++) {
+        var cand = available[ci];
+        var testBuild = {
+          n: targetBuild.n || "Sim",
+          i: Object.assign({}, baseItems),
+          r: targetBuild.r
+        };
+        for (var chIdx = 0; chIdx < chosen.length; chIdx++) {
+          testBuild.i[chosen[chIdx]] = Math.max(1, userLevel(chosen[chIdx]) || 1);
+        }
+        testBuild.i[cand] = Math.max(1, userLevel(cand) || 1);
+
+        var score = -Infinity;
+        try {
+          var simRes = SASimEngine.runBatch({ save: state.save, build: testBuild, level: lvl }, { kills: 15, maxFights: 25, ticks: 10000 });
+          if (simRes) {
+            if (m === "push") {
+              if (simRes.winRate > 0) {
+                var effK = simRes.secPerKill / (simRes.winRate / 100);
+                score = 1e6 - effK;
+              } else {
+                score = -1e6 + (simRes.ticks || 0);
+              }
+            } else {
+              score = simRes.dustPs || 0;
+            }
+          }
+        } catch (e) {
+          score = -Infinity;
+        }
+
+        if (cand === curEquippedInSlot) {
+          curCandScore = score;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestCand = cand;
+        }
+      }
+
+      var selectedItem = bestCand;
+      if (curEquippedInSlot && curCandScore > -Infinity && bestCand && bestCand !== curEquippedInSlot) {
+        var isSignificantlyBetter = false;
+        if (m === "push") {
+          if (curCandScore < 0 && bestScore > 0) {
+            isSignificantlyBetter = true;
+          } else if (bestScore > 0 && curCandScore > 0) {
+            var bestEffK = 1e6 - bestScore;
+            var curEffK = 1e6 - curCandScore;
+            if (bestEffK < curEffK * 0.95) {
+              isSignificantlyBetter = true;
+            }
+          }
+        } else {
+          if (bestScore > curCandScore * 1.02) {
+            isSignificantlyBetter = true;
+          }
+        }
+        if (!isSignificantlyBetter) {
+          selectedItem = curEquippedInSlot;
+        }
+      }
+
+      if (selectedItem) {
+        chosen.push(selectedItem);
+        baseItems[selectedItem] = Math.max(1, userLevel(selectedItem) || 1);
+        var remIdx = available.indexOf(selectedItem);
+        if (remIdx !== -1) available.splice(remIdx, 1);
+      }
+    }
+
+    var result = {
+      bestItems: chosen,
+      isCurOptimal: chosen.length > 0 && chosen.every(function (k) { return curExtraEquipped.indexOf(k) !== -1; })
+    };
+    optimalExtraLimbCache[cacheKey] = result;
+    return result;
+  }
+
+  function loadoutDelta(rec, level, mode) {
     if (!rec) return null;
+    var lvl = (level != null) ? Number(level) : Number(state.level || 1);
+    var m = mode || getLevelMode(lvl);
+
     var reqKeys = Object.keys(rec.i || {});
     var eqKeys = ownedItemKeys().filter(function (k) {
       return userItem(k) && userItem(k).equipped;
     });
-    var toEquip = reqKeys.filter(function (k) {
+    var planToEquip = reqKeys.filter(function (k) {
       return !(userItem(k) && userItem(k).equipped);
     });
-    var toUnequip = eqKeys.filter(function (k) {
+    var curExtraEquipped = eqKeys.filter(function (k) {
       return !rec.i[k];
     });
+
+    var userMaxSlots = maxSlots();
+    var surplusSlots = Math.max(0, userMaxSlots - reqKeys.length);
+
+    var toEquip = planToEquip.slice();
+    var toUnequip = [];
+    var toSwap = [];
+    var extraLimbOptimal = [];
+
+    if (surplusSlots > 0 && typeof SASimEngine !== "undefined" && state.save) {
+      var optExtra = findOptimalExtraLimbItems(rec, lvl, m, surplusSlots);
+      if (optExtra && optExtra.bestItems && optExtra.bestItems.length > 0) {
+        var bestKeys = optExtra.bestItems.slice();
+        var unassignedCur = curExtraEquipped.slice();
+
+        // Pass 1: if an equipped extra item is already in bestKeys, it's optimal!
+        for (var i = unassignedCur.length - 1; i >= 0; i--) {
+          var curK = unassignedCur[i];
+          var bIdx = bestKeys.indexOf(curK);
+          if (bIdx !== -1) {
+            extraLimbOptimal.push({ item: curK, isCurEquipped: true });
+            bestKeys.splice(bIdx, 1);
+            unassignedCur.splice(i, 1);
+          }
+        }
+
+        // Pass 2: for remaining equipped extra items within surplus slots,
+        // if there is a better available item, recommend SWAP (change that limb, never unequip!)
+        while (unassignedCur.length > 0 && bestKeys.length > 0) {
+          var fromK = unassignedCur.shift();
+          var toK = bestKeys.shift();
+          toSwap.push({
+            from: fromK,
+            to: toK,
+            isExtraLimb: true,
+            reason: (m === "push" ? "Faster clear with extra limb" : "Higher dust with extra limb")
+          });
+        }
+
+        // Pass 3: if user has open slots and unassigned best items, equip them
+        while (bestKeys.length > 0) {
+          var eqK = bestKeys.shift();
+          toEquip.push(eqK);
+          extraLimbOptimal.push({ item: eqK, isCurEquipped: false, isExtraLimb: true });
+        }
+
+        // Pass 4: only if user has more items equipped than maxSlots, unequip the excess
+        while (unassignedCur.length > 0) {
+          toUnequip.push(unassignedCur.shift());
+        }
+      } else {
+        // Fallback: keep up to surplusSlots items equipped without unequipping them
+        if (curExtraEquipped.length > surplusSlots) {
+          toUnequip = curExtraEquipped.slice(surplusSlots);
+        }
+        for (var ce = 0; ce < Math.min(curExtraEquipped.length, surplusSlots); ce++) {
+          extraLimbOptimal.push({ item: curExtraEquipped[ce], isCurEquipped: true });
+        }
+      }
+    } else {
+      toUnequip = curExtraEquipped;
+    }
+
     var reqMods = (rec.r && rec.r.m) ? rec.r.m : [];
     var curMods = hasRing() ? ringMods() : [];
-    var missingMods = reqMods.filter(function (m) {
-      return curMods.indexOf(m) === -1;
+    var missingMods = reqMods.filter(function (mod) {
+      return curMods.indexOf(mod) === -1;
     });
-    var extraMods = curMods.filter(function (m) {
-      return reqMods.indexOf(m) === -1;
+    var extraMods = curMods.filter(function (mod) {
+      return reqMods.indexOf(mod) === -1;
     });
     var ringMismatch = !!(rec.r && missingMods.length > 0);
-    var aligned = toEquip.length === 0 && toUnequip.length === 0 && !ringMismatch;
+    var aligned = toEquip.length === 0 && toUnequip.length === 0 && toSwap.length === 0 && !ringMismatch;
+
     return {
       toEquip: toEquip,
       toUnequip: toUnequip,
+      toSwap: toSwap,
+      extraLimbOptimal: extraLimbOptimal,
       reqMods: reqMods,
       curMods: curMods,
       missingMods: missingMods,
@@ -10096,14 +10283,23 @@ var ONE_TIMER_MILESTONES = [
 
     var missingMods = delta.missingMods || [];
     var hasRingModSwap = b.r && (!hasRing() || missingMods.length > 0);
-    var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0);
+    var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0 || (delta.toSwap && delta.toSwap.length > 0));
     var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap;
 
     if (!hasAnySwap) {
+      var alignedExtraHtml = "";
+      if (delta && delta.extraLimbOptimal && delta.extraLimbOptimal.length) {
+        var alignedEqOpt = delta.extraLimbOptimal.filter(function (o) { return o.isCurEquipped; });
+        if (alignedEqOpt.length > 0) {
+          var eqNames = alignedEqOpt.map(function (o) { return itemName(o.item); }).join(", ");
+          alignedExtraHtml = "<div style='color:var(--muted);font-size:12px;margin-top:4px;'>Extra Limb: <b>" + esc(eqNames) + "</b> is verified optimal.</div>";
+        }
+      }
       return "<div class='delta-box aligned' style='margin-top:10px;'>" +
         "<div class='delta-title' style='color:var(--buy);'>" +
           "<div class='delta-title-left'>" + ICONS.check + "<span>Active Loadout &amp; Ring Mods Aligned</span></div>" +
         "</div>" +
+        alignedExtraHtml +
       "</div>";
     }
 
@@ -10119,6 +10315,28 @@ var ONE_TIMER_MILESTONES = [
         );
       }
     }
+    if (delta.toSwap && delta.toSwap.length) {
+      var swPills = delta.toSwap.map(function (sw) {
+        var fromName = itemName(sw.from);
+        var toName = itemName(sw.to);
+        var toLv = userLevel(sw.to) || 1;
+        return "<span class='pill sm accent' title='" + esc(sw.reason || "Change extra limb to optimal choice") + "'>" +
+          iconForItem(sw.from) + " " + esc(fromName) + " → " + iconForItem(sw.to) + " " + esc(toName + " (Lv " + toLv + ")") +
+          "</span>";
+      }).join("");
+      dRows.push("<div class='delta-row'><span class='delta-lbl'>Extra Limb Swap:</span>" + swPills + "</div>");
+    }
+    if (delta.extraLimbOptimal && delta.extraLimbOptimal.length) {
+      var guideEqOpt = delta.extraLimbOptimal.filter(function (o) { return o.isCurEquipped; });
+      if (guideEqOpt.length > 0) {
+        var optPills = guideEqOpt.map(function (o) {
+          return "<span class='pill sm buy' title='Equipped item is verified optimal for your extra limb slot'>" +
+            iconForItem(o.item) + " " + esc(itemName(o.item)) + " (Optimal)" +
+            "</span>";
+        }).join("");
+        dRows.push("<div class='delta-row'><span class='delta-lbl'>Extra Limb:</span>" + optPills + "</div>");
+      }
+    }
     if (delta.toUnequip && delta.toUnequip.length) {
       var unPills = delta.toUnequip.map(function (k) {
         return "<span class='pill sm sell'>" + iconForItem(k) + " " + esc(itemName(k)) + "</span>";
@@ -10129,8 +10347,9 @@ var ONE_TIMER_MILESTONES = [
       var eqPills = delta.toEquip.map(function (k) {
         var owned = userOwns(k);
         var myLv = owned ? userLevel(k) : 0;
-        var needLv = b.i[k] || 1;
-        var lvSuffix = !owned ? " (Locked)" : (myLv < needLv ? (" (Lv " + myLv + "→" + needLv + ")") : (" (Lv " + needLv + ")"));
+        var needLv = (b.i && b.i[k]) ? b.i[k] : myLv;
+        var isExtra = !(b.i && b.i[k]);
+        var lvSuffix = !owned ? " (Locked)" : (isExtra ? (" (Lv " + myLv + " · Extra)") : (myLv < needLv ? (" (Lv " + myLv + "→" + needLv + ")") : (" (Lv " + needLv + ")")));
         return "<span class='pill sm buy'>" + iconForItem(k) + " " + esc(itemName(k) + lvSuffix) + "</span>";
       }).join("");
       dRows.push("<div class='delta-row'><span class='delta-lbl'>Equip:</span>" + eqPills + "</div>");
@@ -10308,7 +10527,7 @@ var ONE_TIMER_MILESTONES = [
     var pStepsForRec = (pickForRec && pickForRec.build && buildId(pickForRec.build) === buildId(activeBuild)) ? pickForRec.allSteps : null;
     var summaryInfo = probeBuildSummary(state.level, activeBuild, rate, pStepsForRec);
     state.lastActiveBuild = activeBuild;
-    var targetDelta = loadoutDelta(activeBuild);
+    var targetDelta = loadoutDelta(activeBuild, state.level, mode);
     var targetMods = formatModList(activeBuild.r && activeBuild.r.m || []);
 
     var itemCards = Object.keys(activeBuild.i).map(function (k) {
@@ -10326,6 +10545,35 @@ var ONE_TIMER_MILESTONES = [
         "<span class='li-lv'>" + esc(lvText) + "</span>" +
         "</div>";
     }).join("");
+
+    if (targetDelta) {
+      var extraItemsToShow = [];
+      if (targetDelta.extraLimbOptimal) {
+        targetDelta.extraLimbOptimal.forEach(function (opt) {
+          if (!activeBuild.i || !activeBuild.i[opt.item]) {
+            extraItemsToShow.push({ key: opt.item, isEq: opt.isCurEquipped, isSwap: false });
+          }
+        });
+      }
+      if (targetDelta.toSwap) {
+        targetDelta.toSwap.forEach(function (sw) {
+          extraItemsToShow.push({ key: sw.to, isEq: false, isSwap: true, from: sw.from });
+        });
+      }
+      var extraCardsHtml = extraItemsToShow.map(function (entry) {
+        var k = entry.key;
+        var myLv = userLevel(k) || 1;
+        var sh = isShards(k);
+        var cls = "loadout-item" + (sh ? " shards" : "") + (!entry.isEq ? " unequipped" : "");
+        var tip = "Extra Limb Slot: " + (entry.isEq ? "Equipped (Optimal choice)" : (entry.isSwap ? ("Recommended swap from " + itemName(entry.from)) : "Recommended choice"));
+        var lvText = "Lv " + myLv + " · Extra";
+        return "<div class='" + cls + "' title='" + esc(tip) + "' style='border-color:color-mix(in srgb,var(--buy) 45%,var(--border));'>" +
+          "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
+          "<span class='li-lv' style='color:var(--buy);font-weight:600;'>" + esc(lvText) + "</span>" +
+          "</div>";
+      }).join("");
+      itemCards += extraCardsHtml;
+    }
 
     var recSub = $("recCardSub");
     if (recSub) {
@@ -11281,7 +11529,7 @@ var ONE_TIMER_MILESTONES = [
         ? "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + donePill + renderStepPopover(pick, rate, bnk) + "</div>"
         : donePill;
 
-      var cDelta = loadoutDelta(pick.build);
+      var cDelta = loadoutDelta(pick.build, state.level, getLevelMode(state.level));
       var cReqMods = formatModList(pick.build.r && pick.build.r.m || []) || "None";
       var cCurMods = formatModList(cDelta ? cDelta.curMods : []) || "None";
       var cAligned = !cDelta || cDelta.aligned;
@@ -11306,6 +11554,24 @@ var ONE_TIMER_MILESTONES = [
         var cRows = [];
         if (cDelta.ringMismatch) {
           cRows.push("<div class='delta-row'><span class='delta-lbl'>Ring Mod:</span><span class='pill sm warn-pill'>" + ICONS.ring + " " + esc(cCurMods) + " → " + esc(cReqMods) + "</span></div>");
+        }
+        if (cDelta.toSwap && cDelta.toSwap.length) {
+          var cSwPills = cDelta.toSwap.map(function (sw) {
+            var toLv = userLevel(sw.to) || 1;
+            return "<span class='pill sm accent' title='" + esc(sw.reason || "Change extra limb to optimal choice") + "'>" +
+              iconForItem(sw.from) + " " + esc(itemName(sw.from)) + " → " + iconForItem(sw.to) + " " + esc(itemName(sw.to) + " (Lv " + toLv + ")") + "</span>";
+          }).join("");
+          cRows.push("<div class='delta-row'><span class='delta-lbl'>Extra Limb Swap:</span>" + cSwPills + "</div>");
+        }
+        if (cDelta.extraLimbOptimal && cDelta.extraLimbOptimal.length) {
+          var cOptEq = cDelta.extraLimbOptimal.filter(function (o) { return o.isCurEquipped; });
+          if (cOptEq.length) {
+            var cOptPills = cOptEq.map(function (o) {
+              return "<span class='pill sm buy' title='Equipped item is verified optimal for your extra limb slot'>" +
+                iconForItem(o.item) + " " + esc(itemName(o.item)) + " (Optimal)</span>";
+            }).join("");
+            cRows.push("<div class='delta-row'><span class='delta-lbl'>Extra Limb:</span>" + cOptPills + "</div>");
+          }
         }
         if (cDelta.toUnequip.length) {
           var cUnPills = cDelta.toUnequip.map(function (k) {
@@ -11779,7 +12045,7 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function renderBetterPopover(b, cur) {
-    var delta = loadoutDelta(b);
+    var delta = loadoutDelta(b, state.level, getLevelMode(state.level));
     var reqMods = (b.r && b.r.m) ? b.r.m : [];
     var curMods = hasRing() ? ringMods() : [];
     var reqModTxt = formatModList(reqMods) || "None";
@@ -11790,7 +12056,7 @@ var ONE_TIMER_MILESTONES = [
 
     var missingMods = reqMods.filter(function (m) { return curMods.indexOf(m) === -1; });
     var hasRingModSwap = b.r && (!hasRing() || missingMods.length > 0);
-    var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0);
+    var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0 || (delta.toSwap && delta.toSwap.length > 0));
     var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap;
 
     var dRows = [];
@@ -11807,6 +12073,22 @@ var ONE_TIMER_MILESTONES = [
           "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
           "<span class='pill sm buy'>" + ICONS.check + " Lv " + reqRingLv + " (" + esc(reqModTxt) + ") — Aligned</span></div>"
         );
+      }
+    }
+    if (delta && delta.toSwap && delta.toSwap.length) {
+      var popSwPills = delta.toSwap.map(function (sw) {
+        var toLv = userLevel(sw.to) || 1;
+        return "<span class='pill sm accent'>" + iconForItem(sw.from) + " " + esc(itemName(sw.from)) + " → " + iconForItem(sw.to) + " " + esc(itemName(sw.to) + " (Lv " + toLv + ")") + "</span>";
+      }).join("");
+      dRows.push("<div class='delta-row'><span class='delta-lbl'>Extra Limb Swap:</span>" + popSwPills + "</div>");
+    }
+    if (delta && delta.extraLimbOptimal && delta.extraLimbOptimal.length) {
+      var popOptEq = delta.extraLimbOptimal.filter(function (o) { return o.isCurEquipped; });
+      if (popOptEq.length) {
+        var popOptPills = popOptEq.map(function (o) {
+          return "<span class='pill sm buy'>" + iconForItem(o.item) + " " + esc(itemName(o.item)) + " (Optimal)</span>";
+        }).join("");
+        dRows.push("<div class='delta-row'><span class='delta-lbl'>Extra Limb:</span>" + popOptPills + "</div>");
       }
     }
     if (delta && delta.toUnequip.length) {
@@ -11861,7 +12143,7 @@ var ONE_TIMER_MILESTONES = [
     metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (b.l || itemKeys.length) + " Limbs</span>");
     if (b.r) metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " R" + b.r.lv + (reqMods.length ? " (" + esc(reqModTxt) + ")" : "") + "</span>");
 
-    var itemSwapCount = delta ? Math.max(delta.toEquip.length, delta.toUnequip.length) : 0;
+    var itemSwapCount = delta ? (Math.max(delta.toEquip.length, delta.toUnequip.length) + (delta.toSwap ? delta.toSwap.length : 0)) : 0;
     var swapCount = itemSwapCount + (hasRingModSwap ? 1 : 0);
     var pillCls = "bb-info-pill " + (swapCount === 0 ? "aligned" : "has-swaps");
     var pillTxt = swapCount === 0 ? "Aligned" : (swapCount + (swapCount === 1 ? " swap" : " swaps"));
@@ -12971,6 +13253,26 @@ function renderPresetsModal() {
           ? { save: state.save, build: targetBuild, level: simLvl }
           : { save: state.save, level: simLvl };
         simState.config = SASimEngine.normalizeConfig(cfgSource);
+        if (targetBuild) {
+          var maxLimbs = (simState.config.extraLimbs || 0) + 4;
+          var curEqCount = simState.config.equipped ? simState.config.equipped.length : 0;
+          var simSurplus = Math.max(0, maxLimbs - curEqCount);
+          if (simSurplus > 0) {
+            var simOpt = findOptimalExtraLimbItems(targetBuild, simLvl, getLevelMode(simLvl), simSurplus);
+            if (simOpt && simOpt.bestItems && simOpt.bestItems.length > 0) {
+              simOpt.bestItems.forEach(function (bestK) {
+                if (simState.config.equipped.indexOf(bestK) === -1) {
+                  simState.config.equipped.push(bestK);
+                  if (!simState.config.items[bestK]) {
+                    simState.config.items[bestK] = { level: userLevel(bestK) || 1, equipped: true };
+                  } else {
+                    simState.config.items[bestK].equipped = true;
+                  }
+                }
+              });
+            }
+          }
+        }
         syncSimEquipped();
         simState.lastMcScan = null;
         simState.lastMcSig = null;
@@ -13147,6 +13449,8 @@ function renderPresetsModal() {
     // 1. Limbs Pill
     var equippedCount = simState.config.equipped ? simState.config.equipped.length : 0;
     var maxLimbs = (simState.config.extraLimbs || 0) + 4;
+    var huffySub = $("simHuffySub");
+    if (huffySub) huffySub.textContent = maxLimbs + " Limbs";
     var limbsPill = $("simLimbsPill");
     if (limbsPill) {
       limbsPill.textContent = "Equipped: " + equippedCount + " / " + maxLimbs + " Limbs";
