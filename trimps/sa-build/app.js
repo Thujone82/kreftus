@@ -25,7 +25,12 @@
   }
 
   function getLevelDefaultMode(level) {
-    return isWorkingToClear(level) ? "push" : "farm";
+    var l = level != null ? Number(level) : state.level;
+    if (!state.ab) return "farm";
+    var maxL = state.ab.maxEnemyLevel || 1;
+    // Any level that is not yet cleared (l >= maxL) is a PUSH level
+    if (l >= maxL) return "push";
+    return "farm";
   }
 
   function getLevelMode(level) {
@@ -2480,9 +2485,20 @@ var ONE_TIMER_MILESTONES = [
         return (!rec || bk < curK - 0.01) && !runnable(b) && allowedUpgrade(b);
       });
     }
-    var cur = (typeof rateOverride === "number" && rateOverride > 0)
-      ? rateOverride
-      : (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
+    var cur = 0;
+    if (typeof rateOverride === "number" && rateOverride > 0) {
+      cur = rateOverride;
+    } else if (rec && rec.d) {
+      cur = rec.d;
+    } else {
+      var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
+      if (Number(state.level) === Number(fightLevel)) {
+        cur = activeDustPs(rec) || (state.simulatedDustPs || 0);
+      } else {
+        var cK = getCurrentCombatSecPerKill(state.level);
+        cur = (cK && isFinite(cK) && cK > 0) ? (activeDustPs(rec) || 0) : 0;
+      }
+    }
     return buildsFor(state.level).filter(function (b) {
       return (b.d || 0) > cur + 1e-9 && !runnable(b) && allowedUpgrade(b);
     });
@@ -2617,13 +2633,19 @@ var ONE_TIMER_MILESTONES = [
         var curCombatK = getCurrentCombatSecPerKill(state.level);
         var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
         var hasFasterPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
-        var isCurOptimal = (curCombatK && curCombatK > 0 && curCombatK <= recK + 0.01);
-        if (!hasFasterPath || isCurOptimal || !p || !first) {
+        var isCurWinning = (curCombatK && isFinite(curCombatK) && curCombatK > 0);
+        var isCurOptimal = isCurWinning && (curCombatK <= recK + 0.01);
+        if (isCurWinning && (!hasFasterPath || isCurOptimal)) {
+          shouldFallbackROI = true;
+        } else if (!hasFasterPath && (!p || !first) && isCurWinning) {
           shouldFallbackROI = true;
         }
       } else if (mode === "farm") {
+        var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
+        var cK = getCurrentCombatSecPerKill(state.level);
+        var isWinningFarm = (Number(state.level) === Number(fightLevel)) || (cK && isFinite(cK) && cK > 0);
         var hasBetterFarmPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
-        if (!hasBetterFarmPath || !p || !first) {
+        if (isWinningFarm && (!hasBetterFarmPath || !p || !first)) {
           shouldFallbackROI = true;
         }
       }
@@ -2975,20 +2997,32 @@ var ONE_TIMER_MILESTONES = [
 
     if (mode === "push" && !isPlanLocked) {
       currentCombatSec = getCurrentCombatSecPerKill(state.level);
+      var isCurWinning = isFinite(currentCombatSec) && currentCombatSec > 0;
       var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
-      if (currentCombatSec && currentCombatSec > 0 && (recK >= currentCombatSec - 0.01 || !rec)) {
+      if (isCurWinning && (recK >= currentCombatSec - 0.01 || !rec)) {
+        // Current loadout can actually beat the level and is as fast or faster than any runnable sheet build
         var curCombatBuild = getCurrentEquippedCombatBuild(state.level);
         if (curCombatBuild) {
           activeBuild = curCombatBuild;
           activeBuild.k = currentCombatSec;
           isOptimalClear = true;
         }
+      } else if (!rec || !isCurWinning) {
+        // Current build cannot beat the level (or no runnable sheet build exists):
+        // Recommend the fastest ROI push plan instead!
+        var pushPick = bestNextUpgrade(rec, rate);
+        if (pushPick && pushPick.build) {
+          activeBuild = pushPick.build;
+        }
       }
     } else if (mode === "farm" && !isPlanLocked) {
-      var curDust = activeDustPs() || (state.simulatedDustPs || 0);
+      var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
+      var cK = getCurrentCombatSecPerKill(state.level);
+      var isWinningOnLevel = (Number(state.level) === Number(fightLevel)) || (cK && isFinite(cK) && cK > 0);
+      var curDust = isWinningOnLevel ? (activeDustPs() || (state.simulatedDustPs || 0)) : 0;
       var recDust = rec ? (rec.d || 0) : 0;
-      if (curDust > recDust) {
-        // Current loadout outperforms the runnable sheet build.
+      if (curDust > 0 && curDust > recDust) {
+        // Current loadout outperforms the runnable sheet build on this level.
         // Check if there is a better income sheet available via the advisor:
         var farmPick = bestNextUpgrade(rec, curDust);
         if (farmPick && farmPick.build && (farmPick.build.d || 0) > curDust) {
@@ -3151,7 +3185,7 @@ var ONE_TIMER_MILESTONES = [
           "<div style='color:var(--muted);font-size:12px;'>" +
           (isOptimalFarm
             ? ("Your current equipped items earn " + prettify(rate) + "/s, which is higher than all recorded runnable sheet builds. Keep this loadout active while farming.")
-            : ("Your current equipped items clear SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill, which is faster than all recorded runnable sheet builds. Keep this loadout active while pushing.")) +
+            : ("Your current equipped items clear SA " + state.level + " in ~" + (isFinite(currentCombatSec) ? currentCombatSec.toFixed(1) : "15.0") + "s per kill, which is faster than all recorded runnable sheet builds. Keep this loadout active while pushing.")) +
           "</div>" +
           "</div>")
       : renderAlignmentGuide(activeBuild, targetDelta, swapTitle);
@@ -3163,7 +3197,7 @@ var ONE_TIMER_MILESTONES = [
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" +
         (isOptimalFarm
           ? ("Your current equipped loadout earns " + prettify(rate) + "/s. No higher-income runnable sheet build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")
-          : ("Your current equipped loadout clears SA " + state.level + " in ~" + currentCombatSec.toFixed(1) + "s per kill. No faster runnable clear build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")) +
+          : ("Your current equipped loadout clears SA " + state.level + " in ~" + (isFinite(currentCombatSec) ? currentCombatSec.toFixed(1) : "15.0") + "s per kill. No faster runnable clear build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")) +
         "</span></div>";
     } else if (isTargetOnly) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No sheet build on SA " + state.level + " is currently runnable with your items and levels. Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). Follow the swap guide above and the Next Upgrade Advisor on the right to progress toward this build.</span></div>";
@@ -4107,7 +4141,7 @@ var ONE_TIMER_MILESTONES = [
       var saveNote = (pick.deltaSecPerKill && pick.deltaSecPerKill > 0)
         ? (" (saving ~" + pick.deltaSecPerKill.toFixed(1) + "s per kill)")
         : "";
-      why = "Your current loadout clears SA " + state.level + " in ~" + (pick.currentCombatSec ? pick.currentCombatSec.toFixed(1) : "6.6") + "s per kill (faster than all recorded runnable sheet builds). The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + saveNote + " as the highest-value upgrade to improve combat performance.";
+      why = "Your current loadout clears SA " + state.level + " in ~" + (pick.currentCombatSec ? pick.currentCombatSec.toFixed(1) : "15.0") + "s per kill (faster than all recorded runnable sheet builds). The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + saveNote + " as the highest-value upgrade to improve combat performance.";
     } else if (pick.mode === "unlocks") {
       why = (mode === "push")
         ? "Largest clear time improvement among single-step upgrades that immediately unlock a faster sheet build (click Lock Plan to latch)."
@@ -4128,7 +4162,7 @@ var ONE_TIMER_MILESTONES = [
     var kickerHtml = pick.isLocked
       ? "<div class='next-kicker' style='color:var(--accent);'>" + ICONS.target + " Active Plan</div>"
       : (pick.mode === "upgradeValue"
-        ? "<div class='next-kicker' style='color:var(--buy);'>" + ICONS.bolt + " Optimal Clear Active · Upgrade Value Recommendation</div>"
+        ? "<div class='next-kicker' style='color:var(--buy);'>" + ICONS.bolt + " " + (mode === "push" ? "Optimal Clear Active" : "Optimal Farm Active") + " · Upgrade Value Recommendation</div>"
         : "<div class='next-kicker'>Recommended Next Action</div>");
 
     var pillInner = (pick.mode === "upgradeValue")
@@ -4168,22 +4202,30 @@ var ONE_TIMER_MILESTONES = [
 
         if (mode === "push") {
           var curK = getCurrentCombatSecPerKill(state.level);
-          if (!curK || curK <= 0) {
-            curK = pick.currentCombatSec || (rec ? buildSecPerKill(rec, state.level) : 15);
+          if (!curK || !isFinite(curK) || curK <= 0) {
+            curK = (state.lastActiveBuild && state.lastActiveBuild.k && isFinite(state.lastActiveBuild.k) && state.lastActiveBuild.k > 0)
+              ? state.lastActiveBuild.k
+              : (pick.currentCombatSec && isFinite(pick.currentCombatSec) && pick.currentCombatSec > 0)
+                ? pick.currentCombatSec
+                : (rec && isFinite(buildSecPerKill(rec, state.level)) ? buildSecPerKill(rec, state.level) : 15);
           }
           var targetK = pSum.secPerKill;
-          var curClearSec = pSum.remainingKills * curK;
+          var curClearSec = (state.lastPlanSummary && isFinite(state.lastPlanSummary.clearSec) && state.lastPlanSummary.clearSec > 0)
+            ? state.lastPlanSummary.clearSec
+            : (pSum.remainingKills * curK);
           var newClearSec = pSum.clearSec;
-          var savedSec = (curK > targetK && pSum.remainingKills > 0) ? Math.max(0, curClearSec - newClearSec) : 0;
+          var savedSec = (isFinite(curClearSec) && isFinite(newClearSec) && curClearSec > newClearSec)
+            ? (curClearSec - newClearSec)
+            : 0;
           if (pick.mode === "upgradeValue" && pick.deltaSecPerKill && pick.deltaSecPerKill > 0 && pSum.remainingKills > 0) {
             var simSaved = pSum.remainingKills * pick.deltaSecPerKill;
             if (simSaved > savedSec) {
               savedSec = simSaved;
             }
           }
-          if (savedSec > 0) {
+          if (savedSec > 0 && isFinite(savedSec)) {
             var savedTitle = "Time saved to clear SA " + state.level + " if this upgrade is performed\n" +
-              "• Current estimated clear time: ~" + fmtDuration(curClearSec) + " (~" + curK.toFixed(1) + "s/kill)\n" +
+              "• Current estimated clear time: ~" + fmtDuration(curClearSec) + " (~" + (isFinite(curK) ? curK.toFixed(1) : "15.0") + "s/kill)\n" +
               "• Estimated clear time after upgrade: ~" + fmtDuration(newClearSec) + " (~" + targetK.toFixed(1) + "s/kill)\n" +
               "• Time saved (Δ): ~" + fmtDuration(savedSec) + " across " + prettify(pSum.remainingKills) + " remaining kills";
             mainPill += "<span class='pill sm buy' id='advPlanSavedTime' title='" + esc(savedTitle) + "'>" +
@@ -5408,6 +5450,9 @@ function renderPresetsModal() {
         : (hasRing() ? "<div class='preset-ring-mods muted'>" + ICONS.ring + " <span>No ring mods saved</span></div>" : "");
 
       var lvlBadge = p.level != null ? ("<span class='pill sm'>SA " + p.level + "</span>") : "";
+      var simBtn = !p.isEmpty
+        ? ("<button type='button' class='btn sm ghost preset-sim-btn' onclick=\"window.saOpenPresetInSim&&saOpenPresetInSim('" + esc(p.slot) + "')\" title='Load " + esc(p.name) + " (" + esc(p.slotTag) + ") into Combat Simulator'>⚔️ Sim</button>")
+        : "";
 
       return "<div class='preset-card" + (p.isEmpty ? " empty-preset" : "") + "'>" +
         "<div class='preset-card-head'>" +
@@ -5415,7 +5460,10 @@ function renderPresetsModal() {
             "<span class='preset-slot-badge'>" + esc(p.slotTag) + "</span>" +
             "<b class='preset-name' title='" + esc(p.name) + "'>" + esc(p.name) + "</b>" +
           "</div>" +
-          lvlBadge +
+          "<div class='preset-actions-wrap'>" +
+            lvlBadge +
+            simBtn +
+          "</div>" +
         "</div>" +
         matchBadge +
         "<div class='preset-card-body'>" +
@@ -5540,6 +5588,41 @@ function renderPresetsModal() {
         "<div class='milestone-list'>" + milestonesHtml + "</div>" +
       "</div>";
   }
+
+  function openPresetInSim(slot) {
+    if (!state.ab || !state.save) {
+      toast("Load a Trimps save first to use the Simulator.");
+      return;
+    }
+    var p = parsePreset(slot);
+    if (!p || p.isEmpty) {
+      toast("Preset " + (p ? p.slotTag : String(slot).toUpperCase()) + " is empty.");
+      return;
+    }
+    var bItems = {};
+    p.items.forEach(function (k) {
+      bItems[k] = userLevel(k) || 1;
+    });
+    var simLvl = Number(p.level || state.level || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || 1);
+    var targetBuild = {
+      n: p.name + " (" + p.slotTag + ")",
+      level: simLvl,
+      saLevel: simLvl,
+      i: bItems,
+      r: {
+        lv: ringLevel(),
+        m: p.ringMods || []
+      },
+      l: p.items.length
+    };
+    var pDlg = $("presetsDlg");
+    if (pDlg && typeof pDlg.close === "function") {
+      try { pDlg.close(); } catch (e) {}
+    }
+    openSimModal(targetBuild, { forceReset: true });
+    toast("Loaded " + p.name + " (" + p.slotTag + ") into Combat Simulator");
+  }
+  window.saOpenPresetInSim = openPresetInSim;
 
   function openPresetsModal() {
     renderPresetsModal();
@@ -6464,7 +6547,10 @@ function renderPresetsModal() {
       simState.pendingTimeout = null;
       if (!simState.active) return;
       try {
-        var scan = SASimEngine.scanPushHeatmap(simState.config, { fights: 500 });
+        var activeLvl = (simState.config && (simState.config.level || simState.config.enemyLevel)) ||
+          (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) ||
+          state.level || 1;
+        var scan = SASimEngine.scanPushHeatmap(simState.config, { fights: 500, activeLevel: activeLvl });
         if (!scan || !scan.levels || !scan.levels.length) {
           resDiv.innerHTML = "<p class='empty'>No push simulation results generated.</p>";
           return;

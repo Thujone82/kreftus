@@ -3534,14 +3534,23 @@ function createRawAutoBattle(game, u2Mutations) {
       return results;
     },
 
-    // Push Viability Heatmap Scanner (10-run smoke test, scanning 10 levels below highest winning level)
+    // Push Viability Heatmap Scanner (10-run smoke test, scanning from below active level to above max stable level)
     scanPushHeatmap: function(sourceConfig, options) {
       options = options || {};
       var fightsPerLevel = options.fights || 500;
       var cfg = SASimEngine.normalizeConfig(sourceConfig);
 
-      // 1. Smoke test: 10 runs per level across all levels (1 to 150) to quickly find highest level with a win
+      var activeLvl = Number(
+        options.activeLevel ||
+        cfg.level ||
+        cfg.enemyLevel ||
+        (typeof state !== 'undefined' && state && (state.level || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)))) ||
+        1
+      );
+
+      // 1. Smoke test: 10 runs per level across all levels (1 to 150) to quickly find highest level with a win & >=50% win rate
       var highestWinLevel = 1;
+      var smokeMaxWin50 = null;
       var consecutiveZero = 0;
       var probeFights = 10;
       for (var lvl = 1; lvl <= 150; lvl++) {
@@ -3549,17 +3558,22 @@ function createRawAutoBattle(game, u2Mutations) {
         if (probeRes.wins > 0) {
           highestWinLevel = lvl;
           consecutiveZero = 0;
+          if (probeRes.wins >= 5) {
+            smokeMaxWin50 = lvl;
+          }
         } else {
           consecutiveZero++;
-          if (lvl > (cfg.level || 1) + 15 && consecutiveZero >= 12) break;
+          if (lvl > Math.max(activeLvl, cfg.level || 1) + 15 && consecutiveZero >= 12) break;
         }
       }
 
-      // 2. Begin 500-run scan 10 levels below the highest level with a win
-      var endLvl = highestWinLevel;
-      var startLvl = Math.max(1, endLvl - 9);
+      // 2. Determine bounds:
+      // Always include from the level below the active level to the level above the max stable level
+      var minRequiredStart = Math.max(1, activeLvl - 1);
+      var startLvl = Math.max(1, Math.min(minRequiredStart, highestWinLevel - 9));
+      var endLvl = Math.min(150, Math.max(activeLvl, Math.max(highestWinLevel, smokeMaxWin50 || highestWinLevel) + 1));
       var levels = [];
-      var maxWin50 = startLvl;
+      var maxWin50 = smokeMaxWin50 || startLvl;
 
       for (var l = startLvl; l <= endLvl; l++) {
         // Quick 30-fight check: if unwinnable (0 wins), skip remaining 470 ticks to keep UI lightning fast
@@ -3575,7 +3589,16 @@ function createRawAutoBattle(game, u2Mutations) {
           sim = SASimEngine.monteCarloPush(cfg, { targetLevel: l, fights: fightsPerLevel, maxTicks: 1800 });
         }
         if (sim.winRate >= 50) {
-          if (l > maxWin50) maxWin50 = l;
+          if (maxWin50 == null || l > maxWin50) maxWin50 = l;
+          if (maxWin50 + 1 > endLvl && endLvl < 150) {
+            endLvl = Math.min(150, maxWin50 + 1);
+          }
+        }
+        if (sim.wins > 0) {
+          if (l > highestWinLevel) highestWinLevel = l;
+          if (highestWinLevel + 1 > endLvl && endLvl < 150) {
+            endLvl = Math.min(150, highestWinLevel + 1);
+          }
         }
         levels.push(sim);
       }
