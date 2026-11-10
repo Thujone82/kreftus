@@ -12340,6 +12340,7 @@ var ONE_TIMER_MILESTONES = [
       var wInfo = calculateStepWaitTimes(steps, bnk, rate);
       var earn = wInfo.totalWait;
       var retInfo = calculateBuildReturnTime(b, steps, wInfo, cur);
+      var gain = retInfo.gain;
       var blockedContracts = steps.filter(function (s) { return s.kind === "contract" && !s.reach; });
       var blocked = blockedContracts.length > 0;
       var blockedZone = 0;
