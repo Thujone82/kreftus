@@ -3721,6 +3721,39 @@ var ONE_TIMER_MILESTONES = [
     setTimeout(runNextStep, 0);
   }
 
+  function calculateBuildReturnTime(b, bSteps, bWInfo, curRate) {
+    var cur = (typeof curRate === "number" && curRate > 0) ? curRate : (state.lastBetterCur || 0);
+    var simRate = b._simDustPs;
+    if (!simRate && bSteps && bSteps.length) {
+      for (var si = bSteps.length - 1; si >= 0; si--) {
+        if (bSteps[si]._postRate && bSteps[si]._postRate > 0) {
+          simRate = bSteps[si]._postRate;
+          break;
+        }
+      }
+    }
+    var effectiveDust = (simRate && simRate > 0) ? simRate : (b.d || 0);
+    var gain = effectiveDust - cur;
+    var totalCost = (bWInfo.totalCostDust || 0) + ((bWInfo.totalCostShards || 0) * SHARD_DUST);
+    var effRate = (gain > 0) ? gain : (effectiveDust > 0 ? effectiveDust : 0);
+    var retSec = (totalCost === 0)
+      ? 0
+      : (effRate > 0 ? (totalCost / effRate) : Infinity);
+
+    var retStr = (totalCost === 0 || retSec === 0)
+      ? "0s"
+      : (isFinite(retSec) ? fmtTime(retSec) : "Never");
+
+    return {
+      totalCost: totalCost,
+      effectiveDust: effectiveDust,
+      gain: gain,
+      retSec: retSec,
+      retStr: retStr,
+      isSimmed: !!(b._isSimulated || (bSteps && bSteps.some(function (s) { return s._stepRate > 0; })))
+    };
+  }
+
   function updateBetterBuildRow(idx, b, defaultRate) {
     if (!b) return;
     var cell = document.querySelector("#better .bb-earn-return[data-build-idx='" + idx + "']");
@@ -3729,9 +3762,7 @@ var ONE_TIMER_MILESTONES = [
     var bSteps = b._planSteps || applyStepOrder(state.level, b, expandSteps(gapSteps(b)));
     var bWInfo = calculateStepWaitTimes(bSteps, bnk, defaultRate);
     var bEarn = bWInfo.totalWait;
-    var bGain = (b.d || 0) - (state.lastBetterCur || 0);
-    var bRemCost = Math.max(bWInfo.remDust, bWInfo.remShards * SHARD_DUST);
-    var bRet = (bGain > 0 && bRemCost > 0) ? (bRemCost / bGain) : (bGain > 0 ? 0 : Infinity);
+    var retInfo = calculateBuildReturnTime(b, bSteps, bWInfo, defaultRate);
     var bBlockedContracts = bSteps.filter(function (s) { return s.kind === "contract" && !s.reach; });
     var bBlocked = bBlockedContracts.length > 0;
     var bBlockedZone = 0;
@@ -3740,13 +3771,13 @@ var ONE_TIMER_MILESTONES = [
       if (!bBlockedZone && b.c) bBlockedZone = b.c;
     }
     var bEarnStr = (bBlocked && bEarn === 0) ? ("Z" + (bBlockedZone || "?")) : (bEarn === 0 ? "ready" : fmtTime(bEarn));
-    var bRetStr = bRet === 0 ? "0s" : fmtTime(bRet);
+    var bRetStr = retInfo.retStr;
     var bEarnReturnVal = bEarnStr + "/" + bRetStr;
-    var isSimmed = b._isSimulated || bSteps.some(function (s) { return s._stepRate > 0; });
+    var isSimmed = retInfo.isSimmed;
     var bEarnDurStr = fmtDuration(bEarn);
     var bEarnReturnTip = bBlocked
       ? ("Requires unreached Zone " + (bBlockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + bEarnStr + " (" + bEarnDurStr + ") · Return: " + bRetStr)
-      : ("Earn: " + bEarnStr + " (" + bEarnDurStr + " remaining wait" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + bRetStr + " (payback: remaining cost / Δ d/s)");
+      : ("Earn: " + bEarnStr + " (" + bEarnDurStr + " remaining wait" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + bRetStr + " (payback: cost / " + (retInfo.gain > 0 ? "Δ d/s" : "plan d/s") + ")");
     if (cell.textContent !== bEarnReturnVal) cell.textContent = bEarnReturnVal;
     if (cell.title !== bEarnReturnTip) cell.title = bEarnReturnTip;
   }
@@ -5054,9 +5085,7 @@ var ONE_TIMER_MILESTONES = [
       var cost = stepsCostDust(steps);
       var wInfo = calculateStepWaitTimes(steps, bnk, rate);
       var earn = wInfo.totalWait;
-      var gain = (b.d || 0) - cur;
-      var remCost = Math.max(wInfo.remDust, wInfo.remShards * SHARD_DUST);
-      var ret = (gain > 0 && remCost > 0) ? (remCost / gain) : (gain > 0 ? 0 : Infinity);
+      var retInfo = calculateBuildReturnTime(b, steps, wInfo, cur);
       var blockedContracts = steps.filter(function (s) { return s.kind === "contract" && !s.reach; });
       var blocked = blockedContracts.length > 0;
       var blockedZone = 0;
@@ -5065,13 +5094,13 @@ var ONE_TIMER_MILESTONES = [
         if (!blockedZone && b.c) blockedZone = b.c;
       }
       var earnStr = (blocked && earn === 0) ? ("Z" + (blockedZone || "?")) : (earn === 0 ? "ready" : fmtTime(earn));
-      var retStr = ret === 0 ? "0s" : fmtTime(ret);
+      var retStr = retInfo.retStr;
       var earnReturnVal = earnStr + "/" + retStr;
-      var isSimmed = b._isSimulated || steps.some(function (s) { return s._stepRate > 0; });
+      var isSimmed = retInfo.isSimmed;
       var earnDurStr = fmtDuration(earn);
       var earnReturnTip = blocked
         ? ("Requires unreached Zone " + (blockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + earnStr + " (" + earnDurStr + ") · Return: " + retStr)
-        : ("Earn: " + earnStr + " (" + earnDurStr + " remaining wait" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + retStr + " (payback: remaining cost / Δ d/s)");
+        : ("Earn: " + earnStr + " (" + earnDurStr + " remaining wait" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + retStr + " (payback: cost / " + (retInfo.gain > 0 ? "Δ d/s" : "plan d/s") + ")");
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
@@ -5497,9 +5526,7 @@ var ONE_TIMER_MILESTONES = [
           b._planSteps = bSteps;
           var bWInfo = calculateStepWaitTimes(bSteps, bnk, rate);
           var bEarn = bWInfo.totalWait;
-          var bGain = (b.d || 0) - (state.lastBetterCur || 0);
-          var bRemCost = Math.max(bWInfo.remDust, bWInfo.remShards * SHARD_DUST);
-          var bRet = (bGain > 0 && bRemCost > 0) ? (bRemCost / bGain) : (bGain > 0 ? 0 : Infinity);
+          var retInfo = calculateBuildReturnTime(b, bSteps, bWInfo, state.lastBetterCur);
           var bBlockedContracts = bSteps.filter(function (s) { return s.kind === "contract" && !s.reach; });
           var bBlocked = bBlockedContracts.length > 0;
           var bBlockedZone = 0;
@@ -5508,12 +5535,13 @@ var ONE_TIMER_MILESTONES = [
             if (!bBlockedZone && b.c) bBlockedZone = b.c;
           }
           var bEarnStr = (bBlocked && bEarn === 0) ? ("Z" + (bBlockedZone || "?")) : (bEarn === 0 ? "ready" : fmtTime(bEarn));
-          var bRetStr = bRet === 0 ? "0s" : fmtTime(bRet);
+          var bRetStr = retInfo.retStr;
           var bEarnReturnVal = bEarnStr + "/" + bRetStr;
-          var isSimmed = b._isSimulated || bSteps.some(function (s) { return s._stepRate > 0; });
+          var isSimmed = retInfo.isSimmed;
+          var bEarnDurStr = fmtDuration(bEarn);
           var bEarnReturnTip = bBlocked
             ? ("Requires unreached Zone " + (bBlockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + fmtTime(bEarn) + " · Return: " + bRetStr)
-            : ("Earn: " + bEarnStr + " (remaining wait with bank" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + bRetStr + " (payback: remaining cost / Δ d/s)");
+            : ("Earn: " + bEarnStr + " (remaining wait with bank" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + bRetStr + " (payback: cost / " + (retInfo.gain > 0 ? "Δ d/s" : "plan d/s") + ")");
           if (cell.textContent !== bEarnReturnVal) cell.textContent = bEarnReturnVal;
           if (cell.title !== bEarnReturnTip) cell.title = bEarnReturnTip;
         }
