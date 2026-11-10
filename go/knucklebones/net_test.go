@@ -70,6 +70,71 @@ func TestOnlineGameToTheEnd(t *testing.T) {
 	pump(t, h, c, func() bool { return c.s.Series == 2 && c.s.Phase == phasePlay })
 }
 
+func TestOnlineAimPreview(t *testing.T) {
+	h, c := startPair(t, hostConfig{BestOf: 1})
+	// Put the guest on move so client aims travel host → guest state.
+	for h.s.Match.Turn != 1 {
+		h.place(h.s.Match.LegalMoves()[0])
+		pump(t, h, c, func() bool { return c.s.Match.Moves == h.s.Match.Moves })
+		if h.s.Phase != phasePlay {
+			t.Fatal("game ended before guest's turn")
+		}
+	}
+	open := -1
+	for col := 0; col < gridCols; col++ {
+		if h.s.Match.Grids[1].Open(col) {
+			open = col
+			break
+		}
+	}
+	if open < 0 {
+		t.Fatal("no open column for guest")
+	}
+	c.aim(open, 0)
+	pump(t, h, c, func() bool { return h.s.Aiming && c.s.Aiming })
+	if !h.s.Aiming || h.s.AimCol != open || h.s.AimDie != 0 {
+		t.Fatalf("host aim %+v col=%d die=%d", h.s.Aiming, h.s.AimCol, h.s.AimDie)
+	}
+	if !c.s.Aiming || c.s.AimCol != open {
+		t.Fatalf("guest aim %+v col=%d", c.s.Aiming, c.s.AimCol)
+	}
+	if !h.s.Match.Legal(Move{Col: open, Die: 0}) {
+		t.Fatal("aimed move should be legal")
+	}
+
+	beforeMoves := h.s.Match.Moves
+	c.place(Move{Col: open, Die: 0})
+	pump(t, h, c, func() bool {
+		return (h.s.Match.Moves > beforeMoves || h.s.Phase != phasePlay) &&
+			c.s.Match.Moves == h.s.Match.Moves && !h.s.Aiming && !c.s.Aiming
+	})
+	if h.s.Aiming || c.s.Aiming {
+		t.Fatalf("aim should clear after place: host=%v guest=%v", h.s.Aiming, c.s.Aiming)
+	}
+
+	// Host aim is mirrored to the guest while the host is to move.
+	if h.s.Phase != phasePlay {
+		return
+	}
+	for h.s.Match.Turn != 0 {
+		if h.s.Match.Turn == 1 {
+			c.place(c.s.Match.LegalMoves()[0])
+		} else {
+			h.place(h.s.Match.LegalMoves()[0])
+		}
+		pump(t, h, c, func() bool { return c.s.Match.Moves == h.s.Match.Moves || h.s.Phase != phasePlay })
+		if h.s.Phase != phasePlay {
+			return
+		}
+	}
+	col := h.s.Match.LegalMoves()[0].Col
+	h.aim(col, 0)
+	pump(t, h, c, func() bool { return c.s.Aiming && c.s.AimCol == col })
+	if !c.s.Aiming || c.s.AimCol != col {
+		t.Fatalf("guest missing host aim: %+v col=%d", c.s.Aiming, c.s.AimCol)
+	}
+}
+
 func TestOnlineResign(t *testing.T) {
 	h, c := startPair(t, hostConfig{BestOf: 3})
 	c.resign()

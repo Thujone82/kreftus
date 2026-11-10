@@ -1,6 +1,19 @@
 package main
 
-import "github.com/gdamore/tcell/v2"
+import (
+	"image/color"
+
+	"github.com/gdamore/tcell/v2"
+)
+
+// rgba converts a palette color for the window front end.
+func rgba(c tcell.Color) color.RGBA {
+	r, g, b := c.RGB()
+	if r < 0 {
+		return color.RGBA{A: 255}
+	}
+	return color.RGBA{uint8(r), uint8(g), uint8(b), 255}
+}
 
 const (
 	themeDark  = "dark"

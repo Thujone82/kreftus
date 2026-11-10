@@ -1,12 +1,12 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"math/rand/v2"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 	"unicode"
 
@@ -74,6 +74,7 @@ type controller interface {
 	state() *session
 	seat() int // -1 when both players share this keyboard
 	place(mv Move)
+	aim(col, die int) // online: share live column/die aim with the opponent
 	vote(v string)
 	resign()
 	leave()
@@ -116,6 +117,8 @@ func (c *offlineCtl) place(mv Move) {
 	}
 	_ = c.s.place(c.s.Match.Turn, mv, c.rng)
 }
+
+func (c *offlineCtl) aim(int, int) {}
 
 func (c *offlineCtl) vote(v string) { c.s.vote(0, v, c.rng) }
 
@@ -183,6 +186,7 @@ type game struct {
 
 	rollKey [2]int
 	rollAt  time.Time
+	aimPub  [2]int // last online aim published as {col, die}; {-1,-1} = none
 
 	recRound   [2]int
 	recSeries  int
@@ -190,111 +194,57 @@ type game struct {
 }
 
 func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Print("\033[0m")
-			fmt.Print("\033[?25h")
-			panic(r)
+	f, err := parseFlags(os.Args[1:], os.Stderr)
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
 		}
-	}()
-
-	enableUTF8Console()
-	resizeToPreferred()
-
-	s, err := tcell.NewScreen()
+		os.Exit(2)
+	}
+	terminal := launchedFromTerminal()
+	mode, err := chooseMode(f.gui, f.tui, terminal)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "knucklebones: %v\n", err)
-		os.Exit(1)
+		os.Exit(2)
 	}
-	if err := s.Init(); err != nil {
-		fmt.Fprintf(os.Stderr, "knucklebones: %v\n", err)
-		os.Exit(1)
+	if mode == modeGUI && !guiAvailable {
+		if f.gui {
+			fmt.Fprintln(os.Stderr, "knucklebones: the GUI is not available in this build; run without -gui")
+			os.Exit(1)
+		}
+		mode = modeTUI
 	}
-	enableUTF8Console()
-	resizeToPreferred()
-	s.Sync()
-	s.DisableMouse()
-	s.DisablePaste()
-	s.HideCursor()
+	if mode == modeGUI {
+		if !terminal {
+			detachConsole()
+		}
+		if err := runGUI(); err != nil {
+			fmt.Fprintf(os.Stderr, "knucklebones: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	ensureConsole()
+	runTUI()
+}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
+func newGame() *game {
 	g := &game{
-		screen:   s,
 		savePath: saveFileName,
 		save:     loadSave(saveFileName),
 		rng:      rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(os.Getpid()))),
 	}
 	g.pal = themes[g.save.Theme]
-	g.width, g.height = s.Size()
-
-	cleanup := func() {
-		g.leaveGame()
-		fmt.Print("\033[0m")
-		fmt.Print("\033[?25h")
-		s.Fini()
-		fmt.Print("\033[H\033[2J")
-	}
-	defer cleanup()
-
-	setTerminalTitle("Knucklebones")
-
-	events := make(chan tcell.Event, 64)
-	go func() {
-		for {
-			ev := s.PollEvent()
-			if ev == nil {
-				return
-			}
-			switch ev.(type) {
-			case *tcell.EventKey, *tcell.EventResize:
-				events <- ev
-			}
-		}
-	}()
-
-	tick := time.NewTicker(50 * time.Millisecond)
-	defer tick.Stop()
-
-	g.render()
-	for {
-		var netCh <-chan netEvent
-		if g.ctl != nil {
-			netCh = g.ctl.netEvents()
-		}
-		select {
-		case ev := <-events:
-			switch e := ev.(type) {
-			case *tcell.EventResize:
-				g.width, g.height = s.Size()
-				s.Sync()
-			case *tcell.EventKey:
-				if g.handleKey(e) {
-					return
-				}
-			}
-			g.afterChange()
-		case ev := <-netCh:
-			if g.ctl != nil {
-				g.ctl.handle(ev, time.Now())
-			}
-			g.afterChange()
-		case now := <-tick.C:
-			if g.ctl != nil {
-				g.ctl.tick(now)
-				g.afterChange()
-			}
-		case <-sigChan:
-			return
-		}
-	}
+	return g
 }
 
 func (g *game) afterChange() {
 	g.syncView()
 	g.checkRecord()
-	g.render()
+	g.syncAim()
+	if g.screen != nil {
+		g.render()
+	}
 }
 
 func (g *game) persist() { _ = g.save.write(g.savePath) }
@@ -328,6 +278,7 @@ func (g *game) syncView() {
 		g.dieSel = 0
 		g.resultIndex = 0
 		g.recordNote = ""
+		g.aimPub = [2]int{-1, -1}
 		grid := &s.Match.Grids[s.Match.Turn]
 		for i := 0; i < gridCols && !grid.Open(g.cursor); i++ {
 			g.cursor = (g.cursor + 1) % gridCols
@@ -345,6 +296,43 @@ func (g *game) myTurn(s *session) bool {
 	return seat < 0 || s.Match.Turn == seat
 }
 
+// syncAim publishes the local column/die choice so an online opponent can
+// watch the same placement preview while this player aims.
+func (g *game) syncAim() {
+	if g.ctl == nil {
+		return
+	}
+	s := g.ctl.state()
+	if s == nil || s.Mode != modeOnline || s.Phase != phasePlay {
+		g.aimPub = [2]int{-1, -1}
+		return
+	}
+	if !g.myTurn(s) || g.rolling() || g.overlay != overlayNone {
+		return
+	}
+	key := [2]int{g.cursor, g.dieSel}
+	if key == g.aimPub {
+		return
+	}
+	g.aimPub = key
+	g.ctl.aim(g.cursor, g.dieSel)
+}
+
+// previewMove is the column/die currently being aimed for the board preview.
+// Local turns use the cursor; online opponent turns use the shared aim.
+func (g *game) previewMove(s *session) (Move, bool) {
+	if s == nil || s.Phase != phasePlay || g.rolling() || g.overlay != overlayNone {
+		return Move{}, false
+	}
+	if g.myTurn(s) {
+		return Move{Col: g.cursor, Die: g.dieSel}, true
+	}
+	if s.Mode == modeOnline && s.Aiming {
+		return Move{Col: s.AimCol, Die: s.AimDie}, true
+	}
+	return Move{}, false
+}
+
 func (g *game) beginGame(c controller) {
 	g.ctl = c
 	g.overlay = overlayNone
@@ -352,6 +340,7 @@ func (g *game) beginGame(c controller) {
 	g.cursor = 1
 	g.dieSel = 0
 	g.rollKey = [2]int{}
+	g.aimPub = [2]int{-1, -1}
 	g.recRound = [2]int{}
 	g.recSeries = 0
 	g.recordNote = ""

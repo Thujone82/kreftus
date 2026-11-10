@@ -4,11 +4,26 @@
 
 ## Description
 
-`Knucklebones` is a cross-platform terminal version of the dice game from *Cult of the Lamb*, written in Go with tcell. Two players face each other across 3×3 grids. Each turn you roll one die and drop it into one of your three columns. Matching dice in a column multiply, and placing a die destroys every die of the same value in your opponent's facing column. The game ends the moment either grid is full, and the higher total wins.
+`Knucklebones` is a cross-platform terminal version of the dice game from *Cult of the Lamb*, written in Go with tcell. The terminal UI is the main mode; a matching graphical window (built with [Ebitengine](https://ebitengine.org/)) opens when you double-click the program or pass `-gui`. Two players face each other across 3×3 grids. Each turn you roll one die and drop it into one of your three columns. Matching dice in a column multiply, and placing a die destroys every die of the same value in your opponent's facing column. The game ends the moment either grid is full, and the higher total wins.
 
 Play against three AI opponents, against someone on the same keyboard, or against a friend over the network. It follows the features of [knucklebones.io](https://knucklebones.io/) and the rules in the [dice.now Knucklebones guide](https://dice.now/knucklebones#guide).
 
 On Windows, Knucklebones switches the console to UTF-8 and prefers **Cascadia Mono** when installed so dice and box-drawing characters render cleanly.
+
+## Launch modes
+
+| How it starts | What opens |
+| ------------- | ---------- |
+| From a terminal or shell (`Knucklebones`) | Terminal UI |
+| Double-clicked in Explorer or a file manager | Graphical window |
+| `Knucklebones -gui` | Graphical window, even from a terminal |
+| `Knucklebones -tui` | Terminal UI, even from a shortcut or double-click |
+
+`-gui` and `-tui` cannot be combined. Both modes share the same save file, settings, AI, and online play, so a terminal player can host or join a window player.
+
+On Windows the program stays a console app so the terminal UI works. A double-click briefly shows a console window, which closes as the game window opens. With `-tui` from a shortcut, a new console opens for the game.
+
+The graphical window uses `die.png` for its icon and logo. It resizes freely and scales to fit, and every keyboard control below works in it too.
 
 ## Features
 
@@ -18,6 +33,7 @@ On Windows, Knucklebones switches the console to UTF-8 and prefers **Cascadia Mo
 - **House rules** (from the dice.now guide): turn destruction off, roll two dice and place one, or play until both boards are full
 - **Board**: your grid is at the bottom and your opponent's at the top, both filling from the middle outward. Ivory dice are singles, gold dice are pairs, and blue dice are triples. Column scores sit above and below the grids, and each player's total is in the left panel
 - **Placement preview**: while you choose a column, a shaded die shows where yours lands, the opponent's dice it would destroy turn red, column scores show the change (`8→24`), and the panel shows `+gain · destroys N (−points)`
+- **Online live aim**: your opponent sees the rolled die tumble, then watches your column and die selection update the same preview until you place. The board finalizes when the move lands
 - **Rolling die**: each new die tumbles briefly in the roller's tray. Red pips mark the last die placed
 - **Coin toss**: a random player starts each round
 - **Series**: Best of 3 and 5 track rounds won with ●○ markers. After a round, **Continue game**. After the series, **Play another game** or **Go into free play**
@@ -26,6 +42,7 @@ On Windows, Knucklebones switches the console to UTF-8 and prefers **Cascadia Mo
 - **Resign**: **R** with a confirmation. Vs AI and online it counts as a loss
 - **Online play**: one player hosts on a TCP port (default 7777) and the lobby lists that computer's LAN addresses. The other joins with `host:port`
   - The host rolls every die and sends the full game state after each move
+  - While a player aims, their column and die choice are shared so both screens show the placement preview before the move is confirmed
   - Optional turn timer (15, 30, or 60 seconds). A timed-out turn places the die in a random open column; three timeouts lose the match
   - A player who drops has 30 seconds to reconnect before forfeiting. Leaving mid-game counts as resigning
   - After a game, both players must pick the same option (play again, continue, free play). The result panel shows "Waiting for…" and "… wants to rematch!"
@@ -67,6 +84,22 @@ On Windows, Knucklebones switches the console to UTF-8 and prefers **Cascadia Mo
 | Anywhere | Ctrl+C | Exit |
 
 On the same keyboard, both players use the same keys on their own turn. Player 1 is at the bottom and player 2 at the top.
+
+### Mouse (graphical window)
+
+| Context | Input | Action |
+| ------- | ----- | ------ |
+| Menu | Hover, click | Select, choose |
+| Game settings | Click ◀ ▶ or the row | Change the setting (click Player 2 or Port, then type) |
+| Game settings | Click Start game or Back | Start, or back to the menu |
+| Name / Join / Lobby | Click the buttons | Confirm, retry, cancel, or go back |
+| Your turn | Hover a column | Preview the placement |
+| Your turn | Click a column (either board) | Place the die there |
+| Your turn (two dice) | Click a tray die | Choose which die to place |
+| In game | Buttons under the board | Log, History, Resign, Leave, View board |
+| Round over | Click an option | Confirm it |
+| Log / History / How to play | Mouse wheel | Scroll |
+| Anywhere | Close the window | Leave the game and exit |
 
 ## Rules
 
@@ -134,6 +167,7 @@ go build -o Knucklebones.exe
 
 ```powershell
 go run .
+go run . -gui
 ```
 
 **Tests**
@@ -150,6 +184,8 @@ go test -count=1 .
 | Windows x64 | `bin/win/x64/Knucklebones.exe` |
 | Linux x86 | `bin/linux/x86/Knucklebones` |
 | Linux amd64 | `bin/linux/amd64/Knucklebones` |
+
+The graphical window is built into Windows binaries. Linux binaries cross-compiled from Windows have no cgo, so they are terminal-only, and `-gui` reports that the window isn't available. To include the window on Linux, build there with cgo enabled and the X11/OpenGL development packages installed (for example `libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev`).
 
 If `die.ico` and `knucklebones.rc` are present and `windres` is available, Windows builds embed the icon automatically. Pass `-upx` to compress binaries with [UPX](https://upx.github.io/).
 

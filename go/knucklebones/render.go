@@ -322,17 +322,7 @@ func (g *game) drawMenu() {
 	}
 	drawCentered(g.screen, w/2, top+7, "The dice game from Cult of the Lamb", g.st(g.pal.dim))
 
-	labels := [menuCount]string{
-		menuAI:    "Play against an AI",
-		menuLocal: "Play against someone (same keyboard)",
-		menuHost:  "Host an online game",
-		menuJoin:  "Join an online game",
-		menuGuide: "How to play",
-		menuStats: "Stats",
-		menuName:  "Name: " + g.save.Name,
-		menuTheme: "Theme: " + map[string]string{themeDark: "Dark", themeLight: "Light"}[g.save.Theme],
-		menuQuit:  "Quit",
-	}
+	labels := g.menuLabels()
 	y := top + 9
 	for i, l := range labels {
 		st := g.st(g.pal.fg)
@@ -342,8 +332,8 @@ func (g *game) drawMenu() {
 		}
 		drawCentered(g.screen, w/2, y+i, l, st)
 	}
-	drawCentered(g.screen, w/2, h-4, "Knucklebones is from Cult of the Lamb by Massive Monster.", g.st(g.pal.dim))
-	drawCentered(g.screen, w/2, h-3, "This fan-made version is not an official implementation.", g.st(g.pal.dim))
+	drawCentered(g.screen, w/2, h-4, creditLine1, g.st(g.pal.dim))
+	drawCentered(g.screen, w/2, h-3, creditLine2, g.st(g.pal.dim))
 	drawCentered(g.screen, w/2, h-1, "↑↓ select · Enter · T theme · Esc quit", g.st(g.pal.dim))
 }
 
@@ -391,9 +381,8 @@ func (g *game) settingText(row int) (string, string) {
 
 func (g *game) drawSettings() {
 	w, h := g.width, g.height
-	titles := map[string]string{modeAI: "Play against an AI", modeLocal: "Play against someone", setupHost: "Host an online game"}
 	g.drawTitle(1)
-	drawCentered(g.screen, w/2, 3, titles[g.setupMode], g.st(g.pal.fg).Bold(true))
+	drawCentered(g.screen, w/2, 3, setupTitles[g.setupMode], g.st(g.pal.fg).Bold(true))
 	drawCentered(g.screen, w/2, 4, "Game settings", g.st(g.pal.dim))
 
 	rows := g.settingRows()
@@ -431,12 +420,7 @@ func (g *game) drawSettings() {
 		drawText(g.screen, lx+24, y+i*2, value, vst)
 	}
 	if g.setupMode == modeAI {
-		hints := map[string]string{
-			diffEasy:   "Ratau drops dice anywhere.",
-			diffMedium: "Flinky grabs the biggest swing each turn.",
-			diffHard:   "Shrumy weighs every roll you could get back.",
-		}
-		drawCentered(g.screen, w/2, y+len(rows)*2+2, hints[g.save.Settings.Difficulty], g.st(g.pal.dim))
+		drawCentered(g.screen, w/2, y+len(rows)*2+2, difficultyHints[g.save.Settings.Difficulty], g.st(g.pal.dim))
 	}
 	if g.note != "" {
 		for i, l := range wrap(g.note, w-4) {
@@ -636,13 +620,12 @@ func (g *game) drawPlay() {
 	topP := 1 - bottom
 	m := &s.Match
 
-	// Preview for the player choosing a column.
+	// Preview for whoever is aiming: local cursor, or the opponent's shared aim.
 	mover := m.Turn
 	var preview *Match
 	var pl Placement
-	showPreview := s.Phase == phasePlay && g.myTurn(s) && !g.rolling() && g.overlay == overlayNone
-	mv := Move{Col: g.cursor, Die: g.dieSel}
-	if showPreview && m.Legal(mv) {
+	mv, aiming := g.previewMove(s)
+	if aiming && m.Legal(mv) {
 		p, next := m.Preview(mv)
 		pl, preview = p, &next
 	}
@@ -685,18 +668,18 @@ func (g *game) drawPlay() {
 		g.drawColumnScores(l, y, grid, scorePreview, scoreColor)
 	}
 
-	// Column marker between the grids.
-	if s.Phase == phasePlay && g.myTurn(s) && !g.rolling() {
-		x, _ := l.cell(true, g.cursor, 0)
+	// Column marker between the grids for the player who is aiming.
+	if aiming {
+		x, _ := l.cell(true, mv.Col, 0)
 		arrow := "▼"
 		if mover == topP {
 			arrow = "▲"
 		}
 		mst := g.st(g.pal.accent).Bold(true)
-		if !m.Grids[mover].Open(g.cursor) {
+		if !m.Grids[mover].Open(mv.Col) {
 			mst = g.st(g.pal.dim)
 		}
-		drawCentered(g.screen, x+dieW/2, l.midY, arrow+" "+fmt.Sprint(g.cursor+1)+" "+arrow, mst)
+		drawCentered(g.screen, x+dieW/2, l.midY, arrow+" "+fmt.Sprint(mv.Col+1)+" "+arrow, mst)
 	}
 
 	g.drawHeader(s, l, now)
@@ -719,17 +702,9 @@ func (g *game) drawPlay() {
 	case g.overlay == overlayHistory:
 		g.drawHistoryOverlay(s)
 	case g.overlay == overlayResign:
-		warn := "Resigning ends the game immediately and counts as a loss."
-		if s.Mode == modeLocal {
-			warn = s.Names[m.Turn] + " gives the game to " + s.Names[1-m.Turn] + "."
-		}
-		g.drawConfirm("Resign this match?", warn, "Cancel", "Confirm resignation")
+		g.drawConfirm("Resign this match?", g.resignWarning(s), "Cancel", "Confirm resignation")
 	case g.overlay == overlayLeave:
-		warn := "This game is not saved."
-		if s.Mode == modeOnline {
-			warn = "Leaving counts as resigning."
-		}
-		g.drawConfirm("Leave this game?", warn, "Stay", "Leave")
+		g.drawConfirm("Leave this game?", leaveWarning(s), "Stay", "Leave")
 	case s.Phase != phasePlay && !g.hideResult:
 		g.drawResult(s, l)
 	}
@@ -738,33 +713,9 @@ func (g *game) drawPlay() {
 func (g *game) drawHeader(s *session, l playLayout, now time.Time) {
 	w := g.width
 	y := l.top
-	var text string
-	var st tcell.Style
-	if p, left := g.ctl.disconnectLeft(now); p >= 0 {
-		secs := int(left.Seconds() + 0.999)
-		if g.isYou(s, 1-p) {
-			text = fmt.Sprintf("%s disconnected. They have %d seconds to reconnect.", s.Names[p], secs)
-		} else {
-			text = fmt.Sprintf("Connection lost. Reconnecting… %ds", secs)
-		}
-		st = g.st(g.pal.lose).Bold(true)
-	} else if s.Phase == phasePlay {
-		p := s.Match.Turn
-		if g.isYou(s, p) {
-			text = "Your turn"
-		} else {
-			text = s.Names[p] + "'s turn"
-		}
-		st = g.st(g.pal.accent).Bold(true)
-	} else {
-		text = "Round over"
-		if s.Phase == phaseGameOver {
-			text = "Game over"
-		}
-		st = g.st(g.pal.fg).Bold(true)
-	}
+	text, c := g.headerText(s, now)
 	drawText(g.screen, 1, y, "KNUCKLEBONES", g.st(g.pal.title).Bold(true))
-	drawCentered(g.screen, w/2, y, text, st)
+	drawCentered(g.screen, w/2, y, text, g.st(c).Bold(true))
 	label := fmt.Sprintf("Round %d · %s", s.Round, s.roundsLabel())
 	drawText(g.screen, w-1-textWidth(label), y, label, g.st(g.pal.dim))
 }
@@ -789,25 +740,11 @@ func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl P
 	if turn {
 		nameSt = g.st(g.pal.accent).Bold(true)
 	}
-	name := s.Names[p]
-	if g.isYou(s, p) {
-		name += " (you)"
-	}
-	if !s.Connected[p] {
-		name += " ⚠"
-	}
-	drawText(g.screen, x, nameY, truncate(name, pw), nameSt)
+	drawText(g.screen, x, nameY, truncate(g.panelName(s, p), pw), nameSt)
 	drawText(g.screen, x, nameY+1, "Total ", g.st(g.pal.dim))
 	drawText(g.screen, x+6, nameY+1, fmt.Sprint(m.Grids[p].Score()), g.st(g.pal.fg).Bold(true))
 
-	info := ""
-	if !s.freePlay() && s.BestOf > 1 {
-		need := s.BestOf/2 + 1
-		info = "Wins " + strings.Repeat("●", s.Wins[p]) + strings.Repeat("○", max(0, need-s.Wins[p]))
-	} else if s.Round > 1 || len(s.History) > 0 {
-		info = fmt.Sprintf("Wins %d", s.Wins[p])
-	}
-	if info != "" {
+	if info := g.winsText(s, p); info != "" {
 		drawText(g.screen, x, nameY+2, info, g.st(g.pal.dim))
 	}
 	if s.TurnLimit > 0 && s.Timeouts[p] > 0 {
@@ -818,6 +755,10 @@ func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl P
 		return
 	}
 	rolling := g.rolling()
+	selDie := g.dieSel
+	if !g.myTurn(s) && s.Aiming {
+		selDie = s.AimDie
+	}
 	for i := 0; i < 2; i++ {
 		v := m.Dice[i]
 		if v == 0 {
@@ -829,7 +770,7 @@ func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl P
 			continue
 		}
 		bg, pip := g.pal.dieBg, g.pal.pip
-		if m.Dice[1] != 0 && i != g.dieSel && g.myTurn(s) {
+		if m.Dice[1] != 0 && i != selDie {
 			bg, pip = g.pal.ghostBg, g.pal.ghostPip
 		}
 		drawDie(g.screen, dx, trayY, v, bg, pip)
@@ -840,11 +781,7 @@ func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl P
 	}
 	switch {
 	case hasPreview:
-		t := fmt.Sprintf("+%d", pl.Gain)
-		if pl.Destroyed > 0 {
-			t += fmt.Sprintf(" · destroys %d (−%d)", pl.Destroyed, pl.Lost)
-		}
-		drawText(g.screen, x, ty, truncate(t, pw), g.st(g.pal.accent))
+		drawText(g.screen, x, ty, truncate(gainText(pl), pw), g.st(g.pal.accent))
 	case !g.myTurn(s) && !rolling:
 		drawText(g.screen, x, ty, "Thinking…", g.st(g.pal.dim))
 	}
@@ -947,25 +884,7 @@ func (g *game) drawResult(s *session, l playLayout) {
 		drawCentered(g.screen, w/2, y, fmt.Sprintf("Rounds won %d – %d · %s", s.Wins[0], s.Wins[1], s.roundsLabel()), g.st(g.pal.dim))
 	}
 	y++
-	status := g.recordNote
-	stc := g.pal.accent
-	if s.Mode == modeOnline {
-		me := g.ctl.seat()
-		opp := 1 - me
-		switch {
-		case g.ctl.opponentGone():
-			status, stc = "Your opponent has left the room.", g.pal.lose
-		case s.Votes[me] != "" && s.Votes[opp] != s.Votes[me]:
-			status, stc = "Waiting for "+s.Names[opp]+"...", g.pal.dim
-		case s.Votes[opp] == voteRematch:
-			status = s.Names[opp] + " wants to rematch!"
-		case s.Votes[opp] == voteContinue:
-			status = s.Names[opp] + " wants to continue!"
-		case s.Votes[opp] == voteFree:
-			status = s.Names[opp] + " wants to go into free play!"
-		}
-	}
-	if status != "" {
+	if status, stc := g.resultStatus(s); status != "" {
 		drawCentered(g.screen, w/2, y, status, g.st(stc))
 	}
 	y += 2
@@ -1051,15 +970,7 @@ func (g *game) drawLogOverlay(s *session) {
 	var lines []string
 	var colors []tcell.Color
 	for _, e := range s.Log {
-		c := g.pal.fg
-		switch e.Kind {
-		case logFirst:
-			c = g.pal.accent
-		case logRound, logForfeit:
-			c = g.pal.win
-		case logTimeout:
-			c = g.pal.lose
-		}
+		c := g.logColor(e)
 		for _, line := range wrap(g.logText(s, e), bw-6) {
 			lines = append(lines, line)
 			colors = append(colors, c)
@@ -1074,36 +985,9 @@ func (g *game) drawLogOverlay(s *session) {
 func (g *game) drawHistoryOverlay(s *session) {
 	var lines []string
 	var colors []tcell.Color
-	add := func(t string, c tcell.Color) {
-		lines = append(lines, t)
-		colors = append(colors, c)
-	}
-	add(fmt.Sprintf("Round %d of %s", s.Round, s.roundsLabel()), g.pal.accent)
-	add("", g.pal.fg)
-	if len(s.History) == 0 {
-		add("The first round isn't finished yet!", g.pal.dim)
-	}
-	for _, e := range s.History {
-		add(fmt.Sprintf("Round %d   %s %d – %d %s", e.Round, s.Names[0], e.Scores[0], e.Scores[1], s.Names[1]), g.pal.fg)
-		switch {
-		case e.Winner < 0:
-			add("    This is a tie!", g.pal.dim)
-		case g.isYou(s, e.Winner):
-			add("    You won!", g.pal.win)
-		default:
-			add("    "+s.Names[e.Winner]+" won!", g.pal.dim)
-		}
-		switch {
-		case e.Lead < 0:
-		case g.isYou(s, e.Lead):
-			add("    You are taking the lead!", g.pal.accent)
-		default:
-			add("    "+s.Names[e.Lead]+" is taking the lead!", g.pal.accent)
-		}
-	}
-	if s.Ties > 0 {
-		add("", g.pal.fg)
-		add(fmt.Sprintf("Ties: %d", s.Ties), g.pal.dim)
+	for _, l := range g.historyLines(s) {
+		lines = append(lines, l.text)
+		colors = append(colors, l.color)
 	}
 	g.drawScrollBox("History", lines, colors, false, "↑↓ scroll · H or Esc close")
 }
@@ -1169,24 +1053,12 @@ func (g *game) drawGuide() {
 		tw = 74
 	}
 	x := w/2 - tw/2
-	var lines []string
-	var styles []tcell.Style
-	for i, gl := range guideText {
-		switch gl.kind {
-		case 1:
-			if i > 0 {
-				lines, styles = append(lines, ""), append(styles, g.st(g.pal.fg))
-			}
-			lines, styles = append(lines, gl.text), append(styles, g.st(g.pal.accent).Bold(true))
-		case 2:
-			lines, styles = append(lines, gl.text), append(styles, g.st(g.pal.fg))
-		default:
-			for j, l := range wrap(gl.text, tw-2) {
-				if j > 0 && (strings.HasPrefix(gl.text, "•") || (len(gl.text) > 1 && gl.text[1] == '.')) {
-					l = "  " + l
-				}
-				lines, styles = append(lines, l), append(styles, g.st(g.pal.fg))
-			}
+	lines, kinds := g.guideLines(func(t string) []string { return wrap(t, tw-2) })
+	styles := make([]tcell.Style, len(lines))
+	for i, k := range kinds {
+		styles[i] = g.st(g.pal.fg)
+		if k == 1 {
+			styles[i] = g.st(g.pal.accent).Bold(true)
 		}
 	}
 	g.drawTitle(0)
@@ -1218,36 +1090,17 @@ func (g *game) drawStats() {
 	}
 	x := w/2 - tw/2
 	y := 5
-	header := fmt.Sprintf("%-22s %6s %5s %7s %6s %5s %7s", "", "Games", "Wins", "Losses", "Draws", "Best", "Series")
-	drawText(g.screen, x, y, header, g.st(g.pal.dim))
-	y++
-	labels := map[string]string{
-		"ai-" + diffEasy:   "vs Ratau (Easy)",
-		"ai-" + diffMedium: "vs Flinky (Medium)",
-		"ai-" + diffHard:   "vs Shrumy (Hard)",
-		recordOnline:       "Online",
-		recordLocal:        "Same keyboard",
+	format := func(c [7]string) string {
+		return fmt.Sprintf("%-22s %6s %5s %7s %6s %5s %7s", c[0], c[1], c[2], c[3], c[4], c[5], c[6])
 	}
-	for _, k := range recordKeys {
-		r := g.save.Records[k]
-		if r == nil {
-			r = &record{}
-		}
-		var line string
-		if k == recordLocal {
-			line = fmt.Sprintf("%-22s %6d %5s %7s %6d %5d %7s", labels[k], r.Games, "–", "–", r.Draws, r.Best, "–")
-		} else {
-			series := "–"
-			if r.SeriesWins+r.SeriesLosses > 0 {
-				series = fmt.Sprintf("%d–%d", r.SeriesWins, r.SeriesLosses)
-			}
-			line = fmt.Sprintf("%-22s %6d %5d %7d %6d %5d %7s", labels[k], r.Games, r.Wins, r.Losses, r.Draws, r.Best, series)
-		}
+	drawText(g.screen, x, y, format(statsHeader), g.st(g.pal.dim))
+	y++
+	for _, r := range g.statsRows() {
 		c := g.pal.fg
-		if r.Games == 0 {
+		if r.empty {
 			c = g.pal.dim
 		}
-		drawText(g.screen, x, y, line, g.st(c))
+		drawText(g.screen, x, y, format(r.cells), g.st(c))
 		y++
 	}
 	y += 1

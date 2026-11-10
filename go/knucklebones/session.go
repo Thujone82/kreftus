@@ -83,6 +83,11 @@ type session struct {
 	TurnLimit  int            `json:"turnLimit,omitempty"` // seconds, online only
 	TurnLeftMs int64          `json:"turnLeftMs,omitempty"`
 	WaitLeftMs int64          `json:"waitLeftMs,omitempty"` // reconnect window
+	// Aiming is the player-to-move's live column/die choice so the
+	// opponent can watch the placement preview before the move lands.
+	Aiming bool `json:"aiming,omitempty"`
+	AimCol int  `json:"aimCol,omitempty"`
+	AimDie int  `json:"aimDie,omitempty"`
 }
 
 func newSession(mode string, names [2]string, difficulty string, bestOf int, rules Rules, rng *rand.Rand) *session {
@@ -118,7 +123,33 @@ func (s *session) startRound(rng *rand.Rand) {
 	s.Phase = phasePlay
 	s.Votes = [2]string{}
 	s.Last = nil
+	s.clearAim()
 	s.addLog(logEntry{Kind: logFirst, Player: first})
+}
+
+func (s *session) clearAim() {
+	s.Aiming = false
+	s.AimCol = 0
+	s.AimDie = 0
+}
+
+func (s *session) setAim(col, die int) bool {
+	if s.Phase != phasePlay {
+		return false
+	}
+	if col < 0 || col >= gridCols || die < 0 || die > 1 {
+		return false
+	}
+	if s.Match.Dice[die] == 0 {
+		return false
+	}
+	if s.Aiming && s.AimCol == col && s.AimDie == die {
+		return false
+	}
+	s.Aiming = true
+	s.AimCol = col
+	s.AimDie = die
+	return true
 }
 
 func (s *session) addLog(e logEntry) {
@@ -141,6 +172,7 @@ func (s *session) place(p int, mv Move, rng *rand.Rand) error {
 	if err != nil {
 		return err
 	}
+	s.clearAim()
 	s.Last = &pl
 	s.addLog(logEntry{Kind: logPlace, Player: p, Die: pl.Die, Col: pl.Col, Destroyed: pl.Destroyed, Gain: pl.Gain, Lost: pl.Lost})
 	if s.Match.Over {
@@ -213,6 +245,7 @@ func (s *session) forfeitBy(loser int, reason string) {
 	s.Match.Dice = [2]int{}
 	s.Phase = phaseGameOver
 	s.Votes = [2]string{}
+	s.clearAim()
 	s.addLog(logEntry{Kind: logForfeit, Player: loser, Reason: reason})
 }
 

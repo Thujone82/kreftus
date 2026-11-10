@@ -23,6 +23,7 @@ const (
 	msgHello  = "hello"
 	msgState  = "state"
 	msgMove   = "move"
+	msgAim    = "aim"
 	msgVote   = "vote"
 	msgResign = "resign"
 	msgBye    = "bye"
@@ -264,6 +265,10 @@ func (h *netHost) onMsg(m netMsg, now time.Time) bool {
 		if h.s.place(1, Move{Col: m.Col, Die: m.Die}, h.rng) != nil {
 			return false
 		}
+	case msgAim:
+		if h.s.Match.Turn != 1 || !h.s.setAim(m.Col, m.Die) {
+			return false
+		}
 	case msgVote:
 		h.s.vote(1, m.Vote, h.rng)
 	case msgResign:
@@ -380,6 +385,13 @@ func (h *netHost) place(mv Move) {
 	if h.s != nil && h.s.place(0, mv, h.rng) == nil {
 		h.broadcast(time.Now())
 	}
+}
+
+func (h *netHost) aim(col, die int) {
+	if h.s == nil || h.s.Match.Turn != 0 || !h.s.setAim(col, die) {
+		return
+	}
+	h.broadcast(time.Now())
 }
 
 func (h *netHost) vote(v string) {
@@ -617,6 +629,8 @@ func (c *netClient) send(m netMsg) {
 }
 
 func (c *netClient) place(mv Move) { c.send(netMsg{Type: msgMove, Col: mv.Col, Die: mv.Die}) }
+
+func (c *netClient) aim(col, die int) { c.send(netMsg{Type: msgAim, Col: col, Die: die}) }
 
 func (c *netClient) vote(v string) {
 	if c.s != nil {
