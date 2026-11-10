@@ -360,7 +360,7 @@ func (g *game) settingText(row int) (string, string) {
 		return "Turn timer", fmt.Sprintf("%d seconds", st.TurnSeconds)
 	case rowPort:
 		if st.Port == 0 {
-			return "Port", ""
+			return "Port", fmt.Sprint(defaultPort)
 		}
 		return "Port", fmt.Sprint(st.Port)
 	case rowDestroy:
@@ -410,8 +410,10 @@ func (g *game) drawSettings() {
 			lst = g.st(g.pal.accent)
 			vst = g.st(g.pal.accent).Bold(true)
 			switch row {
-			case rowPlayer2, rowPort:
-				value += "▏"
+			case rowPlayer2:
+				value = withCaret(value, g.inputPos)
+			case rowPort:
+				value = withCaret(g.portEditString(), g.inputPos)
 			default:
 				value = "◀ " + value + " ▶"
 			}
@@ -430,6 +432,12 @@ func (g *game) drawSettings() {
 	drawCentered(g.screen, w/2, h-1, "↑↓ select · ←→ change · Enter · Esc back", g.st(g.pal.dim))
 }
 
+func withCaret(s string, pos int) string {
+	r := []rune(s)
+	pos = clampRunePos(s, pos)
+	return string(r[:pos]) + "▏" + string(r[pos:])
+}
+
 func (g *game) drawPrompt(title, label, value string) {
 	w, h := g.width, g.height
 	g.drawTitle(1)
@@ -442,16 +450,23 @@ func (g *game) drawPrompt(title, label, value string) {
 	drawText(g.screen, bx+3, by+2, label, g.st(g.pal.dim))
 	field := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
 	fillRect(g.screen, bx+3, by+4, bw-6, 1, field)
-	shown := value
-	for textWidth(shown) > bw-8 {
-		shown = string([]rune(shown)[1:])
+	pos := clampRunePos(value, g.inputPos)
+	r := []rune(value)
+	start := 0
+	maxW := bw - 8
+	for textWidth(string(r[start:pos])+"▏") > maxW && start < pos {
+		start++
 	}
-	x := drawText(g.screen, bx+4, by+4, shown, field)
-	g.screen.SetContent(x, by+4, '▏', nil, field.Foreground(g.pal.accent))
+	end := len(r)
+	for textWidth(string(r[start:end])+"▏") > maxW && end > pos {
+		end--
+	}
+	shown := withCaret(string(r[start:end]), pos-start)
+	drawText(g.screen, bx+4, by+4, shown, field)
 	if g.note != "" {
 		drawCentered(g.screen, w/2, by+8, g.note, g.st(g.pal.lose))
 	}
-	drawCentered(g.screen, w/2, h-1, "Type · Enter confirm · Esc back", g.st(g.pal.dim))
+	drawCentered(g.screen, w/2, h-1, "Type · ←→ move · Enter confirm · Esc back", g.st(g.pal.dim))
 }
 
 func lobbyErrorText(e string) string {

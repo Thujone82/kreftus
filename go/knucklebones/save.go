@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -104,11 +105,14 @@ func loadSave(path string) *saveData {
 	if err := json.Unmarshal(data, s); err != nil {
 		return newSaveData()
 	}
-	s.normalize()
+	if s.normalize() {
+		_ = s.write(path)
+	}
 	return s
 }
 
-func (s *saveData) normalize() {
+// normalize repairs settings and reports whether the old default port was migrated.
+func (s *saveData) normalize() bool {
 	d := newSaveData()
 	s.Version = knucklebonesVersion
 	s.Name = cleanName(s.Name, d.Name)
@@ -128,11 +132,21 @@ func (s *saveData) normalize() {
 	default:
 		s.Settings.TurnSeconds = 30
 	}
+	migrated := false
 	if s.Settings.Port <= 0 || s.Settings.Port > 65535 {
 		s.Settings.Port = defaultPort
 	}
+	// Older builds used 7777 as the default host/join port.
+	if s.Settings.Port == 7777 {
+		s.Settings.Port = defaultPort
+		migrated = true
+	}
 	if strings.TrimSpace(s.Settings.JoinAddr) == "" {
 		s.Settings.JoinAddr = d.Settings.JoinAddr
+	}
+	if host, port, err := net.SplitHostPort(s.Settings.JoinAddr); err == nil && port == "7777" {
+		s.Settings.JoinAddr = net.JoinHostPort(host, strconv.Itoa(defaultPort))
+		migrated = true
 	}
 	s.Settings.Player2 = cleanName(s.Settings.Player2, d.Settings.Player2)
 	if s.Records == nil {
@@ -150,6 +164,7 @@ func (s *saveData) normalize() {
 	if len(s.HighScores) > maxHighScores {
 		s.HighScores = s.HighScores[:maxHighScores]
 	}
+	return migrated
 }
 
 // write saves atomically: a temp file in the same folder, then a rename.

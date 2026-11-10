@@ -13,7 +13,7 @@ import (
 
 const (
 	protocolVersion = 1
-	defaultPort     = 7777
+	defaultPort     = 8647
 	pingEvery       = 5 * time.Second
 	readTimeout     = 15 * time.Second
 	writeTimeout    = 3 * time.Second

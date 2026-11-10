@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -67,6 +68,22 @@ func TestHighScoresTopTen(t *testing.T) {
 	}
 	if rank := s.addHighScore(highScore{Score: 61}); rank != 1 {
 		t.Fatalf("top score ranked %d", rank)
+	}
+}
+
+func TestMigrateOldDefaultPort(t *testing.T) {
+	path := filepath.Join(t.TempDir(), saveFileName)
+	os.WriteFile(path, []byte(`{"settings":{"bestOf":3,"port":7777,"joinAddr":"192.168.1.20:7777","difficulty":"medium","turnSeconds":30}}`), 0o644)
+	s := loadSave(path)
+	if s.Settings.Port != defaultPort {
+		t.Fatalf("port %d, want %d", s.Settings.Port, defaultPort)
+	}
+	if s.Settings.JoinAddr != "192.168.1.20:"+strconv.Itoa(defaultPort) {
+		t.Fatalf("join %q", s.Settings.JoinAddr)
+	}
+	got := loadSave(path)
+	if got.Settings.Port != defaultPort || got.Settings.JoinAddr != s.Settings.JoinAddr {
+		t.Fatalf("migrated save not written: %+v", got.Settings)
 	}
 }
 

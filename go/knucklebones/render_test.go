@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,7 +168,13 @@ func TestLightThemeAndLobby(t *testing.T) {
 	if g.save.Theme != themeLight {
 		t.Fatal("theme did not toggle")
 	}
-	g.save.Settings.Port = 0
+	// Bind an ephemeral port so a leftover process on 8647 cannot flake this test.
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.save.Settings.Port = ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
 	g.openSettings(setupHost)
 	g.startFromSettings()
 	if g.view != viewLobby {

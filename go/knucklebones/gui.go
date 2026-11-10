@@ -140,12 +140,16 @@ var keyMap = []struct {
 	{ebiten.KeyPageUp, tcell.KeyPgUp},
 	{ebiten.KeyPageDown, tcell.KeyPgDn},
 	{ebiten.KeyHome, tcell.KeyHome},
+	{ebiten.KeyEnd, tcell.KeyEnd},
 }
 
 // repeating reports a fresh press or an auto-repeat of a held key.
 func repeating(k ebiten.Key) bool {
+	if inpututil.IsKeyJustPressed(k) {
+		return true
+	}
 	d := inpututil.KeyPressDuration(k)
-	return d == 1 || (d >= 24 && (d-24)%4 == 0)
+	return d >= 24 && (d-24)%4 == 0
 }
 
 func (a *guiApp) keyEvents() []*tcell.EventKey {
@@ -234,6 +238,15 @@ func (a *guiApp) mouse() bool {
 			}
 			g.setIndex = i
 			if row == rowPlayer2 || row == rowPort {
+				g.focusSettingCaret()
+				field := settingsTextField(r)
+				if field.has(x, y) {
+					value := g.save.Settings.Player2
+					if row == rowPort {
+						value = g.portEditString()
+					}
+					g.inputPos = caretIndexAt(value, x, field.X+12, 17, fontRegular)
+				}
 				return false
 			}
 			left, right := settingsArrows(r)
@@ -247,6 +260,11 @@ func (a *guiApp) mouse() bool {
 		}
 	case viewName, viewJoin:
 		if !click {
+			return false
+		}
+		f := promptField()
+		if f.has(x, y) {
+			g.inputPos = caretIndexAt(g.input, x, f.X+12, 18, fontRegular)
 			return false
 		}
 		back, ok := promptButtons()

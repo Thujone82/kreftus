@@ -71,6 +71,51 @@ func wrapPx(s string, size float64, f fontKind, width float64) []string {
 	return lines
 }
 
+// caretIndexAt maps a click x (design units) onto a rune caret index.
+func caretIndexAt(s string, clickX, textX, size float64, f fontKind) int {
+	rel := clickX - textX
+	if rel <= 0 {
+		return 0
+	}
+	r := []rune(s)
+	best := 0
+	bestDist := rel
+	for i := 0; i <= len(r); i++ {
+		w := measure(string(r[:i]), size, f)
+		d := rel - w
+		if d < 0 {
+			d = -d
+		}
+		if d < bestDist {
+			bestDist = d
+			best = i
+		}
+		if w >= rel {
+			break
+		}
+	}
+	return best
+}
+
+// visibleWithCaret scrolls s so the caret stays inside maxW and returns the
+// visible slice plus the caret offset within that slice.
+func visibleWithCaret(s string, pos int, maxW, size float64, f fontKind) (shown string, caret int) {
+	r := []rune(s)
+	pos = clampRunePos(s, pos)
+	start := 0
+	for measure(string(r[start:pos])+"|", size, f) > maxW && start < pos {
+		start++
+	}
+	end := len(r)
+	for measure(string(r[start:end])+"|", size, f) > maxW && end > pos {
+		end--
+	}
+	for measure(string(r[start:end])+"|", size, f) > maxW && end > start {
+		end--
+	}
+	return string(r[start:end]), pos - start
+}
+
 func truncPx(s string, size float64, f fontKind, width float64) string {
 	if measure(s, size, f) <= width {
 		return s
@@ -313,12 +358,20 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 		left, right := settingsArrows(r)
 		vc := a.c(p.fg)
 		if row == rowPlayer2 || row == rowPort {
-			field := rect{left.X, r.Y + 6, right.X + right.W - left.X, r.H - 12}
+			field := settingsTextField(r)
 			a.fill(dst, field, a.c(p.emptyBg), 6)
 			if sel {
-				value += caret()
+				edit := value
+				if row == rowPlayer2 {
+					edit = g.save.Settings.Player2
+				} else {
+					edit = g.portEditString()
+				}
+				shown, cpos := visibleWithCaret(edit, g.inputPos, field.W-24, 17, fontRegular)
+				a.drawCaretText(dst, shown, cpos, field.X+12, field.cy(), 17, vc)
+			} else {
+				a.text(dst, value, field.X+12, field.cy(), 17, fontRegular, vc, text.AlignStart)
 			}
-			a.text(dst, value, field.X+12, field.cy(), 17, fontRegular, vc, text.AlignStart)
 			continue
 		}
 		ac := a.c(p.dim)
@@ -354,18 +407,28 @@ func (a *guiApp) drawPrompt(dst *ebiten.Image, title, label, okLabel string) {
 	f := promptField()
 	a.fill(dst, f, a.c(p.emptyBg), 8)
 	a.stroke(dst, f, a.c(p.accent), 8, 1.5)
-	shown := g.input
-	for measure(shown+"|", 18, fontRegular) > f.W-24 && shown != "" {
-		shown = string([]rune(shown)[1:])
-	}
-	a.text(dst, shown+caret(), f.X+12, f.cy(), 18, fontRegular, a.c(p.fg), text.AlignStart)
+	shown, cpos := visibleWithCaret(g.input, g.inputPos, f.W-24, 18, fontRegular)
+	a.drawCaretText(dst, shown, cpos, f.X+12, f.cy(), 18, a.c(p.fg))
 	back, ok := promptButtons()
 	a.button(dst, back, "Back", false, p.accent)
 	a.button(dst, ok, okLabel, true, p.accent)
 	if g.note != "" {
 		a.center(dst, g.note, c.Y+c.H+30, 16, fontRegular, a.c(p.lose))
 	}
-	a.footer(dst, "Type · Enter confirm · Esc back")
+	a.footer(dst, "Type · click or ←→ move caret · Enter confirm · Esc back")
+}
+
+func (a *guiApp) drawCaretText(dst *ebiten.Image, s string, pos int, x, y, size float64, col color.Color) {
+	r := []rune(s)
+	pos = clampRunePos(s, pos)
+	before := string(r[:pos])
+	after := string(r[pos:])
+	a.text(dst, before, x, y, size, fontRegular, col, text.AlignStart)
+	cx := x + measure(before, size, fontRegular)
+	a.text(dst, after, cx, y, size, fontRegular, col, text.AlignStart)
+	if caret() != "" {
+		a.text(dst, "|", cx, y, size, fontRegular, col, text.AlignStart)
+	}
 }
 
 func (a *guiApp) drawLobby(dst *ebiten.Image) {

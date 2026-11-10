@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -173,6 +175,7 @@ type game struct {
 	setIndex  int
 	note      string
 	input     string
+	inputPos  int // caret index in runes for input / Player 2 name
 
 	ctl           controller
 	overlay       int
@@ -542,6 +545,7 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 			g.openSettings(setupHost)
 		case menuJoin:
 			g.input = g.save.Settings.JoinAddr
+			g.inputPos = runeLen(g.input)
 			g.view = viewJoin
 		case menuGuide:
 			g.guideScroll = 0
@@ -550,6 +554,7 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 			g.view = viewStats
 		case menuName:
 			g.input = g.save.Name
+			g.inputPos = runeLen(g.input)
 			g.view = viewName
 		case menuTheme:
 			g.toggleTheme()
@@ -563,6 +568,7 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 func (g *game) openSettings(mode string) {
 	g.setupMode = mode
 	g.setIndex = len(g.settingRows()) - 1
+	g.focusSettingCaret()
 	g.view = viewSettings
 }
 
@@ -616,6 +622,22 @@ func (g *game) changeSetting(row, step int) {
 func (g *game) keySettings(e *tcell.EventKey) {
 	rows := g.settingRows()
 	row := rows[g.setIndex]
+	if row == rowPlayer2 {
+		if next, pos, ok := editLine(e, g.save.Settings.Player2, g.inputPos, maxNameLen, unicode.IsPrint); ok {
+			g.save.Settings.Player2 = next
+			g.inputPos = pos
+			return
+		}
+	}
+	if row == rowPort {
+		if next, pos, ok := editLine(e, g.portEditString(), g.inputPos, 5, func(r rune) bool {
+			return r >= '0' && r <= '9'
+		}); ok {
+			g.applyPortEdit(next)
+			g.inputPos = pos
+			return
+		}
+	}
 	switch {
 	case e.Key() == tcell.KeyEscape:
 		g.save.Settings.Player2 = cleanName(g.save.Settings.Player2, "Player 2")
@@ -623,30 +645,20 @@ func (g *game) keySettings(e *tcell.EventKey) {
 		g.view = viewMenu
 	case e.Key() == tcell.KeyUp || e.Key() == tcell.KeyBacktab:
 		g.setIndex = (g.setIndex + len(rows) - 1) % len(rows)
+		g.focusSettingCaret()
 	case e.Key() == tcell.KeyDown || e.Key() == tcell.KeyTab:
 		g.setIndex = (g.setIndex + 1) % len(rows)
+		g.focusSettingCaret()
 	case e.Key() == tcell.KeyLeft:
 		g.changeSetting(row, -1)
 	case e.Key() == tcell.KeyRight:
 		g.changeSetting(row, 1)
-	case row == rowPlayer2 && isBack(e):
-		if r := []rune(g.save.Settings.Player2); len(r) > 0 {
-			g.save.Settings.Player2 = string(r[:len(r)-1])
-		}
-	case row == rowPlayer2 && e.Key() == tcell.KeyRune:
-		if len([]rune(g.save.Settings.Player2)) < maxNameLen && unicode.IsPrint(e.Rune()) {
-			g.save.Settings.Player2 += string(e.Rune())
-		}
-	case row == rowPort && isBack(e):
-		g.save.Settings.Port /= 10
-	case row == rowPort && e.Key() == tcell.KeyRune && e.Rune() >= '0' && e.Rune() <= '9':
-		if p := g.save.Settings.Port*10 + int(e.Rune()-'0'); p <= 65535 {
-			g.save.Settings.Port = p
-		}
 	case isUp(e):
 		g.setIndex = (g.setIndex + len(rows) - 1) % len(rows)
+		g.focusSettingCaret()
 	case isDown(e):
 		g.setIndex = (g.setIndex + 1) % len(rows)
+		g.focusSettingCaret()
 	case isLeft(e):
 		g.changeSetting(row, -1)
 	case isRight(e):
@@ -657,9 +669,47 @@ func (g *game) keySettings(e *tcell.EventKey) {
 			g.startFromSettings()
 		case rowPlayer2, rowPort:
 			g.setIndex = (g.setIndex + 1) % len(rows)
+			g.focusSettingCaret()
 		default:
 			g.changeSetting(row, 1)
 		}
+	}
+}
+
+// portEditString is the digits shown/edited in the Port field.
+func (g *game) portEditString() string {
+	if g.save.Settings.Port <= 0 {
+		return ""
+	}
+	return strconv.Itoa(g.save.Settings.Port)
+}
+
+func (g *game) applyPortEdit(s string) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		g.save.Settings.Port = 0
+		return
+	}
+	p, err := strconv.Atoi(s)
+	if err != nil || p < 0 || p > 65535 {
+		return
+	}
+	g.save.Settings.Port = p
+}
+
+func (g *game) focusSettingCaret() {
+	rows := g.settingRows()
+	if g.setIndex < 0 || g.setIndex >= len(rows) {
+		return
+	}
+	switch rows[g.setIndex] {
+	case rowPlayer2:
+		g.inputPos = runeLen(g.save.Settings.Player2)
+	case rowPort:
+		if g.save.Settings.Port <= 0 {
+			g.save.Settings.Port = defaultPort
+		}
+		g.inputPos = runeLen(g.portEditString())
 	}
 }
 
@@ -692,23 +742,93 @@ func (g *game) startFromSettings() {
 	g.persist()
 }
 
-// editLine applies a text-editing key to s; ok is false for other keys.
-func editLine(e *tcell.EventKey, s string, max int, allow func(rune) bool) (string, bool) {
-	switch {
-	case isBack(e):
-		if r := []rune(s); len(r) > 0 {
-			return string(r[:len(r)-1]), true
-		}
-		return s, true
-	case e.Key() == tcell.KeyCtrlU:
-		return "", true
-	case e.Key() == tcell.KeyRune && allow(e.Rune()):
-		if len([]rune(s)) < max {
-			return s + string(e.Rune()), true
-		}
-		return s, true
+func runeLen(s string) int { return len([]rune(s)) }
+
+func clampRunePos(s string, pos int) int {
+	n := runeLen(s)
+	if pos < 0 {
+		return 0
 	}
-	return s, false
+	if pos > n {
+		return n
+	}
+	return pos
+}
+
+// editLine applies a text-editing key at the caret. Arrow/Home/End move the
+// caret; Backspace/Delete edit around it. ok is false for unrelated keys.
+// Left/Right use the key codes only so typed a/d still insert.
+func editLine(e *tcell.EventKey, s string, pos, max int, allow func(rune) bool) (string, int, bool) {
+	r := []rune(s)
+	pos = clampRunePos(s, pos)
+	switch {
+	case e.Key() == tcell.KeyLeft:
+		if pos > 0 {
+			pos--
+		}
+		return s, pos, true
+	case e.Key() == tcell.KeyRight:
+		if pos < len(r) {
+			pos++
+		}
+		return s, pos, true
+	case e.Key() == tcell.KeyHome:
+		return s, 0, true
+	case e.Key() == tcell.KeyEnd:
+		return s, len(r), true
+	case e.Key() == tcell.KeyBackspace || e.Key() == tcell.KeyBackspace2:
+		if pos > 0 {
+			r = append(r[:pos-1], r[pos:]...)
+			pos--
+			return string(r), pos, true
+		}
+		return s, pos, true
+	case e.Key() == tcell.KeyDelete:
+		if pos < len(r) {
+			r = append(r[:pos], r[pos+1:]...)
+			return string(r), pos, true
+		}
+		return s, pos, true
+	case e.Key() == tcell.KeyCtrlU:
+		return "", 0, true
+	case e.Key() == tcell.KeyRune && allow(e.Rune()):
+		if len(r) < max {
+			ins := []rune{e.Rune()}
+			r = append(r[:pos], append(ins, r[pos:]...)...)
+			pos++
+			return string(r), pos, true
+		}
+		return s, pos, true
+	}
+	return s, pos, false
+}
+
+// normalizeJoinAddr adds :8647 when the host port is missing or blank.
+func normalizeJoinAddr(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+	if host, port, err := net.SplitHostPort(addr); err == nil {
+		if strings.TrimSpace(port) != "" {
+			return net.JoinHostPort(host, port)
+		}
+		if strings.TrimSpace(host) == "" {
+			return addr
+		}
+		return net.JoinHostPort(host, strconv.Itoa(defaultPort))
+	}
+	if strings.HasSuffix(addr, ":") {
+		host := strings.TrimSpace(strings.TrimSuffix(addr, ":"))
+		if host == "" {
+			return addr
+		}
+		return net.JoinHostPort(host, strconv.Itoa(defaultPort))
+	}
+	if strings.Contains(addr, ":") {
+		return addr
+	}
+	return net.JoinHostPort(addr, strconv.Itoa(defaultPort))
 }
 
 func (g *game) keyName(e *tcell.EventKey) {
@@ -720,7 +840,7 @@ func (g *game) keyName(e *tcell.EventKey) {
 		g.persist()
 		g.view = viewMenu
 	default:
-		g.input, _ = editLine(e, g.input, maxNameLen, unicode.IsPrint)
+		g.input, g.inputPos, _ = editLine(e, g.input, g.inputPos, maxNameLen, unicode.IsPrint)
 	}
 }
 
@@ -729,20 +849,19 @@ func (g *game) keyJoin(e *tcell.EventKey) {
 	case e.Key() == tcell.KeyEscape:
 		g.view = viewMenu
 	case isEnter(e):
-		addr := strings.TrimSpace(g.input)
+		addr := normalizeJoinAddr(g.input)
 		if addr == "" {
-			g.note = "Enter the host's address, for example 192.168.1.20:7777"
+			g.note = "Enter the host's address, for example 192.168.1.20:8647"
 			return
 		}
-		if !strings.Contains(addr, ":") {
-			addr = fmt.Sprintf("%s:%d", addr, defaultPort)
-		}
+		g.input = addr
+		g.inputPos = runeLen(addr)
 		g.save.Settings.JoinAddr = addr
 		g.persist()
 		g.note = ""
 		g.beginGame(startClient(g.save.Name, addr))
 	default:
-		g.input, _ = editLine(e, g.input, maxAddrLen, func(r rune) bool { return unicode.IsPrint(r) && r != ' ' })
+		g.input, g.inputPos, _ = editLine(e, g.input, g.inputPos, maxAddrLen, func(r rune) bool { return unicode.IsPrint(r) && r != ' ' })
 	}
 }
 

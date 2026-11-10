@@ -40,7 +40,7 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 - **Log**: the side panel shows the latest moves. **L** opens the full log of rolls, placements, destruction, timeouts, and results
 - **History**: **H** lists each round's score and winner, plus who took the lead
 - **Resign**: **R** with a confirmation. Vs AI and online it counts as a loss
-- **Online play**: one player hosts on a TCP port (default 7777) and the lobby lists that computer's LAN addresses. The other joins with `host:port`
+- **Online play**: one player hosts on a TCP port (default 8647) and the lobby lists that computer's LAN addresses. The other joins with `host:port`
   - The host rolls every die and sends the full game state after each move
   - While a player aims, their column and die choice are shared so both screens show the placement preview before the move is confirmed
   - Optional turn timer (15, 30, or 60 seconds). A timed-out turn places the die in a random open column; three timeouts lose the match
@@ -63,7 +63,7 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 | Game settings | Typing, Backspace | Edit Player 2 name or Port |
 | Game settings | Enter on Start game | Start |
 | Game settings | Esc | Back to the menu |
-| Name / Join | Typing, Backspace, Ctrl+U | Edit the text |
+| Name / Join | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit the text |
 | Name / Join | Enter | Confirm (Join connects) |
 | Lobby | Enter | Retry after a failed connection |
 | Lobby | Esc | Cancel |
@@ -126,7 +126,7 @@ The best column is 54, so the best board is 162. The game stops as soon as any b
 ## Online play
 
 1. The host picks **Host an online game**, sets the rounds, turn timer, port, and house rules, then **Start game**. The lobby lists this computer's addresses.
-2. The other player picks **Join an online game** and types one of those addresses, for example `192.168.1.20:7777`. A bare host name uses port 7777.
+2. The other player picks **Join an online game** and types one of those addresses, for example `192.168.1.20:8647`. A bare host name uses port 8647.
 3. The game starts as soon as the guest connects. The host's copy runs the game and rolls the dice.
 
 The game is played directly between the two computers, so both must reach each other (same network, VPN, or a forwarded port). Windows may ask to allow Knucklebones through the firewall the first time you host. A room holds two players; a third connection is turned away.

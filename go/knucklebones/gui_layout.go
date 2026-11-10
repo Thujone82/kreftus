@@ -78,6 +78,11 @@ func settingsArrows(row rect) (left, right rect) {
 	return left, right
 }
 
+func settingsTextField(row rect) rect {
+	left, right := settingsArrows(row)
+	return rect{left.X, row.Y + 6, right.X + right.W - left.X, row.H - 12}
+}
+
 func promptCard() rect { return centered(baseW/2, 236, 580, 240) }
 
 func promptField() rect {
