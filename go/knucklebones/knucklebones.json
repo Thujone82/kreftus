@@ -1,0 +1,33 @@
+﻿{
+  "version": "1.0",
+  "name": "Kaleb",
+  "theme": "dark",
+  "settings": {
+    "difficulty": "medium",
+    "bestOf": 1,
+    "rules": {},
+    "turnSeconds": 30,
+    "port": 7777,
+    "joinAddr": "localhost:7777",
+    "player2": "Player 2"
+  },
+  "records": {
+    "ai-medium": {
+      "games": 1,
+      "wins": 1,
+      "losses": 0,
+      "draws": 0,
+      "best": 53
+    }
+  },
+  "highScores": [
+    {
+      "name": "Kaleb",
+      "score": 53,
+      "opponent": "Flinky",
+      "against": 38,
+      "mode": "ai",
+      "date": "2026-11-10"
+    }
+  ]
+}
