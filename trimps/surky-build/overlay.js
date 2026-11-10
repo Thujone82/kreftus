@@ -772,7 +772,9 @@
   }
 
   // ---------- Perk Export & Autobuy Actions ----------
-  function copyExportedPerks() {
+  var suppressAutobuyToast = false;
+
+  function copyExportedPerks(customSuccessMsg) {
     if (typeof game !== "object" || !game) {
       toast("Import a Trimps save first before exporting perks.", "bad");
       return;
@@ -787,7 +789,7 @@
       return;
     }
     copyTextToClipboard(val).then(function () {
-      toast("Copied perk string to clipboard! Paste in Trimps → Portal → Import Perks.");
+      toast(customSuccessMsg || "Copied perk string to clipboard! Paste in Trimps → Portal → Import Perks.");
     }).catch(function () {
       if (expInput) {
         expInput.focus();
@@ -795,6 +797,23 @@
       }
       toast("Perk string selected — press Ctrl+C to copy.", "warn");
     });
+  }
+
+  function clearAutobuyAndCopyPerks() {
+    var clrBtn = $("clear-autobuy-button");
+    if (!clrBtn || clrBtn.disabled || typeof window.clearAndAutobuyPerks !== "function") {
+      return;
+    }
+    suppressAutobuyToast = true;
+    try {
+      window.clearAndAutobuyPerks();
+    } finally {
+      suppressAutobuyToast = false;
+    }
+    var rnText = (typeof props === "object" && props && props.radonSpent > 0)
+      ? " (" + formatSci(props.radonSpent) + " Rn spent)"
+      : "";
+    copyExportedPerks("Optimized perks" + rnText + " & copied perk string to clipboard!");
   }
 
   // ---------- DOM Enhancements & Function Wrappers ----------
@@ -843,7 +862,7 @@
             '<span>Collapse</span>' +
           '</button>' +
         '</div>' +
-        '<span class="surky-save-hint">Shortcuts: <kbd class="kbd">V</kbd> Paste · <kbd class="kbd">U</kbd> Edit Save · <kbd class="kbd">A</kbd> Autobuy · <kbd class="kbd">C</kbd> Copy Perks · <kbd class="kbd">?</kbd> Help</span>';
+        '<span class="surky-save-hint">Shortcuts: <kbd class="kbd">V</kbd> Paste · <kbd class="kbd">U</kbd> Edit Save · <kbd class="kbd">A</kbd> Autobuy · <kbd class="kbd">Shift+A</kbd> Autobuy &amp; Copy · <kbd class="kbd">C</kbd> Copy · <kbd class="kbd">?</kbd> Help</span>';
       saveBox.parentNode.appendChild(toolbar);
     }
 
@@ -963,7 +982,7 @@
             exportPerkString();
           }
           refreshStatusUI();
-          if (typeof props === "object" && props.radonSpent > 0) {
+          if (!suppressAutobuyToast && typeof props === "object" && props.radonSpent > 0) {
             toast("Optimized perks (" + formatSci(props.radonSpent) + " Rn spent) — press C to copy!");
           }
           return res;
@@ -1024,9 +1043,13 @@
 
     var btnTopAutobuy = $("btnTopAutobuy");
     if (btnTopAutobuy) {
-      btnTopAutobuy.addEventListener("click", function () {
+      btnTopAutobuy.addEventListener("click", function (ev) {
         if (typeof window.clearAndAutobuyPerks === "function" && !$("clear-autobuy-button").disabled) {
-          window.clearAndAutobuyPerks();
+          if (ev && ev.shiftKey) {
+            clearAutobuyAndCopyPerks();
+          } else {
+            window.clearAndAutobuyPerks();
+          }
         }
       });
     }
@@ -1094,7 +1117,11 @@
         var clrBtn = $("clear-autobuy-button");
         if (clrBtn && !clrBtn.disabled && typeof window.clearAndAutobuyPerks === "function") {
           ev.preventDefault();
-          window.clearAndAutobuyPerks();
+          if (ev.shiftKey) {
+            clearAutobuyAndCopyPerks();
+          } else {
+            window.clearAndAutobuyPerks();
+          }
         }
       } else if (k === "b" || k === "B") {
         var abBtn = $("autobuy-button");
