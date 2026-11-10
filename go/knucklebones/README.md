@@ -1,6 +1,6 @@
 # Knucklebones — Terminal Dice Duel
 
-**Version:** 1.0 · **Author:** Kreft & Cursor · **Date:** 2026-11-10
+**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-10
 
 ## Description
 
