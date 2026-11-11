@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -357,6 +357,13 @@
                 },
                 {
                     "@type": "SoftwareApplication",
+                    "name": "Knucklebones",
+                    "description": "Cross-platform dice game from Cult of the Lamb in Go (v1.0) with tcell terminal UI and Ebitengine desktop GUI. Features 3 AI difficulties, local and LAN/TCP multiplayer with live aim previews, house rules, and Top-10 scores.",
+                    "url": "https://kreft.us/knucklebones/",
+                    "applicationCategory": "Game"
+                },
+                {
+                    "@type": "SoftwareApplication",
                     "name": "TemPy",
                     "description": "Cross-platform Python TUI for ThermoPro TP35x Bluetooth hygrometers. BLE polling, sparklines (Less 4H/24H/72H or More with 90M/8H/12H/36H), history fetch up to 1 year from sensor memory, log export to web, device management, and CSV logging.",
                     "url": "https://kreft.us/tp/",
@@ -635,6 +642,21 @@
                             <div>
                                 <h2>GetForecast</h2>
                                 <p><b>GetForecast</b> is a PowerShell script that retrieves and displays detailed weather information for a specified location using the National Weather Service API. It accepts US zip codes or "City, State" strings, and provides current conditions, hourly forecasts, daily forecasts, weather alerts, nearby NIFC wildfire info (default 50 mi; <code>-wf</code>/<code>-wildfire</code> to set radius or <code>0</code> to disable), optional AirNow AQI, and more with smart color-coding and interactive display modes. <b>Advanced mode</b> (<code>-eadv</code> with an optional Forecast backup, or bare <code>-eadv</code> to build a profile in the config modal) stores favorite locations, colorized location-bar hotkeys (including Tab/Shift+Tab with a short settle before load), persisted defaults, and a <code>-config</code> editor for settings and favorites. Features include geocoding via OpenStreetMap Nominatim API, temperature trend detection, wind gust information, dew point calculations, and an interactive mode with keyboard controls. When a NOAA tide station is found within 100 miles, displays NOAA Station information with clickable links to tide predictions, datums, and water level data. No API registration required.</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./knucklebones/';">
+                    <td class="project-image-cell">
+                        <a href="./knucklebones/" tabindex="-1">
+                            <img src="./images/knucklebones1.png" alt="Knucklebones terminal and desktop dice game screenshot" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./knucklebones/" tabindex="-1">
+                            <div>
+                                <h2>Knucklebones v1.0</h2>
+                                <p><b>Knucklebones</b> is a fast-paced dice duel adapted from <i>Cult of the Lamb</i>, written in Go with tcell and Ebitengine. The terminal UI is the primary mode, with a matching graphical desktop window when launched with <code>-gui</code> or double-clicked in Explorer. Two players face off across 3×3 grids, rolling a die each turn to place into one of three columns. Matching dice multiply column scores, while placing a die destroys matching dice in the opponent's facing column. Features three AI opponents (Ratau, Flinky, and Shrumy), same-keyboard local play, and LAN/TCP network multiplayer with live placement aim previews, turn timers, configurable house rules, and persistent Top-10 statistics. Downloads and README on the project page.</p>
                             </div>
                         </a>
                     </td>

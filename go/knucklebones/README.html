@@ -1,61 +1,1447 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Knucklebones Documentation</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-light.min.css" crossorigin="anonymous">
-    <style>
-        html {
-            color-scheme: light;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knucklebones &mdash; Terminal Dice Duel &amp; GUI Documentation</title>
+  <link rel="icon" type="image/x-icon" href="die.ico">
+  <style>
+    :root {
+      --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "Cascadia Mono", "Cascadia Code", "SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+      --radius: 12px;
+    }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #090a0f;
+      --bg2: #12151e;
+      --bg-grad: radial-gradient(1100px 600px at -10% -15%, rgba(230, 57, 70, 0.15), transparent 60%),
+                 radial-gradient(900px 520px at 110% -10%, rgba(229, 169, 60, 0.12), transparent 60%);
+      --surface: rgba(18, 21, 30, 0.88);
+      --surface-solid: #12151e;
+      --surface-2: #181d2a;
+      --surface-3: #22293b;
+      --card: #181d2a;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.18);
+      --text: #e8ecf4;
+      --muted: #8b94a7;
+      --faint: #5f687c;
+      --accent: #e63946;
+      --accent-soft: rgba(230, 57, 70, 0.15);
+      --gold: #e5a93c;
+      --gold-soft: rgba(229, 169, 60, 0.15);
+      --blue: #4895ef;
+      --blue-soft: rgba(72, 149, 239, 0.15);
+      --buy: #22c55e;
+      --buy-soft: rgba(34, 197, 94, 0.14);
+      --warn: #fbbf24;
+      --warn-soft: rgba(251, 191, 36, 0.14);
+      --bad: #f43f5e;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      --code-bg: #10131b;
+      --code-border: rgba(255, 255, 255, 0.08);
+    }
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: #f4f5f8;
+      --bg2: #ffffff;
+      --bg-grad: radial-gradient(1100px 600px at -10% -15%, rgba(217, 4, 41, 0.10), transparent 60%),
+                 radial-gradient(900px 520px at 110% -10%, rgba(217, 119, 6, 0.08), transparent 60%);
+      --surface: rgba(255, 255, 255, 0.92);
+      --surface-solid: #ffffff;
+      --surface-2: #f6f7fa;
+      --surface-3: #eaedf2;
+      --card: #ffffff;
+      --border: rgba(15, 23, 42, 0.09);
+      --border-strong: rgba(15, 23, 42, 0.18);
+      --text: #0f172a;
+      --muted: #5b6478;
+      --faint: #959cad;
+      --accent: #d90429;
+      --accent-soft: rgba(217, 4, 41, 0.10);
+      --gold: #d97706;
+      --gold-soft: rgba(217, 119, 6, 0.12);
+      --blue: #2563eb;
+      --blue-soft: rgba(37, 99, 235, 0.10);
+      --buy: #16a34a;
+      --buy-soft: rgba(22, 163, 74, 0.11);
+      --warn: #d97706;
+      --warn-soft: rgba(217, 119, 6, 0.12);
+      --bad: #e11d48;
+      --shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+      --code-bg: #e9ecef;
+      --code-border: rgba(15, 23, 42, 0.12);
+    }
 
-        body {
-            background: #f4f4f4;
-            color: #333;
-            margin: 0;
-        }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font);
+      background-color: var(--bg);
+      background-image: var(--bg-grad);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
 
-        .doc-nav {
-            max-width: 920px;
-            margin: 0 auto;
-            padding: 1rem 1.5rem 0;
-            font-family: system-ui, sans-serif;
-            font-size: 0.95rem;
-            color: #555;
-        }
+    /* ---------- Header / Nav ---------- */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .nav-brand-logo {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      box-shadow: 0 0 12px rgba(230, 57, 70, 0.35);
+    }
+    .nav-brand-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .nav-brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--surface-3);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .pill.accent { background: var(--accent-soft); color: var(--accent); border-color: rgba(230, 57, 70, 0.35); }
+    .pill.gold { background: var(--gold-soft); color: var(--gold); border-color: rgba(229, 169, 60, 0.35); }
+    .pill.blue { background: var(--blue-soft); color: var(--blue); border-color: rgba(72, 149, 239, 0.35); }
 
-        .doc-nav a {
-            color: #0066cc;
-        }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .nav-btn:hover {
+      background: var(--surface-3);
+      border-color: var(--border-strong);
+    }
+    .nav-btn.accent {
+      background: var(--accent-soft);
+      border-color: rgba(230, 57, 70, 0.35);
+      color: var(--accent);
+    }
+    .nav-btn.accent:hover {
+      background: rgba(230, 57, 70, 0.25);
+    }
 
-        .markdown-body {
-            box-sizing: border-box;
-            min-width: 200px;
-            max-width: 920px;
-            margin: 0 auto;
-            padding: 1rem 1.5rem 2rem;
-            background-color: #f4f4f4;
-            color: #333;
-        }
-    </style>
+    /* ---------- Container & Markdown Article ---------- */
+    .page-wrap {
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 64px;
+      flex: 1;
+    }
+
+    /* Jump TOC Bar */
+    .toc-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .toc-title {
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toc-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .toc-chip {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 7px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .toc-chip:hover {
+      color: var(--accent);
+      border-color: rgba(230, 57, 70, 0.4);
+      background: var(--accent-soft);
+    }
+
+    /* ---------- Screenshot Gallery ---------- */
+    .gallery-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 28px;
+    }
+    .gallery-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .gallery-title {
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .gallery-strip {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scrollbar-width: thin;
+    }
+    .gallery-thumb {
+      flex: 0 0 auto;
+      width: 140px;
+      height: 84px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface-3);
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .gallery-thumb:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    }
+    .gallery-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .gallery-thumb-tag {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      pointer-events: none;
+    }
+
+    /* ---------- Release Downloads Card & Buttons ---------- */
+    .downloads-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 28px;
+    }
+    .downloads-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .downloads-title {
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .downloads-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+    }
+    .download-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.18s ease;
+      cursor: pointer;
+    }
+    .download-btn:hover {
+      background: var(--accent-soft);
+      border-color: rgba(230, 57, 70, 0.45);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+      color: var(--accent);
+    }
+    .download-btn-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+    .download-btn-info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+    .download-btn-platform {
+      font-weight: 700;
+      font-size: 13.5px;
+      line-height: 1.2;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text);
+    }
+    .download-btn:hover .download-btn-platform {
+      color: var(--accent);
+    }
+    .download-btn-file {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .download-btn-action {
+      color: var(--muted);
+      flex-shrink: 0;
+      transition: transform 0.18s ease, color 0.18s ease;
+    }
+    .download-btn:hover .download-btn-action {
+      color: var(--accent);
+      transform: translateY(2px);
+    }
+    .inline-download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    .inline-download-btn:hover {
+      background: var(--accent-soft);
+      border-color: rgba(230, 57, 70, 0.45);
+      text-decoration: none;
+      transform: translateY(-1px);
+    }
+    .inline-download-btn code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+    }
+
+    /* Lightbox Modal */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .lightbox-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(4, 6, 10, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .lightbox-dialog {
+      position: relative;
+      z-index: 1000;
+      max-width: 95vw;
+      max-height: 94vh;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    .lightbox-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+      padding: 0 4px;
+    }
+    .lightbox-caption {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      font-family: var(--mono);
+    }
+    .lightbox-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .lightbox-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    .lightbox-stage {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+    .lightbox-nav-btn {
+      background: rgba(20, 23, 31, 0.75);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      font-size: 26px;
+      line-height: 1;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+      flex: none;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+    .lightbox-nav-btn:hover {
+      background: var(--surface-3);
+      color: var(--accent);
+      transform: scale(1.08);
+    }
+    .lightbox-img-wrap {
+      max-width: calc(90vw - 110px);
+      max-height: 82vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+      background: #000;
+    }
+    .lightbox-img {
+      max-width: 100%;
+      max-height: 82vh;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Markdown Body */
+    .markdown-body {
+      color: var(--text);
+      font-size: 14.5px;
+      line-height: 1.7;
+    }
+    .markdown-body h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin: 0 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .markdown-body h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin: 36px 0 16px;
+      color: var(--text);
+      scroll-margin-top: 70px;
+    }
+    .markdown-body h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 24px 0 12px;
+      color: var(--accent);
+      scroll-margin-top: 70px;
+    }
+    .markdown-body h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 18px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .markdown-body p, .markdown-body ul, .markdown-body ol {
+      margin: 0 0 16px;
+    }
+    .markdown-body ul, .markdown-body ol {
+      padding-left: 24px;
+    }
+    .markdown-body li {
+      margin-bottom: 6px;
+    }
+    .markdown-body a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .markdown-body a:hover {
+      text-decoration: underline;
+    }
+    .markdown-body hr {
+      height: 1px;
+      border: 0;
+      background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+      margin: 32px 0;
+    }
+    .markdown-body blockquote {
+      margin: 18px 0;
+      padding: 12px 18px;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      color: var(--text);
+    }
+    .markdown-body blockquote p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Inline Code & Code Blocks */
+    .markdown-body code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 5px;
+      color: var(--accent);
+    }
+    .markdown-body pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-x: auto;
+      margin: 18px 0;
+      position: relative;
+    }
+    .markdown-body pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      font-size: 13px;
+      color: var(--text);
+      display: block;
+      line-height: 1.5;
+    }
+
+    /* Tables */
+    .markdown-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 24px;
+      font-size: 13px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .markdown-body th {
+      text-align: left;
+      padding: 10px 14px;
+      background: var(--surface-3);
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border-strong);
+      font-weight: 700;
+    }
+    .markdown-body td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .markdown-body tr:last-child td {
+      border-bottom: 0;
+    }
+    .markdown-body tr:hover td {
+      background: var(--surface-3);
+    }
+
+    /* Footer */
+    .page-footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 20px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--surface);
+    }
+    .page-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .page-footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
-<body>
-    <p class="doc-nav"><a href="../../">Projects home</a></p>
-    <article class="markdown-body" id="readme">Loading documentation&hellip;</article>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" crossorigin="anonymous"></script>
-    <script>
-        fetch('README.md', { cache: 'no-cache' })
-            .then(function (response) {
-                if (!response.ok) throw new Error('README.md not found');
-                return response.text();
-            })
-            .then(function (markdown) {
-                document.getElementById('readme').innerHTML = marked.parse(markdown);
-            })
-            .catch(function (error) {
-                document.getElementById('readme').textContent = 'Could not load README.md: ' + error.message;
-            });
-    </script>
+<body id="top">
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="top-nav">
+    <a href="../../knucklebones/index.html" class="nav-brand" title="Knucklebones Project Overview">
+      <div class="nav-brand-logo">
+        <img src="die.png" alt="Knucklebones Die Icon">
+      </div>
+      <div class="nav-brand-title">
+        <span>Knucklebones</span>
+        <span class="pill accent">v1.0</span>
+        <span class="pill gold">Terminal &amp; GUI</span>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <a href="#downloadsCard" class="nav-btn accent" id="navBuildBtn" title="Jump to Downloads &amp; Build">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Binaries &amp; Build</span>
+      </a>
+      <a href="../../" class="nav-btn" title="Back to Projects Home">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Projects Home</span>
+      </a>
+      <a href="README.md" class="nav-btn" title="View raw Markdown source">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Raw MD</span>
+      </a>
+      <button type="button" class="nav-btn" id="themeBtn" title="Toggle theme">
+        <span id="themeIco">☀️</span>
+        <span id="themeTxt">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Page Content Container -->
+  <main class="page-wrap">
+    <!-- Dynamic Jump TOC -->
+    <nav class="toc-card" id="tocCard" style="display:none;">
+      <div class="toc-title">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>Quick Navigation</span>
+      </div>
+      <div class="toc-chips" id="tocChips"></div>
+    </nav>
+
+    <!-- Screenshot Gallery -->
+    <section class="gallery-card" id="galleryCard" style="display:none;">
+      <div class="gallery-header">
+        <div class="gallery-title">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span>Screenshot Gallery</span>
+        </div>
+        <span class="pill accent" id="galleryCount">0 Screenshots</span>
+      </div>
+      <div class="gallery-strip" id="galleryStrip"></div>
+    </section>
+
+    <!-- Release Downloads Card -->
+    <section class="downloads-card" id="downloadsCard">
+      <div class="downloads-header">
+        <div class="downloads-title">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Release Downloads &amp; Binaries</span>
+        </div>
+        <span class="pill accent">v1.0 Ready to Play</span>
+      </div>
+      <div class="downloads-grid">
+        <a href="./bin/win/x64/Knucklebones.exe" class="download-btn" download title="Download Knucklebones for Windows x64">
+          <div class="download-btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.401H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.801"/>
+            </svg>
+          </div>
+          <div class="download-btn-info">
+            <span class="download-btn-platform">Windows x64 <span class="pill accent" style="padding:1px 5px;font-size:9.5px;">GUI + TUI</span></span>
+            <span class="download-btn-file">Knucklebones.exe &middot; 16.4 MB</span>
+          </div>
+          <div class="download-btn-action">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+        </a>
+
+        <a href="./bin/win/x86/Knucklebones.exe" class="download-btn" download title="Download Knucklebones for Windows x86">
+          <div class="download-btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.401H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.801"/>
+            </svg>
+          </div>
+          <div class="download-btn-info">
+            <span class="download-btn-platform">Windows x86 <span class="pill accent" style="padding:1px 5px;font-size:9.5px;">GUI + TUI</span></span>
+            <span class="download-btn-file">Knucklebones.exe &middot; 15.4 MB</span>
+          </div>
+          <div class="download-btn-action">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+        </a>
+
+        <a href="./bin/linux/amd64/Knucklebones" class="download-btn" download title="Download Knucklebones for Linux amd64">
+          <div class="download-btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+              <polyline points="7 8 10 10 7 12"/>
+              <line x1="12" y1="12" x2="15" y2="12"/>
+            </svg>
+          </div>
+          <div class="download-btn-info">
+            <span class="download-btn-platform">Linux amd64 <span class="pill gold" style="padding:1px 5px;font-size:9.5px;">TUI</span></span>
+            <span class="download-btn-file">Knucklebones &middot; 4.3 MB</span>
+          </div>
+          <div class="download-btn-action">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+        </a>
+
+        <a href="./bin/linux/x86/Knucklebones" class="download-btn" download title="Download Knucklebones for Linux x86">
+          <div class="download-btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+              <polyline points="7 8 10 10 7 12"/>
+              <line x1="12" y1="12" x2="15" y2="12"/>
+            </svg>
+          </div>
+          <div class="download-btn-info">
+            <span class="download-btn-platform">Linux x86 <span class="pill gold" style="padding:1px 5px;font-size:9.5px;">TUI</span></span>
+            <span class="download-btn-file">Knucklebones &middot; 3.8 MB</span>
+          </div>
+          <div class="download-btn-action">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Markdown Target -->
+    <article class="markdown-body" id="readmeContent">
+      <div style="padding:40px;text-align:center;color:var(--muted);">Loading Knucklebones Documentation&hellip;</div>
+    </article>
+  </main>
+
+  <!-- Fullscreen Lightbox Modal -->
+  <div class="lightbox" id="lightboxModal" style="display:none;" aria-hidden="true">
+    <div class="lightbox-overlay" id="lightboxOverlay"></div>
+    <div class="lightbox-dialog">
+      <div class="lightbox-header">
+        <span class="lightbox-caption" id="lightboxCaption">Screenshot</span>
+        <button type="button" class="lightbox-btn" id="lightboxClose" title="Close (Esc)">✕</button>
+      </div>
+      <div class="lightbox-stage">
+        <button type="button" class="lightbox-nav-btn prev" id="lightboxPrev" title="Previous Image (Left Arrow)">‹</button>
+        <div class="lightbox-img-wrap">
+          <img src="" alt="Knucklebones Screenshot" id="lightboxImg" class="lightbox-img">
+        </div>
+        <button type="button" class="lightbox-nav-btn next" id="lightboxNext" title="Next Image (Right Arrow)">›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="page-footer">
+    <div>Knucklebones &middot; Terminal Dice Duel &amp; GUI &middot; <a href="../../knucklebones/index.html">Project Overview</a> &middot; <a href="../../">Projects Home</a> &middot; <a href="README.md">Raw Markdown</a> &middot; <a href="#top">Back to Top &uarr;</a></div>
+  </footer>
+
+  <!-- Embedded Markdown Fallback for Offline / local file:// Protocol -->
+  <script type="text/markdown" id="embeddedReadme">
+# Knucklebones — Terminal Dice Duel
+
+**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-10
+
+## Description
+
+`Knucklebones` is a cross-platform terminal version of the dice game from *Cult of the Lamb*, written in Go with tcell. The terminal UI is the main mode; a matching graphical window (built with [Ebitengine](https://ebitengine.org/)) opens when you double-click the program or pass `-gui`. Two players face each other across 3×3 grids. Each turn you roll one die and drop it into one of your three columns. Matching dice in a column multiply, and placing a die destroys every die of the same value in your opponent's facing column. The game ends the moment either grid is full, and the higher total wins.
+
+Play against three AI opponents, against someone on the same keyboard, or against a friend over the network. It follows the features of [knucklebones.io](https://knucklebones.io/) and the rules in the [dice.now Knucklebones guide](https://dice.now/knucklebones#guide).
+
+On Windows, Knucklebones switches the console to UTF-8 and prefers **Cascadia Mono** when installed so dice and box-drawing characters render cleanly.
+
+## Launch modes
+
+| How it starts | What opens |
+| ------------- | ---------- |
+| From a terminal or shell (`Knucklebones`) | Terminal UI |
+| Double-clicked in Explorer or a file manager | Graphical window |
+| `Knucklebones -gui` | Graphical window, even from a terminal |
+| `Knucklebones -tui` | Terminal UI, even from a shortcut or double-click |
+
+`-gui` and `-tui` cannot be combined. Both modes share the same save file, settings, AI, and online play, so a terminal player can host or join a window player.
+
+On Windows the program stays a console app so the terminal UI works. A double-click briefly shows a console window, which closes as the game window opens. With `-tui` from a shortcut, a new console opens for the game. Over SSH or with `-tui` / `KNUCKLEBONES_TUI=1` it skips Ebitengine's window setup entirely (that init runs before `main` and would otherwise fail in Session 0) and plays in the terminal only.
+
+The graphical window uses `die.png` for its icon and logo. It resizes freely and scales to fit, and every keyboard control below works in it too.
+
+## Features
+
+- **Start menu**: Play against an AI, Play against someone (same keyboard), Host Game, Join Game, How to play, Stats, Name, Theme, and Quit
+- **AI opponents**: Ratau (Easy) places in a random open column. Flinky (Medium) takes the biggest immediate swing. Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it
+- **Game settings**: AI difficulty, number of rounds (Best of 1, 3, 5, or Free play), and house rules. Your last choices are remembered
+- **House rules** (from the dice.now guide): turn destruction off, roll two dice and place one, or play until both boards are full
+- **Board**: your grid is at the bottom and your opponent's at the top, both filling from the middle outward. Ivory dice are singles, gold dice are pairs, and blue dice are triples. Column scores sit above and below the grids, and each player's total is in the left panel
+- **Placement preview**: while you choose a column, a shaded die shows where yours lands, the opponent's dice it would destroy turn red, column scores show the change (`8→24`), and the panel shows `+gain · destroys N (−points)`
+- **Online live aim**: your opponent sees the rolled die tumble, then watches your column and die selection update the same preview until you place. The board finalizes when the move lands
+- **Rolling die**: each new die tumbles briefly in the roller's tray. Red pips mark the last die placed
+- **Coin toss**: a random player starts each round
+- **Series**: Best of 3 and 5 track rounds won with ●○ markers. After a round, **Continue game**. After the series, **Play another game** or **Go into free play**
+- **Log**: the side panel shows the latest moves. **L** opens the full log of rolls, placements, destruction, timeouts, and results
+- **History**: **H** lists each round's score and winner, plus who took the lead
+- **Resign**: **R** with a confirmation. Vs AI and online it counts as a loss
+- **Online play**: one player hosts on a TCP port (default 8647) and the lobby lists that computer's LAN addresses. The other joins with `host:port`
+  - The host rolls every die and sends the full game state after each move
+  - While a player aims, their column and die choice are shared so both screens show the placement preview before the move is confirmed
+  - Optional turn timer (15, 30, or 60 seconds). A timed-out turn places the die in a random open column; three timeouts lose the match
+  - A player who drops has 30 seconds to reconnect before forfeiting. Leaving mid-game counts as resigning
+  - After a game, both players must pick the same option (play again, continue, free play). The result panel shows "Waiting for…" and "… wants to rematch!"
+- **Stats**: games, wins, losses, draws, and best score for each AI, online, and same-keyboard play, plus best-of series won and lost. A Top 10 of final scores; making it is announced on the result panel
+- **Themes**: dark and light (**T** on the menu)
+- **How to play**: rules, the scoring table, house rules, strategy tips, and opponent notes
+
+## Controls
+
+| Context | Input | Action |
+| ------- | ----- | ------ |
+| Menu | ↑↓ or W/S | Move selection |
+| Menu | Enter or Space | Choose |
+| Menu | T (or ←→ on Theme) | Toggle dark / light theme |
+| Menu | Esc | Quit |
+| Game settings | ↑↓, Tab | Move between settings |
+| Game settings | ←→ or Enter | Change the selected setting |
+| Game settings | Typing, Backspace | Edit Player 2 name or Port |
+| Game settings | Enter on Start game | Start |
+| Game settings | Esc | Back to the menu |
+| Name / Join | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit the text |
+| Name / Join | Enter | Confirm (Join connects) |
+| Lobby | Enter | Retry after a failed connection |
+| Lobby | Esc | Cancel |
+| Your turn | ←→ or A/D | Choose a column |
+| Your turn | 1–3 | Place in that column |
+| Your turn | Enter or Space | Place in the chosen column |
+| Your turn (two dice) | Tab, Q/E, or ↑↓ | Switch which die to place |
+| In game | L | Log |
+| In game | H | History |
+| In game | R | Resign (asks first) |
+| In game | Esc | Leave (asks first while a game is in progress) |
+| Round over | ←→, Tab | Choose an option |
+| Round over | Enter | Confirm the option |
+| Round over | V | Hide or show the result panel to see the board |
+| Log / History | ↑↓, PgUp/PgDn | Scroll |
+| Log / History | Esc, Enter, or the same letter | Close |
+| How to play | ↑↓, PgUp/PgDn, Space, Home | Scroll |
+| Anywhere | Ctrl+C | Exit |
+
+On the same keyboard, both players use the same keys on their own turn. Player 1 is at the bottom and player 2 at the top.
+
+### Mouse (graphical window)
+
+| Context | Input | Action |
+| ------- | ----- | ------ |
+| Menu | Hover, click | Select, choose |
+| Game settings | Click ◀ ▶ or the row | Change the setting (click Player 2 or Port, then type) |
+| Game settings | Click Start game or Back | Start, or back to the menu |
+| Name / Join / Lobby | Click the buttons | Confirm, retry, cancel, or go back |
+| Your turn | Hover a column | Preview the placement |
+| Your turn | Click a column (either board) | Place the die there |
+| Your turn (two dice) | Click a tray die | Choose which die to place |
+| In game | Buttons under the board | Log, History, Resign, Leave, View board |
+| Round over | Click an option | Confirm it |
+| Log / History / How to play | Mouse wheel | Scroll |
+| Anywhere | Close the window | Leave the game and exit |
+
+## Rules
+
+1. A die is rolled for the player to move.
+2. They place it in any of their columns with an empty slot.
+3. Every die of the same value in the opponent's facing column is destroyed. The remaining dice slide toward the middle, and the freed slots can be filled again.
+4. Scores update and the turn passes.
+
+**Column scoring**: each die is worth its face value times the number of dice of that value in its column. For each value *v* appearing *n* times, the column scores *n* × *n* × *v*.
+
+| Column | Calculation | Score |
+| ------ | ----------- | ----- |
+| 6 | 6 | 6 |
+| 6, 2 | 6 + 2 | 8 |
+| 6, 6 | (6×2) + (6×2) | 24 |
+| 6, 6, 2 | 24 + 2 | 26 |
+| 4, 1, 4 | (4×2) + 1 + (4×2) | 17 |
+| 6, 6, 6 | (6×3) × 3 | 54 |
+| 3, 3, 3 | (3×3) × 3 | 27 |
+| 1, 1, 1 | (1×3) × 3 | 9 |
+
+The best column is 54, so the best board is 162. The game stops as soon as any board is full (or, with the house rule, when both are). A tie is a draw. In a best-of series, ties do not count toward the majority, so a tied round is replayed.
+
+## Online play
+
+1. The host picks **Host Game**, sets the rounds, turn timer, port, and house rules, then **Start game**. The lobby lists this computer's addresses.
+2. The other player picks **Join Game** and types one of those addresses, for example `192.168.1.20:8647`. A bare host name uses port 8647.
+3. The game starts as soon as the guest connects. The host's copy runs the game and rolls the dice.
+
+The game is played directly between the two computers, so both must reach each other (same network, VPN, or a forwarded port). Windows may ask to allow Knucklebones through the firewall the first time you host. A room holds two players; a third connection is turned away.
+
+## Save file
+
+`knucklebones.json` is created in the current working directory. It stores:
+
+- Your name, theme, and last game settings (difficulty, rounds, house rules, turn timer, port, last join address, Player 2 name)
+- A record for each AI difficulty, online, and same keyboard: games, wins, losses, draws, best score, and series won and lost
+- The Top 10 final scores, with opponent, their score, and date
+
+The file is UTF-8 with BOM and is written after every finished round and settings change. Games in progress are not saved.
+
+## Console notes
+
+- Prefer **Cascadia Mono** (or another modern Unicode font) so `●`, `╭─╮`, and related glyphs render cleanly. On Windows, Knucklebones selects Cascadia Mono automatically when present.
+- On launch Knucklebones requests an **80×30** console. Windows Terminal and some hosts may ignore resize requests, so set the profile size manually if needed. The side panels hide on narrow windows.
+- Colors use 24-bit RGB. Terminals limited to 256 colors show the nearest match.
+
+## Build
+
+From the `go/knucklebones` folder:
+
+**All platforms (recommended)**
+
+```powershell
+pwsh -NoLogo -NoProfile -File ./build.ps1
+```
+
+**Quick local build**
+
+```powershell
+go build -o Knucklebones.exe
+```
+
+**Run without a binary**
+
+```powershell
+go run .
+go run . -gui
+```
+
+**Tests**
+
+```powershell
+go test -count=1 .
+```
+
+### Binary output
+
+| Platform | Path |
+| -------- | ---- |
+| Windows x86 | `bin/win/x86/Knucklebones.exe` |
+| Windows x64 | `bin/win/x64/Knucklebones.exe` |
+| Linux x86 | `bin/linux/x86/Knucklebones` |
+| Linux amd64 | `bin/linux/amd64/Knucklebones` |
+
+The graphical window is built into Windows binaries. Linux binaries cross-compiled from Windows have no cgo, so they are terminal-only, and `-gui` reports that the window isn't available. To include the window on Linux, build there with cgo enabled and the X11/OpenGL development packages installed (for example `libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev`).
+
+If `die.ico` and `knucklebones.rc` are present and `windres` is available, Windows builds embed the icon automatically. Pass `-upx` to compress binaries with [UPX](https://upx.github.io/).
+
+## Credits
+
+The original Knucklebones game in *Cult of the Lamb* was created by Massive Monster. This is a fan-made game and not an official implementation by Massive Monster.
+  </script>
+
+  <!-- Marked Parser from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" crossorigin="anonymous"></script>
+
+  <script>
+    // ---------- Theme Management ----------
+    function initTheme() {
+      var saved = "dark";
+      try {
+        saved = localStorage.getItem("knucklebones.theme") || "dark";
+      } catch (e) {}
+      applyTheme(saved);
+
+      var btn = document.getElementById("themeBtn");
+      if (btn) {
+        btn.addEventListener("click", function() {
+          var cur = document.documentElement.getAttribute("data-theme") || "dark";
+          var next = cur === "dark" ? "light" : "dark";
+          applyTheme(next);
+          try {
+            localStorage.setItem("knucklebones.theme", next);
+          } catch (e) {}
+        });
+      }
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      var ico = document.getElementById("themeIco");
+      var txt = document.getElementById("themeTxt");
+      if (ico && txt) {
+        if (theme === "dark") {
+          ico.textContent = "☀️";
+          txt.textContent = "Light";
+        } else {
+          ico.textContent = "🌙";
+          txt.textContent = "Dark";
+        }
+      }
+    }
+
+    initTheme();
+
+    // ---------- Offline Markdown Parser Fallback ----------
+    function formatInlineMd(s) {
+      return s
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    }
+
+    function fallbackMarkdownParse(md) {
+      var lines = md.split(/\r?\n/);
+      var html = [];
+      var inList = false;
+      var inCode = false;
+      var inTable = false;
+      var codeBuf = [];
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        if (line.startsWith("```")) {
+          if (inCode) {
+            html.push("<pre><code>" + escapeHtml(codeBuf.join("\n")) + "</code></pre>");
+            codeBuf = [];
+            inCode = false;
+          } else {
+            if (inList) { html.push("</ul>"); inList = false; }
+            if (inTable) { html.push("</tbody></table>"); inTable = false; }
+            inCode = true;
+          }
+          continue;
+        }
+
+        if (inCode) {
+          codeBuf.push(line);
+          continue;
+        }
+
+        if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+          if (inList) { html.push("</ul>"); inList = false; }
+          var cells = line.trim().slice(1, -1).split("|").map(function (c) { return c.trim(); });
+          if (cells.every(function (c) { return /^[-:]+$/.test(c); })) {
+            continue;
+          }
+          if (!inTable) {
+            html.push("<table><thead><tr>" + cells.map(function (c) { return "<th>" + formatInlineMd(escapeHtml(c)) + "</th>"; }).join("") + "</tr></thead><tbody>");
+            inTable = true;
+          } else {
+            html.push("<tr>" + cells.map(function (c) { return "<td>" + formatInlineMd(escapeHtml(c)) + "</td>"; }).join("") + "</tr>");
+          }
+          continue;
+        } else if (inTable) {
+          html.push("</tbody></table>");
+          inTable = false;
+        }
+
+        if (line.startsWith("# ")) {
+          html.push("<h1>" + formatInlineMd(line.substring(2)) + "</h1>");
+        } else if (line.startsWith("## ")) {
+          html.push("<h2>" + formatInlineMd(line.substring(3)) + "</h2>");
+        } else if (line.startsWith("### ")) {
+          html.push("<h3>" + formatInlineMd(line.substring(4)) + "</h3>");
+        } else if (line.startsWith("---")) {
+          html.push("<hr>");
+        } else if (line.startsWith("- ") || line.startsWith("  - ")) {
+          if (!inList) { html.push("<ul>"); inList = true; }
+          html.push("<li>" + formatInlineMd(line.replace(/^\s*-\s+/, "")) + "</li>");
+        } else {
+          if (inList) { html.push("</ul>"); inList = false; }
+          if (line.trim().length > 0) {
+            html.push("<p>" + formatInlineMd(line) + "</p>");
+          }
+        }
+      }
+      if (inList) html.push("</ul>");
+      if (inTable) html.push("</tbody></table>");
+      return html.join("\n");
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // ---------- Build Table of Contents Chips ----------
+    function buildTOC() {
+      var content = document.getElementById("readmeContent");
+      var chips = document.getElementById("tocChips");
+      var card = document.getElementById("tocCard");
+      if (!content || !chips || !card) return;
+
+      var headings = content.querySelectorAll("h2");
+      if (headings.length < 2) return;
+
+      chips.innerHTML = "";
+      headings.forEach(function(h, idx) {
+        var text = h.textContent.trim();
+        var slug = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        if (!h.id) {
+          h.id = slug;
+        }
+        if (/^build/i.test(slug)) {
+          h.id = "build";
+        }
+        var a = document.createElement("a");
+        a.className = "toc-chip";
+        a.href = "#" + h.id;
+        a.textContent = text;
+        chips.appendChild(a);
+      });
+      card.style.display = "block";
+
+      // Bind smooth-scroll for Binaries & Build nav button
+      var navBuildBtn = document.getElementById("navBuildBtn");
+      if (navBuildBtn && !navBuildBtn.dataset.bound) {
+        navBuildBtn.dataset.bound = "true";
+        navBuildBtn.addEventListener("click", function(e) {
+          var target = document.getElementById("downloadsCard") || document.getElementById("build");
+          if (target) {
+            e.preventDefault();
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+            try {
+              history.pushState(null, null, "#downloadsCard");
+            } catch (err) {}
+          }
+        });
+      }
+
+      // Handle direct hash navigation after markdown finishes rendering
+      if (window.location.hash) {
+        var hashTarget = document.getElementById(window.location.hash.slice(1));
+        if (hashTarget) {
+          setTimeout(function() {
+            hashTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 50);
+        }
+      }
+    }
+
+    // ---------- Load and Render Markdown ----------
+    async function loadDocumentation() {
+      var mdText = "";
+
+      try {
+        var resp = await fetch("README.md", { cache: "no-cache" });
+        if (resp.ok) {
+          mdText = await resp.text();
+        }
+      } catch (err) {
+        console.warn("fetch('README.md') unavailable (standard under file:// protocol), using embedded fallback:", err);
+      }
+
+      if (!mdText) {
+        var emb = document.getElementById("embeddedReadme");
+        if (emb) mdText = emb.textContent.trim();
+      }
+
+      var target = document.getElementById("readmeContent");
+      if (!target) return;
+
+      if (!mdText) {
+        target.innerHTML = "<p style='color:var(--bad);'>Could not load documentation.</p>";
+        return;
+      }
+
+      if (window.marked && typeof window.marked.parse === "function") {
+        target.innerHTML = window.marked.parse(mdText);
+      } else {
+        target.innerHTML = fallbackMarkdownParse(mdText);
+      }
+
+      // Enhance binary output table in markdown with direct download links
+      var tableCells = target.querySelectorAll("td code");
+      tableCells.forEach(function(code) {
+        var text = code.textContent.trim();
+        if (/^bin\/(win|linux)\//i.test(text)) {
+          var a = document.createElement("a");
+          a.href = "./" + text;
+          a.download = "";
+          a.className = "inline-download-btn";
+          a.title = "Download " + text;
+          a.innerHTML = "<svg viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg> Download <code>" + text + "</code>";
+          code.parentNode.replaceChild(a, code);
+        }
+      });
+
+      buildTOC();
+      initGallery();
+    }
+
+    // ---------- Dynamic Screenshot Gallery & Lightbox ----------
+    function probeImage(url) {
+      return new Promise(function(resolve) {
+        var img = new Image();
+        img.onload = function() { resolve(true); };
+        img.onerror = function() { resolve(false); };
+        img.src = url;
+      });
+    }
+
+    var galleryImages = [];
+    var curLightboxIdx = 0;
+
+    async function initGallery() {
+      var candidateDirs = ["../../images/", "../images/", "images/"];
+      var namePrefixes = ["knucklebones", "Knucklebones"];
+      var workingDir = null;
+      var primaryPrefix = "knucklebones";
+
+      for (var d = 0; d < candidateDirs.length; d++) {
+        for (var n = 0; n < namePrefixes.length; n++) {
+          var ok = await probeImage(candidateDirs[d] + namePrefixes[n] + "1.png");
+          if (ok) {
+            workingDir = candidateDirs[d];
+            primaryPrefix = namePrefixes[n];
+            break;
+          }
+        }
+        if (workingDir) break;
+      }
+      if (!workingDir) workingDir = "../../images/";
+
+      var fallbackPrefix = primaryPrefix === "knucklebones" ? "Knucklebones" : "knucklebones";
+      var list = [];
+      var idx = 1;
+      var consecutiveMisses = 0;
+
+      // Scan starting at 1, loop sequentially until 2 misses or reaching safety cap of 60
+      while (consecutiveMisses < 2 && idx <= 60) {
+        var name = primaryPrefix + idx + ".png";
+        var url = workingDir + name;
+        var exists = await probeImage(url);
+        if (!exists) {
+          var altName = fallbackPrefix + idx + ".png";
+          var altUrl = workingDir + altName;
+          exists = await probeImage(altUrl);
+          if (exists) {
+            name = altName;
+            url = altUrl;
+          }
+        }
+        if (exists) {
+          list.push({ index: idx, url: url, name: name });
+          consecutiveMisses = 0;
+        } else {
+          consecutiveMisses++;
+        }
+        idx++;
+      }
+
+      if (!list.length) return;
+      galleryImages = list;
+
+      var card = document.getElementById("galleryCard");
+      var strip = document.getElementById("galleryStrip");
+      var count = document.getElementById("galleryCount");
+      if (!card || !strip) return;
+
+      if (count) count.textContent = list.length + " Screenshot" + (list.length === 1 ? "" : "s");
+
+      strip.innerHTML = "";
+      list.forEach(function(item, gIdx) {
+        var thumb = document.createElement("div");
+        thumb.className = "gallery-thumb";
+        thumb.title = item.name + " (Click to view full screen)";
+        thumb.innerHTML = "<img src='" + item.url + "' alt='" + item.name + "' loading='lazy'>" +
+          "<span class='gallery-thumb-tag'>#" + item.index + "</span>";
+        thumb.addEventListener("click", function() {
+          openLightbox(gIdx);
+        });
+        strip.appendChild(thumb);
+      });
+
+      card.style.display = "block";
+    }
+
+    function openLightbox(idx) {
+      if (!galleryImages.length) return;
+      if (idx < 0) idx = galleryImages.length - 1;
+      if (idx >= galleryImages.length) idx = 0;
+      curLightboxIdx = idx;
+
+      var modal = document.getElementById("lightboxModal");
+      var img = document.getElementById("lightboxImg");
+      var caption = document.getElementById("lightboxCaption");
+      if (!modal || !img) return;
+
+      var cur = galleryImages[curLightboxIdx];
+      img.src = cur.url;
+      img.alt = cur.name;
+      if (caption) {
+        caption.textContent = cur.name + " (" + (curLightboxIdx + 1) + " of " + galleryImages.length + ")";
+      }
+
+      modal.style.display = "flex";
+      modal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeLightbox() {
+      var modal = document.getElementById("lightboxModal");
+      if (modal) {
+        modal.style.display = "none";
+        modal.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    function navLightbox(delta) {
+      openLightbox(curLightboxIdx + delta);
+    }
+
+    // Lightbox UI bindings
+    var btnCloseLb = document.getElementById("lightboxClose");
+    if (btnCloseLb) btnCloseLb.addEventListener("click", closeLightbox);
+    var overlayLb = document.getElementById("lightboxOverlay");
+    if (overlayLb) overlayLb.addEventListener("click", closeLightbox);
+
+    var prevLb = document.getElementById("lightboxPrev");
+    if (prevLb) prevLb.addEventListener("click", function(ev) {
+      ev.stopPropagation();
+      navLightbox(-1);
+    });
+
+    var nextLb = document.getElementById("lightboxNext");
+    if (nextLb) nextLb.addEventListener("click", function(ev) {
+      ev.stopPropagation();
+      navLightbox(1);
+    });
+
+    window.addEventListener("keydown", function(ev) {
+      var modal = document.getElementById("lightboxModal");
+      if (!modal || modal.style.display === "none") return;
+      if (ev.key === "Escape") closeLightbox();
+      else if (ev.key === "ArrowLeft") navLightbox(-1);
+      else if (ev.key === "ArrowRight") navLightbox(1);
+    });
+
+    loadDocumentation();
+  </script>
 </body>
 </html>

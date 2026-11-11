@@ -1,0 +1,159 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knucklebones v1.0 - Terminal Dice Duel &amp; GUI</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; background:#f4f4f4; color:#333; line-height:1.6; }
+        header { background:#333; color:#fff; padding:1.5rem 0; text-align:center; margin-bottom:2rem; position: relative; }
+        .github-link { position: absolute; top: 1.5rem; right: 2rem; display: inline-block; padding: 0.5rem; border-radius: 8px; transition: all 0.3s ease; background-color: rgba(255, 255, 255, 0.1); }
+        .github-link:hover { background-color: rgba(255, 255, 255, 0.2); transform: scale(1.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
+        .github-link img { width: 32px; height: 32px; display: block; }
+        .home-link { position: absolute; top: 1.5rem; left: 2rem; display: inline-block; padding: 0.5rem; border-radius: 8px; transition: all 0.3s ease; background-color: rgba(255, 255, 255, 0.1); }
+        .home-link:hover { background-color: rgba(255, 255, 255, 0.2); transform: scale(1.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
+        .home-link img { width: 32px; height: 32px; display: block; }
+        @media (max-width: 768px) { .github-link, .home-link { top: 1rem; padding: 0.4rem; } .github-link { right: 1rem; } .home-link { left: 1rem; } .github-link img, .home-link img { width: 28px; height: 28px; } }
+        header h1 { margin:0; font-size:3rem; letter-spacing:2px; }
+        .container { width:80%; margin:auto; overflow:hidden; }
+        table { width:100%; border-collapse:collapse; margin-top:2rem; background:#fff; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+        td { padding:1rem; vertical-align:top; border-bottom:1px solid #ddd; }
+        .project-image-cell { width:30%; max-width:256px; padding-right:1.5rem; }
+        .project-image-cell img { width:100%; height:auto; max-width:256px; display:block; border-radius:8px; }
+        .project-image-cell img + img { margin-top: 1rem; }
+        .project-text-cell { font-size:1rem; }
+        .project-text-cell h2 { margin-top:0; color:#333; }
+        .project-text-cell h3 { margin-top:1.5rem; margin-bottom:0.5rem; border-bottom:1px solid #ccc; padding-bottom:0.25rem; }
+        .project-text-cell a { color:#007bff; text-decoration:none; }
+        .project-text-cell a:hover { text-decoration:underline; }
+        .readme-link { padding-left:1em; margin-top:-0.5em; font-size:0.9em; margin-bottom:1rem; }
+        @media (max-width:900px){ .project-image-cell, .project-text-cell{ display:block; width:100%; box-sizing:border-box; } .project-image-cell{ max-width:none; padding-right:0; padding-bottom:1rem; } .project-image-cell img{ width:auto; max-width:100%; margin:0; } }
+    </style>
+    <meta name="description" content="Knucklebones v1.0 is a cross-platform desktop and terminal dice game adapted from Cult of the Lamb, written in Go with tcell and Ebitengine. Challenge 3 AI difficulties, play locally, or duel over network multiplayer.">
+    <link rel="canonical" href="https://kreft.us/knucklebones/">
+    <meta property="og:title" content="Knucklebones v1.0 - Terminal Dice Duel &amp; GUI">
+    <meta property="og:description" content="Knucklebones v1.0 is a cross-platform desktop and terminal dice game adapted from Cult of the Lamb, written in Go with tcell and Ebitengine. Challenge 3 AI difficulties, play locally, or duel over network multiplayer.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://kreft.us/knucklebones/">
+    <meta property="og:image" content="https://kreft.us/images/knucklebones1.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Knucklebones v1.0 - Terminal Dice Duel &amp; GUI">
+    <meta name="twitter:description" content="Knucklebones v1.0 is a cross-platform desktop and terminal dice game adapted from Cult of the Lamb, written in Go with tcell and Ebitengine. Challenge 3 AI difficulties, play locally, or duel over network multiplayer.">
+    <meta name="twitter:image" content="https://kreft.us/images/knucklebones1.png">
+</head>
+<body>
+
+    <header>
+        <a href="../" class="home-link" title="Back to Home">
+            <img src="../images/home.png" alt="Home">
+        </a>
+        <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
+            <img src="../images/github-mark-white.png" alt="GitHub">
+        </a>
+        <h1>Knucklebones v1.0</h1>
+    </header>
+
+    <div class="container">
+        <table>
+            <tbody>
+                <tr class="project-row">
+                    <td class="project-image-cell">
+                        <img src="../images/knucklebones1.png" alt="Knucklebones graphical window start menu screenshot (dark theme)">
+                        <img src="../images/knucklebones2.png" alt="Knucklebones terminal UI start menu screenshot">
+                        <img src="../images/knucklebones3.png" alt="Knucklebones match result and scoreboard screenshot (dark theme)">
+                        <img src="../images/knucklebones4.png" alt="Knucklebones match result screenshot (light theme)">
+                        <img src="../images/knucklebones5.png" alt="Knucklebones host game and match settings menu screenshot">
+                    </td>
+                    <td class="project-text-cell">
+                        <div>
+                            <h2>Knucklebones v1.0</h2>
+                            <p>
+                                <b>Knucklebones</b> is a cross-platform dice game from <i>Cult of the Lamb</i>, written in Go with <a href="https://github.com/gdamore/tcell" target="_blank" rel="noopener noreferrer">tcell</a> and <a href="https://ebitengine.org/" target="_blank" rel="noopener noreferrer">Ebitengine</a>. The terminal UI is the primary mode; a matching graphical window opens when launched with <code>-gui</code> or double-clicked in Explorer. Two players face each other across 3&times;3 grids, rolling a die each turn and placing it into one of three columns. Matching dice multiply in value, while placing a die destroys matching dice in the opponent's facing column. Play against three AI opponents (Ratau, Flinky, and Shrumy), against a friend on the same keyboard, or over LAN/TCP network multiplayer.
+                            </p>
+
+                            <h3>Controls</h3>
+                            <p><b>Your Turn:</b> <code>&larr;</code> <code>&rarr;</code> or <code>A</code>/<code>D</code> to select a column (or hover/click in GUI). Place the rolled die with <code>Enter</code>, <code>Space</code>, or digit keys <code>1</code>&ndash;<code>3</code>. When the two-dice house rule is active, toggle the active die with <code>Tab</code> or <code>Q</code>/<code>E</code>.</p>
+                            <p><b>Menus:</b> <code>&uarr;</code> <code>&darr;</code> or <code>W</code>/<code>S</code> to navigate options, <code>Enter</code> or <code>Space</code> to select, <code>T</code> to toggle Dark/Light theme, and <code>Esc</code> to quit.</p>
+                            <p><b>In-Game Actions:</b> Press <code>L</code> for the full move log, <code>H</code> for match history, <code>R</code> to resign (with confirmation), <code>Esc</code> to return to the menu, and <code>V</code> to toggle the result panel to inspect the final board.</p>
+                            <p><b>Mouse (GUI Window):</b> Directly click any menu button, column, tray die, or control button beneath the board.</p>
+
+                            <h3>Updates</h3>
+                            <div id="updates-container">
+                                <p>Loading updates...</p>
+                            </div>
+
+                            <h3>Downloads</h3>
+                            <p><b>Go Build:</b> PC [ <a href="../go/knucklebones/bin/win/x86/Knucklebones.exe">x86</a> / <a href="../go/knucklebones/bin/win/x64/Knucklebones.exe">x64</a> ] Linux [ <a href="../go/knucklebones/bin/linux/x86/Knucklebones">x86</a> / <a href="../go/knucklebones/bin/linux/amd64/Knucklebones">amd64</a> ]</p>
+                            <p class="readme-link">&crarr; <a href="../go/knucklebones/README.html">README</a></p>
+
+                            <h3>Features</h3>
+                            <ul>
+                                <li><b>Dual Launch Modes</b> &mdash; Plays natively in modern terminal consoles (TUI via tcell with Unicode box-drawing &amp; Cascadia Mono support) or as a resizable desktop window (GUI via Ebitengine).</li>
+                                <li><b>Three AI Personalities</b> &mdash; <i>Ratau</i> (Easy, random placements), <i>Flinky</i> (Medium, greedy immediate swing scoring), and <i>Shrumy</i> (Hard, lookahead scoring and endgame awareness).</li>
+                                <li><b>Online LAN / TCP Multiplayer</b> &mdash; Host or join direct peer-to-peer network duels on configurable ports with live placement aim previews, turn timers (15/30/60s), and 30-second disconnect grace periods.</li>
+                                <li><b>Interactive Placement Preview</b> &mdash; Selecting or hovering a column previews the landing slot, highlights opponent dice marked for destruction in red, and computes real-time score swings.</li>
+                                <li><b>Configurable House Rules</b> &mdash; Play Best of 1, 3, or 5 rounds, disable column destruction, roll two dice and pick one, or play until both boards are full.</li>
+                                <li><b>Persistent Statistics &amp; Top 10</b> &mdash; Automatically records match records across AI tiers, local hotseat, and online play, preserving a Top 10 scoreboard in <code>knucklebones.json</code>.</li>
+                                <li><b>Dark &amp; Light Themes</b> &mdash; 24-bit TrueColor visuals with single (ivory), pair (gold), and triple (blue) die multipliers.</li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Fetch and display updates from GitHub API
+        async function loadUpdates() {
+            const updatesContainer = document.getElementById('updates-container');
+            
+            try {
+                const response = await fetch('https://api.github.com/repos/Thujone82/kreftus/commits?sha=main&path=go/knucklebones&per_page=3');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch updates');
+                }
+                
+                const commits = await response.json();
+                
+                if (commits.length === 0) {
+                    updatesContainer.style.display = 'none';
+                    return;
+                }
+                
+                // Format timestamp from ISO 8601 to MMDDYY@HHMMSS
+                function formatTimestamp(isoString) {
+                    const date = new Date(isoString);
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const year = String(date.getFullYear()).slice(-2);
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                    
+                    return `${month}${day}${year}@${hours}${minutes}${seconds}`;
+                }
+                
+                updatesContainer.innerHTML = '';
+                
+                commits.forEach(commit => {
+                    const timestamp = formatTimestamp(commit.commit.author.date);
+                    const message = commit.commit.message;
+                    
+                    const updateElement = document.createElement('p');
+                    updateElement.innerHTML = `<b>${timestamp}:</b> ${message}`;
+                    updatesContainer.appendChild(updateElement);
+                });
+                
+            } catch (error) {
+                console.error('Error loading updates:', error);
+                updatesContainer.parentElement.style.display = 'none';
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', loadUpdates);
+    </script>
+
+</body>
+</html>
