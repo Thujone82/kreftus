@@ -11,10 +11,24 @@ type GUIApp struct {
 	headerImg       *ebiten.Image
 	showRulesModal  bool
 	showExitConfirm bool
+	showHandoff     bool
+	handoffHoldDraw bool
+	ackedHandoffKey string
+	autoSelectKey   string
 	activeRoll      *RollVisualEvent
 	rollFrame       int
 	aiTimer         int
 	shouldQuit      bool
+	toastText       string
+	toastFrames     int
+
+	menuBackdrop  *ebiten.Image
+	menuBackdropW int
+	menuBackdropH int
+	tableImg      *ebiten.Image
+	tableImgPx    float64
+	actionCache   actionSnap
+	logCache      logSnap
 }
 
 func NewGUIApp() *GUIApp {
@@ -41,6 +55,7 @@ func (app *GUIApp) StartNewGame(vsAI bool, quickDeploy bool) {
 	app.activeRoll = nil
 	app.rollFrame = 0
 	app.aiTimer = 0
+	app.clearBattleUI()
 
 	if quickDeploy {
 		// Automatically deploy both armies and jump directly to Round 1 Initiative!
@@ -56,13 +71,36 @@ func (app *GUIApp) ReturnToMenu() {
 	app.activeRoll = nil
 	app.rollFrame = 0
 	app.aiTimer = 0
+	app.clearBattleUI()
+}
+
+func (app *GUIApp) clearBattleUI() {
+	app.toastText = ""
+	app.toastFrames = 0
+	app.showHandoff = false
+	app.handoffHoldDraw = false
+	app.ackedHandoffKey = ""
+	app.autoSelectKey = ""
+	app.actionCache = actionSnap{}
+	app.logCache = logSnap{}
 }
 
 func (app *GUIApp) Update() error {
 	if app.shouldQuit {
 		return ebiten.Termination
 	}
+	if app.toastFrames > 0 {
+		app.toastFrames--
+		if app.toastFrames == 0 {
+			app.toastText = ""
+		}
+	}
 	app.HandleInput()
+	app.showHandoff = app.needsHandoff() || app.handoffHoldDraw
+	app.handoffHoldDraw = false
+	app.maybeAutoSelect()
+	app.ensureActionCache()
+	app.updateCursor()
 	return nil
 }
 
@@ -75,15 +113,31 @@ func (app *GUIApp) Draw(screen *ebiten.Image) {
 }
 
 func (app *GUIApp) Layout(outsideWidth, outsideHeight int) (int, int) {
-	app.w = outsideWidth
-	app.h = outsideHeight
-	return outsideWidth, outsideHeight
+	scale := 1.0
+	if m := ebiten.Monitor(); m != nil {
+		scale = m.DeviceScaleFactor()
+	}
+	if scale < 1 {
+		scale = 1
+	}
+	w := int(float64(outsideWidth) * scale)
+	h := int(float64(outsideHeight) * scale)
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	app.w = w
+	app.h = h
+	return w, h
 }
 
 func RunGUI() error {
 	ebiten.SetWindowTitle("Skirmish DICE")
 	ebiten.SetWindowSize(1200, 800)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	ebiten.SetWindowSizeLimits(1100, 720, -1, -1)
 
 	icons := LoadWindowIcons()
 	if len(icons) > 0 {

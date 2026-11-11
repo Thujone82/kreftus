@@ -49,7 +49,7 @@ func (app *GUIApp) CycleNextUnit(reverse bool) {
 	}
 
 	app.ge.DoneWithUnit()
-	_ = app.ge.SelectUnit(candidates[nextIdx])
+	app.flash(app.ge.SelectUnit(candidates[nextIdx]))
 }
 
 // AutoTargetNearestEnemy finds the closest visible enemy in LOS and shoots them.
@@ -78,7 +78,7 @@ func (app *GUIApp) AutoTargetNearestEnemy() {
 	}
 
 	if closestEnemy != nil {
-		_ = app.ge.ShootActiveUnit(closestEnemy)
+		app.flash(app.ge.ShootActiveUnit(closestEnemy))
 	}
 }
 
@@ -87,12 +87,20 @@ func (app *GUIApp) GetChargeableEnemies(u *Unit) []*Unit {
 	if app.ge == nil || u == nil || u.HasShot || u.MovesMade >= MaxMovementSteps {
 		return nil
 	}
+	app.ensureActionCache()
 	var out []*Unit
 	for _, enemy := range app.ge.GetEnemyUnits(u.Player) {
-		if !enemy.IsCasualty {
-			if _, _, _, _, _, err := app.ge.FindChargeApproach(u, enemy); err == nil {
+		if enemy.IsCasualty {
+			continue
+		}
+		if u.ID == app.ge.SelectedUnitID {
+			if ch, ok := app.actionCache.charges[enemy.ID]; ok && ch.ok {
 				out = append(out, enemy)
 			}
+			continue
+		}
+		if _, ok := app.chargeFor(u, enemy); ok {
+			out = append(out, enemy)
 		}
 	}
 	return out
@@ -109,14 +117,17 @@ func (app *GUIApp) AutoChargeTarget(vp Viewport) {
 	}
 
 	// If cursor is hovering a reachable enemy, charge that exact target
+	var hoverErr error
 	if hov := app.getHoveredUnit(vp); hov != nil && hov.Player != u.Player && !hov.IsCasualty {
-		if err := app.ge.ChargeTarget(hov); err == nil {
+		hoverErr = app.ge.ChargeTarget(hov)
+		if hoverErr == nil {
 			return
 		}
 	}
 
 	candidates := app.GetChargeableEnemies(u)
 	if len(candidates) == 0 {
+		app.flash(hoverErr)
 		return
 	}
 
@@ -135,7 +146,7 @@ func (app *GUIApp) AutoChargeTarget(vp Viewport) {
 	}
 
 	if bestTarget != nil {
-		_ = app.ge.ChargeTarget(bestTarget)
+		app.flash(app.ge.ChargeTarget(bestTarget))
 	}
 }
 
@@ -208,36 +219,28 @@ func (app *GUIApp) HandleInput() {
 	// 2. Main Menu Interactivity
 	if app.screen == ScreenMainMenu {
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			w := float64(app.w)
-			bannerH := 160.0
-			by := 40.0
-			btnW := 390.0
-			btnH := 46.0
-			btnX := (w - btnW) / 2
-			startY := by + bannerH + 54.0
-
-			// Button 1: Quick Battle vs AI (Auto-Deployed)
-			if curX >= btnX && curX <= btnX+btnW && curY >= startY && curY <= startY+btnH {
+			chrome := app.menuChrome()
+			hit := func(i int) bool {
+				y := chrome.startY + float64(i)*chrome.step
+				return curX >= chrome.btnX && curX <= chrome.btnX+chrome.btnW && curY >= y && curY <= y+chrome.btnH
+			}
+			if hit(0) {
 				app.StartNewGame(true, true)
 				return
 			}
-			// Button 2: Standard Battle vs AI (Manual Deploy)
-			if curX >= btnX && curX <= btnX+btnW && curY >= startY+56 && curY <= startY+56+btnH {
+			if hit(1) {
 				app.StartNewGame(true, false)
 				return
 			}
-			// Button 3: Pass & Play (Local 2-Player)
-			if curX >= btnX && curX <= btnX+btnW && curY >= startY+112 && curY <= startY+112+btnH {
+			if hit(2) {
 				app.StartNewGame(false, false)
 				return
 			}
-			// Button 4: Rules
-			if curX >= btnX && curX <= btnX+btnW && curY >= startY+168 && curY <= startY+168+btnH {
+			if hit(3) {
 				app.showRulesModal = true
 				return
 			}
-			// Button 5: Quit
-			if curX >= btnX && curX <= btnX+btnW && curY >= startY+224 && curY <= startY+224+btnH {
+			if hit(4) {
 				app.shouldQuit = true
 				return
 			}
@@ -251,6 +254,14 @@ func (app *GUIApp) HandleInput() {
 
 	vp := app.calcViewport()
 
+	if app.needsHandoff() {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeySpace) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			app.ackedHandoffKey = app.handoffKey()
+			app.handoffHoldDraw = true
+		}
+		return
+	}
+
 	// 3. Animated Roll Showcase Playback & Dismissal (Runs even before Game Over so Morale failures are always visible!)
 	if app.activeRoll == nil && len(app.ge.RollQueue) > 0 {
 		ev := app.ge.RollQueue[0]
@@ -260,14 +271,14 @@ func (app *GUIApp) HandleInput() {
 	}
 	if app.activeRoll != nil {
 		app.rollFrame++
-		spinFrames := 36  // ~0.60s (+50%)
+		spinFrames := 36   // ~0.60s (+50%)
 		totalFrames := 132 // ~2.20s (+50%)
 		if app.activeRoll.Kind == RollVisualMorale {
 			totalFrames = 165 // ~2.75s for reading both warbands' Morale status
 		}
 		skipPressed := inpututil.IsKeyJustPressed(ebiten.KeySpace) || inpututil.IsKeyJustPressed(ebiten.KeyEnter)
-		boardClick := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && curX < vp.SbX
-		if skipPressed || boardClick {
+		clicked := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+		if skipPressed || clicked {
 			if app.rollFrame < spinFrames {
 				app.rollFrame = spinFrames // Snap immediately to final rolled outcome
 			} else {
@@ -454,7 +465,7 @@ func (app *GUIApp) HandleInput() {
 			}
 			if len(*queue) > 0 {
 				u := (*queue)[0]
-				_ = app.ge.DeployUnit(u, wx, wy)
+				app.flash(app.ge.DeployUnit(u, wx, wy))
 			}
 		}
 		return
@@ -472,13 +483,13 @@ func (app *GUIApp) HandleInput() {
 					for _, enemy := range app.ge.GetEnemyUnits(selected.Player) {
 						if !enemy.IsCasualty && Distance(wx, wy, enemy.X, enemy.Y) <= (enemy.Info().Radius+0.7) {
 							if selected.IsShooter && !selected.HasShot && app.ge.ActivationPoints >= 1 {
-								if hasLOS, _ := app.ge.Board.CheckLineOfSight(selected.X, selected.Y, enemy.X, enemy.Y); hasLOS {
-									_ = app.ge.ShootActiveUnit(enemy)
+								if hasLOS, _ := app.sightFor(selected, enemy); hasLOS {
+									app.flash(app.ge.ShootActiveUnit(enemy))
 									return
 								}
 							}
 							// Melee charge when unit is melee warrior or shot is blocked
-							_ = app.ge.ChargeTarget(enemy)
+							app.flash(app.ge.ChargeTarget(enemy))
 							return
 						}
 					}
@@ -497,14 +508,14 @@ func (app *GUIApp) HandleInput() {
 			if clickedFriendly != nil {
 				if !clickedFriendly.IsWounded {
 					app.ge.DoneWithUnit()
-					_ = app.ge.SelectUnit(clickedFriendly)
+					app.flash(app.ge.SelectUnit(clickedFriendly))
 				}
 				return
 			}
 
 			// C. Move selected unit to click location
 			if app.ge.SelectedUnitID != 0 {
-				_ = app.ge.MoveActiveUnit(wx, wy)
+				app.flash(app.ge.MoveActiveUnit(wx, wy))
 				return
 			}
 		}
@@ -518,7 +529,7 @@ func (app *GUIApp) HandleInput() {
 				if selected != nil {
 					for _, enemy := range app.ge.GetEnemyUnits(selected.Player) {
 						if !enemy.IsCasualty && Distance(wx, wy, enemy.X, enemy.Y) <= (enemy.Info().Radius+0.7) {
-							_ = app.ge.ChargeTarget(enemy)
+							app.flash(app.ge.ChargeTarget(enemy))
 							return
 						}
 					}

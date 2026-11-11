@@ -40,70 +40,61 @@ func (vp *Viewport) ScreenToWorld(sx, sy float64) (float64, float64) {
 
 // DrawMainMenu renders the opening title and game setup screen.
 func (app *GUIApp) DrawMainMenu(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{R: 18, G: 22, B: 30, A: 255})
-
 	w, h := float64(app.w), float64(app.h)
+	if bg := app.ensureMenuBackdrop(); bg != nil {
+		screen.DrawImage(bg, nil)
+	} else {
+		screen.Fill(color.RGBA{R: 18, G: 22, B: 30, A: 255})
+	}
 
-	// Decorative background grid
-	gridCol := color.RGBA{28, 35, 48, 150}
-	for x := 0.0; x < w; x += 40.0 {
-		vector.StrokeLine(screen, float32(x), 0, float32(x), float32(h), 1, gridCol, false)
-	}
-	for y := 0.0; y < h; y += 40.0 {
-		vector.StrokeLine(screen, 0, float32(y), float32(w), float32(y), 1, gridCol, false)
-	}
+	chrome := app.menuChrome()
+	by := chrome.bannerY
+	bannerH := chrome.bannerH
+	bannerW := chrome.bannerW
+	bx := chrome.bannerX
 
 	// 1. Draw skirmish.png Header Logo with STRICT NATURAL ASPECT RATIO
-	by := 40.0
-	bannerH := 160.0
 	if app.headerImg != nil {
 		bw := float64(app.headerImg.Bounds().Dx())
 		bh := float64(app.headerImg.Bounds().Dy())
-		aspect := bw / bh
-		bannerW := bannerH * aspect
-		if bannerW > w-80.0 {
-			bannerW = w - 80.0
-			bannerH = bannerW / aspect
-		}
-		bx := (w - bannerW) / 2
-
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(bannerW/bw, bannerH/bh)
 		op.GeoM.Translate(bx, by)
 		screen.DrawImage(app.headerImg, op)
 	} else {
-		bannerW := 520.0
-		bx := (w - bannerW) / 2
 		vector.DrawFilledRect(screen, float32(bx), float32(by), float32(bannerW), float32(bannerH), color.RGBA{30, 36, 52, 255}, false)
+		title := "SKIRMISH DICE"
+		titleFace := GetFace(36, FontBold)
+		tw, _ := text.Measure(title, titleFace, 0)
 		tOp := &text.DrawOptions{}
-		tOp.GeoM.Translate(bx+110, by+55)
+		tOp.GeoM.Translate(bx+(bannerW-tw)/2, by+55)
 		tOp.ColorScale.ScaleWithColor(color.RGBA{240, 215, 100, 255})
-		text.Draw(screen, "SKIRMISH DICE", GetFace(36, FontBold), tOp)
+		text.Draw(screen, title, titleFace, tOp)
 	}
 
 	// Subtitle
+	sub := "Tactical Tabletop Wargame • Based on Skirmish Dice by Gray Army Gaming"
+	subFace := GetFace(13, FontRegular)
+	sw, _ := text.Measure(sub, subFace, 0)
 	subOp := &text.DrawOptions{}
-	subOp.GeoM.Translate(w/2-210, by+bannerH+16)
+	subOp.GeoM.Translate((w-sw)/2, by+bannerH+16)
 	subOp.ColorScale.ScaleWithColor(color.RGBA{180, 195, 220, 255})
-	text.Draw(screen, "Tactical Tabletop Wargame • Based on Skirmish Dice by Gray Army Gaming", GetFace(13, FontRegular), subOp)
+	text.Draw(screen, sub, subFace, subOp)
 
-	// Menu Buttons
-	btnW := 390.0
-	btnH := 46.0
-	btnX := (w - btnW) / 2
-	startY := by + bannerH + 54.0
-
-	app.drawButton(screen, btnX, startY, btnW, btnH, "⚔  Quick Battle vs AI (Auto-Deployed)", color.RGBA{45, 110, 185, 255})
-	app.drawButton(screen, btnX, startY+56, btnW, btnH, "🏹  Standard Battle vs AI (Manual Deploy)", color.RGBA{40, 95, 155, 255})
-	app.drawButton(screen, btnX, startY+112, btnW, btnH, "👥  Pass & Play (Local 2-Player)", color.RGBA{50, 135, 95, 255})
-	app.drawButton(screen, btnX, startY+168, btnW, btnH, "📜  How to Play / Official Rules", color.RGBA{60, 75, 105, 255})
-	app.drawButton(screen, btnX, startY+224, btnW, btnH, "🚪  Quit Game", color.RGBA{140, 50, 45, 255})
+	app.drawButton(screen, chrome.btnX, chrome.startY, chrome.btnW, chrome.btnH, "Quick Battle vs AI (Auto-Deployed)", color.RGBA{45, 110, 185, 255})
+	app.drawButton(screen, chrome.btnX, chrome.startY+chrome.step, chrome.btnW, chrome.btnH, "Standard Battle vs AI (Manual Deploy)", color.RGBA{40, 95, 155, 255})
+	app.drawButton(screen, chrome.btnX, chrome.startY+chrome.step*2, chrome.btnW, chrome.btnH, "Pass & Play (Local 2-Player)", color.RGBA{50, 135, 95, 255})
+	app.drawButton(screen, chrome.btnX, chrome.startY+chrome.step*3, chrome.btnW, chrome.btnH, "How to Play / Official Rules", color.RGBA{60, 75, 105, 255})
+	app.drawButton(screen, chrome.btnX, chrome.startY+chrome.step*4, chrome.btnW, chrome.btnH, "Quit Game", color.RGBA{140, 50, 45, 255})
 
 	// Footer
+	foot := "Version 1.1 • Built with Go & Ebitengine"
+	footFace := GetFace(11, FontRegular)
+	fw, _ := text.Measure(foot, footFace, 0)
 	footOp := &text.DrawOptions{}
-	footOp.GeoM.Translate(w/2-110, h-26)
+	footOp.GeoM.Translate((w-fw)/2, h-26)
 	footOp.ColorScale.ScaleWithColor(color.RGBA{100, 115, 140, 255})
-	text.Draw(screen, "Version 1.1 • Built with Go & Ebitengine", GetFace(11, FontRegular), footOp)
+	text.Draw(screen, foot, footFace, footOp)
 
 	if app.showRulesModal {
 		vp := Viewport{ScreenW: w, ScreenH: h}
@@ -141,7 +132,10 @@ func (app *GUIApp) DrawGame(screen *ebiten.Image) {
 	// 8. Animated Dice Roll Showcase
 	app.drawRollShowcase(screen, vp)
 
-	// 9. Modals
+	// 9. Action error toast (under modals)
+	app.drawToast(screen, vp)
+
+	// 10. Modals
 	app.drawModals(screen, vp)
 }
 
@@ -250,9 +244,9 @@ func (app *GUIApp) drawHeader(screen *ebiten.Image, vp Viewport) {
 				hovEnemy, hovLOS, _ := app.getHoveredEnemy(vp, sel)
 				if hovEnemy != nil {
 					if hovLOS {
-						subInst = fmt.Sprintf("🎯 AIMING: %s | Click or [S] Shoot (1 AP)", hovEnemy.DisplayName())
+						subInst = fmt.Sprintf("AIMING: %s | Click or [S] Shoot (1 AP)", hovEnemy.DisplayName())
 					} else {
-						subInst = fmt.Sprintf("🚫 AIMING: %s | Wall blocks Line of Sight", hovEnemy.DisplayName())
+						subInst = fmt.Sprintf("BLOCKED: %s | Wall blocks Line of Sight", hovEnemy.DisplayName())
 					}
 				} else if sel.IsShooter && !sel.HasShot {
 					subInst = fmt.Sprintf("Selected: %s | [Click] Move/Shoot (1 AP) • [Right-Click/C] Charge", sel.DisplayName())
@@ -304,22 +298,10 @@ func (app *GUIApp) drawHeader(screen *ebiten.Image, vp Viewport) {
 }
 
 func (app *GUIApp) drawBoard(screen *ebiten.Image, vp Viewport) {
-	// Table Rim
-	borderPad := 8.0
-	vector.DrawFilledRect(screen, float32(vp.TableX-borderPad), float32(vp.TableY-borderPad),
-		float32(vp.TablePx+borderPad*2), float32(vp.TablePx+borderPad*2), color.RGBA{60, 40, 24, 255}, false)
-
-	// Green Felt Table Surface
-	vector.DrawFilledRect(screen, float32(vp.TableX), float32(vp.TableY),
-		float32(vp.TablePx), float32(vp.TablePx), color.RGBA{42, 90, 52, 255}, false)
-
-	// 6-inch Table Grid
-	gridCol := color.RGBA{52, 108, 64, 120}
-	for i := 1; i < 6; i++ {
-		gx, _ := vp.WorldToScreen(float64(i)*6.0, 0)
-		vector.StrokeLine(screen, float32(gx), float32(vp.TableY), float32(gx), float32(vp.TableY+vp.TablePx), 1, gridCol, true)
-		_, gy := vp.WorldToScreen(0, float64(i)*6.0)
-		vector.StrokeLine(screen, float32(vp.TableX), float32(gy), float32(vp.TableX+vp.TablePx), float32(gy), 1, gridCol, true)
+	if img := app.ensureTableImage(vp.TablePx); img != nil {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(vp.TableX-tableBorderPad, vp.TableY-tableBorderPad)
+		screen.DrawImage(img, op)
 	}
 
 	// 6" Deployment Zones
@@ -414,7 +396,7 @@ func (app *GUIApp) getHoveredEnemy(vp Viewport, shooter *Unit) (*Unit, bool, int
 	}
 	hov := app.getHoveredUnit(vp)
 	if hov != nil && hov.Player != shooter.Player && !hov.IsCasualty {
-		hasLOS, cover := app.ge.Board.CheckLineOfSight(shooter.X, shooter.Y, hov.X, hov.Y)
+		hasLOS, cover := app.sightFor(shooter, hov)
 		return hov, hasLOS, cover
 	}
 	return nil, false, 0
@@ -473,6 +455,7 @@ func (app *GUIApp) drawOverlays(screen *ebiten.Image, vp Viewport) {
 	}
 
 	ux, uy := vp.WorldToScreen(u.X, u.Y)
+	app.ensureActionCache()
 
 	// Movement Rings: 6", 12", 18" (Anti-aliased!)
 	movesLeft := MaxMovementSteps - u.MovesMade
@@ -518,7 +501,7 @@ func (app *GUIApp) drawOverlays(screen *ebiten.Image, vp Viewport) {
 		for _, enemy := range app.ge.GetEnemyUnits(u.Player) {
 			if !enemy.IsCasualty {
 				ex, ey := vp.WorldToScreen(enemy.X, enemy.Y)
-				hasLOS, _ := app.ge.Board.CheckLineOfSight(u.X, u.Y, enemy.X, enemy.Y)
+				hasLOS := app.actionCache.los[enemy.ID].hasLOS
 				isHovered := (hovEnemy != nil && hovEnemy.ID == enemy.ID)
 
 				if hasLOS {
@@ -553,14 +536,14 @@ func (app *GUIApp) drawOverlays(screen *ebiten.Image, vp Viewport) {
 			if enemy.IsCasualty {
 				continue
 			}
-			destX, destY, _, _, _, err := app.ge.FindChargeApproach(u, enemy)
-			if err == nil {
+			ch, ok := app.actionCache.charges[enemy.ID]
+			if ok && ch.ok {
 				ex, ey := vp.WorldToScreen(enemy.X, enemy.Y)
 				cRadius := float32(vp.InchToPx(enemy.Info().Radius) + 10)
 				isHov := (hovUnit != nil && hovUnit.ID == enemy.ID)
 				if isHov {
 					vector.StrokeCircle(screen, float32(ex), float32(ey), cRadius, 2.5, color.RGBA{255, 150, 40, 255}, true)
-					cx, cy := vp.WorldToScreen(destX, destY)
+					cx, cy := vp.WorldToScreen(ch.destX, ch.destY)
 					vector.StrokeLine(screen, float32(ux), float32(uy), float32(cx), float32(cy), 3, color.RGBA{255, 150, 40, 235}, true)
 					vector.StrokeCircle(screen, float32(cx), float32(cy), float32(vp.InchToPx(u.Info().Radius)), 1.8, color.RGBA{255, 180, 70, 200}, true)
 				} else {
@@ -708,15 +691,15 @@ func (app *GUIApp) drawUnitInfoPanel(screen *ebiten.Image, vp Viewport, hov *Uni
 	rightTag := fmt.Sprintf("%s • %d pts", factionShort, info.Cost)
 
 	// Role & Current Status
-	roleText := "⚔ Melee Warrior (2d Charge)"
+	roleText := "Melee Warrior (2d Charge)"
 	if hov.IsShooter {
-		roleText = "🎯 Ranged Shooter (Brass Base)"
+		roleText = "Ranged Shooter (Brass Base)"
 	}
 
 	var statusText string
 	var statusCol color.RGBA
 	if hov.IsWounded {
-		statusText = "⚠ WOUNDED ('1' State) — Auto-dies in melee!"
+		statusText = "WOUNDED ('1' State) - Auto-dies in melee!"
 		statusCol = color.RGBA{255, 110, 95, 255}
 	} else if hov.HasShot {
 		statusText = "Fired this turn (Cannot move/shoot)"
@@ -756,16 +739,16 @@ func (app *GUIApp) drawUnitInfoPanel(screen *ebiten.Image, vp Viewport, hov *Uni
 	if selected != nil && selected.ID != hov.ID && app.ge.Phase == PhaseTurnAction && !isAI {
 		if hov.Player != selected.Player {
 			// Check melee charge eligibility
-			_, _, _, chCost, _, chErr := app.ge.FindChargeApproach(selected, hov)
-			canCharge := (chErr == nil)
+			ch, canCharge := app.chargeFor(selected, hov)
+			chCost := ch.cost
 			chargeMatch := fmt.Sprintf("2d%d (best) vs 1d%d", selected.Info().Sides, info.Sides)
 			if hov.IsWounded {
-				chargeMatch = "💀 INSTANT KILL ON '1'!"
+				chargeMatch = "INSTANT KILL ON '1'!"
 			}
 
 			// Check ranged shot eligibility
 			if selected.IsShooter && !selected.HasShot && app.ge.ActivationPoints >= 1 {
-				hasLOS, shotCover := app.ge.Board.CheckLineOfSight(selected.X, selected.Y, hov.X, hov.Y)
+				hasLOS, shotCover := app.sightFor(selected, hov)
 				if hasLOS {
 					cDesc := "Open"
 					if shotCover == 1 {
@@ -773,40 +756,40 @@ func (app *GUIApp) drawUnitInfoPanel(screen *ebiten.Image, vp Viewport, hov *Uni
 					} else if shotCover == 3 {
 						cDesc = "+3 Hard Cover"
 					}
-					actionBanner = fmt.Sprintf("🎯 [Click / S] SHOOT: 1d%d vs 1d%d (%s) • 1 AP", selected.Info().Sides, info.Sides, cDesc)
+					actionBanner = fmt.Sprintf("[Click / S] SHOOT: 1d%d vs 1d%d (%s) • 1 AP", selected.Info().Sides, info.Sides, cDesc)
 					actionBg = color.RGBA{70, 58, 12, 240}
 					actionCol = color.RGBA{255, 235, 85, 255}
 					borderCol = color.RGBA{255, 220, 65, 255}
 
 					if canCharge {
-						chargeBanner = fmt.Sprintf("⚔ [Right-Click / C] CHARGE: %s • %d AP", chargeMatch, chCost)
+						chargeBanner = fmt.Sprintf("[Right-Click / C] CHARGE: %s • %d AP", chargeMatch, chCost)
 						chargeBg = color.RGBA{80, 42, 12, 245}
 						chargeCol = color.RGBA{255, 195, 85, 255}
 					}
 				} else if canCharge {
-					actionBanner = fmt.Sprintf("⚔ [Click / Right-Click / C] CHARGE: %s • %d AP", chargeMatch, chCost)
+					actionBanner = fmt.Sprintf("[Click / Right-Click / C] CHARGE: %s • %d AP", chargeMatch, chCost)
 					actionBg = color.RGBA{80, 42, 12, 245}
 					actionCol = color.RGBA{255, 200, 85, 255}
 					borderCol = color.RGBA{255, 155, 50, 255}
 				} else {
-					actionBanner = "🚫 LOS BLOCKED: Mid-field obstacle blocks shot"
+					actionBanner = "LOS BLOCKED: Mid-field obstacle blocks shot"
 					actionBg = color.RGBA{75, 20, 20, 240}
 					actionCol = color.RGBA{255, 115, 115, 255}
 					borderCol = color.RGBA{240, 70, 70, 255}
 				}
 			} else if canCharge {
-				actionBanner = fmt.Sprintf("⚔ [Click / Right-Click / C] CHARGE: %s • %d AP", chargeMatch, chCost)
+				actionBanner = fmt.Sprintf("[Click / Right-Click / C] CHARGE: %s • %d AP", chargeMatch, chCost)
 				actionBg = color.RGBA{80, 42, 12, 245}
 				actionCol = color.RGBA{255, 200, 85, 255}
 				borderCol = color.RGBA{255, 155, 50, 255}
 			}
 		} else if !hov.IsWounded {
-			actionBanner = "👉 Click unit to switch active selection"
+			actionBanner = "Click unit to switch active selection"
 			actionBg = color.RGBA{20, 48, 78, 235}
 			actionCol = color.RGBA{145, 205, 255, 255}
 		}
 	} else if selected == nil && app.ge.Phase == PhaseTurnAction && !isAI && hov.Player == app.ge.ActivePlayerIdx && !hov.IsWounded {
-		actionBanner = fmt.Sprintf("👉 Click to activate %s (%s)", info.Rank, p.Name)
+		actionBanner = fmt.Sprintf("Click to activate %s (%s)", info.Rank, p.Name)
 		actionBg = color.RGBA{20, 48, 78, 235}
 		actionCol = color.RGBA{145, 205, 255, 255}
 	}
@@ -1420,7 +1403,7 @@ func (app *GUIApp) drawSidebar(screen *ebiten.Image, vp Viewport) {
 
 	// Action Buttons (2-Column Grid)
 	if app.ge.Phase == PhaseDeployPlace {
-		app.drawButton(screen, float64(sbX+10), btnY, float64(sbW-20), 34, "⚡ Auto-Deploy Remaining", color.RGBA{45, 145, 95, 255})
+		app.drawButton(screen, float64(sbX+10), btnY, float64(sbW-20), 34, "Auto-Deploy Remaining", color.RGBA{45, 145, 95, 255})
 		btnY += 40
 	} else {
 		// Row 1: Next Die & End Turn side-by-side
@@ -1436,14 +1419,14 @@ func (app *GUIApp) drawSidebar(screen *ebiten.Image, vp Viewport) {
 				canCharge := len(app.GetChargeableEnemies(sel)) > 0
 
 				if canShoot && canCharge {
-					app.drawButton(screen, float64(sbX+10), btnY, float64(cardW), 30, "🎯 Shoot (S)", color.RGBA{185, 50, 45, 255})
-					app.drawButton(screen, float64(p1X), btnY, float64(cardW), 30, "⚔ Charge (C)", color.RGBA{200, 105, 30, 255})
+					app.drawButton(screen, float64(sbX+10), btnY, float64(cardW), 30, "Shoot (S)", color.RGBA{185, 50, 45, 255})
+					app.drawButton(screen, float64(p1X), btnY, float64(cardW), 30, "Charge (C)", color.RGBA{200, 105, 30, 255})
 					btnY += 34
 				} else if canShoot {
-					app.drawButton(screen, float64(sbX+10), btnY, float64(sbW-20), 30, "🎯 Shoot Target (S)", color.RGBA{190, 50, 45, 255})
+					app.drawButton(screen, float64(sbX+10), btnY, float64(sbW-20), 30, "Shoot Target (S)", color.RGBA{190, 50, 45, 255})
 					btnY += 34
 				} else if canCharge {
-					app.drawButton(screen, float64(sbX+10), btnY, float64(sbW-20), 30, "⚔ Charge Enemy (C)", color.RGBA{200, 105, 30, 255})
+					app.drawButton(screen, float64(sbX+10), btnY, float64(sbW-20), 30, "Charge Enemy (C)", color.RGBA{200, 105, 30, 255})
 					btnY += 34
 				}
 			}
@@ -1479,32 +1462,7 @@ func (app *GUIApp) drawSidebar(screen *ebiten.Image, vp Viewport) {
 		maxTextWidth := float64(sbW - 20 - 14) // Available width inside log box padding
 		lineHeight := 14.0
 		maxLines := int((logBoxH - 12) / float32(lineHeight))
-
-		type wrappedLine struct {
-			text      string
-			player    int
-			highlight bool
-		}
-
-		// Wrap recent entries to ensure they wrap within box boundaries
-		logEntries := app.ge.Log
-		entryStart := len(logEntries) - maxLines*2
-		if entryStart < 0 {
-			entryStart = 0
-		}
-
-		var allWrapped []wrappedLine
-		for i := entryStart; i < len(logEntries); i++ {
-			entry := logEntries[i]
-			lines := wrapLogText(entry.Text, logFace, maxTextWidth)
-			for _, l := range lines {
-				allWrapped = append(allWrapped, wrappedLine{
-					text:      l,
-					player:    entry.Player,
-					highlight: entry.Highlight,
-				})
-			}
-		}
+		allWrapped := app.cachedLogLines(maxTextWidth)
 
 		startLineIdx := len(allWrapped) - maxLines
 		if startLineIdx < 0 {
@@ -1620,10 +1578,66 @@ func (app *GUIApp) drawButton(screen *ebiten.Image, x, y, w, h float64, label st
 	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), drawCol, false)
 	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1.5, color.RGBA{220, 225, 240, 180}, false)
 
+	face := GetFace(12, FontBold)
+	_, th := text.Measure(label, face, 0)
 	lblOp := &text.DrawOptions{}
-	lblOp.GeoM.Translate(x+14, y+h/2-6)
+	lblOp.GeoM.Translate(x+14, y+(h-th)/2)
 	lblOp.ColorScale.ScaleWithColor(color.White)
-	text.Draw(screen, label, GetFace(12, FontBold), lblOp)
+	text.Draw(screen, label, face, lblOp)
+}
+
+func (app *GUIApp) drawToast(screen *ebiten.Image, vp Viewport) {
+	if app.toastFrames <= 0 || app.toastText == "" {
+		return
+	}
+	face := GetFace(13, FontBold)
+	tw, th := text.Measure(app.toastText, face, 0)
+	padX, padY := 16.0, 10.0
+	bw := tw + padX*2
+	bh := th + padY*2
+	bx := vp.TableX + (vp.TablePx-bw)/2
+	by := vp.TableY + vp.TablePx - bh - 18
+	if bx < vp.TableX+8 {
+		bx = vp.TableX + 8
+	}
+	vector.DrawFilledRect(screen, float32(bx)+2, float32(by)+3, float32(bw), float32(bh), color.RGBA{0, 0, 0, 170}, false)
+	vector.DrawFilledRect(screen, float32(bx), float32(by), float32(bw), float32(bh), color.RGBA{48, 22, 22, 245}, false)
+	vector.StrokeRect(screen, float32(bx), float32(by), float32(bw), float32(bh), 1.5, color.RGBA{240, 120, 90, 255}, false)
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(bx+padX, by+padY)
+	op.ColorScale.ScaleWithColor(color.RGBA{255, 228, 210, 255})
+	text.Draw(screen, app.toastText, face, op)
+}
+
+func (app *GUIApp) drawHandoff(screen *ebiten.Image, vp Viewport) {
+	vector.DrawFilledRect(screen, 0, 0, float32(vp.ScreenW), float32(vp.ScreenH), color.RGBA{12, 14, 20, 255}, false)
+	if app.ge == nil {
+		return
+	}
+	p := app.ge.Players[app.ge.ActivePlayerIdx]
+	title := fmt.Sprintf("%s's turn", p.Name)
+	hint := "Click when ready"
+	cardW := 520.0
+	cardH := 180.0
+	mx := (vp.ScreenW - cardW) / 2
+	my := (vp.ScreenH - cardH) / 2
+	border := color.RGBA{p.Color.R, p.Color.G, p.Color.B, 255}
+	vector.DrawFilledRect(screen, float32(mx), float32(my), float32(cardW), float32(cardH), color.RGBA{24, 28, 38, 255}, false)
+	vector.StrokeRect(screen, float32(mx), float32(my), float32(cardW), float32(cardH), 2.5, border, false)
+
+	titleFace := GetFace(22, FontBold)
+	tw, _ := text.Measure(title, titleFace, 0)
+	tOp := &text.DrawOptions{}
+	tOp.GeoM.Translate(mx+(cardW-tw)/2, my+48)
+	tOp.ColorScale.ScaleWithColor(border)
+	text.Draw(screen, title, titleFace, tOp)
+
+	hintFace := GetFace(16, FontRegular)
+	hw, _ := text.Measure(hint, hintFace, 0)
+	hOp := &text.DrawOptions{}
+	hOp.GeoM.Translate(mx+(cardW-hw)/2, my+96)
+	hOp.ColorScale.ScaleWithColor(color.RGBA{220, 228, 240, 255})
+	text.Draw(screen, hint, hintFace, hOp)
 }
 
 func (app *GUIApp) drawModals(screen *ebiten.Image, vp Viewport) {
@@ -1634,6 +1648,11 @@ func (app *GUIApp) drawModals(screen *ebiten.Image, vp Viewport) {
 
 	if app.showExitConfirm {
 		app.drawExitConfirmModal(screen, vp)
+		return
+	}
+
+	if app.showHandoff {
+		app.drawHandoff(screen, vp)
 		return
 	}
 

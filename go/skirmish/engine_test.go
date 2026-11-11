@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
@@ -59,6 +60,85 @@ func TestAITurnCannotAffordActionsEndsTurn(t *testing.T) {
 	if ge.TurnNumber != 2 {
 		t.Fatalf("expected AI to end turn and advance to Turn 2, but turn is %d (AP=%d)",
 			ge.TurnNumber, ge.ActivationPoints)
+	}
+}
+
+func TestGetFaceCachesRoundedSizes(t *testing.T) {
+	initFonts()
+	a := GetFace(12, FontBold)
+	b := GetFace(12, FontBold)
+	near := GetFace(12.1, FontBold)
+	half := GetFace(12.5, FontBold)
+	if a != b || a != near {
+		t.Fatal("expected identical faces for sizes that round to the same half pixel")
+	}
+	if a == half {
+		t.Fatal("expected 12.5px to use a distinct face from 12px")
+	}
+	if a.Size != 12 || half.Size != 12.5 {
+		t.Fatalf("unexpected sizes: %v and %v", a.Size, half.Size)
+	}
+}
+
+func TestMenuChromeBannerHeight(t *testing.T) {
+	app := &GUIApp{w: 1200, h: 800}
+	chrome := app.menuChrome()
+	if chrome.bannerH != 160 || chrome.startY != 254 || chrome.step != 56 {
+		t.Fatalf("unexpected menu chrome: %+v", chrome)
+	}
+	if chrome.btnX != (1200-390)/2 {
+		t.Fatalf("button x = %v", chrome.btnX)
+	}
+}
+
+func TestPassAndPlayHandoffBeforeRoll(t *testing.T) {
+	app := NewGUIApp()
+	app.w, app.h = 1200, 800
+	screen := ebiten.NewImage(app.w, app.h)
+	app.Draw(screen)
+
+	app.StartNewGame(false, true)
+	if err := app.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if !app.showHandoff {
+		t.Fatal("expected the pass-and-play handoff before initiative is shown")
+	}
+	if app.activeRoll != nil {
+		t.Fatal("handoff should hold the roll queue")
+	}
+	if len(app.ge.RollQueue) == 0 || app.ge.RollQueue[0].Kind != RollVisualInitiative {
+		t.Fatalf("expected initiative to stay queued, got %+v", app.ge.RollQueue)
+	}
+	app.Draw(screen)
+
+	app.ackedHandoffKey = app.handoffKey()
+	if err := app.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if app.showHandoff {
+		t.Fatal("handoff should clear after the turn is acknowledged")
+	}
+	if app.activeRoll == nil || app.activeRoll.Kind != RollVisualInitiative {
+		t.Fatal("expected the initiative showcase to start after the handoff")
+	}
+
+	app.activeRoll = nil
+	app.ge.RollQueue = nil
+	if err := app.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if app.ge.SelectedUnitID == 0 {
+		t.Fatal("expected the human turn to start with a unit selected")
+	}
+
+	ai := NewGUIApp()
+	ai.StartNewGame(true, true)
+	if err := ai.Update(); err != nil {
+		t.Fatal(err)
+	}
+	if ai.showHandoff {
+		t.Fatal("AI games should not show the hotseat handoff")
 	}
 }
 
@@ -422,5 +502,3 @@ func TestMoraleAndRecoveryShowcase(t *testing.T) {
 		t.Fatalf("expected both RollVisualMorale (%v) and RollVisualRecovery (%v) in queue", foundMorale, foundRecovery)
 	}
 }
-
-
