@@ -10828,7 +10828,8 @@ var ONE_TIMER_MILESTONES = [
           advWaitBadge.innerHTML = ICONS.check + " Ready now";
         } else {
           advWaitBadge.className = "pill sm";
-          advWaitBadge.innerHTML = ICONS.clock + " " + fmtTime(fw);
+          var advPrefix = advWaitBadge.getAttribute("data-step-prefix") || "";
+          advWaitBadge.innerHTML = ICONS.clock + " " + advPrefix + fmtTime(fw);
         }
       }
     }
@@ -11722,9 +11723,22 @@ var ONE_TIMER_MILESTONES = [
         ? "<span class='pill sm buy'>" + ICONS.bolt + " 1-Step Unlock</span>"
         : "<span class='pill sm info'>" + ICONS.clock + " Step " + currentStepNum + " of " + totalPlanSteps + "</span>");
     var badgeHtml = "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
-    var waitBadge = wait === 0
-      ? "<span class='pill sm buy' id='advisorWaitBadge'>" + ICONS.check + " Ready now</span>"
-      : (wait != null ? "<span class='pill sm' id='advisorWaitBadge'>" + ICONS.clock + " " + fmtTime(wait) + "</span>" : "");
+    var pSum = probeBuildSummary(state.level, pick.build, rate, pick.allSteps);
+    var hasBuildPill = !!(pSum && pSum.target);
+    var waitMatchesBuild = hasBuildPill && pick.mode !== "upgradeValue" && (
+      pick.remaining <= 1 ||
+      (wait === 0 ? pSum.buildSec === 0 : (wait === pSum.buildSec || (isFinite(wait) && isFinite(pSum.buildSec) && Math.abs(wait - pSum.buildSec) < 60)))
+    );
+
+    var waitBadge = "";
+    if (!waitMatchesBuild) {
+      if (wait === 0) {
+        waitBadge = "<span class='pill sm buy' id='advisorWaitBadge' title='Current step is affordable now'>" + ICONS.check + " Ready now</span>";
+      } else if (wait != null) {
+        var stepPrefix = (hasBuildPill && pick.mode !== "upgradeValue" && pick.remaining > 1) ? "Step: " : "";
+        waitBadge = "<span class='pill sm' id='advisorWaitBadge' data-step-prefix='" + esc(stepPrefix) + "' title='Wait time for this step: " + fmtDuration(wait) + "'>" + ICONS.clock + " " + stepPrefix + fmtTime(wait) + "</span>";
+      }
+    }
 
     var metaLockPill = pick.isLocked ? ("<span class='pill sm accent' title='Advisor locked to this plan'>" + ICONS.lock + " Plan Locked</span>") : "";
 
@@ -11741,7 +11755,6 @@ var ONE_TIMER_MILESTONES = [
       waitBadge +
       metaLockPill +
       (function () {
-        var pSum = probeBuildSummary(state.level, pick.build, rate, pick.allSteps);
         if (!pSum || !pSum.target) return "";
         var cleared = isLevelCleared(state.level);
         if (cleared) {
@@ -12709,7 +12722,8 @@ var ONE_TIMER_MILESTONES = [
         }
       } else if (wait != null && isFinite(wait)) {
         badge.className = "pill sm";
-        badge.innerHTML = ICONS.clock + " " + fmtTime(wait);
+        var stepPrefix = badge.getAttribute("data-step-prefix") || "";
+        badge.innerHTML = ICONS.clock + " " + stepPrefix + fmtTime(wait);
       }
     }
 
