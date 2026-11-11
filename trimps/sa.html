@@ -10756,6 +10756,18 @@ var ONE_TIMER_MILESTONES = [
     }
   }
 
+  function buildPillTitle(buildName, buildSec, buildTimeStr, clearSec, clearTimeStr, totalSec, totalTimeStr, cleared) {
+    var bName = buildName || "Build";
+    var buildEta = (buildSec > 0 && isFinite(buildSec)) ? (" (Completes: " + fmtLocalEta(buildSec) + ")") : "";
+    if (cleared) {
+      return "Farming time to unlock " + bName + ": " + buildTimeStr + buildEta + " (SA " + state.level + " already cleared)";
+    }
+    var clearEta = (totalSec != null && totalSec > 0 && isFinite(totalSec)) ? (" · ETA: " + fmtLocalEta(totalSec)) : "";
+    return "Farming time to unlock " + bName + ": " + buildTimeStr + buildEta +
+      " · Clear time with " + bName + ": ~" + clearTimeStr +
+      (totalTimeStr ? (" (Total: ~" + totalTimeStr + clearEta + ")") : "");
+  }
+
   function refreshPlanPopoverWaitTimes() {
     if (!state.lastPlanSteps || !state.lastPlanSteps.length) return;
     var bnk = bank();
@@ -10812,10 +10824,17 @@ var ONE_TIMER_MILESTONES = [
     var advBPill = $("advPlanBuildTime");
     if (advBPill) {
       var cleared = isLevelCleared(state.level);
+      var advClearSec = (state.lastPlanSummary && state.lastPlanSummary.clearSec) || 0;
+      var advClearStr = fmtDuration(advClearSec);
       var newHtml = cleared
         ? (ICONS.hammer + " Build: " + durStr)
-        : (ICONS.clock + " Build: " + durStr + " · Clear: ~" + fmtDuration((state.lastPlanSummary && state.lastPlanSummary.clearSec) || 0));
+        : (ICONS.clock + " Build: " + durStr + " · Clear: ~" + advClearStr);
       if (advBPill.innerHTML !== newHtml) advBPill.innerHTML = newHtml;
+      var advBuildName = advBPill.getAttribute("data-build-name") || (state.lastPlanSummary && state.lastPlanSummary.target && state.lastPlanSummary.target.n) || "Build";
+      var advTotalSec = (isFinite(calc.totalWait) && isFinite(advClearSec)) ? (calc.totalWait + advClearSec) : null;
+      var advTotalStr = advTotalSec != null ? fmtDuration(advTotalSec) : "";
+      var newTitle = buildPillTitle(advBuildName, calc.totalWait, durStr, advClearSec, advClearStr, advTotalSec, advTotalStr, cleared);
+      if (advBPill.title !== newTitle) advBPill.title = newTitle;
     }
 
     var advWaitBadge = $("advisorWaitBadge");
@@ -11757,11 +11776,12 @@ var ONE_TIMER_MILESTONES = [
       (function () {
         if (!pSum || !pSum.target) return "";
         var cleared = isLevelCleared(state.level);
+        var pillTitle = buildPillTitle(pick.build.n, pSum.buildSec, pSum.buildTimeStr, pSum.clearSec, pSum.clearTimeStr, pSum.totalSec, pSum.totalTimeStr, cleared);
         if (cleared) {
-          return "<span class='pill sm' id='advPlanBuildTime' title='Farming time to unlock " + esc(pick.build.n) + ": " + pSum.buildTimeStr + " (SA " + state.level + " already cleared)'>" +
+          return "<span class='pill sm' id='advPlanBuildTime' data-build-name='" + esc(pick.build.n) + "' title='" + esc(pillTitle) + "'>" +
             ICONS.hammer + " Build: " + pSum.buildTimeStr + "</span>";
         }
-        var mainPill = "<span class='pill sm' id='advPlanBuildTime' title='Farming time to unlock " + esc(pick.build.n) + ": " + pSum.buildTimeStr + " · Clear time with " + esc(pick.build.n) + ": ~" + pSum.clearTimeStr + (pSum.totalTimeStr ? (" (Total: ~" + pSum.totalTimeStr + ")") : "") + "'>" +
+        var mainPill = "<span class='pill sm' id='advPlanBuildTime' data-build-name='" + esc(pick.build.n) + "' title='" + esc(pillTitle) + "'>" +
           ICONS.clock + " Build: " + pSum.buildTimeStr + " · Clear: ~" + pSum.clearTimeStr + "</span>";
 
         if (mode === "push") {
