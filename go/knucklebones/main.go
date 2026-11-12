@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -42,7 +43,7 @@ const (
 	menuGuide
 	menuStats
 	menuName
-	menuTheme
+	menuOptions
 	menuQuit
 	menuCount
 )
@@ -53,14 +54,22 @@ const (
 	rowRounds
 	rowTimer
 	rowPort
+	rowBindIP
+	rowRoomCode
 	rowDestroy
 	rowDice
 	rowEnd
 	rowStart
+	rowTheme
+	rowSound
+	rowColorblind
+	rowWinMeter
+	rowDone
 )
 
 const (
 	setupHost    = "host"
+	setupOptions = "options"
 	choiceMenu   = "menu"
 	rollDuration = 450 * time.Millisecond
 	aiDelay      = 950 * time.Millisecond
@@ -86,6 +95,7 @@ type controller interface {
 	turnLeft(now time.Time) time.Duration
 	disconnectLeft(now time.Time) (int, time.Duration)
 	opponentGone() bool
+	fairness() int
 }
 
 // lobby is the extra surface online controllers offer before a game starts.
@@ -94,14 +104,31 @@ type lobby interface {
 	lobbyError() string
 	retryConnect()
 	hostPort() int
+	hostRoomCode() string
+}
+
+type aiResult struct {
+	key [2]int
+	mv  Move
 }
 
 type offlineCtl struct {
-	s     *session
-	rng   *rand.Rand
-	ai    bool
-	aiKey [2]int
-	aiAt  time.Time
+	s        *session
+	rng      *rand.Rand
+	ai       bool
+	aiKey    [2]int
+	aiAt     time.Time
+	aiCh     <-chan aiResult
+	aiCancel context.CancelFunc
+	syncAI   bool
+}
+
+func (c *offlineCtl) cancelAI() {
+	if c.aiCancel != nil {
+		c.aiCancel()
+		c.aiCancel = nil
+	}
+	c.aiCh = nil
 }
 
 func (c *offlineCtl) state() *session { return c.s }
@@ -125,6 +152,7 @@ func (c *offlineCtl) aim(int, int) {}
 func (c *offlineCtl) vote(v string) { c.s.vote(0, v, c.rng) }
 
 func (c *offlineCtl) resign() {
+	c.cancelAI()
 	switch {
 	case c.s.Phase == phasePlay && c.ai:
 		c.s.forfeitBy(0, reasonResign)
@@ -135,7 +163,7 @@ func (c *offlineCtl) resign() {
 	}
 }
 
-func (c *offlineCtl) leave() {}
+func (c *offlineCtl) leave() { c.cancelAI() }
 
 func (c *offlineCtl) tick(now time.Time) bool {
 	if !c.ai || c.s.Phase != phasePlay || c.s.Match.Turn != 1 {
@@ -143,12 +171,39 @@ func (c *offlineCtl) tick(now time.Time) bool {
 	}
 	key := [2]int{c.s.Series*1000 + c.s.Round, c.s.Match.Moves + 1}
 	if key != c.aiKey {
+		c.cancelAI()
 		c.aiKey = key
 		c.aiAt = now.Add(aiDelay)
+		if c.s.Difficulty == diffHard && !c.syncAI {
+			ctx, cancel := context.WithCancel(context.Background())
+			c.aiCancel = cancel
+			snap := c.s.Match
+			subRNG := rand.New(rand.NewPCG(c.rng.Uint64(), c.rng.Uint64()))
+			ch := make(chan aiResult, 1)
+			c.aiCh = ch
+			go func() {
+				if mv, ok := chooseMoveContext(ctx, &snap, diffHard, subRNG); ok {
+					ch <- aiResult{key: key, mv: mv}
+				}
+			}()
+		}
 		return false
 	}
 	if now.Before(c.aiAt) {
 		return false
+	}
+	if c.aiCh != nil {
+		select {
+		case res := <-c.aiCh:
+			c.aiCh = nil
+			c.aiCancel = nil
+			if res.key == key {
+				_ = c.s.place(1, res.mv, c.rng)
+				return true
+			}
+		default:
+			return false
+		}
 	}
 	_ = c.s.place(1, chooseMove(&c.s.Match, c.s.Difficulty, c.rng), c.rng)
 	return true
@@ -159,6 +214,7 @@ func (c *offlineCtl) handle(netEvent, time.Time) bool               { return fal
 func (c *offlineCtl) turnLeft(time.Time) time.Duration              { return 0 }
 func (c *offlineCtl) disconnectLeft(time.Time) (int, time.Duration) { return -1, 0 }
 func (c *offlineCtl) opponentGone() bool                            { return false }
+func (c *offlineCtl) fairness() int                                 { return fairNone }
 
 type game struct {
 	screen   tcell.Screen
@@ -175,7 +231,11 @@ type game struct {
 	setIndex  int
 	note      string
 	input     string
-	inputPos  int // caret index in runes for input / Player 2 name
+	inputPos  int // caret index in runes for input / Player 2 name / Room code
+
+	hostRoomCode string // ephemeral host room code, never persisted to disk
+	joinCode     string // ephemeral guest room code, never persisted to disk
+	joinField    int    // 0 = address, 1 = room code
 
 	ctl           controller
 	overlay       int
@@ -187,13 +247,23 @@ type game struct {
 	dieSel        int
 	guideScroll   int
 
-	rollKey [2]int
-	rollAt  time.Time
-	aimPub  [2]int // last online aim published as {col, die}; {-1,-1} = none
+	rollKey    [2]int
+	rollAt     time.Time
+	aimPub     [2]int // last online aim published as {col, die}; {-1,-1} = none
+	effectKey  [2]int
+	effectAt   time.Time
+	effectLast Placement
 
-	recRound   [2]int
-	recSeries  int
-	recordNote string
+	recRound      [2]int
+	recSeries     int
+	recordNote    string
+	soundPhaseKey [2]int
+	soundQueue    []soundID
+	winCache      winProbCache
+
+	replayActive bool
+	replayStep   int
+	replayFrames []replayFrame
 }
 
 func main() {
@@ -241,13 +311,48 @@ func main() {
 }
 
 func newGame() *game {
+	path := resolveSavePath()
 	g := &game{
-		savePath: saveFileName,
-		save:     loadSave(saveFileName),
+		savePath: path,
+		save:     loadSave(path),
 		rng:      rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(os.Getpid()))),
 	}
-	g.pal = themes[g.save.Theme]
+	g.pal = paletteFor(g.save.Theme)
 	return g
+}
+
+func (g *game) emitSound(id soundID) {
+	if !g.save.Settings.Sound || id == sndNone || len(g.soundQueue) >= 4 {
+		return
+	}
+	g.soundQueue = append(g.soundQueue, id)
+}
+
+func (g *game) drainSounds() []soundID {
+	if len(g.soundQueue) == 0 {
+		return nil
+	}
+	out := g.soundQueue
+	g.soundQueue = nil
+	return out
+}
+
+func (g *game) enterReplay(s *session) {
+	frames := buildReplay(s)
+	if len(frames) == 0 {
+		return
+	}
+	g.replayFrames = frames
+	g.replayStep = len(frames) - 1
+	g.replayActive = true
+	g.overlay = overlayNone
+	g.emitSound(sndClick)
+}
+
+func (g *game) exitReplay() {
+	g.replayActive = false
+	g.replayStep = 0
+	g.replayFrames = nil
 }
 
 func (g *game) afterChange() {
@@ -273,6 +378,17 @@ func (g *game) syncView() {
 		g.view = viewPlay
 		g.overlay = overlayNone
 	}
+	key := [2]int{s.Series*1000 + s.Round, s.Match.Moves + 1}
+	if s.Last != nil && s.Match.Moves > 0 && key != g.effectKey {
+		g.effectKey = key
+		g.effectAt = time.Now()
+		g.effectLast = *s.Last
+		if s.Last.Destroyed > 0 {
+			g.emitSound(sndDestroy)
+		} else {
+			g.emitSound(sndPlace)
+		}
+	}
 	if s.Phase != phasePlay {
 		if g.overlay == overlayResign && s.Phase == phaseGameOver {
 			g.overlay = overlayNone
@@ -280,10 +396,28 @@ func (g *game) syncView() {
 		if n := len(g.resultChoices(s)); g.resultIndex >= n {
 			g.resultIndex = 0
 		}
+		phaseKey := [2]int{s.Series, s.Round}
+		if phaseKey != g.soundPhaseKey {
+			g.soundPhaseKey = phaseKey
+			if s.Mode != modeLocal {
+				w := s.Match.Winner()
+				if s.Forfeit != nil {
+					w = 1 - s.Forfeit.Loser
+				}
+				switch {
+				case w == g.ctl.seat():
+					g.emitSound(sndWin)
+				case w >= 0:
+					g.emitSound(sndLose)
+				}
+			}
+		}
 		return
 	}
+	if g.replayActive {
+		g.exitReplay()
+	}
 	g.hideResult = false
-	key := [2]int{s.Series*1000 + s.Round, s.Match.Moves + 1}
 	if key != g.rollKey {
 		g.rollKey = key
 		g.rollAt = time.Now()
@@ -294,6 +428,9 @@ func (g *game) syncView() {
 		grid := &s.Match.Grids[s.Match.Turn]
 		for i := 0; i < gridCols && !grid.Open(g.cursor); i++ {
 			g.cursor = (g.cursor + 1) % gridCols
+		}
+		if s.Match.Moves == 0 && g.myTurn(s) {
+			g.emitSound(sndTurn)
 		}
 	}
 }
@@ -352,9 +489,14 @@ func (g *game) beginGame(c controller) {
 	g.cursor = 1
 	g.dieSel = 0
 	g.rollKey = [2]int{}
+	g.effectKey = [2]int{}
+	g.effectAt = time.Time{}
 	g.aimPub = [2]int{-1, -1}
 	g.recRound = [2]int{}
 	g.recSeries = 0
+	g.soundPhaseKey = [2]int{}
+	g.winCache = winProbCache{}
+	g.exitReplay()
 	g.recordNote = ""
 	g.hideResult = false
 	if c.state() != nil {
@@ -370,6 +512,8 @@ func (g *game) leaveGame() {
 		g.ctl = nil
 	}
 	g.overlay = overlayNone
+	g.exitReplay()
+	g.soundQueue = nil
 	if g.view == viewPlay || g.view == viewLobby {
 		g.view = viewMenu
 	}
@@ -524,12 +668,18 @@ func (g *game) handleKey(e *tcell.EventKey) bool {
 }
 
 func (g *game) toggleTheme() {
-	if g.save.Theme == themeDark {
-		g.save.Theme = themeLight
-	} else {
-		g.save.Theme = themeDark
+	g.stepTheme(1)
+}
+
+func (g *game) stepTheme(step int) {
+	idx := 0
+	for i, t := range themeOrder {
+		if t == g.save.Theme {
+			idx = i
+		}
 	}
-	g.pal = themes[g.save.Theme]
+	g.save.Theme = themeOrder[(idx+step+len(themeOrder))%len(themeOrder)]
+	g.pal = paletteFor(g.save.Theme)
 	g.persist()
 }
 
@@ -541,10 +691,18 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 		g.menuIndex = (g.menuIndex + menuCount - 1) % menuCount
 	case isDown(e):
 		g.menuIndex = (g.menuIndex + 1) % menuCount
-	case isRune(e, 't'), g.menuIndex == menuTheme && (isLeft(e) || isRight(e)):
+	case isRune(e, 't'):
 		g.toggleTheme()
+		g.emitSound(sndClick)
+	case g.menuIndex == menuOptions && isLeft(e):
+		g.stepTheme(-1)
+		g.emitSound(sndClick)
+	case g.menuIndex == menuOptions && isRight(e):
+		g.stepTheme(1)
+		g.emitSound(sndClick)
 	case isEnter(e) || isRune(e, ' '):
 		g.note = ""
+		g.emitSound(sndClick)
 		switch g.menuIndex {
 		case menuAI:
 			g.openSettings(modeAI)
@@ -554,6 +712,8 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 			g.openSettings(setupHost)
 		case menuJoin:
 			g.input = g.save.Settings.JoinAddr
+			g.joinCode = ""
+			g.joinField = 0
 			g.inputPos = runeLen(g.input)
 			g.view = viewJoin
 		case menuGuide:
@@ -565,8 +725,8 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 			g.input = g.save.Name
 			g.inputPos = runeLen(g.input)
 			g.view = viewName
-		case menuTheme:
-			g.toggleTheme()
+		case menuOptions:
+			g.openSettings(setupOptions)
 		case menuQuit:
 			return true
 		}
@@ -576,7 +736,11 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 
 func (g *game) openSettings(mode string) {
 	g.setupMode = mode
-	g.setIndex = len(g.settingRows()) - 1
+	if mode == setupOptions {
+		g.setIndex = 0
+	} else {
+		g.setIndex = len(g.settingRows()) - 1
+	}
 	g.focusSettingCaret()
 	g.view = viewSettings
 }
@@ -587,11 +751,23 @@ func (g *game) settingRows() []int {
 		return []int{rowDifficulty, rowRounds, rowDestroy, rowDice, rowEnd, rowStart}
 	case modeLocal:
 		return []int{rowPlayer2, rowRounds, rowDestroy, rowDice, rowEnd, rowStart}
+	case setupOptions:
+		return []int{rowTheme, rowSound, rowColorblind, rowWinMeter, rowDone}
 	}
-	return []int{rowRounds, rowTimer, rowPort, rowDestroy, rowDice, rowEnd, rowStart}
+	return []int{rowRounds, rowTimer, rowPort, rowBindIP, rowRoomCode, rowDestroy, rowDice, rowEnd, rowStart}
 }
 
 func cycleInt(list []int, cur, step int) int {
+	idx := 0
+	for i, v := range list {
+		if v == cur {
+			idx = i
+		}
+	}
+	return list[(idx+step+len(list))%len(list)]
+}
+
+func cycleString(list []string, cur string, step int) string {
 	idx := 0
 	for i, v := range list {
 		if v == cur {
@@ -605,27 +781,41 @@ func (g *game) changeSetting(row, step int) {
 	st := &g.save.Settings
 	switch row {
 	case rowDifficulty:
-		idx := 0
-		for i, d := range difficultyOrder {
-			if d == st.Difficulty {
-				idx = i
-			}
-		}
-		st.Difficulty = difficultyOrder[(idx+step+len(difficultyOrder))%len(difficultyOrder)]
+		st.Difficulty = cycleString(difficultyOrder, st.Difficulty, step)
 	case rowRounds:
 		st.BestOf = cycleInt(roundChoices, st.BestOf, step)
 	case rowTimer:
 		st.TurnSeconds = cycleInt(timerChoices, st.TurnSeconds, step)
+	case rowBindIP:
+		st.BindIP = cycleString(bindIPChoices(), st.BindIP, step)
 	case rowDestroy:
 		st.Rules.NoDestroy = !st.Rules.NoDestroy
 	case rowDice:
 		st.Rules.TwoDice = !st.Rules.TwoDice
 	case rowEnd:
 		st.Rules.FillBoth = !st.Rules.FillBoth
+	case rowTheme:
+		g.stepTheme(step)
+		g.emitSound(sndClick)
+		return
+	case rowSound:
+		st.Sound = !st.Sound
+		if st.Sound {
+			g.emitSound(sndClick)
+		}
+	case rowColorblind:
+		st.Colorblind = !st.Colorblind
+	case rowWinMeter:
+		st.WinMeter = !st.WinMeter
 	default:
 		return
 	}
+	g.emitSound(sndClick)
 	g.persist()
+}
+
+func isRoomCodeRune(r rune) bool {
+	return unicode.IsPrint(r) && !unicode.IsSpace(r) && !unicode.IsControl(r) && !isBidiControl(r)
 }
 
 func (g *game) keySettings(e *tcell.EventKey) {
@@ -647,9 +837,17 @@ func (g *game) keySettings(e *tcell.EventKey) {
 			return
 		}
 	}
+	if row == rowRoomCode {
+		if next, pos, ok := editLine(e, g.hostRoomCode, g.inputPos, maxRoomCodeLen, isRoomCodeRune); ok {
+			g.hostRoomCode = next
+			g.inputPos = pos
+			return
+		}
+	}
 	switch {
 	case e.Key() == tcell.KeyEscape:
 		g.save.Settings.Player2 = cleanName(g.save.Settings.Player2, "Player 2")
+		g.hostRoomCode = cleanRoomCode(g.hostRoomCode)
 		g.persist()
 		g.view = viewMenu
 	case e.Key() == tcell.KeyUp || e.Key() == tcell.KeyBacktab:
@@ -676,7 +874,10 @@ func (g *game) keySettings(e *tcell.EventKey) {
 		switch row {
 		case rowStart:
 			g.startFromSettings()
-		case rowPlayer2, rowPort:
+		case rowDone:
+			g.emitSound(sndClick)
+			g.view = viewMenu
+		case rowPlayer2, rowPort, rowRoomCode:
 			g.setIndex = (g.setIndex + 1) % len(rows)
 			g.focusSettingCaret()
 		default:
@@ -719,12 +920,15 @@ func (g *game) focusSettingCaret() {
 			g.save.Settings.Port = defaultPort
 		}
 		g.inputPos = runeLen(g.portEditString())
+	case rowRoomCode:
+		g.inputPos = runeLen(g.hostRoomCode)
 	}
 }
 
 func (g *game) startFromSettings() {
 	st := &g.save.Settings
 	st.Player2 = cleanName(st.Player2, "Player 2")
+	g.hostRoomCode = cleanRoomCode(g.hostRoomCode)
 	g.note = ""
 	switch g.setupMode {
 	case modeAI:
@@ -741,7 +945,13 @@ func (g *game) startFromSettings() {
 		if st.Port <= 0 {
 			st.Port = defaultPort
 		}
-		h, err := startHost(g.save.Name, st.Port, hostConfig{BestOf: st.BestOf, Rules: st.Rules, TurnSeconds: st.TurnSeconds}, g.rng)
+		h, err := startHost(g.save.Name, st.Port, hostConfig{
+			BestOf:      st.BestOf,
+			Rules:       st.Rules,
+			TurnSeconds: st.TurnSeconds,
+			BindIP:      st.BindIP,
+			RoomCode:    g.hostRoomCode,
+		}, g.rng)
 		if err != nil {
 			g.note = fmt.Sprintf("Could not open port %d: %v", st.Port, err)
 			return
@@ -853,24 +1063,45 @@ func (g *game) keyName(e *tcell.EventKey) {
 	}
 }
 
+func (g *game) focusJoinField(idx int) {
+	if idx < 0 || idx > 1 {
+		idx = 0
+	}
+	g.joinField = idx
+	if idx == 0 {
+		g.inputPos = runeLen(g.input)
+	} else {
+		g.inputPos = runeLen(g.joinCode)
+	}
+}
+
 func (g *game) keyJoin(e *tcell.EventKey) {
 	switch {
 	case e.Key() == tcell.KeyEscape:
 		g.view = viewMenu
+	case e.Key() == tcell.KeyUp || e.Key() == tcell.KeyBacktab || e.Key() == tcell.KeyDown || e.Key() == tcell.KeyTab:
+		g.focusJoinField(1 - g.joinField)
 	case isEnter(e):
 		addr := normalizeJoinAddr(g.input)
 		if addr == "" {
 			g.note = "Enter the host's address, for example 192.168.1.20:8647"
+			g.focusJoinField(0)
 			return
 		}
+		code := cleanRoomCode(g.joinCode)
 		g.input = addr
+		g.joinCode = code
 		g.inputPos = runeLen(addr)
 		g.save.Settings.JoinAddr = addr
 		g.persist()
 		g.note = ""
-		g.beginGame(startClient(g.save.Name, addr))
+		g.beginGame(startClientWithCode(g.save.Name, addr, code))
 	default:
-		g.input, g.inputPos, _ = editLine(e, g.input, g.inputPos, maxAddrLen, func(r rune) bool { return unicode.IsPrint(r) && r != ' ' })
+		if g.joinField == 1 {
+			g.joinCode, g.inputPos, _ = editLine(e, g.joinCode, g.inputPos, maxRoomCodeLen, isRoomCodeRune)
+		} else {
+			g.input, g.inputPos, _ = editLine(e, g.input, g.inputPos, maxAddrLen, func(r rune) bool { return unicode.IsPrint(r) && r != ' ' })
+		}
 	}
 }
 
@@ -966,11 +1197,49 @@ func (g *game) keyPlay(e *tcell.EventKey) {
 	}
 
 	switch {
+	case isRune(e, 'p'):
+		g.save.Settings.WinMeter = !g.save.Settings.WinMeter
+		g.emitSound(sndClick)
+		g.persist()
+		return
+	case isRune(e, 'c'):
+		g.save.Settings.Colorblind = !g.save.Settings.Colorblind
+		g.emitSound(sndClick)
+		g.persist()
+		return
+	case isRune(e, 's'):
+		g.save.Settings.Sound = !g.save.Settings.Sound
+		if g.save.Settings.Sound {
+			g.emitSound(sndClick)
+		}
+		g.persist()
+		return
 	case isRune(e, 'l'):
 		g.toggleOverlay(overlayLog)
 		return
 	case isRune(e, 'h'):
 		g.toggleOverlay(overlayHistory)
+		return
+	case g.replayActive:
+		switch {
+		case e.Key() == tcell.KeyEscape || isEnter(e) || isRune(e, 'x'):
+			g.exitReplay()
+			g.emitSound(sndClick)
+		case isLeft(e):
+			if g.replayStep > 0 {
+				g.replayStep--
+				g.emitSound(sndClick)
+			}
+		case isRight(e):
+			if g.replayStep+1 < len(g.replayFrames) {
+				g.replayStep++
+				g.emitSound(sndClick)
+			}
+		case e.Key() == tcell.KeyHome:
+			g.replayStep = 0
+		case e.Key() == tcell.KeyEnd && len(g.replayFrames) > 0:
+			g.replayStep = len(g.replayFrames) - 1
+		}
 		return
 	case isRune(e, 'r'):
 		if g.canResign(s) {
@@ -993,11 +1262,17 @@ func (g *game) keyPlay(e *tcell.EventKey) {
 		switch {
 		case isRune(e, 'v'):
 			g.hideResult = !g.hideResult
+			g.emitSound(sndClick)
+		case isRune(e, 'x'):
+			if canReplay(s) {
+				g.enterReplay(s)
+			}
 		case isLeft(e):
 			g.resultIndex = (g.resultIndex + len(choices) - 1) % len(choices)
 		case isRight(e) || e.Key() == tcell.KeyTab:
 			g.resultIndex = (g.resultIndex + 1) % len(choices)
 		case isEnter(e) || isRune(e, ' '):
+			g.emitSound(sndClick)
 			switch c := choices[g.resultIndex]; c {
 			case choiceMenu:
 				g.leaveGame()

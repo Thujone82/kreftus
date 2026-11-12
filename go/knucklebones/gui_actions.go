@@ -14,6 +14,15 @@ func runeEv(r rune) *tcell.EventKey     { return tcell.NewEventKey(tcell.KeyRune
 
 // playActions are the buttons under the board.
 func (g *game) playActions(s *session) []guiAction {
+	if g.replayActive {
+		return []guiAction{
+			{"< Prev", keyEv(tcell.KeyLeft)},
+			{"Next >", keyEv(tcell.KeyRight)},
+			{"Log", runeEv('l')},
+			{"History", runeEv('h')},
+			{"Done", keyEv(tcell.KeyEscape)},
+		}
+	}
 	var out []guiAction
 	if s.Phase != phasePlay {
 		label := "View board"
@@ -21,6 +30,9 @@ func (g *game) playActions(s *session) []guiAction {
 			label = "Show result"
 		}
 		out = append(out, guiAction{label, runeEv('v')})
+		if canReplay(s) {
+			out = append(out, guiAction{"Replay", runeEv('x')})
+		}
 	}
 	out = append(out, guiAction{"Log", runeEv('l')}, guiAction{"History", runeEv('h')})
 	if g.canResign(s) {
@@ -36,9 +48,9 @@ func (g *game) playActions(s *session) []guiAction {
 // settingClick is the key a click on a settings row sends.
 func settingClick(row int) *tcell.EventKey {
 	switch row {
-	case rowStart:
+	case rowStart, rowDone:
 		return keyEv(tcell.KeyEnter)
-	case rowPlayer2, rowPort:
+	case rowPlayer2, rowPort, rowRoomCode:
 		return nil
 	}
 	return keyEv(tcell.KeyRight)

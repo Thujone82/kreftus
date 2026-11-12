@@ -775,7 +775,7 @@
           </div>
           <div class="download-btn-info">
             <span class="download-btn-platform">Windows x64 <span class="pill accent" style="padding:1px 5px;font-size:9.5px;">GUI + TUI</span></span>
-            <span class="download-btn-file">Knucklebones.exe &middot; 16.4 MB</span>
+            <span class="download-btn-file">Knucklebones.exe &middot; 12.1 MB</span>
           </div>
           <div class="download-btn-action">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -790,7 +790,7 @@
           </div>
           <div class="download-btn-info">
             <span class="download-btn-platform">Windows x86 <span class="pill accent" style="padding:1px 5px;font-size:9.5px;">GUI + TUI</span></span>
-            <span class="download-btn-file">Knucklebones.exe &middot; 15.4 MB</span>
+            <span class="download-btn-file">Knucklebones.exe &middot; 11.1 MB</span>
           </div>
           <div class="download-btn-action">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -809,7 +809,7 @@
           </div>
           <div class="download-btn-info">
             <span class="download-btn-platform">Linux amd64 <span class="pill gold" style="padding:1px 5px;font-size:9.5px;">TUI</span></span>
-            <span class="download-btn-file">Knucklebones &middot; 4.3 MB</span>
+            <span class="download-btn-file">Knucklebones &middot; 4.2 MB</span>
           </div>
           <div class="download-btn-action">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -828,7 +828,7 @@
           </div>
           <div class="download-btn-info">
             <span class="download-btn-platform">Linux x86 <span class="pill gold" style="padding:1px 5px;font-size:9.5px;">TUI</span></span>
-            <span class="download-btn-file">Knucklebones &middot; 3.8 MB</span>
+            <span class="download-btn-file">Knucklebones &middot; 3.7 MB</span>
           </div>
           <div class="download-btn-action">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -870,7 +870,7 @@
   <script type="text/markdown" id="embeddedReadme">
 # Knucklebones — Terminal Dice Duel
 
-**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-10
+**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-11
 
 ## Description
 
@@ -897,12 +897,15 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 
 ## Features
 
-- **Start menu**: Play against an AI, Play against someone (same keyboard), Host Game, Join Game, How to play, Stats, Name, Theme, and Quit
+- **Start menu**: Play against an AI, Play against someone (same keyboard), Host Game, Join Game, How to play, Stats, Name, Options, and Quit
 - **AI opponents**: Ratau (Easy) places in a random open column. Flinky (Medium) takes the biggest immediate swing. Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it
-- **Game settings**: AI difficulty, number of rounds (Best of 1, 3, 5, or Free play), and house rules. Your last choices are remembered
+- **Game settings**: AI difficulty, number of rounds (Best of 1, 3, 5, or Free play), and house rules. Hosting adds turn timer, port, bind interface (LAN / localhost / specific IP), and an optional ephemeral room code. Your last choices are remembered (room codes are never written to disk)
 - **House rules** (from the dice.now guide): turn destruction off, roll two dice and place one, or play until both boards are full
-- **Board**: your grid is at the bottom and your opponent's at the top, both filling from the middle outward. Ivory dice are singles, gold dice are pairs, and blue dice are triples. Column scores sit above and below the grids, and each player's total is in the left panel
+- **Board & visual feedback**: your grid is at the bottom and your opponent's at the top, both filling from the middle outward. Ivory dice are singles, gold dice are pairs, and blue dice are triples; column scores sit above and below the grids, an active border marks whose board is moving (`┃` in TUI, accent frame in GUI), column impact flashes + floating `+gain` / `-loss` badges highlight placements and captures, and an animated `Thinking...` indicator appears during AI or opponent turns
+- **Colorblind marks**: press **C** in game (or toggle in **Options**) to mark matching and doomed dice without relying on color alone — corner runes (`=`, `#`, `x`) in the terminal UI and top-edge marks (`=`, `#`, `X`) on GUI dice
 - **Placement preview**: while you choose a column, a shaded die shows where yours lands, the opponent's dice it would destroy turn red, column scores show the change (`8→24`), and the panel shows `+gain · destroys N (−points)`
+- **Win probability meter**: press **P** in game, toggle in **Options**, or click `Prob [P]` in the GUI side panel to show live Monte Carlo rollout odds for the active board
+- **Round replay**: after any finished round, press **X** (or click **Replay**) to step through every move with `←`/`→` or `< Prev` / `Next >`
 - **Online live aim**: your opponent sees the rolled die tumble, then watches your column and die selection update the same preview until you place. The board finalizes when the move lands
 - **Rolling die**: each new die tumbles briefly in the roller's tray. Red pips mark the last die placed
 - **Coin toss**: a random player starts each round
@@ -910,14 +913,16 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 - **Log**: the side panel shows the latest moves. **L** opens the full log of rolls, placements, destruction, timeouts, and results
 - **History**: **H** lists each round's score and winner, plus who took the lead
 - **Resign**: **R** with a confirmation. Vs AI and online it counts as a loss
-- **Online play**: one player hosts on a TCP port (default 8647) and the lobby lists that computer's LAN addresses. The other joins with `host:port`
-  - The host rolls every die and sends the full game state after each move
-  - While a player aims, their column and die choice are shared so both screens show the placement preview before the move is confirmed
+- **Online play (Protocol v2)**: one player hosts on a TCP port (default 8647) with an optional bind interface and optional room code; the other joins via the 2-field Join screen (`host:port` + optional room code)
+  - When a host sets a room code, both peers authenticate with challenge-response and protect wire messages with HKDF-SHA256 / HMAC-SHA256 and monotonic sequence numbers. Leaving the room code blank keeps the room open for trusted LAN play (unexpected codes are rejected)
+  - **Commit-reveal fair play**: the host commits to its dice PRNG seed before play begins and reveals it at round end so the guest verifies all observed rolls (`Fair play commit locked` / `Fair play verified` / `(!) Host dice unverifiable`)
+  - While a player aims, their column and die choice are shared (rate-limited) so both screens show the placement preview before the move is confirmed
   - Optional turn timer (15, 30, or 60 seconds). A timed-out turn places the die in a random open column; three timeouts lose the match
   - A player who drops has 30 seconds to reconnect before forfeiting. Leaving mid-game counts as resigning
   - After a game, both players must pick the same option (play again, continue, free play). The result panel shows "Waiting for…" and "… wants to rematch!"
 - **Stats**: games, wins, losses, draws, and best score for each AI, online, and same-keyboard play, plus best-of series won and lost. A Top 10 of final scores; making it is announced on the result panel
-- **Themes**: dark and light (**T** on the menu)
+- **Themes & Options**: four built-in themes (**Dark**, **Light**, **High Contrast**, **Parchment** — press **T** on the menu or `←`/`→` on **Options**) plus **Options** for **Theme**, **Sound effects**, **Colorblind marks**, and **Win probability**
+- **Sound effects**: enabled by default and toggled in **Options → Sound effects** or in game by pressing **S** / clicking `Sound [S]` in the GUI side panel (persisted in `knucklebones.json`). Both the graphical window and local desktop TUI play synthesized PCM sound effects via `ebiten/v2/audio` (`click`, `place`, `destroy`, `turn`, `win`, `lose`). PCM audio is bypassed in headless/SSH sessions (or when `KNUCKLEBONES_HEADLESS=1` is set) and in `CGO_ENABLED=0` builds, where the TUI falls back to throttled terminal bells (`Beep()`) on captures and round outcomes
 - **How to play**: rules, the scoring table, house rules, strategy tips, and opponent notes
 
 ## Controls
@@ -926,21 +931,26 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 | ------- | ----- | ------ |
 | Menu | ↑↓ or W/S | Move selection |
 | Menu | Enter or Space | Choose |
-| Menu | T (or ←→ on Theme) | Toggle dark / light theme |
+| Menu | T (or ←→ on Options) | Cycle theme (Dark / Light / High Contrast / Parchment) |
 | Menu | Esc | Quit |
-| Game settings | ↑↓, Tab | Move between settings |
-| Game settings | ←→ or Enter | Change the selected setting |
-| Game settings | Typing, Backspace | Edit Player 2 name or Port |
-| Game settings | Enter on Start game | Start |
-| Game settings | Esc | Back to the menu |
-| Name / Join | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit the text |
-| Name / Join | Enter | Confirm (Join connects) |
+| Settings / Options | ↑↓, Tab (or W/S on non-text rows) | Move between settings |
+| Settings / Options | ←→, A/D, or Enter | Change the selected setting / toggle option |
+| Settings / Options | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit Player 2 name, Port, or Room code |
+| Settings / Options | Enter on Start game / Done | Start game, or return to menu |
+| Settings / Options | Esc | Save and return to the menu |
+| Name / Join | Tab or ↑↓ (Join) | Switch between Host address and optional Room code |
+| Name / Join | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit text (including literal `w`/`a`/`s`/`d`) |
+| Name / Join | Enter | Confirm (`Join` connects) |
+| Name / Join | Esc | Cancel and return to menu |
 | Lobby | Enter | Retry after a failed connection |
 | Lobby | Esc | Cancel |
 | Your turn | ←→ or A/D | Choose a column |
 | Your turn | 1–3 | Place in that column |
 | Your turn | Enter or Space | Place in the chosen column |
-| Your turn (two dice) | Tab, Q/E, or ↑↓ | Switch which die to place |
+| Your turn (two dice) | Tab, Q/E, W, or ↑↓ | Switch which die to place |
+| In game | C | Toggle colorblind marks |
+| In game | P | Toggle Monte Carlo win probability meter |
+| In game | S | Toggle sound effects (muted / on) |
 | In game | L | Log |
 | In game | H | History |
 | In game | R | Resign (asks first) |
@@ -948,9 +958,14 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 | Round over | ←→, Tab | Choose an option |
 | Round over | Enter | Confirm the option |
 | Round over | V | Hide or show the result panel to see the board |
-| Log / History | ↑↓, PgUp/PgDn | Scroll |
+| Round over | X | Enter round replay |
+| Round replay | ←→ or A/D | Step backward / forward one move |
+| Round replay | Home / End | Jump to start or end of the round |
+| Round replay | Esc, Enter, or X | Exit replay |
+| Log / History | ↑↓ or W/S, PgUp/PgDn | Scroll |
 | Log / History | Esc, Enter, or the same letter | Close |
-| How to play | ↑↓, PgUp/PgDn, Space, Home | Scroll |
+| How to play | ↑↓ or W/S, PgUp/PgDn, Space, Home | Scroll |
+| How to play / Stats | Esc, Enter, or Q | Return to menu |
 | Anywhere | Ctrl+C | Exit |
 
 On the same keyboard, both players use the same keys on their own turn. Player 1 is at the bottom and player 2 at the top.
@@ -960,13 +975,15 @@ On the same keyboard, both players use the same keys on their own turn. Player 1
 | Context | Input | Action |
 | ------- | ----- | ------ |
 | Menu | Hover, click | Select, choose |
-| Game settings | Click ◀ ▶ or the row | Change the setting (click Player 2 or Port, then type) |
-| Game settings | Click Start game or Back | Start, or back to the menu |
+| Settings / Options | Click ◀ ▶ or the row | Change the setting (click Player 2, Port, or Room code, then type) |
+| Settings / Options | Click Start game, Done, or Back | Start, or back to the menu |
+| Join Game | Click field | Focus Host address or Room code box |
 | Name / Join / Lobby | Click the buttons | Confirm, retry, cancel, or go back |
 | Your turn | Hover a column | Preview the placement |
 | Your turn | Click a column (either board) | Place the die there |
 | Your turn (two dice) | Click a tray die | Choose which die to place |
-| In game | Buttons under the board | Log, History, Resign, Leave, View board |
+| In game | Click `Prob [P]` / `Sound [S]` pill | Toggle win probability meter or sound effects |
+| In game | Buttons under the board | Log, History, Resign, Leave / Menu, View board / Show result, Replay (`< Prev`, `Next >`, `Done`) |
 | Round over | Click an option | Confirm it |
 | Log / History / How to play | Mouse wheel | Scroll |
 | Anywhere | Close the window | Leave the game and exit |
@@ -995,26 +1012,26 @@ The best column is 54, so the best board is 162. The game stops as soon as any b
 
 ## Online play
 
-1. The host picks **Host Game**, sets the rounds, turn timer, port, and house rules, then **Start game**. The lobby lists this computer's addresses.
-2. The other player picks **Join Game** and types one of those addresses, for example `192.168.1.20:8647`. A bare host name uses port 8647.
-3. The game starts as soon as the guest connects. The host's copy runs the game and rolls the dice.
+1. The host picks **Host Game**, sets rounds, turn timer, port, bind interface, an optional room code, and house rules, then **Start game**. The lobby lists the bound address(es) and active room code (if set).
+2. The other player picks **Join Game**, enters the host address (for example `192.168.1.20:8647`; a bare host name uses port `8647`), and optionally enters the matching room code in the second field.
+3. The game starts as soon as the guest completes the Protocol v2 handshake (`unsupported-protocol` rejects incompatible v1 peers). The host's copy runs the game and commits to its dice seed for fair-play verification at round end.
 
 The game is played directly between the two computers, so both must reach each other (same network, VPN, or a forwarded port). Windows may ask to allow Knucklebones through the firewall the first time you host. A room holds two players; a third connection is turned away.
 
 ## Save file
 
-`knucklebones.json` is created in the current working directory. It stores:
+`knucklebones.json` is stored in your user config directory (`%AppData%\knucklebones\knucklebones.json` on Windows, `~/.config/knucklebones/knucklebones.json` on Linux, `~/Library/Application Support/knucklebones/knucklebones.json` on macOS). On first launch, a legacy `./knucklebones.json` in the working directory is automatically migrated there. It stores:
 
-- Your name, theme, and last game settings (difficulty, rounds, house rules, turn timer, port, last join address, Player 2 name)
+- Your name, selected theme, sound/colorblind/win-meter preferences, and last game settings (difficulty, rounds, house rules, turn timer, port, bind interface, last join address, Player 2 name)
 - A record for each AI difficulty, online, and same keyboard: games, wins, losses, draws, best score, and series won and lost
 - The Top 10 final scores, with opponent, their score, and date
 
-The file is UTF-8 with BOM and is written after every finished round and settings change. Games in progress are not saved.
+Room codes are kept only in memory for the active session and are never persisted to `knucklebones.json`. The file is UTF-8 with BOM and is written safely via atomic replace after every finished round and settings/options change. Games in progress are not saved.
 
 ## Console notes
 
-- Prefer **Cascadia Mono** (or another modern Unicode font) so `●`, `╭─╮`, and related glyphs render cleanly. On Windows, Knucklebones selects Cascadia Mono automatically when present.
-- On launch Knucklebones requests an **80×30** console. Windows Terminal and some hosts may ignore resize requests, so set the profile size manually if needed. The side panels hide on narrow windows.
+- Prefer **Cascadia Mono** (or another modern Unicode font) so `●`, `┃`, `╭─╮`, and related glyphs render cleanly. On Windows, Knucklebones selects Cascadia Mono automatically when present.
+- On launch Knucklebones requests an **80×30** console. Windows Terminal and some hosts may ignore resize requests, so set the profile size manually if needed. Compact terminals (down to **52×20** / **60×22**, removing vertical slot gaps below height 27 and shifting the grid cleanly) remain playable while hiding wide side panels when space is tight.
 - Colors use 24-bit RGB. Terminals limited to 256 colors show the nearest match.
 
 ## Build
@@ -1043,7 +1060,7 @@ go run . -gui
 **Tests**
 
 ```powershell
-go test -count=1 .
+go test -v -count=1 -race .
 ```
 
 ### Binary output
@@ -1055,7 +1072,7 @@ go test -count=1 .
 | Linux x86 | `bin/linux/x86/Knucklebones` |
 | Linux amd64 | `bin/linux/amd64/Knucklebones` |
 
-The graphical window is built into Windows binaries. Linux binaries cross-compiled from Windows have no cgo, so they are terminal-only, and `-gui` reports that the window isn't available. To include the window on Linux, build there with cgo enabled and the X11/OpenGL development packages installed (for example `libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev`).
+The graphical window and synthesized PCM sound (`ebiten/v2/audio`, used in both GUI and local desktop TUI) are built into Windows binaries; headless and SSH sessions bypass PCM initialization and fall back to terminal bell alerts (`Beep()`). Linux binaries cross-compiled from Windows use `CGO_ENABLED=0`, so they are terminal-only (`sound_stub.go` / `gui_stub.go`, using terminal bell for TUI sound alerts), and `-gui` reports that the window isn't available. To include the window and PCM audio on Linux, build there with cgo enabled and the X11/OpenGL/audio development packages installed (for example `libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev libasound2-dev`).
 
 If `die.ico` and `knucklebones.rc` are present and `windres` is available, Windows builds embed the icon automatically. Pass `-upx` to compress binaries with [UPX](https://upx.github.io/).
 

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,6 +20,7 @@ const (
 	knucklebonesVersion = "1.0"
 	maxHighScores       = 10
 	maxNameLen          = 16
+	maxSaveBytes        = 1 << 20
 )
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
@@ -55,8 +58,12 @@ type settings struct {
 	Rules       Rules  `json:"rules"`
 	TurnSeconds int    `json:"turnSeconds"`
 	Port        int    `json:"port"`
+	BindIP      string `json:"bindIP,omitempty"`
 	JoinAddr    string `json:"joinAddr"`
 	Player2     string `json:"player2"`
+	Sound       bool   `json:"sound"`
+	Colorblind  bool   `json:"colorblind,omitempty"`
+	WinMeter    bool   `json:"winMeter,omitempty"`
 }
 
 type saveData struct {
@@ -89,16 +96,49 @@ func newSaveData() *saveData {
 			Port:        defaultPort,
 			JoinAddr:    "localhost:" + strconv.Itoa(defaultPort),
 			Player2:     "Player 2",
+			Sound:       true,
 		},
 		Records:    map[string]*record{},
 		HighScores: []highScore{},
 	}
 }
 
+func defaultSavePath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil || strings.TrimSpace(dir) == "" {
+		return saveFileName
+	}
+	return filepath.Join(dir, "knucklebones", saveFileName)
+}
+
+func resolveSavePath() string {
+	return resolveSavePathWith(saveFileName, defaultSavePath())
+}
+
+// resolveSavePathWith migrates a legacy CWD save file to the user config
+// directory on first launch when no config save exists yet.
+func resolveSavePathWith(legacyPath, targetPath string) string {
+	if targetPath == "" || targetPath == legacyPath {
+		return legacyPath
+	}
+	if _, err := os.Stat(targetPath); errors.Is(err, os.ErrNotExist) {
+		if info, err := os.Stat(legacyPath); err == nil && info.Mode().IsRegular() {
+			s := loadSave(legacyPath)
+			_ = s.write(targetPath)
+		}
+	}
+	return targetPath
+}
+
 func loadSave(path string) *saveData {
 	s := newSaveData()
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
+		return s
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxSaveBytes+1))
+	if err != nil || len(data) > maxSaveBytes {
 		return s
 	}
 	data = bytes.TrimPrefix(data, utf8BOM)
@@ -116,9 +156,10 @@ func (s *saveData) normalize() bool {
 	d := newSaveData()
 	s.Version = knucklebonesVersion
 	s.Name = cleanName(s.Name, d.Name)
-	if s.Theme != themeLight {
+	if !validTheme(s.Theme) {
 		s.Theme = themeDark
 	}
+	s.Settings.BindIP = cleanBindIP(s.Settings.BindIP)
 	if difficultyLabel[s.Settings.Difficulty] == "" {
 		s.Settings.Difficulty = d.Settings.Difficulty
 	}
@@ -175,11 +216,21 @@ func (s *saveData) write(path string) error {
 	}
 	data = append(append([]byte{}, utf8BOM...), data...)
 	dir := filepath.Dir(path)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+	}
 	tmp, err := os.CreateTemp(dir, ".knucklebones-*.tmp")
 	if err != nil {
 		return err
 	}
 	name := tmp.Name()
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		os.Remove(name)
+		return err
+	}
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		os.Remove(name)
@@ -249,7 +300,7 @@ func cleanName(n, fallback string) string {
 	var b strings.Builder
 	count := 0
 	for _, r := range strings.TrimSpace(n) {
-		if !unicode.IsPrint(r) || count >= maxNameLen {
+		if !unicode.IsPrint(r) || unicode.IsControl(r) || isBidiControl(r) || count >= maxNameLen {
 			continue
 		}
 		b.WriteRune(r)
@@ -260,4 +311,56 @@ func cleanName(n, fallback string) string {
 		return fallback
 	}
 	return out
+}
+
+func isBidiControl(r rune) bool {
+	return (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069) || r == 0x200E || r == 0x200F
+}
+
+// cleanText strips non-printable and bidirectional control runes and caps length.
+func cleanText(s string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
+	var b strings.Builder
+	count := 0
+	for _, r := range strings.TrimSpace(s) {
+		if !unicode.IsPrint(r) || unicode.IsControl(r) || isBidiControl(r) {
+			continue
+		}
+		if count >= maxLen {
+			break
+		}
+		b.WriteRune(r)
+		count++
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func cleanBindIP(s string) string {
+	s = cleanText(s, 64)
+	if s == "" || net.ParseIP(s) == nil {
+		return ""
+	}
+	return s
+}
+
+func bindIPChoices() []string {
+	out := []string{"", "127.0.0.1"}
+	for _, ip := range localAddrs() {
+		if ip != "" && ip != "127.0.0.1" {
+			out = append(out, ip)
+		}
+	}
+	return out
+}
+
+func bindIPLabel(ip string) string {
+	if ip == "" {
+		return "All interfaces"
+	}
+	if ip == "127.0.0.1" {
+		return "127.0.0.1 (local only)"
+	}
+	return ip
 }

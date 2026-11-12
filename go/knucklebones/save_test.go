@@ -94,4 +94,47 @@ func TestCleanName(t *testing.T) {
 	if got := cleanName("\t\n", "Lamb"); got != "Lamb" {
 		t.Fatalf("got %q", got)
 	}
+	if got := cleanName("A\x1b[31mB\u202eC", "x"); got != "A[31mBC" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestCleanTextAndSaveBounds(t *testing.T) {
+	if got := cleanText("  bad\x1b[2J\u202etext\nline  ", 20); got != "bad[2Jtextline" {
+		t.Fatalf("cleanText=%q", got)
+	}
+	oversized := filepath.Join(t.TempDir(), saveFileName)
+	buf := make([]byte, maxSaveBytes+32)
+	for i := range buf {
+		buf[i] = 'a'
+	}
+	if err := os.WriteFile(oversized, buf, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := loadSave(oversized)
+	if s.Settings.Port != defaultPort {
+		t.Fatalf("oversized save should return defaults, got port %d", s.Settings.Port)
+	}
+}
+
+func TestResolveSavePathMigration(t *testing.T) {
+	dir := t.TempDir()
+	legacy := filepath.Join(dir, "legacy.json")
+	target := filepath.Join(dir, "cfg", "knucklebones", saveFileName)
+
+	orig := newSaveData()
+	orig.Name = "Wanderer"
+	orig.Settings.BestOf = 5
+	if err := orig.write(legacy); err != nil {
+		t.Fatal(err)
+	}
+
+	gotPath := resolveSavePathWith(legacy, target)
+	if gotPath != target {
+		t.Fatalf("path=%q, want %q", gotPath, target)
+	}
+	migrated := loadSave(target)
+	if migrated.Name != "Wanderer" || migrated.Settings.BestOf != 5 {
+		t.Fatalf("migrated data mismatch: %+v", migrated)
+	}
 }

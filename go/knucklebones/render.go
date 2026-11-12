@@ -45,7 +45,7 @@ func (g *game) render() {
 	case viewName:
 		g.drawPrompt("Your name", "Shown to your opponent and on your Top 10.", g.input)
 	case viewJoin:
-		g.drawPrompt("Join Game", "Host address (host:port)", g.input)
+		g.drawJoin()
 	case viewLobby:
 		g.drawLobby()
 	case viewPlay:
@@ -144,6 +144,10 @@ func wrap(text string, width int) []string {
 }
 
 func drawDie(s tcell.Screen, x, y, v int, bg, pip tcell.Color) {
+	drawDieMarked(s, x, y, v, markNone, bg, pip)
+}
+
+func drawDieMarked(s tcell.Screen, x, y, v, mark int, bg, pip tcell.Color) {
 	st := tcell.StyleDefault.Background(bg).Foreground(pip)
 	fillRect(s, x, y, dieW, dieH, st)
 	if v < 1 || v > 6 {
@@ -155,6 +159,9 @@ func drawDie(s tcell.Screen, x, y, v int, bg, pip tcell.Color) {
 				s.SetContent(x+1+c*2, y+r, pipRune, nil, st)
 			}
 		}
+	}
+	if r := tuiMarkRune(mark); r != 0 {
+		s.SetContent(x+dieW-1, y, r, nil, st.Bold(true))
 	}
 }
 
@@ -337,56 +344,23 @@ func (g *game) drawMenu() {
 	drawCentered(g.screen, w/2, h-1, "↑↓ select · Enter · T theme · Esc quit", g.st(g.pal.dim))
 }
 
-func onOff(b bool) string {
-	if b {
-		return "On"
-	}
-	return "Off"
-}
-
-func (g *game) settingText(row int) (string, string) {
-	st := g.save.Settings
-	switch row {
-	case rowDifficulty:
-		return "AI difficulty", difficultyLabel[st.Difficulty] + " · " + aiName[st.Difficulty]
-	case rowPlayer2:
-		return "Player 2 name", st.Player2
-	case rowRounds:
-		return "Number of rounds", roundsLabel(st.BestOf)
-	case rowTimer:
-		if st.TurnSeconds == 0 {
-			return "Turn timer", "Off"
-		}
-		return "Turn timer", fmt.Sprintf("%d seconds", st.TurnSeconds)
-	case rowPort:
-		if st.Port == 0 {
-			return "Port", fmt.Sprint(defaultPort)
-		}
-		return "Port", fmt.Sprint(st.Port)
-	case rowDestroy:
-		return "Destroy matching dice", onOff(!st.Rules.NoDestroy)
-	case rowDice:
-		if st.Rules.TwoDice {
-			return "Dice per turn", "Two (place one)"
-		}
-		return "Dice per turn", "One"
-	case rowEnd:
-		if st.Rules.FillBoth {
-			return "Game ends when", "Both boards are full"
-		}
-		return "Game ends when", "One board is full"
-	}
-	return "Start game", ""
-}
-
 func (g *game) drawSettings() {
 	w, h := g.width, g.height
 	g.drawTitle(1)
 	drawCentered(g.screen, w/2, 3, setupTitles[g.setupMode], g.st(g.pal.fg).Bold(true))
-	drawCentered(g.screen, w/2, 4, "Game settings", g.st(g.pal.dim))
+	sub := "Game settings"
+	if g.setupMode == setupOptions {
+		sub = "Appearance & audio"
+	}
+	drawCentered(g.screen, w/2, 4, sub, g.st(g.pal.dim))
 
 	rows := g.settingRows()
+	step := 2
 	y := 6
+	if y+len(rows)*2+3 > h-1 {
+		step = 1
+		y = 5
+	}
 	lx := w/2 - 24
 	if lx < 1 {
 		lx = 1
@@ -394,14 +368,17 @@ func (g *game) drawSettings() {
 	for i, row := range rows {
 		label, value := g.settingText(row)
 		sel := i == g.setIndex
-		if row == rowStart {
+		if row == rowStart || row == rowDone {
 			st := g.st(g.pal.fg)
-			text := "  Start game  "
+			btn := "  " + label + "  "
 			if sel {
 				st = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
-				text = "▶ Start game ◀"
+				btn = "▶ " + label + " ◀"
 			}
-			drawCentered(g.screen, w/2, y+i*2+1, text, st)
+			ry := y + i*step + 1
+			if ry < h-1 {
+				drawCentered(g.screen, w/2, ry, btn, st)
+			}
 			continue
 		}
 		lst := g.st(g.pal.dim)
@@ -414,19 +391,40 @@ func (g *game) drawSettings() {
 				value = withCaret(value, g.inputPos)
 			case rowPort:
 				value = withCaret(g.portEditString(), g.inputPos)
+			case rowRoomCode:
+				value = withCaret(g.hostRoomCode, g.inputPos)
 			default:
 				value = "◀ " + value + " ▶"
 			}
+		} else if row == rowRoomCode && g.hostRoomCode == "" {
+			vst = g.st(g.pal.dim)
 		}
-		drawText(g.screen, lx, y+i*2, label, lst)
-		drawText(g.screen, lx+24, y+i*2, value, vst)
+		drawText(g.screen, lx, y+i*step, label, lst)
+		drawText(g.screen, lx+22, y+i*step, value, vst)
 	}
-	if g.setupMode == modeAI {
-		drawCentered(g.screen, w/2, y+len(rows)*2+2, difficultyHints[g.save.Settings.Difficulty], g.st(g.pal.dim))
+	hintY := y + len(rows)*step + 1
+	if step == 2 {
+		hintY++
+	}
+	if hintY < h-1 {
+		switch g.setupMode {
+		case modeAI:
+			drawCentered(g.screen, w/2, hintY, difficultyHints[g.save.Settings.Difficulty], g.st(g.pal.dim))
+		case setupHost:
+			if g.setIndex >= 0 && g.setIndex < len(rows) && rows[g.setIndex] == rowRoomCode {
+				drawCentered(g.screen, w/2, hintY, "Optional room code locks joins & enables wire MACs.", g.st(g.pal.dim))
+			}
+		}
 	}
 	if g.note != "" {
+		ny := hintY + 1
+		if step == 2 {
+			ny++
+		}
 		for i, l := range wrap(g.note, w-4) {
-			drawCentered(g.screen, w/2, y+len(rows)*2+4+i, l, g.st(g.pal.lose))
+			if ny+i < h-1 {
+				drawCentered(g.screen, w/2, ny+i, l, g.st(g.pal.lose))
+			}
 		}
 	}
 	drawCentered(g.screen, w/2, h-1, "↑↓ select · ←→ change · Enter · Esc back", g.st(g.pal.dim))
@@ -436,6 +434,60 @@ func withCaret(s string, pos int) string {
 	r := []rune(s)
 	pos = clampRunePos(s, pos)
 	return string(r[:pos]) + "▏" + string(r[pos:])
+}
+
+func drawFieldSlice(s tcell.Screen, x, y, fieldW int, value string, pos int, active bool, field, dim tcell.Style, placeholder string) {
+	fillRect(s, x, y, fieldW, 1, field)
+	if !active && value == "" && placeholder != "" {
+		drawText(s, x+1, y, placeholder, dim)
+		return
+	}
+	r := []rune(value)
+	pos = clampRunePos(value, pos)
+	start := 0
+	maxW := fieldW - 2
+	for textWidth(string(r[start:pos])+"▏") > maxW && start < pos {
+		start++
+	}
+	end := len(r)
+	for textWidth(string(r[start:end])+"▏") > maxW && end > pos {
+		end--
+	}
+	shown := string(r[start:end])
+	if active {
+		shown = withCaret(shown, pos-start)
+	}
+	drawText(s, x+1, y, shown, field)
+}
+
+func (g *game) drawJoin() {
+	w, h := g.width, g.height
+	g.drawTitle(1)
+	bw := 52
+	if bw > w-2 {
+		bw = w - 2
+	}
+	bx, by := w/2-bw/2, h/2-5
+	if by < 3 {
+		by = 3
+	}
+	g.drawBox(bx, by, bw, 10, "Join Game")
+	lbl0, lbl1 := g.st(g.pal.dim), g.st(g.pal.dim)
+	if g.joinField == 0 {
+		lbl0 = g.st(g.pal.accent).Bold(true)
+	} else {
+		lbl1 = g.st(g.pal.accent).Bold(true)
+	}
+	field := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
+	dimField := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.dim)
+	drawText(g.screen, bx+3, by+2, "Host address (host:port)", lbl0)
+	drawFieldSlice(g.screen, bx+3, by+3, bw-6, g.input, g.inputPos, g.joinField == 0, field, dimField, "")
+	drawText(g.screen, bx+3, by+5, "Room code (optional)", lbl1)
+	drawFieldSlice(g.screen, bx+3, by+6, bw-6, g.joinCode, g.inputPos, g.joinField == 1, field, dimField, "(optional)")
+	if g.note != "" {
+		drawCentered(g.screen, w/2, by+11, g.note, g.st(g.pal.lose))
+	}
+	drawCentered(g.screen, w/2, h-1, "↑↓/Tab field · ←→ cursor · Enter join · Esc back", g.st(g.pal.dim))
 }
 
 func (g *game) drawPrompt(title, label, value string) {
@@ -449,34 +501,12 @@ func (g *game) drawPrompt(title, label, value string) {
 	g.drawBox(bx, by, bw, 7, title)
 	drawText(g.screen, bx+3, by+2, label, g.st(g.pal.dim))
 	field := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
-	fillRect(g.screen, bx+3, by+4, bw-6, 1, field)
-	pos := clampRunePos(value, g.inputPos)
-	r := []rune(value)
-	start := 0
-	maxW := bw - 8
-	for textWidth(string(r[start:pos])+"▏") > maxW && start < pos {
-		start++
-	}
-	end := len(r)
-	for textWidth(string(r[start:end])+"▏") > maxW && end > pos {
-		end--
-	}
-	shown := withCaret(string(r[start:end]), pos-start)
-	drawText(g.screen, bx+4, by+4, shown, field)
+	dimField := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.dim)
+	drawFieldSlice(g.screen, bx+3, by+4, bw-6, value, g.inputPos, true, field, dimField, "")
 	if g.note != "" {
 		drawCentered(g.screen, w/2, by+8, g.note, g.st(g.pal.lose))
 	}
 	drawCentered(g.screen, w/2, h-1, "Type · ←→ move · Enter confirm · Esc back", g.st(g.pal.dim))
-}
-
-func lobbyErrorText(e string) string {
-	switch e {
-	case errRoomFull:
-		return "That game already has two players."
-	case errOldProtocol:
-		return "This game version is no longer compatible with the host."
-	}
-	return "Could not connect: " + e
 }
 
 func formatWait(d time.Duration) string {
@@ -497,20 +527,42 @@ func (g *game) drawLobby() {
 	}
 	bx, by := w/2-bw/2, 4
 	if port := l.hostPort(); port > 0 {
-		addrs := localAddrs()
-		bh := 10 + len(addrs)
+		st := g.save.Settings
+		addrs := lobbyHostAddresses(st.BindIP, port)
+		rc := l.hostRoomCode()
+		extra := 0
+		if rc != "" {
+			extra += 2
+		}
+		bh := 10 + len(addrs) + extra
+		if bh > h-by-2 {
+			bh = h - by - 2
+		}
 		g.drawBox(bx, by, bw, bh, "Waiting for an opponent")
-		drawText(g.screen, bx+3, by+2, "Share one of these addresses with your opponent:", g.st(g.pal.dim))
+		drawText(g.screen, bx+3, by+2, "Share an address with your opponent:", g.st(g.pal.dim))
 		row := by + 4
 		for _, a := range addrs {
-			drawCentered(g.screen, w/2, row, fmt.Sprintf("%s:%d", a, port), g.st(g.pal.accent).Bold(true))
+			if row >= by+bh-4 {
+				break
+			}
+			drawCentered(g.screen, w/2, row, a, g.st(g.pal.accent).Bold(true))
 			row++
 		}
-		drawCentered(g.screen, w/2, row, fmt.Sprintf("localhost:%d (this computer)", port), g.st(g.pal.dim))
+		if st.BindIP != "127.0.0.1" && row < by+bh-3 {
+			drawCentered(g.screen, w/2, row, fmt.Sprintf("localhost:%d (this computer)", port), g.st(g.pal.dim))
+			row++
+		}
+		if rc != "" && row+1 < by+bh-2 {
+			row++
+			drawCentered(g.screen, w/2, row, "Room code: "+rc, g.st(g.pal.accent).Bold(true))
+		}
 		row += 2
-		drawCentered(g.screen, w/2, row, "Waiting time: "+formatWait(time.Since(l.waitingSince())), g.st(g.pal.fg))
-		st := g.save.Settings
-		drawCentered(g.screen, w/2, row+1, roundsLabel(st.BestOf)+" · "+rulesSummary(st.Rules), g.st(g.pal.dim))
+		if row < by+bh-1 {
+			drawCentered(g.screen, w/2, row, "Waiting time: "+formatWait(time.Since(l.waitingSince())), g.st(g.pal.fg))
+		}
+		if row+1 < by+bh-1 {
+			drawCentered(g.screen, w/2, row+1, roundsLabel(st.BestOf)+" · "+rulesSummary(st.Rules), g.st(g.pal.dim))
+		}
 		drawCentered(g.screen, w/2, h-1, "Esc cancel", g.st(g.pal.dim))
 		return
 	}
@@ -557,32 +609,58 @@ type gridMarks struct {
 func noMarks() gridMarks { return gridMarks{-1, -1, -1, 0, -1, -1} }
 
 type playLayout struct {
-	top, gx, topGridY, botGridY, topScoreY, botScoreY, midY int
+	top, gx, topGridY, botGridY, topScoreY, botScoreY, midY, slotGap, gridH int
 }
 
 func (g *game) layout() playLayout {
+	sg := slotGap
+	if g.height < 27 {
+		sg = 0
+	}
+	gh := gridRows*dieH + (gridRows-1)*sg
 	top := 0
 	if g.height > 28 {
 		top = (g.height - 28) / 2
 	}
-	l := playLayout{top: top, gx: (g.width - gridW) / 2}
-	l.topScoreY = top + 2
-	l.topGridY = top + 3
-	l.midY = l.topGridY + gridH
+	gx := (g.width - gridW) / 2
+	if g.width < 68 {
+		if alt := g.width - gridW - 2; alt >= 12 {
+			gx = alt
+		}
+	}
+	l := playLayout{top: top, gx: gx, slotGap: sg, gridH: gh}
+	if g.height < 27 {
+		l.topScoreY = top + 1
+		l.topGridY = top + 2
+	} else {
+		l.topScoreY = top + 2
+		l.topGridY = top + 3
+	}
+	l.midY = l.topGridY + gh
 	l.botGridY = l.midY + 1
-	l.botScoreY = l.botGridY + gridH
+	l.botScoreY = l.botGridY + gh
 	return l
 }
 
 func (l playLayout) cell(isTop bool, c, k int) (int, int) {
 	x := l.gx + c*(dieW+colGap)
 	if isTop {
-		return x, l.topGridY + (gridRows-1-k)*(dieH+slotGap)
+		return x, l.topGridY + (gridRows-1-k)*(dieH+l.slotGap)
 	}
-	return x, l.botGridY + k*(dieH+slotGap)
+	return x, l.botGridY + k*(dieH+l.slotGap)
 }
 
-func (g *game) drawGrid(l playLayout, grid *Grid, isTop bool, m gridMarks, ghostVal int) {
+func (g *game) drawGrid(l playLayout, grid *Grid, isTop, active bool, m gridMarks, ghostVal int) {
+	if active && l.gx >= 2 {
+		by := l.botGridY
+		if isTop {
+			by = l.topGridY
+		}
+		ast := g.st(g.pal.accent).Bold(true)
+		for dy := 0; dy < l.gridH; dy++ {
+			g.screen.SetContent(l.gx-1, by+dy, '┃', nil, ast)
+		}
+	}
 	for c := 0; c < gridCols; c++ {
 		for k := 0; k < gridRows; k++ {
 			x, y := l.cell(isTop, c, k)
@@ -593,19 +671,23 @@ func (g *game) drawGrid(l playLayout, grid *Grid, isTop bool, m gridMarks, ghost
 			case v == 0:
 				fillRect(g.screen, x, y, dieW, dieH, tcell.StyleDefault.Background(g.pal.emptyBg))
 			case c == m.doomCol && v == m.doomVal:
-				drawDie(g.screen, x, y, v, g.pal.doomBg, g.pal.doomPip)
+				drawDieMarked(g.screen, x, y, v, g.cellMark(0, true), g.pal.doomBg, g.pal.doomPip)
 			default:
-				bg, pip := g.dieColors(grid.Matches(c, v))
+				matches := grid.Matches(c, v)
+				bg, pip := g.dieColors(matches)
 				if c == m.lastCol && k == m.lastSlot {
 					pip = g.pal.lastPip
 				}
-				drawDie(g.screen, x, y, v, bg, pip)
+				drawDieMarked(g.screen, x, y, v, g.cellMark(matches, false), bg, pip)
 			}
 		}
 	}
 }
 
-func (g *game) drawColumnScores(l playLayout, y int, grid *Grid, preview *Grid, changed tcell.Color) {
+func (g *game) drawColumnScores(l playLayout, y int, grid, preview *Grid, changed tcell.Color, flashCol, flashDelta int, flashLose bool) {
+	if y >= g.height {
+		return
+	}
 	for c := 0; c < gridCols; c++ {
 		x, _ := l.cell(true, c, 0)
 		now := grid.ColumnScore(c)
@@ -613,6 +695,12 @@ func (g *game) drawColumnScores(l playLayout, y int, grid *Grid, preview *Grid, 
 		if preview != nil {
 			if next := preview.ColumnScore(c); next != now {
 				text, st = fmt.Sprintf("%d→%d", now, next), g.st(changed).Bold(true)
+			}
+		} else if c == flashCol && flashDelta > 0 {
+			if flashLose {
+				text, st = fmt.Sprintf("%d -%d", now, flashDelta), g.st(g.pal.lose).Bold(true)
+			} else {
+				text, st = fmt.Sprintf("%d +%d", now, flashDelta), g.st(g.pal.win).Bold(true)
 			}
 		}
 		drawCentered(g.screen, x+dieW/2, y, text, st)
@@ -628,37 +716,61 @@ func (g *game) drawPlay() {
 	l := g.layout()
 	now := time.Now()
 
-	bottom := g.ctl.seat()
-	if bottom < 0 {
-		bottom = 0
-	}
+	bottom := g.bottomSeat()
 	topP := 1 - bottom
 	m := &s.Match
+	lastPl := s.Last
+	replayNote := ""
+	if g.replayActive && len(g.replayFrames) > 0 {
+		step := g.replayStep
+		if step < 0 {
+			step = 0
+		}
+		if step >= len(g.replayFrames) {
+			step = len(g.replayFrames) - 1
+		}
+		rf := &g.replayFrames[step]
+		m = &rf.match
+		lastPl = rf.last
+		replayNote = fmt.Sprintf("REPLAY %d/%d · %s", rf.step, rf.total, rf.desc)
+	}
 
 	// Preview for whoever is aiming: local cursor, or the opponent's shared aim.
 	mover := m.Turn
 	var preview *Match
 	var pl Placement
-	mv, aiming := g.previewMove(s)
-	if aiming && m.Legal(mv) {
-		p, next := m.Preview(mv)
-		pl, preview = p, &next
+	var mv Move
+	var aiming bool
+	if !g.replayActive {
+		mv, aiming = g.previewMove(s)
+		if aiming && m.Legal(mv) {
+			p, next := m.Preview(mv)
+			pl, preview = p, &next
+		}
 	}
+
+	flashOn := !g.replayActive && effectProgress(g.effectAt, now) >= 0
 
 	for _, p := range []int{topP, bottom} {
 		isTop := p == topP
+		active := !g.replayActive && s.Phase == phasePlay && p == mover
 		marks := noMarks()
 		grid := &m.Grids[p]
 		ghostVal := 0
-		if s.Last != nil && s.Last.Player == p && s.Phase == phasePlay {
-			marks.lastCol, marks.lastSlot = s.Last.Col, s.Last.Slot
-			if marks.lastSlot >= 0 && grid[marks.lastCol][marks.lastSlot] != s.Last.Die {
+		if lastPl != nil && lastPl.Player == p && (s.Phase == phasePlay || g.replayActive) {
+			marks.lastCol, marks.lastSlot = lastPl.Col, lastPl.Slot
+			if marks.lastSlot >= 0 && grid[marks.lastCol][marks.lastSlot] != lastPl.Die {
 				marks.lastCol = -1
 			}
 		}
-		// The mover's grid is drawn as it would look after the placement so
-		// new pairs and triples show their colors; the other grid marks the
-		// dice that would be destroyed.
+		flashCol, flashDelta, flashLose := -1, 0, false
+		if flashOn {
+			if p == g.effectLast.Player && g.effectLast.Gain > 0 {
+				flashCol, flashDelta = g.effectLast.Col, g.effectLast.Gain
+			} else if p != g.effectLast.Player && g.effectLast.Destroyed > 0 && g.effectLast.Lost > 0 {
+				flashCol, flashDelta, flashLose = g.effectLast.Col, g.effectLast.Lost, true
+			}
+		}
 		var scorePreview *Grid
 		var scoreColor tcell.Color
 		switch {
@@ -666,25 +778,26 @@ func (g *game) drawPlay() {
 			marks.ghostCol, marks.ghostSlot = pl.Col, pl.Slot
 			ghostVal = pl.Die
 			scorePreview, scoreColor = &preview.Grids[p], g.pal.win
-			g.drawGrid(l, &preview.Grids[p], isTop, marks, ghostVal)
+			g.drawGrid(l, &preview.Grids[p], isTop, active, marks, ghostVal)
 		case preview != nil:
 			if !m.Rules.NoDestroy {
 				marks.doomCol, marks.doomVal = pl.Col, pl.Die
 			}
 			scorePreview, scoreColor = &preview.Grids[p], g.pal.lose
-			g.drawGrid(l, grid, isTop, marks, 0)
+			g.drawGrid(l, grid, isTop, active, marks, 0)
 		default:
-			g.drawGrid(l, grid, isTop, marks, 0)
+			g.drawGrid(l, grid, isTop, active, marks, 0)
 		}
 		y := l.botScoreY
 		if isTop {
 			y = l.topScoreY
 		}
-		g.drawColumnScores(l, y, grid, scorePreview, scoreColor)
+		g.drawColumnScores(l, y, grid, scorePreview, scoreColor, flashCol, flashDelta, flashLose)
 	}
 
-	// Column marker between the grids for the player who is aiming.
-	if aiming {
+	if replayNote != "" {
+		drawCentered(g.screen, l.gx+gridW/2, l.midY, truncate(replayNote, w-2), g.st(g.pal.accent).Bold(true))
+	} else if aiming {
 		x, _ := l.cell(true, mv.Col, 0)
 		arrow := "▼"
 		if mover == topP {
@@ -698,18 +811,25 @@ func (g *game) drawPlay() {
 	}
 
 	g.drawHeader(s, l, now)
-	g.drawPlayerPanel(s, l, topP, true, pl, preview != nil, now)
-	g.drawPlayerPanel(s, l, bottom, false, pl, preview != nil, now)
+	g.drawPlayerPanel(s, m, l, topP, true, pl, preview != nil, now)
+	g.drawPlayerPanel(s, m, l, bottom, false, pl, preview != nil, now)
 	g.drawSidePanel(s, l)
 
-	keys := "←→ column · 1-3/Enter place · L log · H history · R resign · Esc leave"
+	keys := "←→ col · 1-3/Enter · C · P · S snd · L log · H · R · Esc"
 	if m.Rules.TwoDice {
-		keys = "←→ column · Tab die · Enter place · L log · H history · R resign · Esc"
+		keys = "←→ col · Tab/W die · Enter · C · P · S · L · H · R · Esc"
 	}
-	if s.Phase != phasePlay {
-		keys = "←→ choose · Enter · V view board · L log · H history · Esc leave"
+	if g.replayActive {
+		keys = "←→ step · Home/End · L log · H hist · Esc/X done"
+	} else if s.Phase != phasePlay {
+		keys = "←→ choose · Enter · V view board · L log · H hist · Esc leave"
+		if canReplay(s) {
+			keys = "←→ choose · Enter · V board · X replay · L log · H · Esc"
+		}
 	}
-	drawCentered(g.screen, w/2, h-1, keys, g.st(g.pal.dim))
+	if h-1 > l.botScoreY || h >= 24 {
+		drawCentered(g.screen, w/2, h-1, truncate(keys, w-2), g.st(g.pal.dim))
+	}
 
 	switch {
 	case g.overlay == overlayLog:
@@ -720,7 +840,7 @@ func (g *game) drawPlay() {
 		g.drawConfirm("Resign this match?", g.resignWarning(s), "Cancel", "Confirm resignation")
 	case g.overlay == overlayLeave:
 		g.drawConfirm("Leave this game?", leaveWarning(s), "Stay", "Leave")
-	case s.Phase != phasePlay && !g.hideResult:
+	case s.Phase != phasePlay && !g.hideResult && !g.replayActive:
 		g.drawResult(s, l)
 	}
 }
@@ -729,26 +849,35 @@ func (g *game) drawHeader(s *session, l playLayout, now time.Time) {
 	w := g.width
 	y := l.top
 	text, c := g.headerText(s, now)
+	if g.replayActive {
+		text, c = "Round Replay", g.pal.accent
+	}
 	drawText(g.screen, 1, y, "KNUCKLEBONES", g.st(g.pal.title).Bold(true))
 	drawCentered(g.screen, w/2, y, text, g.st(c).Bold(true))
 	label := fmt.Sprintf("Round %d · %s", s.Round, s.roundsLabel())
 	drawText(g.screen, w-1-textWidth(label), y, label, g.st(g.pal.dim))
 }
 
-func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl Placement, hasPreview bool, now time.Time) {
+func (g *game) drawPlayerPanel(s *session, m *Match, l playLayout, p int, isTop bool, pl Placement, hasPreview bool, now time.Time) {
 	pw := l.gx - 3
 	if pw < 10 {
 		return
 	}
 	x := 1
-	m := &s.Match
-	turn := s.Phase == phasePlay && m.Turn == p
+	turn := !g.replayActive && s.Phase == phasePlay && m.Turn == p
 
 	var nameY, trayY int
 	if isTop {
-		nameY, trayY = l.topGridY, l.topGridY+gridH-dieH-1
+		nameY, trayY = l.topGridY, l.topGridY+l.gridH-dieH-1
+		if trayY < nameY+3 {
+			trayY = nameY + 3
+		}
 	} else {
-		trayY, nameY = l.botGridY+1, l.botGridY+gridH-4
+		trayY, nameY = l.botGridY+1, l.botGridY+l.gridH-4
+		if l.gridH < 10 {
+			trayY = l.botGridY
+			nameY = l.botGridY + l.gridH - 3
+		}
 	}
 
 	nameSt := g.st(g.pal.fg).Bold(true)
@@ -759,11 +888,15 @@ func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl P
 	drawText(g.screen, x, nameY+1, "Total ", g.st(g.pal.dim))
 	drawText(g.screen, x+6, nameY+1, fmt.Sprint(m.Grids[p].Score()), g.st(g.pal.fg).Bold(true))
 
-	if info := g.winsText(s, p); info != "" {
-		drawText(g.screen, x, nameY+2, info, g.st(g.pal.dim))
+	if info := g.winsText(s, p); info != "" && nameY+2 < g.height-1 {
+		drawText(g.screen, x, nameY+2, truncate(info, pw), g.st(g.pal.dim))
 	}
-	if s.TurnLimit > 0 && s.Timeouts[p] > 0 {
-		drawText(g.screen, x, nameY+3, fmt.Sprintf("Timeouts: %d / %d", s.Timeouts[p], maxTimeouts), g.st(g.pal.lose))
+	if !isTop && g.save.Settings.WinMeter && !g.replayActive && g.width-(l.gx+gridW+3)-1 < 14 && nameY+3 < g.height-1 {
+		_, wpLabel := g.winProbSummary(s)
+		drawText(g.screen, x, nameY+3, truncate("Odds: "+wpLabel, pw), g.st(g.pal.win))
+	}
+	if s.TurnLimit > 0 && s.Timeouts[p] > 0 && nameY+3 < g.height-1 {
+		drawText(g.screen, x, nameY+3, truncate(fmt.Sprintf("Timeouts: %d / %d", s.Timeouts[p], maxTimeouts), pw), g.st(g.pal.lose))
 	}
 
 	if !turn {
@@ -780,6 +913,9 @@ func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl P
 			continue
 		}
 		dx := x + i*(dieW+2)
+		if dx+dieW > l.gx-1 {
+			continue
+		}
 		if rolling {
 			drawDie(g.screen, dx, trayY, rollingFace(i), g.pal.dieBg, g.pal.pip)
 			continue
@@ -798,7 +934,7 @@ func (g *game) drawPlayerPanel(s *session, l playLayout, p int, isTop bool, pl P
 	case hasPreview:
 		drawText(g.screen, x, ty, truncate(gainText(pl), pw), g.st(g.pal.accent))
 	case !g.myTurn(s) && !rolling:
-		drawText(g.screen, x, ty, "Thinking…", g.st(g.pal.dim))
+		drawText(g.screen, x, ty, thinkingText(now), g.st(g.pal.dim))
 	}
 	if left := g.ctl.turnLeft(now); left > 0 {
 		ly := ty + 1
@@ -844,10 +980,29 @@ func (g *game) drawSidePanel(s *session, l playLayout) {
 		}
 		y++
 	}
+	if ft, fc := g.fairnessText(s); ft != "" {
+		drawText(g.screen, x, y, truncate(ft, pw), g.st(fc))
+		y += 2
+	}
+	if g.save.Settings.WinMeter && !g.replayActive {
+		pct, label := g.winProbSummary(s)
+		drawText(g.screen, x, y, truncate("Win odds · "+label, pw), g.st(g.pal.accent))
+		y++
+		barW := 12
+		if barW > pw-2 {
+			barW = pw - 2
+		}
+		if barW >= 4 {
+			filled := pct * barW / 100
+			drawText(g.screen, x, y, strings.Repeat("█", filled), g.st(g.pal.win))
+			drawText(g.screen, x+filled, y, strings.Repeat("░", barW-filled), g.st(g.pal.dim))
+			y += 2
+		}
+	}
 	drawText(g.screen, x, y, "Log", g.st(g.pal.accent).Bold(true))
 	y++
 	// Newest entries first, drawn top-down; the newest entry is brighter.
-	room := l.botScoreY - y + 1
+	room := l.botScoreY - y
 	for i := len(s.Log) - 1; i >= 0 && room > 0; i-- {
 		c := g.pal.dim
 		if i == len(s.Log)-1 {
@@ -867,6 +1022,13 @@ func (g *game) drawSidePanel(s *session, l playLayout) {
 			room--
 		}
 	}
+	if l.botScoreY < g.height-1 {
+		sc := g.pal.dim
+		if g.save.Settings.Sound {
+			sc = g.pal.accent
+		}
+		drawText(g.screen, x, l.botScoreY, truncate("Sound: "+onOff(g.save.Settings.Sound)+" [S]", pw), g.st(sc))
+	}
 }
 
 func (g *game) drawResult(s *session, l playLayout) {
@@ -877,7 +1039,12 @@ func (g *game) drawResult(s *session, l playLayout) {
 	}
 	msg, c := g.resultText(s)
 	lines := wrap(msg, bw-6)
-	bh := 9 + len(lines)
+	ft, fc := g.fairnessText(s)
+	extraH := 0
+	if ft != "" {
+		extraH = 1
+	}
+	bh := 9 + len(lines) + extraH
 	bx, by := w/2-bw/2, l.midY-bh/2
 	if by < 1 {
 		by = 1
@@ -901,6 +1068,10 @@ func (g *game) drawResult(s *session, l playLayout) {
 	y++
 	if status, stc := g.resultStatus(s); status != "" {
 		drawCentered(g.screen, w/2, y, status, g.st(stc))
+	}
+	if ft != "" {
+		y++
+		drawCentered(g.screen, w/2, y, ft, g.st(fc))
 	}
 	y += 2
 	choices := g.resultChoices(s)

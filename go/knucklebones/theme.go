@@ -16,9 +16,48 @@ func rgba(c tcell.Color) color.RGBA {
 }
 
 const (
-	themeDark  = "dark"
-	themeLight = "light"
+	themeDark      = "dark"
+	themeLight     = "light"
+	themeContrast  = "contrast"
+	themeParchment = "parchment"
 )
+
+var themeOrder = []string{themeDark, themeLight, themeContrast, themeParchment}
+
+var themeNames = map[string]string{
+	themeDark:      "Dark",
+	themeLight:     "Light",
+	themeContrast:  "High Contrast",
+	themeParchment: "Parchment",
+}
+
+func validTheme(id string) bool {
+	_, ok := themes[id]
+	return ok
+}
+
+func themeLabel(id string) string {
+	if s := themeNames[id]; s != "" {
+		return s
+	}
+	return themeNames[themeDark]
+}
+
+func nextTheme(cur string) string {
+	for i, id := range themeOrder {
+		if id == cur {
+			return themeOrder[(i+1)%len(themeOrder)]
+		}
+	}
+	return themeOrder[0]
+}
+
+func paletteFor(id string) palette {
+	if p, ok := themes[id]; ok {
+		return p
+	}
+	return themes[themeDark]
+}
 
 type palette struct {
 	bg, fg, dim, accent, title, frame tcell.Color
@@ -77,5 +116,49 @@ var themes = map[string]palette{
 		doomBg:   tcell.NewRGBColor(206, 48, 48),
 		doomPip:  tcell.ColorWhite,
 		lastPip:  tcell.NewRGBColor(255, 104, 96),
+	},
+	themeContrast: {
+		bg:       tcell.ColorBlack,
+		fg:       tcell.ColorWhite,
+		dim:      tcell.NewRGBColor(204, 204, 214),
+		accent:   tcell.NewRGBColor(255, 212, 0),
+		title:    tcell.NewRGBColor(255, 84, 84),
+		frame:    tcell.NewRGBColor(192, 192, 208),
+		win:      tcell.NewRGBColor(56, 242, 120),
+		lose:     tcell.NewRGBColor(255, 76, 76),
+		dieBg:    tcell.ColorWhite,
+		pip:      tcell.ColorBlack,
+		pairBg:   tcell.NewRGBColor(255, 212, 0),
+		pairPip:  tcell.ColorBlack,
+		tripleBg: tcell.NewRGBColor(0, 224, 255),
+		triPip:   tcell.ColorBlack,
+		emptyBg:  tcell.NewRGBColor(28, 28, 36),
+		ghostBg:  tcell.NewRGBColor(92, 92, 114),
+		ghostPip: tcell.ColorWhite,
+		doomBg:   tcell.NewRGBColor(240, 32, 32),
+		doomPip:  tcell.ColorWhite,
+		lastPip:  tcell.NewRGBColor(220, 0, 110),
+	},
+	themeParchment: {
+		bg:       tcell.NewRGBColor(239, 227, 200),
+		fg:       tcell.NewRGBColor(43, 29, 20),
+		dim:      tcell.NewRGBColor(128, 108, 86),
+		accent:   tcell.NewRGBColor(178, 86, 18),
+		title:    tcell.NewRGBColor(158, 31, 31),
+		frame:    tcell.NewRGBColor(176, 156, 126),
+		win:      tcell.NewRGBColor(40, 124, 58),
+		lose:     tcell.NewRGBColor(172, 34, 34),
+		dieBg:    tcell.NewRGBColor(62, 43, 32),
+		pip:      tcell.NewRGBColor(250, 242, 222),
+		pairBg:   tcell.NewRGBColor(216, 142, 28),
+		pairPip:  tcell.NewRGBColor(38, 22, 8),
+		tripleBg: tcell.NewRGBColor(46, 95, 168),
+		triPip:   tcell.NewRGBColor(250, 242, 222),
+		emptyBg:  tcell.NewRGBColor(216, 200, 172),
+		ghostBg:  tcell.NewRGBColor(158, 138, 110),
+		ghostPip: tcell.NewRGBColor(250, 242, 222),
+		doomBg:   tcell.NewRGBColor(186, 38, 38),
+		doomPip:  tcell.ColorWhite,
+		lastPip:  tcell.NewRGBColor(238, 86, 68),
 	},
 }

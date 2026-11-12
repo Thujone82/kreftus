@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"math"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -42,13 +45,72 @@ func initFonts() {
 // Glyphs the Go fonts lack.
 var glyphFix = strings.NewReplacer("⚠", "(offline)", "▏", "|")
 
+type faceKey struct {
+	sizeBits   uint64
+	f          fontKind
+	scaleMilli int
+}
+
+type measureKey struct {
+	s    string
+	size float64
+	f    fontKind
+}
+
+var (
+	measureMu    sync.Mutex
+	measureFaces [3]map[float64]*text.GoTextFace
+	measureCache = make(map[measureKey]float64, 512)
+)
+
 func (a *guiApp) face(size float64, f fontKind) *text.GoTextFace {
-	return &text.GoTextFace{Source: fontSources[f], Size: size * a.vp.scale}
+	scaleMilli := int(math.Round(a.vp.scale * 1000))
+	if scaleMilli <= 0 {
+		scaleMilli = 1
+	}
+	if a.faceCache == nil {
+		a.faceCache = make(map[faceKey]*text.GoTextFace, 32)
+	}
+	key := faceKey{sizeBits: math.Float64bits(size), f: f, scaleMilli: scaleMilli}
+	if fc := a.faceCache[key]; fc != nil {
+		return fc
+	}
+	if len(a.faceCache) >= 128 {
+		clear(a.faceCache)
+	}
+	fc := &text.GoTextFace{Source: fontSources[f], Size: size * a.vp.scale}
+	a.faceCache[key] = fc
+	return fc
 }
 
 // measure is a string's width in design units.
 func measure(s string, size float64, f fontKind) float64 {
-	return text.Advance(glyphFix.Replace(s), &text.GoTextFace{Source: fontSources[f], Size: size})
+	if s == "" {
+		return 0
+	}
+	if fontSources[f] == nil {
+		return float64(len([]rune(s))) * size * 0.5
+	}
+	key := measureKey{s: s, size: size, f: f}
+	measureMu.Lock()
+	defer measureMu.Unlock()
+	if w, ok := measureCache[key]; ok {
+		return w
+	}
+	if measureFaces[f] == nil {
+		measureFaces[f] = make(map[float64]*text.GoTextFace, 16)
+	}
+	fc := measureFaces[f][size]
+	if fc == nil {
+		fc = &text.GoTextFace{Source: fontSources[f], Size: size}
+		measureFaces[f][size] = fc
+	}
+	w := text.Advance(glyphFix.Replace(s), fc)
+	if len(measureCache) >= 2048 {
+		clear(measureCache)
+	}
+	measureCache[key] = w
+	return w
 }
 
 func wrapPx(s string, size float64, f fontKind, width float64) []string {
@@ -78,23 +140,20 @@ func caretIndexAt(s string, clickX, textX, size float64, f fontKind) int {
 		return 0
 	}
 	r := []rune(s)
-	best := 0
-	bestDist := rel
-	for i := 0; i <= len(r); i++ {
-		w := measure(string(r[:i]), size, f)
-		d := rel - w
-		if d < 0 {
-			d = -d
-		}
-		if d < bestDist {
-			bestDist = d
-			best = i
-		}
-		if w >= rel {
-			break
+	idx := sort.Search(len(r)+1, func(i int) bool {
+		return measure(string(r[:i]), size, f) >= rel
+	})
+	if idx > len(r) {
+		return len(r)
+	}
+	if idx > 0 {
+		d0 := rel - measure(string(r[:idx-1]), size, f)
+		d1 := measure(string(r[:idx]), size, f) - rel
+		if d0 <= d1 {
+			return idx - 1
 		}
 	}
-	return best
+	return idx
 }
 
 // visibleWithCaret scrolls s so the caret stays inside maxW and returns the
@@ -102,16 +161,21 @@ func caretIndexAt(s string, clickX, textX, size float64, f fontKind) int {
 func visibleWithCaret(s string, pos int, maxW, size float64, f fontKind) (shown string, caret int) {
 	r := []rune(s)
 	pos = clampRunePos(s, pos)
-	start := 0
-	for measure(string(r[start:pos])+"|", size, f) > maxW && start < pos {
-		start++
-	}
-	end := len(r)
-	for measure(string(r[start:end])+"|", size, f) > maxW && end > pos {
-		end--
-	}
-	for measure(string(r[start:end])+"|", size, f) > maxW && end > start {
-		end--
+	start := sort.Search(pos, func(i int) bool {
+		return measure(string(r[i:pos])+"|", size, f) <= maxW
+	})
+	hi := sort.Search(len(r)-pos+1, func(k int) bool {
+		return measure(string(r[start:pos+k])+"|", size, f) > maxW
+	})
+	end := pos + hi - 1
+	if end < pos {
+		hi = sort.Search(pos-start+1, func(k int) bool {
+			return measure(string(r[start:start+k])+"|", size, f) > maxW
+		})
+		end = start + hi - 1
+		if end < start {
+			end = start
+		}
 	}
 	return string(r[start:end]), pos - start
 }
@@ -234,20 +298,109 @@ func (a *guiApp) image(dst *ebiten.Image, img *ebiten.Image, r rect) {
 	dst.DrawImage(img, op)
 }
 
-func (a *guiApp) die(dst *ebiten.Image, r rect, v int, bg, pip tcell.Color) {
-	rad := r.W * 0.18
-	a.fill(dst, rect{r.X + 2, r.Y + 4, r.W, r.H}, color.RGBA{0, 0, 0, 70}, rad)
-	a.fill(dst, r, a.c(bg), rad)
+type dieKey struct {
+	v    int
+	mark int
+	bg   tcell.Color
+	pip  tcell.Color
+	w    int
+	h    int
+}
+
+func drawDieMark(dst *ebiten.Image, w, h float64, mark int, c color.Color) {
+	if mark == markNone {
+		return
+	}
+	sw := float32(math.Max(1.5, w*0.028))
+	so := &vector.StrokeOptions{Width: sw, LineCap: vector.LineCapRound}
+	var p vector.Path
+	switch mark {
+	case markPair:
+		x1, x2 := float32(w*0.39), float32(w*0.61)
+		p.MoveTo(x1, float32(h*0.075))
+		p.LineTo(x2, float32(h*0.075))
+		p.MoveTo(x1, float32(h*0.128))
+		p.LineTo(x2, float32(h*0.128))
+	case markTriple:
+		x1, x2 := float32(w*0.39), float32(w*0.61)
+		y1, y2 := float32(h*0.072), float32(h*0.128)
+		p.MoveTo(x1, y1)
+		p.LineTo(x2, y1)
+		p.MoveTo(x1, y2)
+		p.LineTo(x2, y2)
+		vx1, vx2 := float32(w*0.45), float32(w*0.55)
+		vy1, vy2 := float32(h*0.042), float32(h*0.158)
+		p.MoveTo(vx1, vy1)
+		p.LineTo(vx1, vy2)
+		p.MoveTo(vx2, vy1)
+		p.LineTo(vx2, vy2)
+	case markDoom:
+		x1, x2 := float32(w*0.43), float32(w*0.57)
+		y1, y2 := float32(h*0.045), float32(h*0.155)
+		p.MoveTo(x1, y1)
+		p.LineTo(x2, y2)
+		p.MoveTo(x2, y1)
+		p.LineTo(x1, y2)
+	}
+	vector.StrokePath(dst, &p, so, pathOpts(c))
+}
+
+func drawDieSprite(dst *ebiten.Image, w, h, scale float64, v, mark int, bg, pip color.Color) {
+	rad := w * 0.18
+	sh := roundRectPath(rect{2 * scale, 4 * scale, w, h}, rad)
+	vector.FillPath(dst, sh, nil, pathOpts(color.RGBA{0, 0, 0, 70}))
+	bd := roundRectPath(rect{0, 0, w, h}, rad)
+	vector.FillPath(dst, bd, nil, pathOpts(bg))
 	if v < 1 || v > 6 {
 		return
 	}
+	pr := float32(w * 0.085)
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 3; col++ {
 			if pipRows[v][row][col] == 'o' {
-				a.circle(dst, r.X+r.W*(0.25+0.25*float64(col)), r.Y+r.H*(0.25+0.25*float64(row)), r.W*0.085, a.c(pip))
+				vector.FillCircle(dst, float32(w*(0.25+0.25*float64(col))), float32(h*(0.25+0.25*float64(row))), pr, pip, true)
 			}
 		}
 	}
+	drawDieMark(dst, w, h, mark, pip)
+}
+
+func (a *guiApp) die(dst *ebiten.Image, r rect, v int, bg, pip tcell.Color) {
+	a.dieMarked(dst, r, v, markNone, bg, pip)
+}
+
+func (a *guiApp) dieMarked(dst *ebiten.Image, r rect, v, mark int, bg, pip tcell.Color) {
+	sr := a.vp.toScreen(r)
+	iw, ih := int(math.Round(sr.W)), int(math.Round(sr.H))
+	if iw < 2 || ih < 2 {
+		return
+	}
+	scaleMilli := int(math.Round(a.vp.scale * 1000))
+	if a.dieCache == nil || a.dieScaleMilli != scaleMilli {
+		a.dieCache = make(map[dieKey]*ebiten.Image, 32)
+		a.dieScaleMilli = scaleMilli
+	}
+	key := dieKey{v: v, mark: mark, bg: bg, pip: pip, w: iw, h: ih}
+	img := a.dieCache[key]
+	if img == nil {
+		if len(a.dieCache) >= 128 {
+			clear(a.dieCache)
+		}
+		padX := int(math.Ceil(3 * a.vp.scale))
+		padY := int(math.Ceil(5 * a.vp.scale))
+		if padX < 1 {
+			padX = 1
+		}
+		if padY < 1 {
+			padY = 1
+		}
+		img = ebiten.NewImage(iw+padX, ih+padY)
+		drawDieSprite(img, float64(iw), float64(ih), a.vp.scale, v, mark, a.c(bg), a.c(pip))
+		a.dieCache[key] = img
+	}
+	var op ebiten.DrawImageOptions
+	op.GeoM.Translate(math.Round(sr.X), math.Round(sr.Y))
+	dst.DrawImage(img, &op)
 }
 
 func (a *guiApp) button(dst *ebiten.Image, r rect, label string, selected bool, selBg tcell.Color) {
@@ -290,6 +443,26 @@ func (a *guiApp) smallTitle(dst *ebiten.Image, y float64) {
 // ---- screens ----
 
 func (a *guiApp) Draw(dst *ebiten.Image) {
+	now := time.Now()
+	sig, anim := a.frameSignature(now)
+	b := dst.Bounds()
+	dw, dh := b.Dx(), b.Dy()
+	if dw <= 0 || dh <= 0 {
+		return
+	}
+	if a.frame == nil || a.frame.Bounds().Dx() != dw || a.frame.Bounds().Dy() != dh {
+		a.frame = ebiten.NewImage(dw, dh)
+		a.dirty = true
+	}
+	if a.dirty || anim || sig != a.lastSig {
+		a.drawScene(a.frame)
+		a.lastSig = sig
+		a.dirty = anim
+	}
+	dst.DrawImage(a.frame, nil)
+}
+
+func (a *guiApp) drawScene(dst *ebiten.Image) {
 	g := a.g
 	dst.Fill(a.c(g.pal.bg))
 	switch g.view {
@@ -300,7 +473,7 @@ func (a *guiApp) Draw(dst *ebiten.Image) {
 	case viewName:
 		a.drawPrompt(dst, "Your name", "Shown to your opponent and on your Top 10.", "Save")
 	case viewJoin:
-		a.drawPrompt(dst, "Join Game", "Host address (host:port)", "Join")
+		a.drawJoin(dst)
 	case viewLobby:
 		a.drawLobby(dst)
 	case viewPlay:
@@ -336,12 +509,17 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 	g, p := a.g, a.g.pal
 	a.smallTitle(dst, 42)
 	a.center(dst, setupTitles[g.setupMode], 86, 24, fontBold, a.c(p.fg))
-	a.center(dst, "Game settings", 118, 16, fontRegular, a.c(p.dim))
+	subtitle := "Game settings"
+	if g.setupMode == setupOptions {
+		subtitle = "Appearance & audio"
+	}
+	a.center(dst, subtitle, 118, 16, fontRegular, a.c(p.dim))
 	rows := g.settingRows()
 	for i, row := range rows {
 		sel := i == g.setIndex
-		if row == rowStart {
-			a.button(dst, settingsStartRect(i), "Start game", sel, p.accent)
+		label, value := g.settingText(row)
+		if row == rowStart || row == rowDone {
+			a.button(dst, settingsStartRect(i), label, sel, p.accent)
 			continue
 		}
 		r := settingsRowRect(i)
@@ -349,7 +527,6 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 		if sel {
 			a.stroke(dst, r, a.c(p.accent), 10, 2)
 		}
-		label, value := g.settingText(row)
 		lc := a.c(p.dim)
 		if sel {
 			lc = a.c(p.accent)
@@ -357,20 +534,27 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 		a.text(dst, label, r.X+20, r.cy(), 17, fontRegular, lc, text.AlignStart)
 		left, right := settingsArrows(r)
 		vc := a.c(p.fg)
-		if row == rowPlayer2 || row == rowPort {
+		if row == rowPlayer2 || row == rowPort || row == rowRoomCode {
 			field := settingsTextField(r)
 			a.fill(dst, field, a.c(p.emptyBg), 6)
 			if sel {
 				edit := value
-				if row == rowPlayer2 {
+				switch row {
+				case rowPlayer2:
 					edit = g.save.Settings.Player2
-				} else {
+				case rowPort:
 					edit = g.portEditString()
+				case rowRoomCode:
+					edit = g.hostRoomCode
 				}
 				shown, cpos := visibleWithCaret(edit, g.inputPos, field.W-24, 17, fontRegular)
 				a.drawCaretText(dst, shown, cpos, field.X+12, field.cy(), 17, vc)
 			} else {
-				a.text(dst, value, field.X+12, field.cy(), 17, fontRegular, vc, text.AlignStart)
+				tc := vc
+				if row == rowRoomCode && g.hostRoomCode == "" {
+					tc = a.c(p.dim)
+				}
+				a.text(dst, value, field.X+12, field.cy(), 17, fontRegular, tc, text.AlignStart)
 			}
 			continue
 		}
@@ -387,8 +571,11 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 		a.text(dst, value, (left.X+left.W+right.X)/2, r.cy(), 17, f, vc, text.AlignCenter)
 	}
 	y := settingsRowRect(len(rows)).Y + 20
-	if g.setupMode == modeAI {
+	switch g.setupMode {
+	case modeAI:
 		a.center(dst, difficultyHints[g.save.Settings.Difficulty], y, 16, fontRegular, a.c(p.dim))
+	case setupHost:
+		a.center(dst, "Room code is optional and never saved to disk.", y, 16, fontRegular, a.c(p.dim))
 	}
 	for i, l := range wrapPx(g.note, 16, fontRegular, 900) {
 		a.center(dst, l, y+30+float64(i)*24, 16, fontRegular, a.c(p.lose))
@@ -442,21 +629,28 @@ func (a *guiApp) drawLobby(dst *ebiten.Image) {
 	c := lobbyCard()
 	if port := l.hostPort(); port > 0 {
 		a.card(dst, c, "Waiting for an opponent")
-		y := c.Y + 78
+		y := c.Y + 76
 		a.center(dst, "Share one of these addresses with your opponent:", y, 16, fontRegular, a.c(p.dim))
-		y += 40
-		for _, addr := range localAddrs() {
-			if y > c.Y+c.H-170 {
+		y += 34
+		st := g.save.Settings
+		for _, addr := range lobbyHostAddresses(st.BindIP, port) {
+			if y > c.Y+c.H-190 {
 				break
 			}
-			a.center(dst, fmt.Sprintf("%s:%d", addr, port), y, 20, fontBold, a.c(p.accent))
-			y += 30
+			a.center(dst, addr, y, 20, fontBold, a.c(p.accent))
+			y += 28
 		}
-		a.center(dst, fmt.Sprintf("localhost:%d (this computer)", port), y, 16, fontRegular, a.c(p.dim))
-		y += 44
+		if st.BindIP != "127.0.0.1" && y <= c.Y+c.H-160 {
+			a.center(dst, fmt.Sprintf("localhost:%d (this computer)", port), y, 16, fontRegular, a.c(p.dim))
+			y += 28
+		}
+		if rc := l.hostRoomCode(); rc != "" && y <= c.Y+c.H-130 {
+			a.center(dst, "Room code: "+rc, y, 17, fontBold, a.c(p.accent))
+			y += 28
+		}
+		y += 10
 		a.center(dst, "Waiting time: "+formatWait(time.Since(l.waitingSince())), y, 17, fontRegular, a.c(p.fg))
-		st := g.save.Settings
-		a.center(dst, roundsLabel(st.BestOf)+" · "+rulesSummary(st.Rules), y+28, 16, fontRegular, a.c(p.dim))
+		a.center(dst, roundsLabel(st.BestOf)+" · "+rulesSummary(st.Rules), y+26, 16, fontRegular, a.c(p.dim))
 		back, _ := lobbyButtons(false)
 		a.button(dst, back, "Cancel", false, p.accent)
 		a.footer(dst, "Esc cancel")
@@ -484,6 +678,44 @@ func (a *guiApp) drawLobby(dst *ebiten.Image) {
 	a.footer(dst, "Esc cancel")
 }
 
+func (a *guiApp) drawJoin(dst *ebiten.Image) {
+	g, p := a.g, a.g.pal
+	a.image(dst, a.logo, centered(baseW/2, 48, 84, 84))
+	a.smallTitle(dst, 158)
+	c := joinCard()
+	a.card(dst, c, "Join Game")
+	labels := [2]string{"Host address (host:port)", "Room code (optional, leave blank if open)"}
+	vals := [2]string{g.input, g.joinCode}
+	placeholders := [2]string{"", "(optional)"}
+	for i := 0; i < 2; i++ {
+		f := joinFieldRect(i)
+		active := g.joinField == i
+		lc := a.c(p.dim)
+		if active {
+			lc = a.c(p.accent)
+		}
+		a.text(dst, labels[i], f.X, f.Y-14, 15, fontRegular, lc, text.AlignStart)
+		a.fill(dst, f, a.c(p.emptyBg), 8)
+		if active {
+			a.stroke(dst, f, a.c(p.accent), 8, 2)
+			shown, cpos := visibleWithCaret(vals[i], g.inputPos, f.W-24, 18, fontRegular)
+			a.drawCaretText(dst, shown, cpos, f.X+12, f.cy(), 18, a.c(p.fg))
+		} else if vals[i] == "" && placeholders[i] != "" {
+			a.text(dst, placeholders[i], f.X+12, f.cy(), 18, fontRegular, a.c(p.dim), text.AlignStart)
+		} else {
+			a.text(dst, truncPx(vals[i], 18, fontRegular, f.W-24), f.X+12, f.cy(), 18, fontRegular, a.c(p.fg), text.AlignStart)
+		}
+	}
+	if g.note != "" {
+		f1 := joinFieldRect(1)
+		a.text(dst, truncPx(g.note, 15, fontRegular, c.W-60), c.X+30, f1.Y+f1.H+18, 15, fontRegular, a.c(p.lose), text.AlignStart)
+	}
+	back, ok := joinButtons()
+	a.button(dst, back, "Back", false, p.accent)
+	a.button(dst, ok, "Join", true, p.accent)
+	a.footer(dst, "Tab / ↑↓ switch field · Enter join · Esc back")
+}
+
 // ---- play screen ----
 
 func (a *guiApp) drawGrid(dst *ebiten.Image, grid *Grid, isTop bool, m gridMarks, ghostVal int) {
@@ -498,13 +730,13 @@ func (a *guiApp) drawGrid(dst *ebiten.Image, grid *Grid, isTop bool, m gridMarks
 			case v == 0:
 				a.fill(dst, r, a.c(p.emptyBg), r.W*0.18)
 			case c == m.doomCol && v == m.doomVal:
-				a.die(dst, r, v, p.doomBg, p.doomPip)
+				a.dieMarked(dst, r, v, a.g.cellMark(0, true), p.doomBg, p.doomPip)
 			default:
 				bg, pip := a.g.dieColors(grid.Matches(c, v))
 				if c == m.lastCol && k == m.lastSlot {
 					pip = p.lastPip
 				}
-				a.die(dst, r, v, bg, pip)
+				a.dieMarked(dst, r, v, a.g.cellMark(grid.Matches(c, v), false), bg, pip)
 			}
 		}
 	}
@@ -531,20 +763,38 @@ func (a *guiApp) drawPlay(dst *ebiten.Image) {
 		return
 	}
 	now := time.Now()
-	bottom := g.ctl.seat()
-	if bottom < 0 {
-		bottom = 0
-	}
+	bottom := g.bottomSeat()
 	topP := 1 - bottom
 	m := &s.Match
+	lastPl := s.Last
+	replayNote := ""
+	var replayMatch Match
+	if g.replayActive && len(g.replayFrames) > 0 {
+		step := g.replayStep
+		if step < 0 {
+			step = 0
+		}
+		if step >= len(g.replayFrames) {
+			step = len(g.replayFrames) - 1
+		}
+		rf := &g.replayFrames[step]
+		replayMatch = rf.match
+		m = &replayMatch
+		lastPl = rf.last
+		replayNote = fmt.Sprintf("REPLAY %d/%d · %s", rf.step, rf.total, rf.desc)
+	}
 
 	mover := m.Turn
 	var preview *Match
 	var pl Placement
-	mv, aiming := g.previewMove(s)
-	if aiming && m.Legal(mv) {
-		pp, next := m.Preview(mv)
-		pl, preview = pp, &next
+	var mv Move
+	aiming := false
+	if !g.replayActive {
+		mv, aiming = g.previewMove(s)
+		if aiming && m.Legal(mv) {
+			pp, next := m.Preview(mv)
+			pl, preview = pp, &next
+		}
 	}
 
 	if aiming {
@@ -561,14 +811,27 @@ func (a *guiApp) drawPlay(dst *ebiten.Image) {
 		a.fill(dst, r, color.NRGBA{hl.R, hl.G, hl.B, 56}, 14)
 	}
 
+	prog := -1.0
+	if !g.replayActive {
+		prog = effectProgress(g.effectAt, now)
+	}
+
 	for _, pi := range []int{topP, bottom} {
 		isTop := pi == topP
+		gy := guiBotGrid
+		if isTop {
+			gy = guiTopGrid
+		}
+		if !g.replayActive && s.Phase == phasePlay && pi == mover {
+			ac := a.c(p.accent)
+			a.stroke(dst, rect{guiGridX - 8, gy - 8, guiGridW + 16, guiGridH + 16}, color.NRGBA{ac.R, ac.G, ac.B, 150}, 14, 2)
+		}
 		marks := noMarks()
 		grid := &m.Grids[pi]
 		ghostVal := 0
-		if s.Last != nil && s.Last.Player == pi && s.Phase == phasePlay {
-			marks.lastCol, marks.lastSlot = s.Last.Col, s.Last.Slot
-			if marks.lastSlot >= 0 && grid[marks.lastCol][marks.lastSlot] != s.Last.Die {
+		if lastPl != nil && lastPl.Player == pi && (s.Phase == phasePlay || g.replayActive) {
+			marks.lastCol, marks.lastSlot = lastPl.Col, lastPl.Slot
+			if marks.lastSlot >= 0 && grid[marks.lastCol][marks.lastSlot] != lastPl.Die {
 				marks.lastCol = -1
 			}
 		}
@@ -588,6 +851,30 @@ func (a *guiApp) drawPlay(dst *ebiten.Image) {
 			a.drawGrid(dst, grid, isTop, marks, 0)
 		default:
 			a.drawGrid(dst, grid, isTop, marks, 0)
+		}
+		if prog >= 0 {
+			isGain := pi == g.effectLast.Player && g.effectLast.Gain > 0
+			isLoss := pi != g.effectLast.Player && g.effectLast.Destroyed > 0 && g.effectLast.Lost > 0
+			if isGain || isLoss {
+				colR := columnHit(g.effectLast.Col)
+				if isLoss {
+					lc := a.c(p.lose)
+					a.fill(dst, rect{colR.X + 4, gy - 4, colR.W - 8, guiGridH + 8}, color.NRGBA{lc.R, lc.G, lc.B, uint8((1 - prog) * 115)}, 12)
+				}
+				badgeText := fmt.Sprintf("+%d", g.effectLast.Gain)
+				bc := a.c(p.win)
+				if isLoss {
+					badgeText = fmt.Sprintf("-%d", g.effectLast.Lost)
+					bc = a.c(p.lose)
+				}
+				alpha := uint8((1 - prog) * 235)
+				by := gy + guiGridH*0.5 - prog*26
+				pill := rect{colR.cx() - 28, by - 13, 56, 26}
+				bgc := a.cardBg()
+				a.fill(dst, pill, color.NRGBA{bgc.R, bgc.G, bgc.B, alpha}, 13)
+				a.stroke(dst, pill, color.NRGBA{bc.R, bc.G, bc.B, alpha}, 13, 1.5)
+				a.text(dst, badgeText, pill.cx(), pill.cy(), 15, fontBold, color.NRGBA{bc.R, bc.G, bc.B, alpha}, text.AlignCenter)
+			}
 		}
 		y := guiBotScore
 		if isTop {
@@ -610,23 +897,30 @@ func (a *guiApp) drawPlay(dst *ebiten.Image) {
 		a.triangle(dst, rect{r.cx() - 34, ty, 16, 14}, dir, mc)
 		a.triangle(dst, rect{r.cx() + 18, ty, 16, 14}, dir, mc)
 		a.text(dst, fmt.Sprint(mv.Col+1), r.cx(), guiMidY+17, 20, fontBold, mc, text.AlignCenter)
+	} else if replayNote != "" {
+		a.center(dst, truncPx(replayNote, 16, fontBold, guiGridW+220), guiMidY+17, 16, fontBold, a.c(p.accent))
 	}
 
 	a.drawHeader(dst, s, now)
-	a.drawPlayerPanel(dst, s, topP, true, pl, preview != nil, now)
-	a.drawPlayerPanel(dst, s, bottom, false, pl, preview != nil, now)
+	a.drawPlayerPanel(dst, s, m, topP, true, pl, preview != nil, now)
+	a.drawPlayerPanel(dst, s, m, bottom, false, pl, preview != nil, now)
 	a.drawSidePanel(dst, s)
 
 	acts := g.playActions(s)
 	for i, b := range playButtons(len(acts)) {
 		a.button(dst, b, acts[i].label, false, p.accent)
 	}
-	hint := "Click a column or ←→ · 1-3/Enter place · L log · H history · R resign · Esc leave"
+	hint := "Click a column or ←→ · 1-3/Enter place · C marks · P prob · S sound · L · H · R · Esc"
 	if m.Rules.TwoDice {
-		hint = "Click a column or ←→ · click a die or Tab to switch · Enter place · L · H · R · Esc"
+		hint = "Click a column or ←→ · click die or Tab/W · Enter · C · P · S · L · H · R · Esc"
 	}
-	if s.Phase != phasePlay {
-		hint = "Click an option or ←→ · Enter · V view board · L log · H history · Esc leave"
+	if g.replayActive {
+		hint = "←→ step · Home/End jump · Enter or Esc done"
+	} else if s.Phase != phasePlay {
+		hint = "Click an option or ←→ · Enter · V board · L log · H history · Esc leave"
+		if canReplay(s) {
+			hint = "Click option or ←→ · Enter · V board · X replay · L log · H · Esc"
+		}
 	}
 	a.footer(dst, hint)
 
@@ -639,7 +933,7 @@ func (a *guiApp) drawPlay(dst *ebiten.Image) {
 		a.drawConfirm(dst, "Resign this match?", g.resignWarning(s), "Cancel", "Confirm resignation")
 	case g.overlay == overlayLeave:
 		a.drawConfirm(dst, "Leave this game?", leaveWarning(s), "Stay", "Leave")
-	case s.Phase != phasePlay && !g.hideResult:
+	case s.Phase != phasePlay && !g.hideResult && !g.replayActive:
 		a.drawResult(dst, s)
 	}
 }
@@ -653,10 +947,9 @@ func (a *guiApp) drawHeader(dst *ebiten.Image, s *session, now time.Time) {
 	a.text(dst, fmt.Sprintf("Round %d · %s", s.Round, s.roundsLabel()), baseW-24, 30, 16, fontRegular, a.c(p.dim), text.AlignEnd)
 }
 
-func (a *guiApp) drawPlayerPanel(dst *ebiten.Image, s *session, pi int, isTop bool, pl Placement, hasPreview bool, now time.Time) {
+func (a *guiApp) drawPlayerPanel(dst *ebiten.Image, s *session, m *Match, pi int, isTop bool, pl Placement, hasPreview bool, now time.Time) {
 	g, p := a.g, a.g.pal
-	m := &s.Match
-	turn := s.Phase == phasePlay && m.Turn == pi
+	turn := !g.replayActive && s.Phase == phasePlay && m.Turn == pi
 	x, w := guiPanelX, guiPanelW
 	y := panelNameY(isTop)
 
@@ -705,7 +998,7 @@ func (a *guiApp) drawPlayerPanel(dst *ebiten.Image, s *session, pi int, isTop bo
 	case hasPreview:
 		a.text(dst, truncPx(gainText(pl), 17, fontRegular, w), x, ty, 17, fontRegular, a.c(p.accent), text.AlignStart)
 	case !g.myTurn(s) && !rolling:
-		a.text(dst, "Thinking…", x, ty, 17, fontRegular, a.c(p.dim), text.AlignStart)
+		a.text(dst, thinkingText(now), x, ty, 17, fontRegular, a.c(p.dim), text.AlignStart)
 	}
 	if left := g.ctl.turnLeft(now); left > 0 {
 		secs := int(left.Seconds() + 0.999)
@@ -733,15 +1026,25 @@ func (a *guiApp) drawSidePanel(dst *ebiten.Image, s *session) {
 		}
 		y += 12
 	}
+	if ft, fc := g.fairnessText(s); ft != "" {
+		a.text(dst, truncPx(ft, 15, fontBold, w), x, y, 15, fontBold, a.c(fc), text.AlignStart)
+		y += 26
+	}
+	toggleR := winMeterToggleRect()
+	logBottom := toggleR.Y - 10
+	showProb := g.save.Settings.WinMeter && !g.replayActive
+	if showProb {
+		logBottom -= 48
+	}
 	a.text(dst, "Log", x, y, 18, fontBold, a.c(p.accent), text.AlignStart)
 	y += 28
-	for i := len(s.Log) - 1; i >= 0 && y < guiBotScore; i-- {
+	for i := len(s.Log) - 1; i >= 0 && y < logBottom; i-- {
 		c := a.c(p.dim)
 		if i == len(s.Log)-1 {
 			c = a.c(p.fg)
 		}
 		for j, line := range wrapPx(g.logText(s, s.Log[i]), 15, fontRegular, w-16) {
-			if y >= guiBotScore {
+			if y >= logBottom {
 				break
 			}
 			if j == 0 {
@@ -751,6 +1054,40 @@ func (a *guiApp) drawSidePanel(dst *ebiten.Image, s *session) {
 			y += 21
 		}
 	}
+	if showProb {
+		pct, summary := g.winProbSummary(s)
+		by := toggleR.Y - 46
+		a.text(dst, truncPx("Win odds · "+summary, 14, fontBold, w), x, by+8, 14, fontBold, a.c(p.fg), text.AlignStart)
+		bar := rect{x, by + 24, w, 10}
+		a.fill(dst, bar, a.c(p.emptyBg), 5)
+		if pct > 0 {
+			fw := bar.W * float64(pct) / 100
+			if fw < 6 {
+				fw = 6
+			}
+			a.fill(dst, rect{bar.X, bar.Y, fw, bar.H}, a.c(p.win), 5)
+		}
+	}
+	plabel := "Prob: Off [P]"
+	a.fill(dst, toggleR, a.buttonBg(), 8)
+	tc := a.c(p.dim)
+	if g.save.Settings.WinMeter {
+		plabel = "Prob: On [P]"
+		tc = a.c(p.accent)
+		a.stroke(dst, toggleR, tc, 8, 1.5)
+	}
+	a.text(dst, plabel, toggleR.cx(), toggleR.cy(), 14, fontBold, tc, text.AlignCenter)
+
+	sndR := soundToggleRect()
+	slabel := "Sound: Off [S]"
+	a.fill(dst, sndR, a.buttonBg(), 8)
+	sc := a.c(p.dim)
+	if g.save.Settings.Sound {
+		slabel = "Sound: On [S]"
+		sc = a.c(p.accent)
+		a.stroke(dst, sndR, sc, 8, 1.5)
+	}
+	a.text(dst, slabel, sndR.cx(), sndR.cy(), 14, fontBold, sc, text.AlignCenter)
 }
 
 func (a *guiApp) resultLines(s *session) int {
@@ -768,18 +1105,24 @@ func (a *guiApp) drawResult(dst *ebiten.Image, s *session) {
 		title = "Game over"
 	}
 	a.card(dst, c, title)
-	y := c.Y + 78
+	y := c.Y + 74
 	for _, line := range lines {
 		a.center(dst, line, y, 22, fontBold, a.c(mc))
-		y += 30
+		y += 28
 	}
 	sc := s.Match.Scores()
-	a.center(dst, fmt.Sprintf("%s %d  –  %d %s", s.Names[0], sc[0], sc[1], s.Names[1]), y+6, 18, fontRegular, a.c(p.fg))
+	a.center(dst, fmt.Sprintf("%s %d  –  %d %s", s.Names[0], sc[0], sc[1], s.Names[1]), y+4, 18, fontRegular, a.c(p.fg))
+	y += 30
 	if s.BestOf != 1 || s.FreePlay {
-		a.center(dst, fmt.Sprintf("Rounds won %d – %d · %s", s.Wins[0], s.Wins[1], s.roundsLabel()), y+34, 16, fontRegular, a.c(p.dim))
+		a.center(dst, fmt.Sprintf("Rounds won %d – %d · %s", s.Wins[0], s.Wins[1], s.roundsLabel()), y, 16, fontRegular, a.c(p.dim))
+		y += 26
 	}
-	if status, sc := g.resultStatus(s); status != "" {
-		a.center(dst, status, y+62, 17, fontRegular, a.c(sc))
+	if status, stc := g.resultStatus(s); status != "" {
+		a.center(dst, status, y, 17, fontRegular, a.c(stc))
+		y += 26
+	}
+	if ft, fc := g.fairnessText(s); ft != "" {
+		a.center(dst, ft, y, 16, fontBold, a.c(fc))
 	}
 	choices := g.resultChoices(s)
 	for i, b := range resultButtons(c, len(choices)) {

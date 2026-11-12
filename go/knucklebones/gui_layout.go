@@ -67,20 +67,20 @@ func menuLogoRect() rect { return centered(baseW/2, 18, 108, 108) }
 
 func menuItemRect(i int) rect { return centered(baseW/2, 204+float64(i)*46, 440, 39) }
 
-func settingsRowRect(i int) rect { return centered(baseW/2, 156+float64(i)*54, 600, 46) }
+func settingsRowRect(i int) rect { return centered(baseW/2, 148+float64(i)*50, 600, 44) }
 
-func settingsStartRect(i int) rect { return centered(baseW/2, 156+float64(i)*54+4, 260, 44) }
+func settingsStartRect(i int) rect { return centered(baseW/2, 148+float64(i)*50+2, 260, 42) }
 
 // settingsArrows are the ◀ ▶ buttons around a setting's value.
 func settingsArrows(row rect) (left, right rect) {
-	left = rect{row.X + row.W - 290, row.Y + 6, 34, 34}
-	right = rect{row.X + row.W - 40, row.Y + 6, 34, 34}
+	left = rect{row.X + row.W - 290, row.Y + 5, 34, 34}
+	right = rect{row.X + row.W - 40, row.Y + 5, 34, 34}
 	return left, right
 }
 
 func settingsTextField(row rect) rect {
 	left, right := settingsArrows(row)
-	return rect{left.X, row.Y + 6, right.X + right.W - left.X, row.H - 12}
+	return rect{left.X, row.Y + 5, right.X + right.W - left.X, row.H - 10}
 }
 
 func promptCard() rect { return centered(baseW/2, 236, 580, 240) }
@@ -93,6 +93,29 @@ func promptField() rect {
 func promptButtons() (back, ok rect) {
 	c := promptCard()
 	return rect{c.cx() - 170, c.Y + 172, 160, 42}, rect{c.cx() + 10, c.Y + 172, 160, 42}
+}
+
+func joinCard() rect { return centered(baseW/2, 206, 580, 316) }
+
+func joinFieldRect(i int) rect {
+	c := joinCard()
+	if i == 1 {
+		return rect{c.X + 30, c.Y + 184, c.W - 60, 44}
+	}
+	return rect{c.X + 30, c.Y + 96, c.W - 60, 44}
+}
+
+func joinButtons() (back, ok rect) {
+	c := joinCard()
+	return rect{c.cx() - 170, c.Y + 250, 160, 42}, rect{c.cx() + 10, c.Y + 250, 160, 42}
+}
+
+func winMeterToggleRect() rect {
+	return rect{guiSideX, guiBotGrid + guiGridH - 28, 148, 28}
+}
+
+func soundToggleRect() rect {
+	return rect{guiSideX + 158, guiBotGrid + guiGridH - 28, 148, 28}
 }
 
 func lobbyCard() rect { return centered(baseW/2, 150, 660, 420) }

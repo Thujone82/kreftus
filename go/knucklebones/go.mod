@@ -12,6 +12,8 @@ require (
 	golang.org/x/term v0.17.0
 )
 
+require github.com/ebitengine/oto/v3 v3.4.0 // indirect
+
 // Ebiten's hideconsole FreeConsoles at init; the GUI helper manages the console itself.
 replace github.com/ebitengine/hideconsole => ./internal/hideconsolestub
 

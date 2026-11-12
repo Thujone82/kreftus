@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -216,4 +218,298 @@ func TestRoomFull(t *testing.T) {
 	if other.errText != errRoomFull {
 		t.Fatalf("third player got %q", other.errText)
 	}
+}
+
+func TestReadLoopRejectsOversizedLine(t *testing.T) {
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+
+	events := make(chan netEvent, 4)
+	done := make(chan struct{})
+	defer close(done)
+	go readLoop(1, c1, events, done)
+
+	go func() {
+		_, _ = c2.Write([]byte(strings.Repeat("x", maxWireMsgBytes+128) + "\n"))
+	}()
+
+	select {
+	case ev := <-events:
+		if ev.kind != evClosed {
+			t.Fatalf("got event %q, want %q", ev.kind, evClosed)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for oversized line rejection")
+	}
+}
+
+func TestClientRejectsInvalidStateAndArbitraryErrorText(t *testing.T) {
+	c := &netClient{connID: 1, events: make(chan netEvent, 4), done: make(chan struct{})}
+	a, b := net.Pipe()
+	defer a.Close()
+	defer b.Close()
+	c.conn = a
+
+	bad := newSession(modeOnline, [2]string{"Host", "Guest"}, "", 1, Rules{}, testRNG())
+	bad.Match.Dice[0] = 9 // invalid die value
+	c.handle(netEvent{kind: evMsg, id: 1, msg: netMsg{Type: msgState, State: bad}}, time.Now())
+	if c.errText != errBadState || !c.fatal || c.s != nil {
+		t.Fatalf("expected errBadState fatal rejection, got err=%q fatal=%v s=%v", c.errText, c.fatal, c.s)
+	}
+
+	c2 := &netClient{connID: 1}
+	c2.conn = b
+	c2.handle(netEvent{kind: evMsg, id: 1, msg: netMsg{Type: msgError, Text: "\x1b[2Jspoofed text"}}, time.Now())
+	if c2.errText != errRejected {
+		t.Fatalf("unexpected error mapping: %q", c2.errText)
+	}
+}
+
+func TestHostThrottlesAimBroadcast(t *testing.T) {
+	h, c := startPair(t, hostConfig{BestOf: 1})
+	// Move into host's turn.
+	for h.s.Match.Turn != 0 {
+		c.place(c.s.Match.LegalMoves()[0])
+		pump(t, h, c, func() bool { return h.s.Match.Turn == 0 || h.s.Phase != phasePlay })
+		if h.s.Phase != phasePlay {
+			return
+		}
+	}
+	now := time.Now()
+	h.lastAimAt = now
+	h.s.Aiming = false
+	h.onMsg(netMsg{Type: msgAim, Col: 0, Die: 0}, now)
+	// Above wouldn't accept Turn != 1; verify direct aim coalesces within aimMinInterval.
+	h.aim(1, 0)
+	if !h.aimPending {
+		t.Fatal("expected aim to coalesce inside aimMinInterval")
+	}
+	h.tick(now.Add(aimMinInterval + time.Millisecond))
+	if h.aimPending {
+		t.Fatal("expected tick to flush coalesced aim")
+	}
+}
+
+func pumpAll(t *testing.T, h *netHost, clients []*netClient, done func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !done() {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for clients")
+		}
+		progressed := false
+		for {
+			select {
+			case ev := <-h.events:
+				h.handle(ev, time.Now())
+				progressed = true
+			default:
+				goto drainedHost
+			}
+		}
+	drainedHost:
+		for _, cl := range clients {
+			for {
+				select {
+				case ev := <-cl.events:
+					cl.handle(ev, time.Now())
+					progressed = true
+				default:
+					goto drainedClient
+				}
+			}
+		drainedClient:
+		}
+		if !progressed {
+			time.Sleep(10 * time.Millisecond)
+			now := time.Now()
+			h.tick(now)
+			for _, cl := range clients {
+				cl.tick(now)
+			}
+		}
+	}
+}
+
+func TestRoomCodeAuthAndHMAC(t *testing.T) {
+	h, err := startHost("Host", 0, hostConfig{BestOf: 1, BindIP: "127.0.0.1", RoomCode: "LAMB-42"}, testRNG())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.leave()
+	addr := h.ln.Addr().String()
+	if !strings.HasPrefix(addr, "127.0.0.1:") {
+		t.Fatalf("expected 127.0.0.1 bind, got %s", addr)
+	}
+
+	// Missing room code -> errBadAuth.
+	missing := startClient("NoCode", addr)
+	defer missing.leave()
+	pumpAll(t, h, []*netClient{missing}, func() bool { return missing.errText != "" })
+	if missing.errText != errBadAuth {
+		t.Fatalf("missing room code got %q, want %q", missing.errText, errBadAuth)
+	}
+
+	// Wrong room code -> errBadAuth.
+	wrong := startClientWithCode("Wrong", addr, "WRONG")
+	defer wrong.leave()
+	pumpAll(t, h, []*netClient{wrong}, func() bool { return wrong.errText != "" })
+	if wrong.errText != errBadAuth {
+		t.Fatalf("wrong room code got %q, want %q", wrong.errText, errBadAuth)
+	}
+
+	// Correct room code connects cleanly.
+	good := startClientWithCode("Guest", addr, "LAMB-42")
+	defer good.leave()
+	pump(t, h, good, func() bool { return good.s != nil && h.s != nil })
+
+	// Play to completion with HMAC-signed messages.
+	for h.s.Phase == phasePlay {
+		moves := h.s.Match.Moves
+		if h.s.Match.Turn == 0 {
+			h.place(h.s.Match.LegalMoves()[0])
+		} else {
+			good.place(good.s.Match.LegalMoves()[0])
+		}
+		pump(t, h, good, func() bool { return good.s.Match.Moves > moves || good.s.Phase != phasePlay })
+	}
+	pump(t, h, good, func() bool { return good.s.Phase == phaseGameOver })
+	if good.fairness() != fairVerified {
+		t.Fatalf("expected fairVerified after completed round, got %d", good.fairness())
+	}
+
+	// Tampered wire MAC is rejected on host.
+	badMsg := netMsg{Type: msgPing, Seq: h.rxSeq + 1, MAC: strings.Repeat("00", 32)}
+	if h.onMsg(badMsg, time.Now()) {
+		t.Fatal("expected tampered HMAC message to be rejected")
+	}
+	if h.authed {
+		t.Fatal("expected host to drop authentication on invalid wire MAC")
+	}
+}
+
+func TestOpenRoomRejectsUnexpectedRoomCode(t *testing.T) {
+	h, err := startHost("Host", 0, hostConfig{BestOf: 1}, testRNG())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.leave()
+
+	withCode := startClientWithCode("Guest", fmt.Sprintf("127.0.0.1:%d", h.port), "SECRET")
+	defer withCode.leave()
+	pumpAll(t, h, []*netClient{withCode}, func() bool { return withCode.errText != "" })
+	if withCode.errText != errBadAuth {
+		t.Fatalf("unexpected-code client got %q, want %q", withCode.errText, errBadAuth)
+	}
+}
+
+func TestProtocolV1Rejected(t *testing.T) {
+	h, err := startHost("Host", 0, hostConfig{BestOf: 1}, testRNG())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.leave()
+
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", h.port), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	done := make(chan struct{})
+	defer close(done)
+	events := make(chan netEvent, 8)
+	go readLoop(1, conn, events, done)
+
+	// Wait for host challenge while pumping host.
+	deadline := time.Now().Add(3 * time.Second)
+	gotChallenge := false
+	for !gotChallenge && time.Now().Before(deadline) {
+		select {
+		case ev := <-h.events:
+			h.handle(ev, time.Now())
+		case ev := <-events:
+			if ev.kind == evMsg && ev.msg.Type == msgChallenge {
+				if ev.msg.Version != protocolVersion {
+					t.Fatalf("challenge version = %d, want %d", ev.msg.Version, protocolVersion)
+				}
+				gotChallenge = true
+			}
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	if !gotChallenge {
+		t.Fatal("did not receive msgChallenge")
+	}
+
+	if err := sendMsg(conn, netMsg{
+		Type:    msgHello,
+		Version: 1,
+		Name:    "OldClient",
+		Token:   newToken(),
+		Seed:    newRandomHex(32),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var gotErr string
+	for gotErr == "" && time.Now().Before(deadline) {
+		select {
+		case ev := <-h.events:
+			h.handle(ev, time.Now())
+		case ev := <-events:
+			if ev.kind == evMsg && ev.msg.Type == msgError {
+				gotErr = ev.msg.Text
+			}
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	if gotErr != errOldProtocol {
+		t.Fatalf("v1 hello got %q, want %q", gotErr, errOldProtocol)
+	}
+}
+
+func TestFairPlayMultiRoundAndCheatDetection(t *testing.T) {
+	h, c := startPair(t, hostConfig{BestOf: 3})
+
+	playRound := func() {
+		for h.s.Phase == phasePlay {
+			moves := h.s.Match.Moves
+			if h.s.Match.Turn == 0 {
+				h.place(h.s.Match.LegalMoves()[0])
+			} else {
+				c.place(c.s.Match.LegalMoves()[0])
+			}
+			pump(t, h, c, func() bool { return c.s.Match.Moves > moves || c.s.Phase != phasePlay })
+		}
+	}
+
+	playRound()
+	if c.fairness() != fairVerified {
+		t.Fatalf("round 1 fairness = %d, want fairVerified", c.fairness())
+	}
+
+	// Continue to round 2 (or rematch if needed) and verify commit rotation.
+	if h.s.Phase == phaseRoundOver {
+		h.vote(voteContinue)
+		c.vote(voteContinue)
+		pump(t, h, c, func() bool { return c.s.Round == 2 && c.s.Phase == phasePlay })
+		playRound()
+		if c.fairness() != fairVerified {
+			t.Fatalf("round 2 fairness = %d, want fairVerified", c.fairness())
+		}
+	}
+
+	// Cheat detection on synthetic forged reveal / forged rolls.
+	h2, c2 := startPair(t, hostConfig{BestOf: 1})
+	badState := *c2.s
+	badState.Phase = phaseRoundOver
+	badState.HostReveal = newRandomHex(32) // does not match expectedCommit
+	badState.RoundRolls = [][2]int{{1, 0}}
+	c2.checkFairPlay(&badState)
+	if c2.fairness() != fairFailed {
+		t.Fatalf("expected fairFailed on bad reveal, got %d", c2.fairness())
+	}
+	_ = h2
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	xdraw "golang.org/x/image/draw"
 )
 
@@ -20,14 +21,77 @@ const guiAvailable = true
 //go:embed die.png
 var diePNG []byte
 
+type frameSig struct {
+	w, h          int
+	view          int
+	menuIndex     int
+	setIndex      int
+	setupMode     string
+	overlay       int
+	overlayScroll int
+	guideScroll   int
+	resultIndex   int
+	confirmIndex  int
+	cursor        int
+	dieSel        int
+	hideResult    bool
+	theme         string
+	input         string
+	inputPos      int
+	note          string
+	difficulty    string
+	bestOf        int
+	rules         Rules
+	turnSeconds   int
+	port          int
+	bindIP        string
+	hostRoomCode  string
+	joinCode      string
+	joinField     int
+	sound         bool
+	colorblind    bool
+	winMeter      bool
+	replayActive  bool
+	replayStep    int
+	fairness      int
+	player2       string
+	hoverTag      int
+	clockTick     int64
+	sessPhase     string
+	sessRound     int
+	sessSeries    int
+	sessMoves     int
+	sessTurn      int
+	sessDice      [2]int
+	sessAiming    bool
+	sessAimCol    int
+	sessAimDie    int
+	sessConnected [2]bool
+	sessVotes     [2]string
+	sessForfeit   bool
+	sessLogLen    int
+	sessHistLen   int
+	oppGone       bool
+	lobbyErr      string
+	lobbyPort     int
+	turnSecLeft   int
+	discSecLeft   int
+}
+
 type guiApp struct {
-	g      *game
-	w, h   int
-	vp     viewport
-	logo   *ebiten.Image
-	mouseX float64
-	mouseY float64
-	chars  []rune
+	g             *game
+	w, h          int
+	vp            viewport
+	logo          *ebiten.Image
+	mouseX        float64
+	mouseY        float64
+	chars         []rune
+	faceCache     map[faceKey]*text.GoTextFace
+	dieCache      map[dieKey]*ebiten.Image
+	dieScaleMilli int
+	frame         *ebiten.Image
+	lastSig       frameSig
+	dirty         bool
 }
 
 func runGUI() error {
@@ -36,18 +100,23 @@ func runGUI() error {
 		return err
 	}
 	var icons []image.Image
-	for _, n := range []int{16, 32, 48, 64, 128, 256} {
+	for _, n := range []int{16, 32, 48, 64, 128} {
 		icons = append(icons, scaleImage(src, n))
 	}
+	logoImg := src
+	if src.Bounds().Dx() != 256 || src.Bounds().Dy() != 256 {
+		logoImg = scaleImage(src, 256)
+	}
+	icons = append(icons, logoImg)
 	ebiten.SetWindowIcon(icons)
 	ebiten.SetWindowTitle("Knucklebones")
 	ebiten.SetWindowSize(1100, 760)
 	ebiten.SetWindowSizeLimits(640, 440, -1, -1)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetWindowClosingHandled(true)
-	ebiten.SetScreenClearedEveryFrame(true)
+	ebiten.SetScreenClearedEveryFrame(false)
 
-	a := &guiApp{g: newGame(), logo: ebiten.NewImageFromImage(scaleImage(src, 256))}
+	a := &guiApp{g: newGame(), logo: ebiten.NewImageFromImage(logoImg), dirty: true}
 	a.g.width, a.g.height = 80, 30
 	defer a.g.leaveGame()
 	initFonts()
@@ -86,29 +155,259 @@ func (a *guiApp) Update() error {
 					if g.ctl == nil {
 						break drain
 					}
-					g.ctl.handle(ev, now)
+					if g.ctl.handle(ev, now) {
+						a.dirty = true
+					}
 				default:
 					break drain
 				}
 			}
 		}
-		if g.ctl != nil {
-			g.ctl.tick(now)
+		if g.ctl != nil && g.ctl.tick(now) {
+			a.dirty = true
 		}
 	}
 	g.syncView()
 	a.pageSizes()
 	for _, ev := range a.keyEvents() {
+		a.dirty = true
 		if g.handleKey(ev) {
 			return ebiten.Termination
 		}
 		g.afterChange()
 	}
 	if a.mouse() {
+		for _, id := range g.drainSounds() {
+			_ = playPCMSound(id)
+		}
 		return ebiten.Termination
 	}
 	g.afterChange()
+	for _, id := range g.drainSounds() {
+		_ = playPCMSound(id)
+	}
 	return nil
+}
+
+func (a *guiApp) hoverTag(x, y float64) int {
+	g := a.g
+	switch g.view {
+	case viewMenu:
+		for i := 0; i < menuCount; i++ {
+			if menuItemRect(i).has(x, y) {
+				return 1 + i
+			}
+		}
+	case viewSettings:
+		if backButton().has(x, y) {
+			return 1
+		}
+		for i, row := range g.settingRows() {
+			if row == rowStart || row == rowDone {
+				if settingsStartRect(i).has(x, y) {
+					return 100 + i
+				}
+				continue
+			}
+			r := settingsRowRect(i)
+			if r.has(x, y) {
+				left, right := settingsArrows(r)
+				if left.has(x, y) {
+					return 200 + i*4 + 1
+				}
+				if right.has(x, y) {
+					return 200 + i*4 + 2
+				}
+				return 200 + i*4
+			}
+		}
+	case viewName:
+		back, ok := promptButtons()
+		if back.has(x, y) {
+			return 1
+		}
+		if ok.has(x, y) {
+			return 2
+		}
+	case viewJoin:
+		back, ok := joinButtons()
+		if back.has(x, y) {
+			return 1
+		}
+		if ok.has(x, y) {
+			return 2
+		}
+		if joinFieldRect(0).has(x, y) {
+			return 3
+		}
+		if joinFieldRect(1).has(x, y) {
+			return 4
+		}
+	case viewLobby:
+		l, _ := g.ctl.(lobby)
+		retry := l != nil && l.lobbyError() != ""
+		back, again := lobbyButtons(retry)
+		if back.has(x, y) {
+			return 1
+		}
+		if retry && again.has(x, y) {
+			return 2
+		}
+	case viewGuide, viewStats:
+		if backButton().has(x, y) {
+			return 1
+		}
+	case viewPlay:
+		if g.ctl == nil || g.ctl.state() == nil {
+			return 0
+		}
+		s := g.ctl.state()
+		switch g.overlay {
+		case overlayResign, overlayLeave:
+			for i, b := range confirmButtons(confirmCard(a.confirmLines(s))) {
+				if b.has(x, y) {
+					return 300 + i
+				}
+			}
+			return 0
+		case overlayLog, overlayHistory:
+			if overlayClose().has(x, y) {
+				return 350
+			}
+			return 0
+		}
+		for i, b := range playButtons(len(g.playActions(s))) {
+			if b.has(x, y) {
+				return 400 + i
+			}
+		}
+		if winMeterToggleRect().has(x, y) {
+			return 480
+		}
+		if soundToggleRect().has(x, y) {
+			return 481
+		}
+		if g.replayActive {
+			return 0
+		}
+		if s.Phase != phasePlay && !g.hideResult {
+			card := resultCard(a.resultLines(s))
+			for i, b := range resultButtons(card, len(g.resultChoices(s))) {
+				if b.has(x, y) {
+					return 500 + i
+				}
+			}
+		}
+		if g.myTurn(s) && !g.rolling() {
+			if c := columnAt(x, y); c >= 0 {
+				return 600 + c
+			}
+			if s.Match.Dice[1] != 0 {
+				isTop := g.moverOnTop(s)
+				for i := 0; i < 2; i++ {
+					if trayDieRect(isTop, i).has(x, y) {
+						return 700 + i
+					}
+				}
+			}
+		}
+	}
+	return 0
+}
+
+func (a *guiApp) frameSignature(now time.Time) (frameSig, bool) {
+	g := a.g
+	st := g.save.Settings
+	sig := frameSig{
+		w:             a.w,
+		h:             a.h,
+		view:          g.view,
+		menuIndex:     g.menuIndex,
+		setIndex:      g.setIndex,
+		setupMode:     g.setupMode,
+		overlay:       g.overlay,
+		overlayScroll: g.overlayScroll,
+		guideScroll:   g.guideScroll,
+		resultIndex:   g.resultIndex,
+		confirmIndex:  g.confirmIndex,
+		cursor:        g.cursor,
+		dieSel:        g.dieSel,
+		hideResult:    g.hideResult,
+		theme:         g.save.Theme,
+		input:         g.input,
+		inputPos:      g.inputPos,
+		note:          g.note,
+		difficulty:    st.Difficulty,
+		bestOf:        st.BestOf,
+		rules:         st.Rules,
+		turnSeconds:   st.TurnSeconds,
+		port:          st.Port,
+		bindIP:        st.BindIP,
+		hostRoomCode:  g.hostRoomCode,
+		joinCode:      g.joinCode,
+		joinField:     g.joinField,
+		sound:         st.Sound,
+		colorblind:    st.Colorblind,
+		winMeter:      st.WinMeter,
+		replayActive:  g.replayActive,
+		replayStep:    g.replayStep,
+		player2:       st.Player2,
+		hoverTag:      a.hoverTag(a.mouseX, a.mouseY),
+	}
+	anim := false
+	switch g.view {
+	case viewName, viewJoin:
+		sig.clockTick = now.UnixMilli() / 500
+	case viewSettings:
+		rows := g.settingRows()
+		if g.setIndex >= 0 && g.setIndex < len(rows) && (rows[g.setIndex] == rowPlayer2 || rows[g.setIndex] == rowPort || rows[g.setIndex] == rowRoomCode) {
+			sig.clockTick = now.UnixMilli() / 500
+		}
+	case viewLobby:
+		if l, ok := g.ctl.(lobby); ok {
+			sig.lobbyErr = l.lobbyError()
+			sig.lobbyPort = l.hostPort()
+			if sig.lobbyPort > 0 {
+				sig.clockTick = int64(time.Since(l.waitingSince()).Seconds())
+			} else if sig.lobbyErr == "" {
+				sig.clockTick = now.UnixMilli() / 400
+			}
+		}
+	case viewPlay:
+		if g.ctl != nil {
+			sig.oppGone = g.ctl.opponentGone()
+			sig.fairness = g.ctl.fairness()
+			if s := g.ctl.state(); s != nil {
+				sig.sessPhase = s.Phase
+				sig.sessRound = s.Round
+				sig.sessSeries = s.Series
+				sig.sessMoves = s.Match.Moves
+				sig.sessTurn = s.Match.Turn
+				sig.sessDice = s.Match.Dice
+				sig.sessAiming = s.Aiming
+				sig.sessAimCol = s.AimCol
+				sig.sessAimDie = s.AimDie
+				sig.sessConnected = s.Connected
+				sig.sessVotes = s.Votes
+				sig.sessForfeit = s.Forfeit != nil
+				sig.sessLogLen = len(s.Log)
+				sig.sessHistLen = len(s.History)
+				if left := g.ctl.turnLeft(now); left > 0 {
+					sig.turnSecLeft = int(left.Seconds() + 0.999)
+				}
+				if p, d := g.ctl.disconnectLeft(now); p >= 0 {
+					sig.discSecLeft = p*10000 + int(d.Seconds()+0.999)
+				}
+				if s.Phase == phasePlay && !g.myTurn(s) && !g.rolling() && !g.replayActive {
+					sig.clockTick = now.UnixMilli() / 350
+				}
+			}
+			if g.rolling() || effectProgress(g.effectAt, now) >= 0 {
+				anim = true
+			}
+		}
+	}
+	return sig, anim
 }
 
 // pageSizes sets width and height so PgUp/PgDn page by what the window shows.
@@ -225,7 +524,7 @@ func (a *guiApp) mouse() bool {
 			return send(keyEv(tcell.KeyEscape))
 		}
 		for i, row := range g.settingRows() {
-			if row == rowStart {
+			if row == rowStart || row == rowDone {
 				if settingsStartRect(i).has(x, y) {
 					g.setIndex = i
 					return send(keyEv(tcell.KeyEnter))
@@ -237,13 +536,16 @@ func (a *guiApp) mouse() bool {
 				continue
 			}
 			g.setIndex = i
-			if row == rowPlayer2 || row == rowPort {
+			if row == rowPlayer2 || row == rowPort || row == rowRoomCode {
 				g.focusSettingCaret()
 				field := settingsTextField(r)
 				if field.has(x, y) {
 					value := g.save.Settings.Player2
-					if row == rowPort {
+					switch row {
+					case rowPort:
 						value = g.portEditString()
+					case rowRoomCode:
+						value = g.hostRoomCode
 					}
 					g.inputPos = caretIndexAt(value, x, field.X+12, 17, fontRegular)
 				}
@@ -258,7 +560,7 @@ func (a *guiApp) mouse() bool {
 			}
 			return send(settingClick(row))
 		}
-	case viewName, viewJoin:
+	case viewName:
 		if !click {
 			return false
 		}
@@ -268,6 +570,29 @@ func (a *guiApp) mouse() bool {
 			return false
 		}
 		back, ok := promptButtons()
+		switch {
+		case back.has(x, y):
+			return send(keyEv(tcell.KeyEscape))
+		case ok.has(x, y):
+			return send(keyEv(tcell.KeyEnter))
+		}
+	case viewJoin:
+		if !click {
+			return false
+		}
+		for i := 0; i < 2; i++ {
+			f := joinFieldRect(i)
+			if f.has(x, y) {
+				g.focusJoinField(i)
+				val := g.input
+				if i == 1 {
+					val = g.joinCode
+				}
+				g.inputPos = caretIndexAt(val, x, f.X+12, 18, fontRegular)
+				return false
+			}
+		}
+		back, ok := joinButtons()
 		switch {
 		case back.has(x, y):
 			return send(keyEv(tcell.KeyEscape))
@@ -348,6 +673,16 @@ func (a *guiApp) mousePlay(x, y float64, moved, click bool, wheel float64, send 
 				return send(g.playActions(s)[i].key)
 			}
 		}
+		if winMeterToggleRect().has(x, y) {
+			return send(runeEv('p'))
+		}
+		if soundToggleRect().has(x, y) {
+			return send(runeEv('s'))
+		}
+	}
+
+	if g.replayActive {
+		return false
 	}
 
 	if s.Phase != phasePlay {
