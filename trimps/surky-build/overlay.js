@@ -799,7 +799,7 @@
     });
   }
 
-  function clearAutobuyAndCopyPerks() {
+  function clearAutobuyAndCopyPerks(customPrefix) {
     var clrBtn = $("clear-autobuy-button");
     if (!clrBtn || clrBtn.disabled || typeof window.clearAndAutobuyPerks !== "function") {
       return;
@@ -813,7 +813,110 @@
     var rnText = (typeof props === "object" && props && props.radonSpent > 0)
       ? " (" + formatSci(props.radonSpent) + " Rn spent)"
       : "";
-    copyExportedPerks("Optimized perks" + rnText + " & copied perk string to clipboard!");
+    var prefix = customPrefix || "Optimized perks";
+    copyExportedPerks(prefix + rnText + " — copied perk string to clipboard!");
+  }
+
+  var QUICK_PRESET_MAP = {
+    "1": { value: "ezfarm", label: "Easy Radon" },
+    "2": { value: "tufarm", label: "Difficult Radon" },
+    "3": { value: "push", label: "Push / C^3 / Mayhem" }
+  };
+
+  function resolveFallbackSaveString() {
+    var box = $("save-text-area");
+    if (box && box.value) {
+      var boxCheck = classifySaveString(box.value);
+      if (boxCheck.kind === "save") return { raw: boxCheck.raw, from: "current save" };
+    }
+    try {
+      var savedRaw = localStorage.getItem("trimpsSave");
+      if (savedRaw) {
+        var parsed = JSON.parse(savedRaw);
+        if (parsed && parsed.save) {
+          var sCheck = classifySaveString(parsed.save);
+          if (sCheck.kind === "save") return { raw: sCheck.raw, from: "stored save" };
+        }
+      }
+    } catch (e) {}
+    var shared = getSharedSaveString();
+    if (shared) return { raw: shared, from: "shared save" };
+    return null;
+  }
+
+  function runQuickPresetMacro(keyStr) {
+    var cfg = QUICK_PRESET_MAP[keyStr];
+    if (!cfg) return;
+
+    var presetSelect = $("preset-select");
+    if (presetSelect) {
+      presetSelect.value = cfg.value;
+      if (typeof fillPreset === "function") {
+        fillPreset();
+      }
+    }
+
+    function executeWithSave(rawSave, pastedFresh) {
+      var box = $("save-text-area");
+      if (box && rawSave) {
+        box.value = rawSave;
+      }
+      if (typeof loadSave === "function") {
+        loadSave();
+      }
+      setTimeout(function () {
+        if (!isGameLoaded()) {
+          focusSaveTextarea("Copy your Trimps save to clipboard first, then press " + keyStr + ".", "warn");
+          return;
+        }
+        setSaveCollapsed(true);
+        if (presetSelect) {
+          presetSelect.value = cfg.value;
+          if (typeof fillPreset === "function") {
+            fillPreset();
+          }
+        }
+        var actionDesc = "[" + keyStr + "] " + cfg.label + (pastedFresh ? " (pasted save)" : "");
+        clearAutobuyAndCopyPerks(actionDesc);
+        refreshStatusUI();
+      }, 25);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (txt) {
+        var check = classifySaveString(txt || "");
+        if (check.kind === "save") {
+          executeWithSave(check.raw, true);
+          return;
+        }
+        var fallback = resolveFallbackSaveString();
+        if (fallback) {
+          executeWithSave(fallback.raw, false);
+        } else if (isGameLoaded()) {
+          executeWithSave(null, false);
+        } else {
+          focusSaveTextarea("Clipboard doesn't have a Trimps save — copy your save in Trimps, then press " + keyStr + ".", "warn");
+        }
+      }).catch(function () {
+        var fallback = resolveFallbackSaveString();
+        if (fallback) {
+          executeWithSave(fallback.raw, false);
+        } else if (isGameLoaded()) {
+          executeWithSave(null, false);
+        } else {
+          focusSaveTextarea("Clipboard read blocked — paste your save in the box first, then press " + keyStr + ".", "warn");
+        }
+      });
+    } else {
+      var fallback = resolveFallbackSaveString();
+      if (fallback) {
+        executeWithSave(fallback.raw, false);
+      } else if (isGameLoaded()) {
+        executeWithSave(null, false);
+      } else {
+        focusSaveTextarea("Paste your Trimps save in the box first, then press " + keyStr + ".", "warn");
+      }
+    }
   }
 
   // ---------- DOM Enhancements & Function Wrappers ----------
@@ -862,7 +965,7 @@
             '<span>Collapse</span>' +
           '</button>' +
         '</div>' +
-        '<span class="surky-save-hint">Shortcuts: <kbd class="kbd">V</kbd> Paste · <kbd class="kbd">U</kbd> Edit Save · <kbd class="kbd">A</kbd> Autobuy · <kbd class="kbd">Shift+A</kbd> Autobuy &amp; Copy · <kbd class="kbd">C</kbd> Copy · <kbd class="kbd">?</kbd> Help</span>';
+        '<span class="surky-save-hint">Shortcuts: <kbd class="kbd">1</kbd> Easy · <kbd class="kbd">2</kbd> Hard · <kbd class="kbd">3</kbd> Push · <kbd class="kbd">V</kbd> Paste · <kbd class="kbd">A</kbd>/<kbd class="kbd">Shift+A</kbd> Autobuy · <kbd class="kbd">C</kbd> Copy · <kbd class="kbd">?</kbd> Help</span>';
       saveBox.parentNode.appendChild(toolbar);
     }
 
@@ -899,6 +1002,21 @@
         origSpoilers.addEventListener("change", function () {
           mirrorToggle.checked = origSpoilers.checked;
         });
+      }
+    }
+
+    // Label the top 3 preset options with their 1-key macro shortcuts [1], [2], [3]
+    var presetSel = $("preset-select");
+    if (presetSel && presetSel.options) {
+      for (var pi = 0; pi < presetSel.options.length; pi++) {
+        var opt = presetSel.options[pi];
+        if (opt.value === "ezfarm" && opt.text.indexOf("[1]") === -1) {
+          opt.text = "[1] " + opt.text;
+        } else if (opt.value === "tufarm" && opt.text.indexOf("[2]") === -1) {
+          opt.text = "[2] " + opt.text;
+        } else if (opt.value === "push" && opt.text.indexOf("[3]") === -1) {
+          opt.text = "[3] " + opt.text;
+        }
       }
     }
 
@@ -1100,7 +1218,10 @@
         return;
       }
       var k = ev.key;
-      if (k === "v" || k === "V") {
+      if (k === "1" || k === "2" || k === "3") {
+        ev.preventDefault();
+        runQuickPresetMacro(k);
+      } else if (k === "v" || k === "V") {
         ev.preventDefault();
         pasteSaveFromClipboard();
       } else if (k === "u" || k === "U") {
