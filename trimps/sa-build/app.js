@@ -50,6 +50,293 @@
         break;
       }
     }
+    syncCustomSelect("levelSelect");
+  }
+
+  var customSelects = {};
+  var openCustomSelectState = null;
+
+  function closeCustomSelectMenu(restoreFocus) {
+    var st = openCustomSelectState;
+    if (!st) return;
+    openCustomSelectState = null;
+    if (st.menu && st.menu.parentNode) st.menu.parentNode.removeChild(st.menu);
+    st.menu = null;
+    if (st.trigger) {
+      st.trigger.setAttribute("aria-expanded", "false");
+      if (restoreFocus) {
+        try { st.trigger.focus({ preventScroll: true }); } catch (e) { st.trigger.focus(); }
+      }
+    }
+    if (st.cleanup) {
+      st.cleanup();
+      st.cleanup = null;
+    }
+  }
+
+  function syncCustomSelect(selectId) {
+    var st = customSelects[selectId];
+    var sel = $(selectId);
+    if (!st || !sel) return;
+    var opt = sel.options && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+    var label = opt ? opt.textContent : "";
+    if (st.labelEl && st.labelEl.textContent !== label) st.labelEl.textContent = label;
+    if (openCustomSelectState === st && st.rowEls) {
+      for (var i = 0; i < st.rowEls.length; i++) {
+        st.rowEls[i].classList.toggle("selected", i === sel.selectedIndex);
+        st.rowEls[i].setAttribute("aria-selected", i === sel.selectedIndex ? "true" : "false");
+      }
+    }
+  }
+
+  function openCustomSelectMenu(selectId) {
+    var st = customSelects[selectId];
+    var sel = $(selectId);
+    if (!st || !sel || !sel.options || !sel.options.length) return;
+    if (openCustomSelectState === st) {
+      closeCustomSelectMenu(true);
+      return;
+    }
+    closeCustomSelectMenu(false);
+
+    var trigger = st.trigger;
+    var menu = document.createElement("div");
+    menu.className = "sa-select-menu";
+    menu.setAttribute("role", "listbox");
+    menu.tabIndex = -1;
+
+    var selectedIdx = sel.selectedIndex >= 0 ? sel.selectedIndex : 0;
+    var activeIdx = selectedIdx;
+    var rowEls = [];
+    var typeQuery = "";
+    var typeTimer = null;
+
+    function setActive(idx, ensureVisible) {
+      if (!rowEls.length) return;
+      idx = Math.max(0, Math.min(rowEls.length - 1, idx));
+      if (rowEls[activeIdx]) rowEls[activeIdx].classList.remove("active");
+      activeIdx = idx;
+      var el = rowEls[activeIdx];
+      el.classList.add("active");
+      menu.setAttribute("aria-activedescendant", el.id);
+      if (ensureVisible && el.scrollIntoView) {
+        el.scrollIntoView({ block: "nearest" });
+      }
+    }
+
+    function commitIdx(idx) {
+      var changed = sel.selectedIndex !== idx;
+      sel.selectedIndex = idx;
+      syncCustomSelect(selectId);
+      closeCustomSelectMenu(true);
+      if (changed) {
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+
+    for (var i = 0; i < sel.options.length; i++) {
+      (function (idx) {
+        var opt = sel.options[idx];
+        var item = document.createElement("div");
+        item.id = selectId + "_opt_" + idx;
+        item.className = "sa-select-opt" + (idx === selectedIdx ? " selected active" : "");
+        item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", idx === selectedIdx ? "true" : "false");
+
+        var txt = document.createElement("span");
+        txt.textContent = opt.textContent;
+        item.appendChild(txt);
+
+        if (idx === selectedIdx) {
+          var mark = document.createElement("span");
+          mark.className = "sa-select-opt-mark";
+          mark.textContent = "●";
+          item.appendChild(mark);
+        }
+
+        item.addEventListener("mouseenter", function () { setActive(idx, false); });
+        item.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          commitIdx(idx);
+        });
+        menu.appendChild(item);
+        rowEls.push(item);
+      })(i);
+    }
+
+    var host = (trigger.closest && trigger.closest("dialog")) || document.body;
+    menu.style.visibility = "hidden";
+    menu.style.left = "0px";
+    menu.style.top = "0px";
+    host.appendChild(menu);
+
+    var r = trigger.getBoundingClientRect();
+    var minW = Math.max(r.width, (st.opts && st.opts.menuMinWidth) || 190);
+    menu.style.minWidth = Math.round(minW) + "px";
+
+    var spaceBelow = window.innerHeight - r.bottom - 12;
+    var spaceAbove = r.top - 12;
+    var openAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+    var maxH = Math.min(460, Math.max(140, openAbove ? spaceAbove : spaceBelow));
+    menu.style.maxHeight = Math.round(maxH) + "px";
+
+    var menuW = Math.max(minW, menu.offsetWidth);
+    var left = Math.max(8, Math.min(window.innerWidth - menuW - 8, r.left));
+    var top = openAbove
+      ? Math.max(8, r.top - Math.min(menu.scrollHeight, maxH) - 4)
+      : (r.bottom + 4);
+    menu.style.left = Math.round(left) + "px";
+    menu.style.top = Math.round(top) + "px";
+
+    // Center the active/current level vertically in the dropdown list on open.
+    var activeEl = rowEls[activeIdx];
+    if (activeEl) {
+      var mRect = menu.getBoundingClientRect();
+      var aRect = activeEl.getBoundingClientRect();
+      var centerOffset = (aRect.top - mRect.top) + menu.scrollTop + (aRect.height / 2);
+      var maxScroll = Math.max(0, menu.scrollHeight - menu.clientHeight);
+      menu.scrollTop = Math.max(0, Math.min(maxScroll, Math.round(centerOffset - (menu.clientHeight / 2))));
+      menu.setAttribute("aria-activedescendant", activeEl.id);
+    }
+    menu.style.visibility = "visible";
+
+    function onDocPointerDown(ev) {
+      if (menu.contains(ev.target) || trigger.contains(ev.target)) return;
+      closeCustomSelectMenu(false);
+    }
+    function onWinScroll(ev) {
+      if (ev.target === menu || (ev.target && menu.contains && menu.contains(ev.target))) return;
+      closeCustomSelectMenu(false);
+    }
+    function onWinResize() {
+      closeCustomSelectMenu(false);
+    }
+    menu.addEventListener("keydown", function (ev) {
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault(); ev.stopPropagation();
+        setActive(activeIdx + 1, true);
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault(); ev.stopPropagation();
+        setActive(activeIdx - 1, true);
+      } else if (ev.key === "PageDown") {
+        ev.preventDefault(); ev.stopPropagation();
+        setActive(activeIdx + 10, true);
+      } else if (ev.key === "PageUp") {
+        ev.preventDefault(); ev.stopPropagation();
+        setActive(activeIdx - 10, true);
+      } else if (ev.key === "Home") {
+        ev.preventDefault(); ev.stopPropagation();
+        setActive(0, true);
+      } else if (ev.key === "End") {
+        ev.preventDefault(); ev.stopPropagation();
+        setActive(rowEls.length - 1, true);
+      } else if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault(); ev.stopPropagation();
+        commitIdx(activeIdx);
+      } else if (ev.key === "Escape") {
+        ev.preventDefault(); ev.stopPropagation();
+        closeCustomSelectMenu(true);
+      } else if (ev.key === "Tab") {
+        closeCustomSelectMenu(false);
+      } else if (/^[0-9]$/.test(ev.key)) {
+        ev.preventDefault(); ev.stopPropagation();
+        typeQuery += ev.key;
+        if (typeTimer) clearTimeout(typeTimer);
+        typeTimer = setTimeout(function () { typeQuery = ""; }, 700);
+        var needle = "sa " + typeQuery;
+        for (var j = 0; j < sel.options.length; j++) {
+          if (sel.options[j].value.indexOf(typeQuery) === 0 ||
+              sel.options[j].textContent.toLowerCase().indexOf(needle) === 0) {
+            setActive(j, true);
+            break;
+          }
+        }
+      }
+    });
+
+    document.addEventListener("mousedown", onDocPointerDown, true);
+    window.addEventListener("scroll", onWinScroll, true);
+    window.addEventListener("resize", onWinResize);
+
+    st.menu = menu;
+    st.rowEls = rowEls;
+    st.cleanup = function () {
+      if (typeTimer) clearTimeout(typeTimer);
+      document.removeEventListener("mousedown", onDocPointerDown, true);
+      window.removeEventListener("scroll", onWinScroll, true);
+      window.removeEventListener("resize", onWinResize);
+      st.rowEls = null;
+    };
+    openCustomSelectState = st;
+    trigger.setAttribute("aria-expanded", "true");
+    try { menu.focus({ preventScroll: true }); } catch (e) { menu.focus(); }
+  }
+
+  function initCenteredSelect(selectId, opts) {
+    var sel = $(selectId);
+    if (!sel || customSelects[selectId]) return;
+    sel.classList.add("sa-select-native");
+    sel.tabIndex = -1;
+    sel.setAttribute("aria-hidden", "true");
+
+    var trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "sa-select-trigger" + (opts && opts.compact ? " compact" : "");
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+
+    var labelEl = document.createElement("span");
+    labelEl.className = "sa-select-value";
+    trigger.appendChild(labelEl);
+
+    var caret = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    caret.setAttribute("viewBox", "0 0 24 24");
+    caret.setAttribute("fill", "none");
+    caret.setAttribute("stroke", "currentColor");
+    caret.setAttribute("stroke-width", "2.4");
+    caret.setAttribute("stroke-linecap", "round");
+    caret.setAttribute("stroke-linejoin", "round");
+    caret.setAttribute("class", "sa-select-caret");
+    caret.setAttribute("aria-hidden", "true");
+    var poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    poly.setAttribute("points", "6 9 12 15 18 9");
+    caret.appendChild(poly);
+    trigger.appendChild(caret);
+
+    sel.parentNode.insertBefore(trigger, sel.nextSibling);
+
+    trigger.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      openCustomSelectMenu(selectId);
+    });
+    trigger.addEventListener("keydown", function (ev) {
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp" || ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openCustomSelectMenu(selectId);
+      }
+    });
+
+    var lbl = document.querySelector('label[for="' + selectId + '"]');
+    if (lbl) {
+      lbl.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        trigger.focus();
+        openCustomSelectMenu(selectId);
+      });
+    }
+
+    customSelects[selectId] = {
+      id: selectId,
+      sel: sel,
+      trigger: trigger,
+      labelEl: labelEl,
+      opts: opts || {},
+      menu: null,
+      rowEls: null,
+      cleanup: null
+    };
+    syncCustomSelect(selectId);
   }
 
   function setLevelMode(level, mode) {
@@ -521,44 +808,95 @@ var ONE_TIMER_MILESTONES = [
     };
   }
 
-  function getCurrentCombatSecPerKill(lvl) {
-    var l = Number(lvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
-    // 1. Live simulator session if active on this level
+  var levelSimCache = {};
+
+  function getCurrentCombatStats(lvl) {
+    var l = Number(lvl) || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
+    // 1. Live simulator session if active on this exact level
     if (simState.session && simState.config && Number(simState.config.level) === l) {
       var snap = simState.session.getState();
       if (snap) {
         var sKillSec = (snap.avgLast100Sec && snap.avgLast100Sec > 0) ? snap.avgLast100Sec : snap.timePerKill;
-        if (sKillSec && sKillSec > 0) {
-          var sWr = (snap.winRate && snap.winRate > 0) ? (snap.winRate / 100) : 1;
-          return sKillSec / sWr;
+        var sWr = (snap.winRate && snap.winRate > 0) ? (snap.winRate / 100) : 0;
+        var sEffK = (sKillSec && sKillSec > 0 && sWr > 0) ? (sKillSec / sWr) : Infinity;
+        if (snap.dustPs != null && isFinite(snap.dustPs)) {
+          return {
+            level: l,
+            dustPs: snap.dustPs,
+            secPerKill: (sKillSec && sKillSec > 0) ? sKillSec : Infinity,
+            effSecPerKill: sEffK,
+            winRate: snap.winRate || 0,
+            kills: snap.kills || 0,
+            fromLiveSession: true
+          };
         }
       }
     }
-    // 2. Cached simulated kill duration for current equipped items
-    var cacheKey = "curEquipped@" + l;
-    if (pushSimCache[cacheKey] !== undefined) {
-      return pushSimCache[cacheKey];
+    var sig = (state.save && state.ab) ? getLoadoutSignature() : "nosave";
+    var cacheKey = sig + "@" + l;
+    if (levelSimCache[cacheKey]) {
+      return levelSimCache[cacheKey];
     }
-    if (typeof SASimEngine !== "undefined" && state.save) {
+    // 2. Reuse calibrated live save farm results when requesting the same level
+    if (state.simulatedDustPs != null && Number(state.simulatedLevel) === l && state.simulatedDustTimePerKill > 0) {
+      var fWr = (state.simulatedDustWinRate && state.simulatedDustWinRate > 0) ? (state.simulatedDustWinRate / 100) : 0;
+      var fEffK = fWr > 0 ? (state.simulatedDustTimePerKill / fWr) : Infinity;
+      var fightStats = {
+        level: l,
+        dustPs: state.simulatedDustPs,
+        secPerKill: state.simulatedDustTimePerKill,
+        effSecPerKill: fEffK,
+        winRate: state.simulatedDustWinRate || 0,
+        kills: state.simulatedDustWinRate > 0 ? 1 : 0
+      };
+      levelSimCache[cacheKey] = fightStats;
+      return fightStats;
+    }
+    // 3. Run and cache a combat simulation on target level l using current loadout
+    if (typeof SASimEngine !== "undefined" && state.save && getCurrentEquippedCombatBuild(l)) {
       try {
-        var curB = getCurrentEquippedCombatBuild(l);
-        if (curB) {
-          var res = SASimEngine.runBatch({ save: state.save, build: curB, level: l }, { kills: 25, maxFights: 40 });
-          if (res && res.kills > 0 && res.secPerKill > 0) {
-            var wr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 1;
-            var effK = res.secPerKill / wr;
-            pushSimCache[cacheKey] = effK;
-            return effK;
-          } else if (res && res.winRate === 0) {
-            pushSimCache[cacheKey] = Infinity;
-            return Infinity;
-          }
+        var res = SASimEngine.runBatch({ save: state.save, level: l }, { kills: 300, maxFights: 600, ticks: 150000 });
+        if (res) {
+          var wr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 0;
+          var rawK = (res.kills > 0 && res.secPerKill > 0) ? res.secPerKill : Infinity;
+          var effK = (isFinite(rawK) && wr > 0) ? (rawK / wr) : Infinity;
+          var stats = {
+            level: l,
+            dustPs: (res.dustPs && res.dustPs > 0 && isFinite(res.dustPs)) ? res.dustPs : 0,
+            secPerKill: rawK,
+            effSecPerKill: effK,
+            winRate: res.winRate || 0,
+            kills: res.kills || 0
+          };
+          levelSimCache[cacheKey] = stats;
+          return stats;
         }
       } catch (e) {
-        console.warn("Error simulating current combat secPerKill:", e);
+        console.warn("Error simulating current combat stats on SA " + l + ":", e);
       }
     }
     return null;
+  }
+
+  function levelCurrentDustPs(lvl, recommended) {
+    var over = parseNum(state.dustOverride);
+    if (isFinite(over) && over > 0) return over;
+    var targetLvl = Number(lvl) || state.level || 1;
+    var stats = getCurrentCombatStats(targetLvl);
+    if (stats && typeof stats.dustPs === "number" && isFinite(stats.dustPs)) {
+      return stats.dustPs;
+    }
+    var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || targetLvl;
+    if (targetLvl === Number(fightLevel) && state.simulatedDustPs && state.simulatedDustPs > 0) {
+      return state.simulatedDustPs;
+    }
+    if (recommended && recommended.d) return recommended.d;
+    return sheetDustPs(recommended) || 0;
+  }
+
+  function getCurrentCombatSecPerKill(lvl) {
+    var stats = getCurrentCombatStats(lvl);
+    return stats ? stats.effSecPerKill : null;
   }
 
   function getActiveBuildForLevel(lvl) {
@@ -1677,6 +2015,7 @@ var ONE_TIMER_MILESTONES = [
       toast("Unlocked advisor for SA " + state.level);
     }
     pushSimCache = {};
+    levelSimCache = {};
     state._cachedDiag = null;
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
@@ -1977,6 +2316,7 @@ var ONE_TIMER_MILESTONES = [
     if (selected && SA_DATA.builds[String(selected)]) sel.value = String(selected);
     else if (sel.options.length) sel.selectedIndex = 0;
     state.level = Number(sel.value);
+    syncCustomSelect("levelSelect");
   }
 
   function stepLevel(delta) {
@@ -1985,6 +2325,7 @@ var ONE_TIMER_MILESTONES = [
     var nextIdx = Math.max(0, Math.min(sel.options.length - 1, sel.selectedIndex + delta));
     if (nextIdx !== sel.selectedIndex) {
       sel.selectedIndex = nextIdx;
+      syncCustomSelect("levelSelect");
       render();
     }
   }
@@ -1995,6 +2336,7 @@ var ONE_TIMER_MILESTONES = [
     if (!sel) return;
     if (SA_DATA.builds[String(lv)]) {
       sel.value = String(lv);
+      syncCustomSelect("levelSelect");
       render();
     }
   }
@@ -2474,7 +2816,7 @@ var ONE_TIMER_MILESTONES = [
     }
   }
 
-  function betterBuilds(rec, rateOverride) {
+  function betterBuilds(rec, cmpRateOverride) {
     var mode = getLevelMode(state.level);
     if (mode === "push") {
       var curCombatK = getCurrentCombatSecPerKill(state.level);
@@ -2485,29 +2827,22 @@ var ONE_TIMER_MILESTONES = [
         return (!rec || bk < curK - 0.01) && !runnable(b) && allowedUpgrade(b);
       });
     }
-    var cur = 0;
-    if (typeof rateOverride === "number" && rateOverride > 0) {
-      cur = rateOverride;
-    } else if (rec && rec.d) {
-      cur = rec.d;
-    } else {
-      var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
-      if (Number(state.level) === Number(fightLevel)) {
-        cur = activeDustPs(rec) || (state.simulatedDustPs || 0);
-      } else {
-        var cK = getCurrentCombatSecPerKill(state.level);
-        cur = (cK && isFinite(cK) && cK > 0) ? (activeDustPs(rec) || 0) : 0;
-      }
-    }
+    var cur = (typeof cmpRateOverride === "number" && cmpRateOverride >= 0)
+      ? cmpRateOverride
+      : Math.max(levelCurrentDustPs(state.level, rec), rec ? (rec.d || 0) : 0);
     return buildsFor(state.level).filter(function (b) {
       return (b.d || 0) > cur + 1e-9 && !runnable(b) && allowedUpgrade(b);
     });
   }
 
-  function bestNextUpgrade(rec, rateOverride) {
-    var cur = (typeof rateOverride === "number" && rateOverride > 0)
+  function bestNextUpgrade(rec, rateOverride, cmpRateOverride) {
+    var earnRate = (typeof rateOverride === "number" && rateOverride > 0)
       ? rateOverride
-      : (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
+      : (activeDustPs(rec) || 1);
+    var cur = (typeof cmpRateOverride === "number" && cmpRateOverride >= 0)
+      ? cmpRateOverride
+      : levelCurrentDustPs(state.level, rec);
+    var cmpCur = Math.max(cur, rec ? (rec.d || 0) : 0);
     var bnk = bank();
     var lockedEntry = state.lockedPlans && state.lockedPlans[String(state.level)];
     if (lockedEntry) {
@@ -2532,7 +2867,7 @@ var ONE_TIMER_MILESTONES = [
             totalSteps: totalSteps,
             completedCount: completedCount,
             allSteps: planSteps,
-            gain: (target.d || 0) - cur
+            gain: (target.d || 0) - cmpCur
           };
         }
         var firstPending = null;
@@ -2557,7 +2892,7 @@ var ONE_TIMER_MILESTONES = [
           var targetFirst = atomicStep(firstPending);
           return {
             step: targetFirst,
-            gain: (target.d || 0) - cur,
+            gain: (target.d || 0) - cmpCur,
             cost: stepsCostDust([targetFirst]).combined,
             build: target,
             mode: "locked",
@@ -2571,9 +2906,9 @@ var ONE_TIMER_MILESTONES = [
         }
       }
     }
-    var list = betterBuilds(rec, cur);
+    var list = betterBuilds(rec, cmpCur);
     var mode = getLevelMode(state.level);
-    var curCombatK = (mode === "push") ? getCurrentCombatSecPerKill(state.level) : null;
+    var curCombatK = getCurrentCombatSecPerKill(state.level);
     var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
     var curK = (mode === "push" && curCombatK && curCombatK > 0)
       ? Math.min(curCombatK, recK)
@@ -2590,7 +2925,7 @@ var ONE_TIMER_MILESTONES = [
         var unlocked = bestAfter(s);
         var gain = (mode === "push")
           ? Math.max(0, curK - (unlocked ? buildSecPerKill(unlocked, state.level) : Infinity))
-          : ((unlocked ? unlocked.d || 0 : 0) - cur);
+          : ((unlocked ? unlocked.d || 0 : 0) - cmpCur);
         var wInfo = stepsWaitInfo([s], 1, bnk);
         var effCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : Math.max(1, wInfo.combined * 1e-6);
         if (gain > 0 && unlocked) immediate.push({ step: s, gain: gain, cost: wInfo.combined, roi: gain / effCost, build: unlocked, mode: "unlocks", remaining: 1, allSteps: [s], activeIndex: 0 });
@@ -2602,13 +2937,13 @@ var ONE_TIMER_MILESTONES = [
     }
     var paths = list.map(function (b) {
       var steps = applyStepOrder(state.level, b, expandSteps(gapSteps(b)));
-      var wInfo = calculateStepWaitTimes(steps, bnk, (activeDustPs() || 1));
+      var wInfo = calculateStepWaitTimes(steps, bnk, earnRate);
       var effCost = Math.max(wInfo.remDust, wInfo.remShards * SHARD_DUST);
       if (effCost <= 0) effCost = Math.max(1, (wInfo.totalCostDust + wInfo.totalCostShards * SHARD_DUST) * 1e-6);
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
       var pathGain = (mode === "push")
         ? Math.max(0, curK - buildSecPerKill(b, state.level))
-        : ((b.d || 0) - cur);
+        : ((b.d || 0) - cmpCur);
       return { build: b, steps: steps, cost: wInfo.combined, remaining: steps.length, blocked: blocked, roi: pathGain / effCost };
     });
     paths.sort(function (a, b) { return (a.blocked - b.blocked) || a.remaining - b.remaining || b.roi - a.roi; });
@@ -2630,8 +2965,6 @@ var ONE_TIMER_MILESTONES = [
     if (!lockedEntry) {
       var shouldFallbackROI = false;
       if (mode === "push") {
-        var curCombatK = getCurrentCombatSecPerKill(state.level);
-        var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
         var hasFasterPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
         var isCurWinning = (curCombatK && isFinite(curCombatK) && curCombatK > 0);
         var isCurOptimal = isCurWinning && (curCombatK <= recK + 0.01);
@@ -2641,9 +2974,7 @@ var ONE_TIMER_MILESTONES = [
           shouldFallbackROI = true;
         }
       } else if (mode === "farm") {
-        var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
-        var cK = getCurrentCombatSecPerKill(state.level);
-        var isWinningFarm = (Number(state.level) === Number(fightLevel)) || (cK && isFinite(cK) && cK > 0);
+        var isWinningFarm = (cur > 0) || (curCombatK && isFinite(curCombatK) && curCombatK > 0);
         var hasBetterFarmPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
         if (isWinningFarm && (!hasBetterFarmPath || !p || !first)) {
           shouldFallbackROI = true;
@@ -2652,7 +2983,9 @@ var ONE_TIMER_MILESTONES = [
       if (shouldFallbackROI) {
         if (typeof SASimEngine !== "undefined" && state.save) {
           try {
-            var cfgSrc = (simState.config && simState.config.items) ? simState.config : { save: state.save, level: state.level };
+            var cfgSrc = (simState.config && simState.config.items && Number(simState.config.level) === Number(state.level))
+              ? simState.config
+              : { save: state.save, level: state.level };
             var roiResults = SASimEngine.evaluateUpgradeROI(cfgSrc, { maxKills: 20 });
             if (roiResults && roiResults.length > 0) {
               var top = roiResults[0];
@@ -2677,7 +3010,8 @@ var ONE_TIMER_MILESTONES = [
                 shards: top.shards,
                 label: top.label,
                 paybackSec: top.paybackSec,
-                currentCombatSec: curCombatK || top.baselineSecPerKill,
+                currentDustPs: cur,
+                currentCombatSec: (curCombatK && isFinite(curCombatK)) ? curCombatK : top.baselineSecPerKill,
                 newCombatSec: newK,
                 deltaSecPerKill: top.deltaSecPerKill,
                 build: cloneBld
@@ -2693,7 +3027,7 @@ var ONE_TIMER_MILESTONES = [
     if (!p || !first) return null;
     return {
       step: first,
-      gain: (p.build.d || 0) - cur,
+      gain: (p.build.d || 0) - cmpCur,
       cost: stepsCostDust([first]).combined,
       build: p.build,
       mode: "toward",
@@ -2706,6 +3040,7 @@ var ONE_TIMER_MILESTONES = [
   function render() {
     if (!state.ab) return;
     var level = Number($("levelSelect").value);
+    syncCustomSelect("levelSelect");
     state.level = level;
     syncCustomDustRate(level);
     // Override custom with sim on SA level change
@@ -2718,6 +3053,7 @@ var ONE_TIMER_MILESTONES = [
 
     var rec = bestRunnable(level);
     var rate = activeDustPs(rec);
+    var lvlStats = getCurrentCombatStats(level);
     var est = sheetDustPs(rec);
     if ($("btnOpenSim")) $("btnOpenSim").style.display = "inline-flex";
 
@@ -2733,12 +3069,34 @@ var ONE_TIMER_MILESTONES = [
       if (gearIcon) gearIcon.style.display = "none";
       if (closeIcon) closeIcon.style.display = "block";
       if (toggleBtn) toggleBtn.title = "Clear custom override and revert to simulated rate";
-    } else if (state.simulatedDustPs && state.simulatedDustPs > 0) {
-      var farmLvl = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || state.level;
-      $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(state.simulatedDustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + farmLvl + ")</span>";
+    } else if (lvlStats) {
+      var farmLvl = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || level;
       var muts = (state.save && state.save.global && state.save.global.u2MutationData) || {};
       var mutNote = muts.Dust2 ? " • Mutators: Dusty & Dustier (+50% Dust)" : (muts.Dust ? " • Mutators: Dusty (+25% Dust)" : "");
-      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvl + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "--") + "s/kill)" + mutNote + ".\nClick Simulator to view live combat.";
+      if (lvlStats.dustPs > 0) {
+        $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(lvlStats.dustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + level + ")</span>";
+      } else {
+        var wrLbl = lvlStats.winRate > 0 ? (Math.round(lvlStats.winRate) + "% WR") : "0% WR";
+        $("dustEstimate").innerHTML = "<span style='color:var(--warn);font-weight:700;'>Sim: 0/s (" + wrLbl + ")</span> <span style='opacity:0.75;font-size:11px;'>(SA " + level + ")</span>";
+      }
+      var kTip = isFinite(lvlStats.secPerKill) ? lvlStats.secPerKill.toFixed(2) : "--";
+      var wrTip = lvlStats.winRate != null ? (" · " + Math.round(lvlStats.winRate) + "% WR") : "";
+      var liveNote = (Number(level) !== Number(farmLvl) && state.simulatedDustPs > 0)
+        ? ("\nLive save farm rate (SA " + farmLvl + "): " + prettify(state.simulatedDustPs) + "/s (used for bank & build wait estimates).")
+        : "";
+      $("dustEstimate").title = "Simulated current loadout on SA " + level + ": " + prettify(lvlStats.dustPs) + "/s (~" + kTip + "s/kill" + wrTip + ")" + mutNote + "." + liveNote + "\nClick Simulator to view live combat.";
+      if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride && state.simulatedDustPs > 0) {
+        $("dustOverride").placeholder = prettify(state.simulatedDustPs) + "/s";
+      }
+      if (gearIcon) gearIcon.style.display = "block";
+      if (closeIcon) closeIcon.style.display = "none";
+      if (toggleBtn) toggleBtn.title = "Customize dust rate override";
+    } else if (state.simulatedDustPs && state.simulatedDustPs > 0) {
+      var farmLvlFallback = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || state.level;
+      $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(state.simulatedDustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + farmLvlFallback + ")</span>";
+      var muts2 = (state.save && state.save.global && state.save.global.u2MutationData) || {};
+      var mutNote2 = muts2.Dust2 ? " • Mutators: Dusty & Dustier (+50% Dust)" : (muts2.Dust ? " • Mutators: Dusty (+25% Dust)" : "");
+      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvlFallback + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "--") + "s/kill)" + mutNote2 + ".\nClick Simulator to view live combat.";
       if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride) {
         $("dustOverride").placeholder = prettify(state.simulatedDustPs) + "/s";
       }
@@ -3120,7 +3478,7 @@ var ONE_TIMER_MILESTONES = [
     var r = (typeof rateOverride === "number" && rateOverride > 0)
       ? rateOverride
       : (activeDustPs(rec) || (state.ab ? activeDustPs(bestRunnable(level)) : 0));
-    var pick = (rec && runnable(rec)) ? null : bestNextUpgrade(rec, r);
+    var pick = (rec && runnable(rec)) ? null : bestNextUpgrade(rec, r, levelCurrentDustPs(level, rec));
     var target = (rec && rec.n) ? rec : (pick && pick.build ? pick.build : null);
     var allSteps = stepsOverride || null;
 
@@ -3236,15 +3594,14 @@ var ONE_TIMER_MILESTONES = [
         }
       }
     } else if (mode === "farm" && !isPlanLocked) {
-      var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
-      var cK = getCurrentCombatSecPerKill(state.level);
-      var isWinningOnLevel = (Number(state.level) === Number(fightLevel)) || (cK && isFinite(cK) && cK > 0);
-      var curDust = isWinningOnLevel ? (activeDustPs() || (state.simulatedDustPs || 0)) : 0;
+      var curStats = getCurrentCombatStats(state.level);
+      var curDust = levelCurrentDustPs(state.level, rec);
+      var isWinningOnLevel = curDust > 0 || !!(curStats && curStats.kills > 0);
       var recDust = rec ? (rec.d || 0) : 0;
-      if (curDust > 0 && curDust > recDust) {
+      if (isWinningOnLevel && curDust > 0 && curDust > recDust) {
         // Current loadout outperforms the runnable sheet build on this level.
         // Check if there is a better income sheet available via the advisor:
-        var farmPick = bestNextUpgrade(rec, curDust);
+        var farmPick = bestNextUpgrade(rec, rate, curDust);
         if (farmPick && farmPick.build && (farmPick.build.d || 0) > curDust) {
           // Target the better income sheet build (e.g. anon1)
           activeBuild = farmPick.build;
@@ -3346,7 +3703,7 @@ var ONE_TIMER_MILESTONES = [
 
     var metrics = [];
     metrics.push(lvlTagPill);
-    var dispD = activeBuild.d || ((isOptimalClear || isOptimalFarm) ? rate : 0);
+    var dispD = activeBuild.d || ((isOptimalClear || isOptimalFarm) ? (isOptimalFarm ? levelCurrentDustPs(state.level, rec) : rate) : 0);
     if (dispD > 0) metrics.push("<span class='pill sm buy' title='Expected Dust Earning Rate: " + prettify(dispD) + "/s'>" + ICONS.dust + " " + prettify(dispD) + "/s</span>");
     if (activeBuild.k != null && isFinite(activeBuild.k)) metrics.push("<span class='pill sm info'>" + ICONS.clock + " ~" + Number(activeBuild.k).toFixed(1) + "s kills" + (isOptimalClear ? " (Fastest)" : "") + "</span>");
     if (activeBuild.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((activeBuild.wr <= 1 ? activeBuild.wr : activeBuild.wr / 100) * 100) + "% WR</span>");
@@ -3433,7 +3790,7 @@ var ONE_TIMER_MILESTONES = [
           "<div class='delta-title' style='color:var(--buy);'>" + ICONS.check + "<span>Current Loadout Is Optimal · No Slower Swaps Recommended</span></div>" +
           "<div style='color:var(--muted);font-size:12px;'>" +
           (isOptimalFarm
-            ? ("Your current equipped items earn " + prettify(rate) + "/s, which is higher than all recorded runnable sheet builds. Keep this loadout active while farming.")
+            ? ("Your current equipped items earn " + prettify(dispD) + "/s on SA " + state.level + ", which is higher than all recorded runnable sheet builds. Keep this loadout active while farming.")
             : ("Your current equipped items clear SA " + state.level + " in ~" + (isFinite(currentCombatSec) ? currentCombatSec.toFixed(1) : "15.0") + "s per kill, which is faster than all recorded runnable sheet builds. Keep this loadout active while pushing.")) +
           "</div>" +
           "</div>")
@@ -3445,7 +3802,7 @@ var ONE_TIMER_MILESTONES = [
     } else if (isOptimalClear || isOptimalFarm) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" +
         (isOptimalFarm
-          ? ("Your current equipped loadout earns " + prettify(rate) + "/s. No higher-income runnable sheet build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")
+          ? ("Your current equipped loadout earns " + prettify(dispD) + "/s on SA " + state.level + ". No higher-income runnable sheet build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")
           : ("Your current equipped loadout clears SA " + state.level + " in ~" + (isFinite(currentCombatSec) ? currentCombatSec.toFixed(1) : "15.0") + "s per kill. No faster runnable clear build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")) +
         "</span></div>";
     } else if (isTargetOnly) {
@@ -3641,6 +3998,7 @@ var ONE_TIMER_MILESTONES = [
         if (cached[ci]) {
           pending[ci]._stepRate = cached[ci].stepRate;
           pending[ci]._postRate = cached[ci].postRate;
+          pending[ci]._postRateLevel = cached[ci].postRateLevel;
         }
       }
       state.lastSimulatedStepsSig = fullSig;
@@ -3672,7 +4030,7 @@ var ONE_TIMER_MILESTONES = [
         state.lastSimulatedStepsSig = fullSig;
         state.activePlanSimSig = null;
         planRatesCache[planCacheKey] = pending.map(function (s) {
-          return { stepRate: s._stepRate, postRate: s._postRate };
+          return { stepRate: s._stepRate, postRate: s._postRate, postRateLevel: s._postRateLevel };
         });
         updatePlanSimIndicator(false, pending.length, pending.length);
         refreshPlanPopoverWaitTimes();
@@ -3731,6 +4089,7 @@ var ONE_TIMER_MILESTONES = [
       }
 
       st._postRate = currentRate;
+      st._postRateLevel = fightLevel;
       stepIdx++;
 
       updatePlanSimIndicator(true, stepIdx, pending.length);
@@ -3743,11 +4102,12 @@ var ONE_TIMER_MILESTONES = [
   }
 
   function calculateBuildReturnTime(b, bSteps, bWInfo, curRate) {
-    var cur = (typeof curRate === "number" && curRate > 0) ? curRate : (state.lastBetterCur || 0);
+    var cur = (typeof curRate === "number" && curRate >= 0) ? curRate : (state.lastBetterCur != null ? state.lastBetterCur : 0);
     var simRate = b._simDustPs;
     if (!simRate && bSteps && bSteps.length) {
       for (var si = bSteps.length - 1; si >= 0; si--) {
-        if (bSteps[si]._postRate && bSteps[si]._postRate > 0) {
+        var rLvl = bSteps[si]._postRateLevel;
+        if (bSteps[si]._postRate && bSteps[si]._postRate > 0 && (rLvl == null || Number(rLvl) === Number(state.level))) {
           simRate = bSteps[si]._postRate;
           break;
         }
@@ -3783,7 +4143,8 @@ var ONE_TIMER_MILESTONES = [
     var bSteps = b._planSteps || applyStepOrder(state.level, b, expandSteps(gapSteps(b)));
     var bWInfo = calculateStepWaitTimes(bSteps, bnk, defaultRate);
     var bEarn = bWInfo.totalWait;
-    var retInfo = calculateBuildReturnTime(b, bSteps, bWInfo, defaultRate);
+    var curCmp = (state.lastBetterCur != null) ? state.lastBetterCur : defaultRate;
+    var retInfo = calculateBuildReturnTime(b, bSteps, bWInfo, curCmp);
     var bBlockedContracts = bSteps.filter(function (s) { return s.kind === "contract" && !s.reach; });
     var bBlocked = bBlockedContracts.length > 0;
     var bBlockedZone = 0;
@@ -3826,6 +4187,7 @@ var ONE_TIMER_MILESTONES = [
             if (cached[ci]) {
               pending[ci]._stepRate = cached[ci].stepRate;
               pending[ci]._postRate = cached[ci].postRate;
+              pending[ci]._postRateLevel = cached[ci].postRateLevel;
             }
           }
           b._lastSimSig = planCacheKey;
@@ -3867,7 +4229,7 @@ var ONE_TIMER_MILESTONES = [
         curItem.build._lastSimSig = curItem.cacheKey;
         curItem.build._isSimulated = true;
         planRatesCache[curItem.cacheKey] = curItem.pending.map(function (s) {
-          return { stepRate: s._stepRate, postRate: s._postRate };
+          return { stepRate: s._stepRate, postRate: s._postRate, postRateLevel: s._postRateLevel };
         });
         updateBetterBuildRow(curItem.idx, curItem.build, defaultRate);
         qIdx++;
@@ -3920,6 +4282,7 @@ var ONE_TIMER_MILESTONES = [
       }
 
       st._postRate = currentRate;
+      st._postRateLevel = fightLevel;
       pIdx++;
 
       updateBetterBuildRow(curItem.idx, curItem.build, defaultRate);
@@ -4456,10 +4819,17 @@ var ONE_TIMER_MILESTONES = [
         why = "Advisor locked to <b>" + esc(pick.build.n) + "</b> (" + pick.remaining + " " + remWord + " remaining). Mid-plan recommendations will not switch until you click Unlock.";
       }
     } else if (pick.mode === "upgradeValue") {
-      var saveNote = (pick.deltaSecPerKill && pick.deltaSecPerKill > 0)
-        ? (" (saving ~" + pick.deltaSecPerKill.toFixed(1) + "s per kill)")
-        : "";
-      why = "Your current loadout clears SA " + state.level + " in ~" + (pick.currentCombatSec ? pick.currentCombatSec.toFixed(1) : "15.0") + "s per kill (faster than all recorded runnable sheet builds). The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + saveNote + " as the highest-value upgrade to improve combat performance.";
+      var kStr = (pick.currentCombatSec && isFinite(pick.currentCombatSec)) ? pick.currentCombatSec.toFixed(1) : "—";
+      if (mode === "farm") {
+        var curD = (pick.currentDustPs && pick.currentDustPs > 0) ? (prettify(pick.currentDustPs) + "/s") : (prettify(levelCurrentDustPs(state.level, rec)) + "/s");
+        var gainNote = (pick.gain && pick.gain > 0) ? (" (+" + prettify(pick.gain) + "/s)") : "";
+        why = "Your current loadout earns " + curD + " on SA " + state.level + " (~" + kStr + "s/kill), higher than all recorded runnable sheet builds. The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + gainNote + " as the highest-value upgrade.";
+      } else {
+        var saveNote = (pick.deltaSecPerKill && pick.deltaSecPerKill > 0)
+          ? (" (saving ~" + pick.deltaSecPerKill.toFixed(1) + "s per kill)")
+          : "";
+        why = "Your current loadout clears SA " + state.level + " in ~" + kStr + "s per kill (faster than all recorded runnable sheet builds). The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + saveNote + " as the highest-value upgrade to improve combat performance.";
+      }
     } else if (pick.mode === "unlocks") {
       why = (mode === "push")
         ? "Largest clear time improvement among single-step upgrades that immediately unlock a faster sheet build (click Lock Plan to latch)."
@@ -4986,7 +5356,7 @@ var ONE_TIMER_MILESTONES = [
     var dlg = $("buildDetailsDlg");
     if (!dlg) return;
 
-    var cur = (state.lastBetterCur != null) ? state.lastBetterCur : (activeDustPs() || 0);
+    var cur = (state.lastBetterCur != null) ? state.lastBetterCur : levelCurrentDustPs(state.level);
     var delta = loadoutDelta(build);
     var gain = (build.d || 0) - cur;
 
@@ -5071,10 +5441,10 @@ var ONE_TIMER_MILESTONES = [
     }
   }
 
-  function renderBetter(rec, rate) {
-    var cur = (typeof rate === "number" && rate > 0)
-      ? rate
-      : (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
+  function renderBetter(rec, rate, cmpRateOverride) {
+    var cur = (typeof cmpRateOverride === "number" && cmpRateOverride >= 0)
+      ? cmpRateOverride
+      : Math.max(levelCurrentDustPs(state.level, rec), rec ? (rec.d || 0) : 0);
     var bnk = bank();
     var list = betterBuilds(rec, cur);
     var mode = getLevelMode(state.level);
@@ -5348,7 +5718,7 @@ var ONE_TIMER_MILESTONES = [
 
   function shouldDisableContractsOnLoad(level) {
     var rec = bestRunnable(level);
-    var cur = (activeDustPs(rec) || (rec ? rec.d || 0 : 0));
+    var cur = Math.max(levelCurrentDustPs(level, rec), rec ? (rec.d || 0) : 0);
     var allBetter = buildsFor(level).filter(function (b) {
       return (b.d || 0) > cur + 1e-9 && !runnable(b);
     });
@@ -5649,6 +6019,7 @@ var ONE_TIMER_MILESTONES = [
       stepSimCache = {};
       planRatesCache = {};
       pushSimCache = {};
+      levelSimCache = {};
       buildKillTimeCache = {};
       betterSimToken++;
       if (state.lastBetterBuilds) {
@@ -6040,6 +6411,7 @@ function renderPresetsModal() {
       if (l === selectedLevel) opt.selected = true;
       sel.appendChild(opt);
     });
+    syncCustomSelect("simLevelSelect");
   }
 
   function openSimModal(targetBuild, options) {
@@ -6117,6 +6489,7 @@ function renderPresetsModal() {
   function closeSimModal() {
     simState.active = false;
     simState.paused = true;
+    closeCustomSelectMenu(false);
     closeSimAddItemMenu();
     if (simState.animId) {
       cancelAnimationFrame(simState.animId);
@@ -6888,7 +7261,10 @@ function renderPresetsModal() {
       if (targetLvl && simState.config) {
         simState.config.level = targetLvl;
         simState.config.enemyLevel = targetLvl;
-        if ($("simLevelSelect")) $("simLevelSelect").value = String(targetLvl);
+        if ($("simLevelSelect")) {
+          $("simLevelSelect").value = String(targetLvl);
+          syncCustomSelect("simLevelSelect");
+        }
         renderSimSandboxUI();
         startSimSession();
         switchSimTab("arena");
@@ -7147,7 +7523,11 @@ function renderPresetsModal() {
     $("themeBtn").addEventListener("click", toggleTheme);
     $("updateBtn").addEventListener("click", onUpdate);
     $("saveBox").addEventListener("paste", function () { setTimeout(onLoad, 0); });
-    $("levelSelect").addEventListener("change", render);
+    $("levelSelect").addEventListener("change", function () {
+      syncCustomSelect("levelSelect");
+      render();
+    });
+    initCenteredSelect("levelSelect", { menuMinWidth: 190 });
     $("dustOverride").addEventListener("input", onDustInput);
     $("dustOverride").addEventListener("keydown", function(ev) {
       if (ev.key === "Enter") {
@@ -7220,7 +7600,13 @@ function renderPresetsModal() {
       }
 
       var sLevel = $("simLevelSelect");
-      if (sLevel) sLevel.addEventListener("change", onSimLevelChange);
+      if (sLevel) {
+        sLevel.addEventListener("change", function () {
+          syncCustomSelect("simLevelSelect");
+          onSimLevelChange();
+        });
+        initCenteredSelect("simLevelSelect", { compact: true, menuMinWidth: 190 });
+      }
       var sPlay = $("simBtnPlay");
       if (sPlay) sPlay.addEventListener("click", toggleSimPlay);
       var sStep = $("simBtnStep");
@@ -7302,6 +7688,7 @@ function renderPresetsModal() {
     }
 
     document.addEventListener("keydown", function (ev) {
+      if (openCustomSelectState || (ev.target && ev.target.closest && ev.target.closest(".sa-select-menu"))) return;
       var tag = (ev.target && ev.target.tagName) || "";
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
       if (ev.key === "t" || ev.key === "T") { ev.preventDefault(); toggleTheme(); }
