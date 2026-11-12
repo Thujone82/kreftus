@@ -7960,6 +7960,7 @@ function createRawAutoBattle(game, u2Mutations) {
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
     unlock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>',
     target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    ladder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v18M16 3v18M8 6h8M8 10h8M8 14h8M8 18h8"/></svg>',
     hammer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 0 18.172 9H15l-3-3 2-2h3.172a2 2 0 0 1 1.414.586L21.5 7.5a2 2 0 0 1 0 2.828l-.172.172z"/></svg>'
   };
 
@@ -8671,7 +8672,7 @@ var ONE_TIMER_MILESTONES = [
         id: "Scaffolding",
         name: "Scaffolding",
         shortName: "Scaffolding",
-        icon: ICONS.hammer,
+        icon: ICONS.ladder,
         level: mb.scaffoldLvl,
         maxLevel: 18,
         isMax: mb.scaffoldLvl >= 18,
@@ -8733,15 +8734,6 @@ var ONE_TIMER_MILESTONES = [
   function renderBonusesHtml(mb, bnk, rate) {
     var bList = getBonusList(bnk, rate);
     var macroVal = "+" + mb.radonPct + "% Rn · +" + mb.statsPct + "% Stats" + (mb.scaffoldLvl > 0 ? (" · " + mb.scaffoldLvl + " Scaff") : "");
-    var macroTitle = "Spire Macro Bonuses (Purchased with Dust / Shards):" +
-      bList.map(function (b) {
-        var statusStr = b.isMax
-          ? "Max Level"
-          : (b.isReady
-            ? ("Upgrade Ready (" + prettify(b.cost) + " " + b.currency + ")")
-            : (b.statusTxt + " to save (" + prettify(b.cost) + " " + b.currency + (b.need > 0 ? (", need " + prettify(b.need)) : "") + ")"));
-        return "\n• " + b.name + ": Lv " + b.level + (b.maxLevel ? ("/" + b.maxLevel) : "") + " (" + b.effect + ") — " + statusStr;
-      }).join("");
 
     var rowsHtml = bList.map(function (b) {
       var badgeHtml = b.isMax
@@ -8772,7 +8764,7 @@ var ONE_TIMER_MILESTONES = [
     var bankStr = "Bank: " + prettify(bnkObj.dust) + " dust" + (canEarnShards() ? (" · " + prettify(bnkObj.shards) + " shards") : "");
 
     return "<div class='fact-wrap fact-spire-buffs-wrap' id='factSpireBuffsWrap' tabindex='0'>" +
-      '<div class="fact fact-spire-buffs" id="factSpireBuffs" title="' + esc(macroTitle) + '" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
+      '<div class="fact fact-spire-buffs" id="factSpireBuffs" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
         ICONS.target + '<span>Spire Buffs</span><b id="factSpireBuffsVal">' + esc(macroVal) + '</b>' +
       '</div>' +
       "<div class='bonuses-popover' id='bonusesPopover' role='tooltip'>" +
@@ -8794,17 +8786,6 @@ var ONE_TIMER_MILESTONES = [
     var fact = $("factSpireBuffs");
     if (!fact && !pop) return;
     var bList = getBonusList(bnk, rate);
-
-    var macroTitle = "Spire Macro Bonuses (Purchased with Dust / Shards):" +
-      bList.map(function (b) {
-        var statusStr = b.isMax
-          ? "Max Level"
-          : (b.isReady
-            ? ("Upgrade Ready (" + prettify(b.cost) + " " + b.currency + ")")
-            : (b.statusTxt + " to save (" + prettify(b.cost) + " " + b.currency + (b.need > 0 ? (", need " + prettify(b.need)) : "") + ")"));
-        return "\n• " + b.name + ": Lv " + b.level + (b.maxLevel ? ("/" + b.maxLevel) : "") + " (" + b.effect + ") — " + statusStr;
-      }).join("");
-    if (fact && fact.title !== macroTitle) fact.title = macroTitle;
 
     var popRate = $("bpLiveRate");
     if (popRate) {
