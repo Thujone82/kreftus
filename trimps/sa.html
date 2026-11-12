@@ -727,12 +727,18 @@
       color: var(--text);
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+    }
+    .bp-item-name svg {
+      width: 28px;
+      height: 28px;
+      flex: none;
     }
     .bp-item-lvl {
       font-size: 11px;
       color: var(--muted);
       margin-left: auto;
+      white-space: nowrap;
     }
     .bp-item-status {
       flex-shrink: 0;
@@ -8670,8 +8676,8 @@ var ONE_TIMER_MILESTONES = [
       },
       {
         id: "Scaffolding",
-        name: "Scaffolding",
-        shortName: "Scaffolding",
+        name: "Scaffold",
+        shortName: "Scaffold",
         icon: ICONS.ladder,
         level: mb.scaffoldLvl,
         maxLevel: 18,

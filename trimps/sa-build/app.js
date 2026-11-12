@@ -1156,8 +1156,8 @@ var ONE_TIMER_MILESTONES = [
       },
       {
         id: "Scaffolding",
-        name: "Scaffolding",
-        shortName: "Scaffolding",
+        name: "Scaffold",
+        shortName: "Scaffold",
         icon: ICONS.ladder,
         level: mb.scaffoldLvl,
         maxLevel: 18,
