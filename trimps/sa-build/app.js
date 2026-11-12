@@ -1116,6 +1116,216 @@ var ONE_TIMER_MILESTONES = [
     };
   }
 
+  function getBonusList(bnk, rate) {
+    var mb = macroBonusInfo();
+    var rRate = (typeof rate === "number" && rate > 0) ? rate : (activeDustPs() || 0);
+    var bnkObj = bnk || bank();
+    var bankD = bnkObj ? (bnkObj.dust || 0) : 0;
+    var bankS = bnkObj ? (bnkObj.shards || 0) : 0;
+    var limbs = extraLimbs();
+
+    var list = [
+      {
+        id: "Radon",
+        name: "Radon Bonus",
+        shortName: "Radon",
+        icon: ICONS.target,
+        level: mb.radonLvl,
+        maxLevel: 50,
+        isMax: mb.radonLvl >= 50,
+        currency: "dust",
+        isShards: false,
+        effect: "+" + mb.radonPct + "% Radon in U2",
+        nextEffect: "+10% Radon",
+        cost: mb.radonLvl >= 50 ? 0 : Math.ceil(30000 * Math.pow(3, mb.radonLvl))
+      },
+      {
+        id: "Stats",
+        name: "Stats Bonus",
+        shortName: "Stats",
+        icon: ICONS.sword,
+        level: mb.statsLvl,
+        maxLevel: 50,
+        isMax: mb.statsLvl >= 50,
+        currency: "dust",
+        isShards: false,
+        effect: "+" + mb.statsPct + "% Attack & Health in U2",
+        nextEffect: "+10% Attack & Health",
+        cost: mb.statsLvl >= 50 ? 0 : Math.ceil(20000 * Math.pow(3, mb.statsLvl))
+      },
+      {
+        id: "Scaffolding",
+        name: "Scaffolding",
+        shortName: "Scaffolding",
+        icon: ICONS.hammer,
+        level: mb.scaffoldLvl,
+        maxLevel: 18,
+        isMax: mb.scaffoldLvl >= 18,
+        currency: "shards",
+        isShards: true,
+        effect: mb.scaffoldLvl > 0 ? (mb.scaffoldLvl + " / 18 Scaffolding") : "None",
+        nextEffect: "+100% Housing (Compounding)",
+        cost: mb.scaffoldLvl >= 18 ? 0 : Math.ceil(50 * Math.pow(10, mb.scaffoldLvl))
+      },
+      {
+        id: "Extra_Limbs",
+        name: "Extra Limbs",
+        shortName: "Limbs",
+        icon: ICONS.limb,
+        level: limbs,
+        maxLevel: 14,
+        isMax: limbs >= 14,
+        currency: "dust",
+        isShards: false,
+        effect: (4 + limbs) + " item slots (4 base + " + limbs + ")",
+        nextEffect: "+1 Item Slot (" + (5 + limbs) + " total)",
+        cost: limbs >= 14 ? 0 : Math.ceil(100 * Math.pow(100, limbs))
+      }
+    ];
+
+    list.forEach(function (item) {
+      if (item.isMax) {
+        item.isReady = false;
+        item.wait = 0;
+        item.need = 0;
+        item.statusTxt = "Max Level";
+        item.statusCls = "muted";
+      } else {
+        var curBank = item.isShards ? bankS : bankD;
+        item.need = Math.max(0, item.cost - curBank);
+        if (item.cost <= 0 || curBank >= item.cost) {
+          item.isReady = true;
+          item.wait = 0;
+          item.statusTxt = "Upgrade Ready";
+          item.statusCls = "buy";
+        } else {
+          item.isReady = false;
+          if (item.isShards && !canEarnShards()) {
+            item.wait = Infinity;
+            item.statusTxt = "Locked (SA 51+)";
+            item.statusCls = "warn";
+          } else {
+            item.wait = timeForCost(item.cost, item.isShards, rRate, bankD, bankS);
+            item.statusTxt = (isFinite(item.wait) && item.wait > 0) ? fmtTime(item.wait) : "—";
+            item.statusCls = "warn";
+          }
+        }
+      }
+    });
+
+    return list;
+  }
+
+  function renderBonusesHtml(mb, bnk, rate) {
+    var bList = getBonusList(bnk, rate);
+    var macroVal = "+" + mb.radonPct + "% Rn · +" + mb.statsPct + "% Stats" + (mb.scaffoldLvl > 0 ? (" · " + mb.scaffoldLvl + " Scaff") : "");
+    var macroTitle = "Spire Macro Bonuses (Purchased with Dust / Shards):" +
+      bList.map(function (b) {
+        var statusStr = b.isMax
+          ? "Max Level"
+          : (b.isReady
+            ? ("Upgrade Ready (" + prettify(b.cost) + " " + b.currency + ")")
+            : (b.statusTxt + " to save (" + prettify(b.cost) + " " + b.currency + (b.need > 0 ? (", need " + prettify(b.need)) : "") + ")"));
+        return "\n• " + b.name + ": Lv " + b.level + (b.maxLevel ? ("/" + b.maxLevel) : "") + " (" + b.effect + ") — " + statusStr;
+      }).join("");
+
+    var rowsHtml = bList.map(function (b) {
+      var badgeHtml = b.isMax
+        ? "<span class='bp-item-status pill sm muted'>Max Level</span>"
+        : (b.isReady
+          ? ("<span class='bp-item-status pill sm buy'>" + ICONS.check + " Upgrade Ready</span>")
+          : ("<span class='bp-item-status pill sm warn'>" + ICONS.clock + " " + esc(b.statusTxt) + "</span>"));
+      var costStr = b.isMax
+        ? "—"
+        : ("Cost: " + prettify(b.cost) + " " + b.currency + (b.need > 0 ? (" (need " + prettify(b.need) + ")") : ""));
+      var lvlStr = "Lv " + b.level + (b.maxLevel ? (" / " + b.maxLevel) : "");
+      return "<div class='bp-item' data-bonus-id='" + esc(b.id) + "'>" +
+        "<div class='bp-item-head'>" +
+          "<span class='bp-item-name'>" + b.icon + " " + esc(b.name) + "</span>" +
+          "<span class='bp-item-lvl mono'>" + esc(lvlStr) + "</span>" +
+          badgeHtml +
+        "</div>" +
+        "<div class='bp-item-sub'>" +
+          "<span class='bp-item-desc'>" + esc(b.effect) + "</span>" +
+          "<span class='bp-item-cost mono'>" + esc(costStr) + "</span>" +
+        "</div>" +
+      "</div>";
+    }).join("");
+
+    var rRate = (typeof rate === "number" && rate > 0) ? rate : (activeDustPs() || 0);
+    var rateStr = rRate ? (prettify(rRate) + "/s") : "No rate";
+    var bnkObj = bnk || bank();
+    var bankStr = "Bank: " + prettify(bnkObj.dust) + " dust" + (canEarnShards() ? (" · " + prettify(bnkObj.shards) + " shards") : "");
+
+    return "<div class='fact-wrap fact-spire-buffs-wrap' id='factSpireBuffsWrap' tabindex='0'>" +
+      '<div class="fact fact-spire-buffs" id="factSpireBuffs" title="' + esc(macroTitle) + '" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
+        ICONS.target + '<span>Spire Buffs</span><b id="factSpireBuffsVal">' + esc(macroVal) + '</b>' +
+      '</div>' +
+      "<div class='bonuses-popover' id='bonusesPopover' role='tooltip'>" +
+        "<div class='bp-head'>" +
+          "<div class='bp-title'>" + ICONS.target + "<span>Spire Bonuses</span></div>" +
+          "<span class='bp-rate mono' id='bpLiveRate'>" + esc(rateStr) + "</span>" +
+        "</div>" +
+        "<div class='bp-list' id='bpList'>" + rowsHtml + "</div>" +
+        "<div class='bp-footer' id='bpFooter'>" +
+          "<span id='bpBankInfo'>" + esc(bankStr) + "</span>" +
+          "<span class='bp-link' onclick='window.saOpenPresets&&saOpenPresets()'>Presets &amp; Settings →</span>" +
+        "</div>" +
+      "</div>" +
+    "</div>";
+  }
+
+  function updateBonusesPopover(rate, bnk) {
+    var pop = $("bonusesPopover");
+    var fact = $("factSpireBuffs");
+    if (!fact && !pop) return;
+    var bList = getBonusList(bnk, rate);
+
+    var macroTitle = "Spire Macro Bonuses (Purchased with Dust / Shards):" +
+      bList.map(function (b) {
+        var statusStr = b.isMax
+          ? "Max Level"
+          : (b.isReady
+            ? ("Upgrade Ready (" + prettify(b.cost) + " " + b.currency + ")")
+            : (b.statusTxt + " to save (" + prettify(b.cost) + " " + b.currency + (b.need > 0 ? (", need " + prettify(b.need)) : "") + ")"));
+        return "\n• " + b.name + ": Lv " + b.level + (b.maxLevel ? ("/" + b.maxLevel) : "") + " (" + b.effect + ") — " + statusStr;
+      }).join("");
+    if (fact && fact.title !== macroTitle) fact.title = macroTitle;
+
+    var popRate = $("bpLiveRate");
+    if (popRate) {
+      var rRate = (typeof rate === "number" && rate > 0) ? rate : (activeDustPs() || 0);
+      popRate.textContent = rRate ? (prettify(rRate) + "/s") : "No rate";
+    }
+    var popBank = $("bpBankInfo");
+    if (popBank && bnk) {
+      popBank.textContent = "Bank: " + prettify(bnk.dust) + " dust" + (canEarnShards() ? (" · " + prettify(bnk.shards) + " shards") : "");
+    }
+
+    bList.forEach(function (b) {
+      var itemEl = document.querySelector("#bpList [data-bonus-id='" + b.id + "']");
+      if (!itemEl) return;
+      var stEl = itemEl.querySelector(".bp-item-status");
+      if (stEl) {
+        var newCls = "bp-item-status pill sm " + b.statusCls;
+        var newHtml = b.isMax
+          ? "Max Level"
+          : (b.isReady
+            ? (ICONS.check + " Upgrade Ready")
+            : (ICONS.clock + " " + esc(b.statusTxt)));
+        if (stEl.className !== newCls) stEl.className = newCls;
+        if (stEl.innerHTML !== newHtml) stEl.innerHTML = newHtml;
+      }
+      var costEl = itemEl.querySelector(".bp-item-cost");
+      if (costEl) {
+        var costStr = b.isMax
+          ? "—"
+          : ("Cost: " + prettify(b.cost) + " " + b.currency + (b.need > 0 ? (" (need " + prettify(b.need) + ")") : ""));
+        if (costEl.textContent !== costStr) costEl.textContent = costStr;
+      }
+    });
+  }
+
   function saSettingsAudit() {
     var ab = state.ab || {};
     var s = ab.settings || {};
@@ -5581,6 +5791,7 @@ var ONE_TIMER_MILESTONES = [
 
   function renderSaveFacts() {
     var bnk = bank();
+    var rate = activeDustPs();
     var ago = bnk.elapsedSec < 5 ? "just now" : (fmtTime(bnk.elapsedSec) + " ago");
     var loadedTimeStr = state.saveLoadedAt ? (new Date(state.saveLoadedAt).toLocaleTimeString()) : "";
     var exportTimeStr = (state.save && state.save.global && state.save.global.lastOnline)
@@ -5620,12 +5831,8 @@ var ONE_TIMER_MILESTONES = [
     var statusEl = $("sourceStatus");
     if (statusEl) statusEl.title = saveTooltip;
 
-    // 3. Spire Macro Buffs capsule
-    var macroVal = "+" + mb.radonPct + "% Rn · +" + mb.statsPct + "% Stats" + (mb.scaffoldLvl > 0 ? (" · " + mb.scaffoldLvl + " Scaff") : "");
-    var macroTitle = "Spire Macro Bonuses (Purchased with Dust / Shards):" +
-      "\n• Radon Bonus: Level " + mb.radonLvl + " / 50 (+" + mb.radonPct + "% Radon in U2)" +
-      "\n• Stats Bonus: Level " + mb.statsLvl + " / 50 (+" + mb.statsPct + "% Attack & Health in U2)" +
-      "\n• Scaffolding: Level " + mb.scaffoldLvl + " / 18 (Compounding U2 Housing multiplier)";
+    // 3. Spire Macro Buffs capsule & Bonuses Popover
+    var bonusesHtml = renderBonusesHtml(mb, bnk, rate);
 
     // 4. In-Game Settings Safety Alerts
     var audit = saSettingsAudit();
@@ -5644,11 +5851,11 @@ var ONE_TIMER_MILESTONES = [
       );
     }
 
-    // In controls-bar center: ONLY Spire Buffs and warning alerts (fits on 1 line!)
+    // In controls-bar center: Spire Buffs (with interactive Bonuses popover) and warning alerts
     var factsCenter = $("saveFacts");
     if (factsCenter) {
       factsCenter.innerHTML = [
-        '<div class="fact" title="' + esc(macroTitle) + '" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' + ICONS.target + '<span>Spire Buffs</span><b>' + esc(macroVal) + '</b></div>',
+        bonusesHtml,
         warningFacts.join("")
       ].join("");
     }
@@ -5819,6 +6026,8 @@ var ONE_TIMER_MILESTONES = [
       var ago = bnk.elapsedSec < 5 ? "just now" : (fmtTime(bnk.elapsedSec) + " ago");
       fLoaded.textContent = ago;
     }
+
+    updateBonusesPopover(rate, bnk);
 
     var dlg = $("presetsDlg");
     if (dlg && dlg.open) {
@@ -6284,10 +6493,15 @@ function renderPresetsModal() {
             "Total Enemies Slain: <b>" + prettify(diag.totalKillsAllTime) + "</b> (All-Time)" +
             (diag.totalKillsPortal > 0 ? (" · <b>" + prettify(diag.totalKillsPortal) + "</b> (This Portal)") : "") +
           "</span></div>" +
-          "<div class='audit-row'><span class='audit-lbl'>Macro Buffs (U2):</span><span class='audit-val'>+" +
-            mb.radonPct + "% Radon (Lv " + mb.radonLvl + "/50) · +" +
-            mb.statsPct + "% Stats (Lv " + mb.statsLvl + "/50) · " +
-            mb.scaffoldLvl + "/18 Scaffolding</span></div>" +
+          "<div class='audit-row'><span class='audit-lbl'>Macro Buffs (U2):</span><span class='audit-val'>" +
+            (function () {
+              var bList = getBonusList(bnk, rate);
+              return bList.map(function (b) {
+                var stStr = b.isMax ? "Max" : (b.isReady ? "Upgrade Ready" : (b.statusTxt + " to save"));
+                return b.shortName + " Lv " + b.level + (b.maxLevel ? ("/" + b.maxLevel) : "") + " (" + stStr + ")";
+              }).join(" · ");
+            })() +
+          "</span></div>" +
           "<div class='audit-row'><span class='audit-lbl'>The Ring Inherent:</span><span class='audit-val'>+" +
             prettify(rStats.statusDmg) + "% Bleed/Shock · +" +
             prettify(rStats.poisonDmg) + " Poison · +" +
