@@ -623,7 +623,7 @@ function tooltip(what, isItIn, event, textString, attachFunction, numCheck, rena
 		}
 		else if (textString == "Import"){
 			what = "Import Perk Preset";
-			tooltipText = "Click to import a perk setup from a text string";
+			tooltipText = "Click to import a perk setup from a text string. <b>Shift-Click</b> or press <b>'I'</b> on this screen to instantly import from clipboard!";
 		}
 		else if (textString == "Export"){
 			what = "Export Perk Setup";
@@ -7939,4 +7939,71 @@ tooltips.importFromClipboard = function (targetId, type, btnElem) {
 // Backwards-compatibility alias
 tooltips.pasteFromClipboard = function(targetId, btnElem) {
 	tooltips.importFromClipboard(targetId, (targetId === 'perkImportBox' ? 'perks' : (targetId === 'importBox' ? 'save' : '')), btnElem);
+};
+
+/**
+ * Directly imports perks from the clipboard without requiring the import panel to be opened first.
+ * Can be called via 'I' hotkey on the portal modal or Shift-clicking on the portal Import button.
+ * @param {HTMLElement} [btnElem] Optional button triggering the import (for visual feedback)
+ */
+tooltips.importPerksFromClipboardDirect = function (btnElem) {
+	if (game.global.challengeActive == "Hypothermia") {
+		var portalStoryElem = document.getElementById('portalStory');
+		if (portalStoryElem) portalStoryElem.innerHTML = "<span style='color: red'>You cannot change your perks while on the Hypothermia Challenge!</span>";
+		return;
+	}
+
+	var showFeedback = function (msg, isSuccess) {
+		var storyElem = document.getElementById('portalStory');
+		if (storyElem) {
+			storyElem.innerHTML = "<span style='color: " + (isSuccess ? "#4ade80" : "#fb7185") + "; font-weight: bold;'>" + msg + "</span>";
+		}
+		var targetElem = (btnElem && btnElem.querySelector && btnElem.querySelector('a')) ? btnElem.querySelector('a') : btnElem;
+		if (targetElem) {
+			var orig = targetElem.getAttribute('data-orig-text') || targetElem.innerHTML;
+			if (!targetElem.getAttribute('data-orig-text')) targetElem.setAttribute('data-orig-text', orig);
+			targetElem.innerHTML = isSuccess ? "Imported!" : (msg.length > 20 ? "Import Failed" : msg);
+			setTimeout(function () {
+				if (targetElem) targetElem.innerHTML = orig;
+			}, 1800);
+		}
+		if (isSuccess) {
+			message("Perks imported from clipboard!", "Notices");
+		} else {
+			message(msg, "Notices");
+		}
+	};
+
+	var handleClipText = function (clipText) {
+		if (typeof clipText !== 'string' || !clipText.trim()) {
+			showFeedback("Clipboard Empty", false);
+			return;
+		}
+
+		var raw = clipText.trim();
+		var box = document.getElementById('perkImportBox');
+		if (box) {
+			box.value = raw;
+		}
+
+		var err = (typeof importPerks === 'function') ? importPerks(raw) : "importPerks unavailable";
+		if (!err) {
+			showFeedback("Perks imported from clipboard!", true);
+		} else {
+			var errElem = document.getElementById('perkImportError');
+			if (errElem) errElem.innerText = err;
+			showFeedback(err, false);
+		}
+	};
+
+	if (navigator.clipboard && navigator.clipboard.readText) {
+		navigator.clipboard.readText().then(function (clipText) {
+			handleClipText(clipText);
+		}).catch(function (err) {
+			showFeedback("Clipboard blocked (use Ctrl+V in Import panel)", false);
+		});
+		return;
+	}
+
+	showFeedback("Clipboard API unavailable", false);
 };

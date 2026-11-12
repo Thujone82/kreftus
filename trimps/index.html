@@ -1110,7 +1110,7 @@
 						<li role="presentation" class="tabNotEnabled" id="presetTabExport" onclick="tooltip('Export Perks', null, 'update')" onmouseover="tooltip('Perk Preset', null, event, 'Export')" onmouseout="tooltip('hide')">
 							<a>Export</a>
 						</li>
-						<li role="presentation" class="tabNotEnabled" id="presetTabImport" onclick="tooltip('Import Perks', null, 'update')" onmouseover="tooltip('Perk Preset', null, event, 'Import')" onmouseout="tooltip('hide')">
+						<li role="presentation" class="tabNotEnabled" id="presetTabImport" onclick="if (event && (event.shiftKey || shiftPressed)) { tooltips.importPerksFromClipboardDirect(this); } else { tooltip('Import Perks', null, 'update'); }" onmouseover="tooltip('Perk Preset', null, event, 'Import')" onmouseout="tooltip('hide')">
 							<a>Import</a>
 						</li>
 				</ul>
@@ -1393,10 +1393,10 @@
 	<script type="text/javascript" src="lz-string.js"></script>
 	<script type="text/javascript" src="decimal.min.js"></script>
 	<script type="text/javascript" src="config.js?62"></script>
-	<script type="text/javascript" src="updates.js?65"></script>
+	<script type="text/javascript" src="updates.js?66"></script>
 	<script type="text/javascript" src="playerSpire.js?62"></script>
 	<script type="text/javascript" src="objects.js?62"></script>
-	<script type="text/javascript" src="main.js?63"></script>
+	<script type="text/javascript" src="main.js?64"></script>
 	<script type="text/javascript" src="js/kreftus-local.js?50"></script>
 	<script>
 		if ('serviceWorker' in navigator) {

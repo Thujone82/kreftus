@@ -3654,12 +3654,13 @@ function exportPerks(){
 	return LZString.compressToBase64(exportPerks);
 }
 
-function importPerks() {
+function importPerks(customString) {
 	//This function was written by the brilliant Grimy. Thanks Grimy!
 	var levels;
 	var levelName = (portalUniverse == 2) ? "radLevel" : "level";
+	var raw = (typeof customString === 'string') ? customString : (document.getElementById('perkImportBox') ? document.getElementById('perkImportBox').value : "");
 	try {
-		levels = JSON.parse(LZString.decompressFromBase64(document.getElementById('perkImportBox').value.replace(/\s/gm, '')));
+		levels = JSON.parse(LZString.decompressFromBase64(raw.replace(/\s/gm, '')));
 	} catch (e) { return "Something went really wrong, what did you even just try to do?!"}
 	if (!levels)
 		return "This doesn't look like a valid perk string.";
@@ -20275,7 +20276,17 @@ document.addEventListener('keydown', function (e) {
 			}
 			break;
 		case 73: 
-			//i for spIre Assault
+			// i hotkey: import from clipboard on portal modal
+			if (document.activeElement && (document.activeElement.tagName === 'INPUT' || (document.activeElement.tagName === 'TEXTAREA' && document.activeElement.id !== 'perkImportBox'))) {
+				break;
+			}
+			var portalOpen = portalWindowOpen || game.global.viewingUpgrades || (document.getElementById('portalWrapper') && document.getElementById('portalWrapper').style.display !== 'none');
+			if (portalOpen && typeof tooltips !== 'undefined' && typeof tooltips.importPerksFromClipboardDirect === 'function') {
+				tooltips.importPerksFromClipboardDirect(document.getElementById('presetTabImport'));
+				e.preventDefault();
+				break;
+			}
+			// i for spIre Assault
 			if (game.global.highestRadonLevelCleared >= 74){
 				if (game.global.lockTooltip && lastTooltipTitle == "Spire Assault") cancelTooltip();
 				else if (checkLettersOk()) autoBattle.popup();
