@@ -10416,7 +10416,8 @@ var ONE_TIMER_MILESTONES = [
 
     var wInfo = allSteps.length ? calculateStepWaitTimes(allSteps, bnk, r) : { totalWait: 0, wait: 0, remDust: 0, remShards: 0, remDustEq: 0 };
     wInfo.wait = wInfo.totalWait;
-    var buildSec = runnable(target) ? 0 : wInfo.wait;
+    var hasPendingSteps = allSteps.some(function (st) { return !st.completed; });
+    var buildSec = (!hasPendingSteps && runnable(target)) ? 0 : wInfo.wait;
     var neededKills = saLevelReq(level);
     var isCurrentLevel = state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel) === level;
     var liveKillsEarned = 0;
@@ -11744,7 +11745,7 @@ var ONE_TIMER_MILESTONES = [
     var badgeHtml = "<div class='step-pill-wrap" + (state.keepPopoverOpen ? " open" : "") + "' id='stepPillWrap' tabindex='0'>" + pillInner + renderStepPopover(pick, rate, bnk) + "</div>";
     var pSum = probeBuildSummary(state.level, pick.build, rate, pick.allSteps);
     var hasBuildPill = !!(pSum && pSum.target);
-    var waitMatchesBuild = hasBuildPill && pick.mode !== "upgradeValue" && (
+    var waitMatchesBuild = hasBuildPill && (
       pick.remaining <= 1 ||
       (wait === 0 ? pSum.buildSec === 0 : (wait === pSum.buildSec || (isFinite(wait) && isFinite(pSum.buildSec) && Math.abs(wait - pSum.buildSec) < 60)))
     );
@@ -11754,7 +11755,7 @@ var ONE_TIMER_MILESTONES = [
       if (wait === 0) {
         waitBadge = "<span class='pill sm buy' id='advisorWaitBadge' title='Current step is affordable now'>" + ICONS.check + " Ready now</span>";
       } else if (wait != null) {
-        var stepPrefix = (hasBuildPill && pick.mode !== "upgradeValue" && pick.remaining > 1) ? "Step: " : "";
+        var stepPrefix = (hasBuildPill && pick.remaining > 1) ? "Step: " : "";
         waitBadge = "<span class='pill sm' id='advisorWaitBadge' data-step-prefix='" + esc(stepPrefix) + "' title='Wait time for this step: " + fmtDuration(wait) + "'>" + ICONS.clock + " " + stepPrefix + fmtTime(wait) + "</span>";
       }
     }
@@ -11776,12 +11777,13 @@ var ONE_TIMER_MILESTONES = [
       (function () {
         if (!pSum || !pSum.target) return "";
         var cleared = isLevelCleared(state.level);
-        var pillTitle = buildPillTitle(pick.build.n, pSum.buildSec, pSum.buildTimeStr, pSum.clearSec, pSum.clearTimeStr, pSum.totalSec, pSum.totalTimeStr, cleared);
+        var advBuildLabel = (pick.mode === "upgradeValue" && pick.label) ? pick.label : pick.build.n;
+        var pillTitle = buildPillTitle(advBuildLabel, pSum.buildSec, pSum.buildTimeStr, pSum.clearSec, pSum.clearTimeStr, pSum.totalSec, pSum.totalTimeStr, cleared);
         if (cleared) {
-          return "<span class='pill sm' id='advPlanBuildTime' data-build-name='" + esc(pick.build.n) + "' title='" + esc(pillTitle) + "'>" +
+          return "<span class='pill sm' id='advPlanBuildTime' data-build-name='" + esc(advBuildLabel) + "' title='" + esc(pillTitle) + "'>" +
             ICONS.hammer + " Build: " + pSum.buildTimeStr + "</span>";
         }
-        var mainPill = "<span class='pill sm' id='advPlanBuildTime' data-build-name='" + esc(pick.build.n) + "' title='" + esc(pillTitle) + "'>" +
+        var mainPill = "<span class='pill sm' id='advPlanBuildTime' data-build-name='" + esc(advBuildLabel) + "' title='" + esc(pillTitle) + "'>" +
           ICONS.clock + " Build: " + pSum.buildTimeStr + " · Clear: ~" + pSum.clearTimeStr + "</span>";
 
         if (mode === "push") {
