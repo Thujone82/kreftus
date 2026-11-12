@@ -146,8 +146,9 @@ type tuiSig struct {
 	replayActive  bool
 	replayStep    int
 	fairness      int
-	lobbyClock    int64
-	lobbyErr      string
+	lobbyClock     int64
+	lobbyErr       string
+	lobbyBackFocus bool
 	turnClock     int64
 	sessPhase     string
 	sessMoves     int
@@ -182,6 +183,7 @@ func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
 	case viewLobby:
 		if l, ok := g.ctl.(lobby); ok {
 			sig.lobbyErr = l.lobbyError()
+			sig.lobbyBackFocus = g.lobbyBackFocus
 			if l.hostPort() > 0 {
 				sig.lobbyClock = int64(time.Since(l.waitingSince()).Seconds())
 			} else if sig.lobbyErr == "" {

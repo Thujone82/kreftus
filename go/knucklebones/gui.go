@@ -72,8 +72,9 @@ type frameSig struct {
 	sessLogLen    int
 	sessHistLen   int
 	oppGone       bool
-	lobbyErr      string
-	lobbyPort     int
+	lobbyErr       string
+	lobbyPort      int
+	lobbyBackFocus bool
 	turnSecLeft   int
 	discSecLeft   int
 }
@@ -245,7 +246,7 @@ func (a *guiApp) hoverTag(x, y float64) int {
 		}
 	case viewLobby:
 		l, _ := g.ctl.(lobby)
-		retry := l != nil && l.lobbyError() != ""
+		retry := l != nil && lobbyCanRetry(l.lobbyError())
 		back, again := lobbyButtons(retry)
 		if back.has(x, y) {
 			return 1
@@ -367,6 +368,7 @@ func (a *guiApp) frameSignature(now time.Time) (frameSig, bool) {
 		if l, ok := g.ctl.(lobby); ok {
 			sig.lobbyErr = l.lobbyError()
 			sig.lobbyPort = l.hostPort()
+			sig.lobbyBackFocus = g.lobbyBackFocus
 			if sig.lobbyPort > 0 {
 				sig.clockTick = int64(time.Since(l.waitingSince()).Seconds())
 			} else if sig.lobbyErr == "" {
@@ -604,12 +606,13 @@ func (a *guiApp) mouse() bool {
 			return false
 		}
 		l, _ := g.ctl.(lobby)
-		retry := l != nil && l.lobbyError() != ""
+		retry := l != nil && lobbyCanRetry(l.lobbyError())
 		back, again := lobbyButtons(retry)
 		switch {
 		case back.has(x, y):
 			return send(keyEv(tcell.KeyEscape))
 		case retry && again.has(x, y):
+			g.lobbyBackFocus = false
 			return send(keyEv(tcell.KeyEnter))
 		}
 	case viewGuide:

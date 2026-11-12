@@ -141,6 +141,12 @@ func lobbyErrorText(e string) string {
 	return "Could not connect: " + clean
 }
 
+// lobbyCanRetry reports whether retrying a failed connection with the same
+// address and room code could succeed.
+func lobbyCanRetry(errCode string) bool {
+	return errCode != "" && errCode != errBadAuth && errCode != errOldProtocol
+}
+
 func lobbyHostAddresses(bindIP string, port int) []string {
 	if bindIP != "" {
 		return []string{fmt.Sprintf("%s:%d", bindIP, port)}

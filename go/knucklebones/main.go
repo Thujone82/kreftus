@@ -233,9 +233,10 @@ type game struct {
 	input     string
 	inputPos  int // caret index in runes for input / Player 2 name / Room code
 
-	hostRoomCode string // ephemeral host room code, never persisted to disk
-	joinCode     string // ephemeral guest room code, never persisted to disk
-	joinField    int    // 0 = address, 1 = room code
+	hostRoomCode   string // ephemeral host room code, never persisted to disk
+	joinCode       string // ephemeral guest room code, never persisted to disk
+	joinField      int    // 0 = address, 1 = room code
+	lobbyBackFocus bool   // on retryable join errors, whether Back is focused instead of Retry
 
 	ctl           controller
 	overlay       int
@@ -486,6 +487,7 @@ func (g *game) beginGame(c controller) {
 	g.ctl = c
 	g.overlay = overlayNone
 	g.resultIndex = 0
+	g.lobbyBackFocus = false
 	g.cursor = 1
 	g.dieSel = 0
 	g.rollKey = [2]int{}
@@ -517,6 +519,26 @@ func (g *game) leaveGame() {
 	if g.view == viewPlay || g.view == viewLobby {
 		g.view = viewMenu
 	}
+}
+
+func (g *game) backFromLobby() {
+	isClient := true
+	field := g.joinField
+	if l, ok := g.ctl.(lobby); ok {
+		isClient = l.hostPort() == 0
+		if l.lobbyError() == errBadAuth {
+			field = 1
+		} else if isClient && l.lobbyError() != "" {
+			field = 0
+		}
+	}
+	g.leaveGame()
+	if !isClient {
+		return
+	}
+	g.note = ""
+	g.focusJoinField(field)
+	g.view = viewJoin
 }
 
 // ---- results and stats ----
@@ -1106,13 +1128,31 @@ func (g *game) keyJoin(e *tcell.EventKey) {
 }
 
 func (g *game) keyLobby(e *tcell.EventKey) {
+	l, _ := g.ctl.(lobby)
+	errCode := ""
+	if l != nil {
+		errCode = l.lobbyError()
+	}
 	switch {
 	case e.Key() == tcell.KeyEscape:
-		g.leaveGame()
-	case isEnter(e):
-		if l, ok := g.ctl.(lobby); ok && l.lobbyError() != "" {
-			l.retryConnect()
+		g.emitSound(sndClick)
+		g.backFromLobby()
+	case isLeft(e) || isRight(e) || e.Key() == tcell.KeyTab || e.Key() == tcell.KeyBacktab:
+		if lobbyCanRetry(errCode) {
+			g.lobbyBackFocus = !g.lobbyBackFocus
+			g.emitSound(sndClick)
 		}
+	case isEnter(e) || isRune(e, ' '):
+		if errCode == "" {
+			return
+		}
+		g.emitSound(sndClick)
+		if !lobbyCanRetry(errCode) || g.lobbyBackFocus {
+			g.backFromLobby()
+			return
+		}
+		g.lobbyBackFocus = false
+		l.retryConnect()
 	}
 }
 

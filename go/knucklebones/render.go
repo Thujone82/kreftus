@@ -566,18 +566,54 @@ func (g *game) drawLobby() {
 		drawCentered(g.screen, w/2, h-1, "Esc cancel", g.st(g.pal.dim))
 		return
 	}
-	g.drawBox(bx, by, bw, 8, "Join Game")
 	if e := l.lobbyError(); e != "" {
-		for i, line := range wrap(lobbyErrorText(e), bw-6) {
+		lines := wrap(lobbyErrorText(e), bw-6)
+		btnY := by + 2 + len(lines) + 3
+		if btnY < by+7 {
+			btnY = by + 7
+		}
+		bh := (btnY - by) + 3
+		if bh > h-by-1 {
+			bh = h - by - 1
+			btnY = by + bh - 3
+		}
+		g.drawBox(bx, by, bw, bh, "Join Game")
+		for i, line := range lines {
 			drawCentered(g.screen, w/2, by+2+i, line, g.st(g.pal.lose))
 		}
-		drawCentered(g.screen, w/2, by+5, g.save.Settings.JoinAddr, g.st(g.pal.dim))
-		drawCentered(g.screen, w/2, h-1, "Enter retry · Esc back", g.st(g.pal.dim))
+		addrY := btnY - 2
+		if addrY > by+1+len(lines) {
+			drawCentered(g.screen, w/2, addrY, g.save.Settings.JoinAddr, g.st(g.pal.dim))
+		}
+		if !lobbyCanRetry(e) {
+			st := tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+			drawCentered(g.screen, w/2, btnY, "▶ Back ◀", st)
+			drawCentered(g.screen, w/2, h-1, "Enter / Esc back", g.st(g.pal.dim))
+			return
+		}
+		backLabel := "  Back  "
+		retryLabel := "  Retry  "
+		backSt := g.st(g.pal.fg)
+		retrySt := g.st(g.pal.fg)
+		if g.lobbyBackFocus {
+			backLabel = "▶ Back ◀"
+			backSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+		} else {
+			retryLabel = "▶ Retry ◀"
+			retrySt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+		}
+		total := textWidth(backLabel) + 4 + textWidth(retryLabel)
+		x := w/2 - total/2
+		x = drawText(g.screen, x, btnY, backLabel, backSt) + 4
+		drawText(g.screen, x, btnY, retryLabel, retrySt)
+		drawCentered(g.screen, w/2, h-1, "←→ select · Enter confirm · Esc back", g.st(g.pal.dim))
 		return
 	}
+	g.drawBox(bx, by, bw, 9, "Join Game")
 	dots := strings.Repeat(".", int(time.Now().UnixMilli()/400%4))
 	drawCentered(g.screen, w/2, by+2, "Waiting for game to start"+dots, g.st(g.pal.fg))
 	drawCentered(g.screen, w/2, by+4, g.save.Settings.JoinAddr, g.st(g.pal.accent))
+	drawCentered(g.screen, w/2, by+6, "▶ Cancel ◀", tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true))
 	drawCentered(g.screen, w/2, h-1, "Esc cancel", g.st(g.pal.dim))
 }
 

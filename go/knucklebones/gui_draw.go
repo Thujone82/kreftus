@@ -664,10 +664,15 @@ func (a *guiApp) drawLobby(dst *ebiten.Image) {
 			y += 28
 		}
 		a.center(dst, g.save.Settings.JoinAddr, y+20, 17, fontRegular, a.c(p.dim))
-		back, again := lobbyButtons(true)
-		a.button(dst, back, "Back", false, p.accent)
-		a.button(dst, again, "Retry", true, p.accent)
-		a.footer(dst, "Enter retry · Esc back")
+		retry := lobbyCanRetry(e)
+		back, again := lobbyButtons(retry)
+		a.button(dst, back, "Back", !retry || g.lobbyBackFocus, p.accent)
+		if retry {
+			a.button(dst, again, "Retry", !g.lobbyBackFocus, p.accent)
+			a.footer(dst, "←→ select · Enter confirm · Esc back")
+		} else {
+			a.footer(dst, "Enter / Esc back")
+		}
 		return
 	}
 	dots := strings.Repeat(".", int(time.Now().UnixMilli()/400%4))

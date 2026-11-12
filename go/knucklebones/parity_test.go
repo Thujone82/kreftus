@@ -589,3 +589,200 @@ func TestPCMAudioHeadlessDetection(t *testing.T) {
 		t.Fatalf("expected playPCMSound(sndClick) to return false when headless")
 	}
 }
+
+type stubLobbyCtl struct {
+	err     string
+	port    int
+	retried int
+	left    int
+}
+
+func (c *stubLobbyCtl) state() *session                               { return nil }
+func (c *stubLobbyCtl) seat() int                                     { return 0 }
+func (c *stubLobbyCtl) place(Move)                                    {}
+func (c *stubLobbyCtl) aim(int, int)                                  {}
+func (c *stubLobbyCtl) vote(string)                                   {}
+func (c *stubLobbyCtl) resign()                                       {}
+func (c *stubLobbyCtl) leave()                                        { c.left++ }
+func (c *stubLobbyCtl) tick(time.Time) bool                           { return false }
+func (c *stubLobbyCtl) netEvents() <-chan netEvent                    { return nil }
+func (c *stubLobbyCtl) handle(netEvent, time.Time) bool               { return false }
+func (c *stubLobbyCtl) turnLeft(time.Time) time.Duration              { return 0 }
+func (c *stubLobbyCtl) disconnectLeft(time.Time) (int, time.Duration) { return -1, 0 }
+func (c *stubLobbyCtl) opponentGone() bool                            { return false }
+func (c *stubLobbyCtl) fairness() int                                 { return 0 }
+func (c *stubLobbyCtl) waitingSince() time.Time                       { return time.Now() }
+func (c *stubLobbyCtl) lobbyError() string                            { return c.err }
+func (c *stubLobbyCtl) retryConnect()                                 { c.retried++ }
+func (c *stubLobbyCtl) hostPort() int                                 { return c.port }
+func (c *stubLobbyCtl) hostRoomCode() string                          { return "" }
+
+func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
+	if lobbyCanRetry("") || lobbyCanRetry(errBadAuth) || lobbyCanRetry(errOldProtocol) {
+		t.Fatalf("expected non-retryable lobby errors to return false from lobbyCanRetry")
+	}
+	if !lobbyCanRetry(errRoomFull) || !lobbyCanRetry("dial failed") {
+		t.Fatalf("expected retryable lobby errors to return true from lobbyCanRetry")
+	}
+
+	lc := lobbyCard()
+	backOnly, retryEmpty := lobbyButtons(false)
+	assertRectInViewport(t, "lobbyBackOnly", backOnly)
+	assertRectInside(t, "lobbyBackOnly", backOnly, "lobbyCard", lc)
+	if retryEmpty != (rect{}) {
+		t.Fatalf("expected empty Retry rect when !retry, got %+v", retryEmpty)
+	}
+	backPair, retryPair := lobbyButtons(true)
+	assertRectInside(t, "lobbyBackPair", backPair, "lobbyCard", lc)
+	assertRectInside(t, "lobbyRetryPair", retryPair, "lobbyCard", lc)
+	assertNoRectOverlap(t, map[string]rect{
+		"lobbyBack":  backPair,
+		"lobbyRetry": retryPair,
+	})
+
+	host, err := startHost("Host", 0, hostConfig{
+		BestOf:   1,
+		BindIP:   "127.0.0.1",
+		RoomCode: "secret42",
+	}, testRNG())
+	if err != nil {
+		t.Fatalf("startHost: %v", err)
+	}
+	defer host.leave()
+
+	g := newTestGame(t, 96, 34)
+	g.savePath = filepath.Join(t.TempDir(), "save.json")
+	g.save = newSaveData()
+	g.save.Name = "Guest"
+
+	g.menuIndex = menuJoin
+	g.handleKey(key(tcell.KeyEnter))
+	wantAddr := fmt.Sprintf("127.0.0.1:%d", host.hostPort())
+	g.input = wantAddr
+	g.inputPos = runeLen(wantAddr)
+	g.handleKey(key(tcell.KeyDown))
+	for _, r := range "wrong99" {
+		g.handleKey(runeKey(r))
+	}
+	g.handleKey(key(tcell.KeyEnter))
+	if g.view != viewLobby {
+		t.Fatalf("expected viewLobby after Join submit, got %v", g.view)
+	}
+
+	pumpUntilErr := func(want string) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			now := time.Now()
+			for drained := true; drained; {
+				drained = false
+				select {
+				case ev := <-host.netEvents():
+					host.handle(ev, now)
+					drained = true
+				default:
+				}
+				if g.ctl != nil {
+					select {
+					case ev := <-g.ctl.netEvents():
+						g.ctl.handle(ev, now)
+						drained = true
+					default:
+					}
+				}
+			}
+			host.tick(now)
+			if g.ctl != nil {
+				g.ctl.tick(now)
+				if l, ok := g.ctl.(lobby); ok && l.lobbyError() == want {
+					return
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("timed out waiting for lobby error %q", want)
+	}
+
+	pumpUntilErr(errBadAuth)
+	g.render()
+	txt := screenText(g)
+	if !strings.Contains(txt, "Incorrect room code.") || !strings.Contains(txt, "Back") {
+		t.Fatalf("wrong room code screen missing error or Back button:\n%s", txt)
+	}
+	if strings.Contains(txt, "Retry") {
+		t.Fatalf("wrong room code screen should not offer Retry button:\n%s", txt)
+	}
+
+	// Esc from wrong room code returns to Join screen keeping address & room code, focusing room code field.
+	g.handleKey(key(tcell.KeyEscape))
+	if g.view != viewJoin || g.ctl != nil || g.joinField != 1 {
+		t.Fatalf("Esc did not return to viewJoin room code field: view=%v ctl=%v field=%d", g.view, g.ctl, g.joinField)
+	}
+	if g.input != wantAddr || g.joinCode != "wrong99" {
+		t.Fatalf("Esc lost join inputs: input=%q joinCode=%q", g.input, g.joinCode)
+	}
+
+	// Re-submit and confirm Enter on the highlighted Back button also returns to Join screen.
+	g.handleKey(key(tcell.KeyEnter))
+	pumpUntilErr(errBadAuth)
+	g.handleKey(key(tcell.KeyLeft)) // should not toggle away from Back when !lobbyCanRetry
+	g.handleKey(key(tcell.KeyEnter))
+	if g.view != viewJoin || g.ctl != nil || g.joinField != 1 {
+		t.Fatalf("Enter on Back button did not return to viewJoin: view=%v ctl=%v field=%d", g.view, g.ctl, g.joinField)
+	}
+	if g.input != wantAddr || g.joinCode != "wrong99" {
+		t.Fatalf("Enter on Back button lost join inputs: input=%q joinCode=%q", g.input, g.joinCode)
+	}
+	g.handleKey(runeKey('x'))
+	if g.joinCode != "wrong99x" {
+		t.Fatalf("expected room code field to receive input right after returning from Back, got %q", g.joinCode)
+	}
+
+	// Retryable client error shows both Back and Retry, supports focus toggle, and Back returns to viewJoin field 0.
+	retryCtl := &stubLobbyCtl{err: errRoomFull}
+	g.beginGame(retryCtl)
+	g.view = viewLobby
+	g.render()
+	retryTxt := screenText(g)
+	if !strings.Contains(retryTxt, lobbyErrorText(errRoomFull)) || !strings.Contains(retryTxt, "Back") || !strings.Contains(retryTxt, "Retry") {
+		t.Fatalf("retryable error screen missing expected text/buttons:\n%s", retryTxt)
+	}
+	g.handleKey(key(tcell.KeyEnter))
+	if retryCtl.retried != 1 || g.view != viewLobby {
+		t.Fatalf("Enter with Retry focused should call retryConnect and stay in lobby: retried=%d view=%v", retryCtl.retried, g.view)
+	}
+	g.handleKey(key(tcell.KeyTab))
+	if !g.lobbyBackFocus {
+		t.Fatalf("Tab should switch lobby focus to Back")
+	}
+	g.handleKey(runeKey(' '))
+	if g.view != viewJoin || g.joinField != 0 || retryCtl.left != 1 {
+		t.Fatalf("Space with Back focused should return to viewJoin field 0: view=%v field=%d left=%d", g.view, g.joinField, retryCtl.left)
+	}
+
+	// Client connecting screen shows Cancel and Esc returns to viewJoin.
+	connCtl := &stubLobbyCtl{}
+	g.beginGame(connCtl)
+	g.view = viewLobby
+	g.render()
+	if !strings.Contains(screenText(g), "Cancel") {
+		t.Fatalf("client connecting screen missing Cancel button:\n%s", screenText(g))
+	}
+	g.handleKey(key(tcell.KeyEscape))
+	if g.view != viewJoin || connCtl.left != 1 {
+		t.Fatalf("client connecting Esc should return to viewJoin: view=%v left=%d", g.view, connCtl.left)
+	}
+
+	// Host lobby Esc cancel still returns to Main Menu.
+	hostCtl := &stubLobbyCtl{port: 8647}
+	g.beginGame(hostCtl)
+	g.view = viewLobby
+	g.render()
+	if !strings.Contains(screenText(g), "Esc cancel") {
+		t.Fatalf("host lobby missing Esc cancel footer:\n%s", screenText(g))
+	}
+	g.handleKey(key(tcell.KeyEscape))
+	if g.view != viewMenu || hostCtl.left != 1 {
+		t.Fatalf("host lobby Esc should return to viewMenu: view=%v left=%d", g.view, hostCtl.left)
+	}
+}

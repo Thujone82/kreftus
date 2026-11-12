@@ -72,8 +72,9 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 | Name / Join | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit text (including literal `w`/`a`/`s`/`d`) |
 | Name / Join | Enter | Confirm (`Join` connects) |
 | Name / Join | Esc | Cancel and return to menu |
-| Lobby | Enter | Retry after a failed connection |
-| Lobby | Esc | Cancel |
+| Lobby | ←→, A/D, or Tab | Switch between `Back` and `Retry` on retryable errors |
+| Lobby | Enter or Space | Confirm `Back` or `Retry` |
+| Lobby | Esc | Return to Join Game (client) or cancel hosting (host) |
 | Your turn | ←→ or A/D | Choose a column |
 | Your turn | 1–3 | Place in that column |
 | Your turn | Enter or Space | Place in the chosen column |
