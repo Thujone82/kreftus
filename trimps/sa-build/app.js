@@ -4063,6 +4063,24 @@ var ONE_TIMER_MILESTONES = [
       (totalTimeStr ? (" (Total: ~" + totalTimeStr + clearEta + ")") : "");
   }
 
+  function formatRoadmapPayback(calc, rate) {
+    var curRate = (typeof rate === "number" && rate > 0) ? rate : (activeDustPs() || 0);
+    var totalDust = (calc && calc.totalCostDust) || 0;
+    var totalShards = (calc && calc.totalCostShards) || 0;
+    var totalCostEq = Math.max(totalDust, totalShards * SHARD_DUST);
+    if (totalCostEq <= 0) return { hasCost: false, text: "", title: "" };
+    var sec = curRate > 0 ? (totalCostEq / curRate) : Infinity;
+    var costParts = [];
+    if (totalDust > 0) costParts.push(prettify(totalDust) + " dust");
+    if (totalShards > 0) costParts.push(prettify(totalShards) + " shards");
+    var costLbl = costParts.join(" + ");
+    var timeTxt = isFinite(sec) ? fmtTime(sec) : "—";
+    var title = isFinite(sec)
+      ? ("Payback if bought at current income (" + prettify(curRate) + "/s) for total cost (" + costLbl + "): " + timeTxt)
+      : ("Total cost: " + costLbl + " (no active dust/s income rate)");
+    return { hasCost: true, text: "Payback: " + timeTxt, title: title };
+  }
+
   function refreshPlanPopoverWaitTimes() {
     if (!state.lastPlanSteps || !state.lastPlanSteps.length) return;
     var bnk = bank();
@@ -4102,6 +4120,19 @@ var ONE_TIMER_MILESTONES = [
     if (totalWaitEl) {
       var twStr = calc.totalWait === 0 ? "Ready now" : fmtTime(calc.totalWait);
       if (totalWaitEl.textContent !== twStr) totalWaitEl.textContent = twStr;
+    }
+
+    var paybackEl = $("spPaybackPill");
+    if (paybackEl) {
+      var pb = formatRoadmapPayback(calc, defaultRate);
+      if (pb.hasCost) {
+        paybackEl.style.display = "inline-flex";
+        var pbSpan = paybackEl.querySelector("span");
+        if (pbSpan && pbSpan.textContent !== pb.text) pbSpan.textContent = pb.text;
+        if (paybackEl.title !== pb.title) paybackEl.title = pb.title;
+      } else {
+        paybackEl.style.display = "none";
+      }
     }
 
     var durStr = calc.totalWait === 0 ? "Ready now" : fmtDuration(calc.totalWait);
@@ -4583,15 +4614,15 @@ var ONE_TIMER_MILESTONES = [
       titleTxt = "Unlock Roadmap · " + totalSteps + " Steps";
     }
     var hintHtml = canDrag ? (isCustom ? "<button type='button' class='sp-reset-btn' id='spResetOrderBtn' title='Restore default step order'>Reset order</button>" : "<span class='sp-hint'>(drag to reorder)</span>") : "";
-    var simBadgeHtml = "<span class='sp-sim-status" + (state.planSimInProgress ? " simulating" : "") + "' id='spSimStatus'" +
-      (!state.lastSimulatedStepsSig && !state.planSimInProgress ? " style='display:none;'" : "") + ">" +
-      (state.planSimInProgress ? "⚡ Simulating 9001x..." : (state.lastSimulatedStepsSig ? "⚡ 9001x" : "")) +
-      "</span>";
+    var pb = formatRoadmapPayback(calc, rate);
+    var paybackBadgeHtml = pb.hasCost
+      ? "<span class='sp-payback' id='spPaybackPill' title='" + esc(pb.title) + "'>" + ICONS.clock + "<span>" + esc(pb.text) + "</span></span>"
+      : "<span class='sp-payback' id='spPaybackPill' style='display:none;'>" + ICONS.clock + "<span></span></span>";
 
     return "<div class='step-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.clock + "<span>" + esc(titleTxt) + "</span>" + hintHtml + "</span>" +
-      "<div class='sp-head-right'>" + simBadgeHtml + "<span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span></div>" +
+      "<div class='sp-head-right'>" + paybackBadgeHtml + "<span class='sp-target'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + "</span></div>" +
       "</div>" +
       "<ol class='sp-list' id='spStepList'>" + itemsHtml + "</ol>" +
       "<div class='sp-foot'>" +
