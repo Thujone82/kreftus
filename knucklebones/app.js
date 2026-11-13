@@ -2166,7 +2166,7 @@
       sendRelay(seq, {
         type: 'challenge',
         version: PROTO_VERSION,
-        authReq: roomKey.length > 0,
+        authReq: !!(roomKey && roomKey.length > 0),
         nonce,
         commit: commitHex
       });
@@ -2527,6 +2527,8 @@
     netRoomIdx: 0,
     watcher: null,
     hostRoomCode: '',
+    shareFeedback: '',
+    shareTimer: null,
     nameDraft: save.name,
     note: '',
     ctl: null,
@@ -2752,6 +2754,8 @@
       app.touchArmedCol = -1;
       app.resultIndex = 0;
       app.recordNote = '';
+    app.shareFeedback = '';
+    if (app.shareTimer) { clearTimeout(app.shareTimer); app.shareTimer = null; }
       app.aimPubKey = '';
       const grid = s.match.grids[s.match.turn];
       for (let i = 0; i < GRID_COLS && openSlot(grid[app.cursor]) < 0; i++) {
@@ -2781,6 +2785,8 @@
       const sc = matchScores(s.match);
       const w = matchWinner(s.match);
       app.recordNote = '';
+    app.shareFeedback = '';
+    if (app.shareTimer) { clearTimeout(app.shareTimer); app.shareTimer = null; }
       if (s.mode === 'local') {
         if (w < 0) rec.draws++;
         for (let p = 0; p < 2; p++) {
@@ -2889,6 +2895,8 @@
     app.recRoundKey = '';
     app.recSeriesKey = 0;
     app.recordNote = '';
+    app.shareFeedback = '';
+    if (app.shareTimer) { clearTimeout(app.shareTimer); app.shareTimer = null; }
     app.soundPhaseKey = '';
     app.winCacheKey = '';
     app.hideResult = false;
@@ -3524,10 +3532,13 @@
           <p style="text-align:center;font-size:1.1rem;margin:18px 0 8px;">${isHost ? 'Waiting for an opponent to join…' : 'Waiting for game to start...'}</p>
           ${hostBadges}
           <p class="note-hint">Waiting time: <span id="lobby-wait-time">${wait}</span></p>
-          <div class="btn-row">${renderActionButton('kb-btn', 'data-action="back-join"', 'Cancel')}</div>
+          <div class="btn-row">
+            ${renderActionButton('kb-btn', 'data-action="back-join"', 'Cancel')}
+            ${isHost ? renderActionButton('kb-btn primary', `data-action="share-online-match" ${rid ? '' : 'disabled'}`, app.shareFeedback || 'Share') : ''}
+          </div>
         </div>
       </div>
-      <div class="footer-hint">Esc cancel</div>
+      <div class="footer-hint">${isHost ? 'Share link to invite · Esc cancel' : 'Esc cancel'}</div>
     `;
   }
 
@@ -4600,6 +4611,9 @@
         openNetworkView(true);
       } else if (act === 'open-online-host') {
         openSettings('onlineHost');
+      } else if (act === 'share-online-match') {
+        emitSound('click');
+        shareOnlineMatch();
       } else if (act === 'submit-online-join') {
         submitOnlineJoin();
       } else if (act === 'cycle-theme') {
@@ -5197,12 +5211,104 @@
     });
   }
 
-  // Handle URL deep-links (?join=HOST:PORT or ?mode=ai|local|network|join|options)
+  function buildOnlineShareUrl(roomId, roomCode) {
+    const url = new URL(location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('room', roomId);
+    if (roomCode) url.searchParams.set('code', roomCode);
+    if (isLoopbackHost(location.hostname)) {
+      const cur = new URLSearchParams(location.search);
+      const rv = cur.get('rv');
+      if (rv) url.searchParams.set('rv', rv);
+    }
+    return url.toString();
+  }
+
+  function copyTextFallback(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function shareOnlineMatch() {
+    const ctl = app.ctl;
+    const rid = ctl && ctl.roomId ? ctl.roomId() : '';
+    if (!rid) return;
+    const code = ctl && ctl.roomCode ? ctl.roomCode() : '';
+    const shareUrl = buildOnlineShareUrl(rid, code);
+    const setFeedback = (msg) => {
+      app.shareFeedback = msg;
+      if (app.shareTimer) clearTimeout(app.shareTimer);
+      app.shareTimer = setTimeout(() => {
+        app.shareFeedback = '';
+        app.shareTimer = null;
+        if (app.view === 'lobby') render();
+      }, 2400);
+      if (app.view === 'lobby') render();
+    };
+    const copyShare = () => {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          setFeedback('Link Copied!');
+        }).catch(() => {
+          setFeedback(copyTextFallback(shareUrl) ? 'Link Copied!' : 'Copy Failed');
+        });
+      } else {
+        setFeedback(copyTextFallback(shareUrl) ? 'Link Copied!' : 'Copy Failed');
+      }
+    };
+    if (typeof navigator.share === 'function') {
+      navigator.share({
+        title: 'Knucklebones Online Match',
+        text: 'Join my Knucklebones online match!',
+        url: shareUrl
+      }).then(() => {
+        setFeedback('Shared!');
+      }).catch((err) => {
+        if (err && err.name === 'AbortError') return;
+        copyShare();
+      });
+      return;
+    }
+    copyShare();
+  }
+
+  // Handle URL deep-links (?room=ROOMID[&code=CODE], ?join=HOST:PORT, or ?mode=ai|local|network|join|options)
   function handleInitialQuery() {
     const params = new URLSearchParams(location.search);
+    const room = cleanText(params.get('room') || '', 32);
+    const code = cleanRoomCode(params.get('code') || '');
     const join = normalizeJoinAddr(cleanText(params.get('join') || '', 80));
     const mode = params.get('mode');
-    if (join) {
+    if (room) {
+      const cleanUrl = new URL(location.href);
+      cleanUrl.searchParams.delete('room');
+      cleanUrl.searchParams.delete('code');
+      try { history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash); } catch (_) {}
+      let g = null;
+      g = createWsGuestController({
+        roomId: room,
+        rendezvousAddr: getRendezvousAddr(),
+        roomCode: code,
+        guestName: save.name
+      }, () => {
+        if (app.ctl && app.ctl === g) {
+          syncSessionEvents();
+          render();
+        }
+      });
+      beginGame(g);
+      return;
+    } else if (join) {
       app.netOnline = false;
       app.joinAddr = join;
       app.joinField = 1;

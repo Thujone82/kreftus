@@ -313,6 +313,12 @@ body.mode-tui {
   min-height: 0;
 }
 
+.kb-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  pointer-events: none;
+}
+
 .kb-btn.xs:disabled {
   opacity: 0.6;
   cursor: default;
