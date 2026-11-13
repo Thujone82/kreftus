@@ -1944,6 +1944,7 @@
     let errMsg = '';
     let rooms = [];
     let stats = {
+      lobbyWatchers: 0,
       liveMatches: 0,
       waitingRooms: 0,
       completedMatches: 0,
@@ -3355,7 +3356,7 @@
     else if (app.netRoomIdx >= rooms.length) app.netRoomIdx = rooms.length - 1;
 
     const statusLine = conn
-      ? `<span class="net-status-dot on"></span> <span>Live: <strong>${st.liveMatches || 0}</strong> playing · <strong>${rooms.length}</strong> open</span><span class="net-stats-sep">·</span><span>All-time: <strong>${st.completedMatches || 0}</strong> matches · <strong>${st.totalDicePlayed || 0}</strong> dice</span>`
+      ? `<span class="net-status-dot on"></span> <span>In lobby: <strong>${st.lobbyWatchers || 0}</strong> · Live: <strong>${st.liveMatches || 0}</strong> · <strong>${rooms.length}</strong> open</span><span class="net-stats-sep">·</span><span>All-time: <strong>${st.completedMatches || 0}</strong> matches · <strong>${st.totalDicePlayed || 0}</strong> dice</span>`
       : `<span class="net-status-dot"></span> <span>${escHtml(err || `Connecting to ${getRendezvousAddr()}…`)}</span>`;
 
     const listHtml = rooms.length === 0

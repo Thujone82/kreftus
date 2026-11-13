@@ -35,6 +35,7 @@ func (e *fatalDialError) Error() string {
 }
 
 type lobbyStatsView struct {
+	LobbyWatchers      int    `json:"lobbyWatchers"`
 	LiveMatches        int    `json:"liveMatches"`
 	WaitingRooms       int    `json:"waitingRooms"`
 	CompletedMatches   uint64 `json:"completedMatches"`

@@ -343,7 +343,7 @@ func TestRendezvousLobbyHostJoinStatsAndWSS(t *testing.T) {
 
 	// Reload persisted stats from disk to verify persistence.
 	reloaded := newStatsStore(h.stats.path)
-	snap := reloaded.Snapshot(0, 0)
+	snap := reloaded.Snapshot(0, 0, 0)
 	if snap.CompletedMatches != 1 || snap.TotalDicePlayed != 1 {
 		t.Fatalf("reloaded stats mismatch: %+v", snap)
 	}

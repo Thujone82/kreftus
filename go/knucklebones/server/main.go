@@ -110,11 +110,15 @@ func (h *hub) countsLocked() (live int, waiting []RoomInfo) {
 
 func (h *hub) snapshotLocked() ([]RoomInfo, StatsView) {
 	live, waiting := h.countsLocked()
-	sv := h.stats.Snapshot(live, len(waiting))
+	sv := h.stats.Snapshot(live, len(waiting), len(h.watchers))
 	return waiting, sv
 }
 
 func (h *hub) broadcastLobby(force bool) {
+	h.broadcastLobbyExcept(force, 0)
+}
+
+func (h *hub) broadcastLobbyExcept(force bool, exceptID uint64) {
 	h.mu.Lock()
 	if !force && time.Since(h.lastStatPush) < 400*time.Millisecond {
 		h.mu.Unlock()
@@ -124,6 +128,9 @@ func (h *hub) broadcastLobby(force bool) {
 	rooms, sv := h.snapshotLocked()
 	targets := make([]*watcher, 0, len(h.watchers))
 	for _, w := range h.watchers {
+		if exceptID != 0 && w.id == exceptID {
+			continue
+		}
 		targets = append(targets, w)
 	}
 	h.mu.Unlock()
@@ -162,6 +169,7 @@ func (h *hub) addWatcher(conn net.Conn) *watcher {
 	w.wmu.Lock()
 	_ = writeEnvelope(conn, envelope{Type: rMsgLobby, Rooms: rooms, Stats: &sv}, writeTimeout)
 	w.wmu.Unlock()
+	go h.broadcastLobbyExcept(true, w.id)
 	return w
 }
 
@@ -169,6 +177,7 @@ func (h *hub) removeWatcher(w *watcher) {
 	h.mu.Lock()
 	delete(h.watchers, w.id)
 	h.mu.Unlock()
+	go h.broadcastLobby(true)
 }
 
 func (h *hub) createRoom(conn net.Conn, req envelope) (*room, error) {
@@ -350,8 +359,9 @@ func (h *hub) serveConn(raw net.Conn, getTLS func() *tls.Config) {
 func (h *hub) handleHTTPGet(ac *acceptedConn) {
 	h.mu.Lock()
 	live, waiting := h.countsLocked()
-	sv := h.stats.Snapshot(live, len(waiting))
-	full := h.stats.FullDump(live, len(waiting))
+	watchers := len(h.watchers)
+	sv := h.stats.Snapshot(live, len(waiting), watchers)
+	full := h.stats.FullDump(live, len(waiting), watchers)
 	h.mu.Unlock()
 
 	var body []byte

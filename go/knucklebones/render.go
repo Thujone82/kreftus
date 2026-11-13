@@ -542,8 +542,8 @@ func (g *game) drawNetwork() {
 
 	if g.netOnline {
 		snap := g.networkSnapshot()
-		statsLine := fmt.Sprintf("Live matches: %d · Completed: %s · Dice played: %s",
-			snap.Stats.LiveMatches, formatCompactUint(snap.Stats.CompletedMatches), formatCompactUint(snap.Stats.TotalDicePlayed))
+		statsLine := fmt.Sprintf("In lobby: %d · Live: %d · Completed: %s · Dice: %s",
+			snap.Stats.LobbyWatchers, snap.Stats.LiveMatches, formatCompactUint(snap.Stats.CompletedMatches), formatCompactUint(snap.Stats.TotalDicePlayed))
 		if !snap.Connected {
 			if snap.Err != "" {
 				statsLine = "Offline (" + truncate(snap.Err, bw-18) + ")"

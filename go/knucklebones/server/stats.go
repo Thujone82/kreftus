@@ -46,6 +46,7 @@ type MatchRecord struct {
 
 // StatsView is sent to clients in r_lobby / r_hosted and HTTP /stats.
 type StatsView struct {
+	LobbyWatchers      int               `json:"lobbyWatchers"`
 	LiveMatches        int               `json:"liveMatches"`
 	WaitingRooms       int               `json:"waitingRooms"`
 	CompletedMatches   uint64            `json:"completedMatches"`
@@ -176,7 +177,7 @@ func (s *statsStore) Flush() {
 	s.flushLocked()
 }
 
-func (s *statsStore) Snapshot(live, waiting int) StatsView {
+func (s *statsStore) Snapshot(live, waiting, lobbyWatchers int) StatsView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	forfeits := make(map[string]uint64, len(s.data.Forfeits))
@@ -189,6 +190,7 @@ func (s *statsStore) Snapshot(live, waiting int) StatsView {
 		highCopy = &cp
 	}
 	return StatsView{
+		LobbyWatchers:      lobbyWatchers,
 		LiveMatches:        live,
 		WaitingRooms:       waiting,
 		CompletedMatches:   s.data.CompletedMatches,
@@ -203,13 +205,14 @@ func (s *statsStore) Snapshot(live, waiting int) StatsView {
 	}
 }
 
-func (s *statsStore) FullDump(live, waiting int) map[string]any {
+func (s *statsStore) FullDump(live, waiting, lobbyWatchers int) map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return map[string]any{
-		"liveMatches":  live,
-		"waitingRooms": waiting,
-		"stats":        s.data,
+		"lobbyWatchers": lobbyWatchers,
+		"liveMatches":   live,
+		"waitingRooms":  waiting,
+		"stats":         s.data,
 	}
 }
 

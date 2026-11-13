@@ -417,7 +417,7 @@ func (a *guiApp) frameSignature(now time.Time) (frameSig, bool) {
 			snap := g.networkSnapshot()
 			sig.netRoomsLen = len(snap.Rooms)
 			sig.netUpdatedNs = snap.UpdatedAt.UnixNano()
-			sig.netStatsKey = uint64(snap.Stats.LiveMatches)*1000003 + snap.Stats.CompletedMatches*1009 + snap.Stats.TotalDicePlayed
+			sig.netStatsKey = uint64(snap.Stats.LobbyWatchers)*1000000007 + uint64(snap.Stats.LiveMatches)*1000003 + snap.Stats.CompletedMatches*1009 + snap.Stats.TotalDicePlayed
 			if snap.Err != "" {
 				sig.lobbyErr = snap.Err
 			}

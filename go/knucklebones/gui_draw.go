@@ -729,8 +729,8 @@ func (a *guiApp) drawNetwork(dst *ebiten.Image) {
 		snap := g.networkSnapshot()
 		sb := netStatsRect()
 		a.fill(dst, sb, a.c(p.emptyBg), 8)
-		statsTxt := fmt.Sprintf("Live matches: %d  ·  Completed: %s  ·  Dice played: %s",
-			snap.Stats.LiveMatches, formatCompactUint(snap.Stats.CompletedMatches), formatCompactUint(snap.Stats.TotalDicePlayed))
+		statsTxt := fmt.Sprintf("In lobby: %d  ·  Live: %d  ·  Completed: %s  ·  Dice: %s",
+			snap.Stats.LobbyWatchers, snap.Stats.LiveMatches, formatCompactUint(snap.Stats.CompletedMatches), formatCompactUint(snap.Stats.TotalDicePlayed))
 		stCol := a.c(p.dim)
 		if !snap.Connected {
 			if snap.Err != "" {
