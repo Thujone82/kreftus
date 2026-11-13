@@ -557,6 +557,10 @@ body.mode-tui {
   text-align: center;
   font-size: clamp(1rem, 2.4vw, 1.3rem);
   font-weight: 700;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-meta {
@@ -754,8 +758,9 @@ body.mode-tui .board-box.winner-board {
 }
 
 .grid-col {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: repeat(3, var(--die-size));
+  justify-items: center;
   align-items: center;
   gap: var(--grid-gap);
   padding: var(--col-pad);
@@ -1235,9 +1240,14 @@ body.mode-tui .guide-card {
   background: var(--bg);
 }
 
+body.mode-tui .grid-col {
+  grid-template-rows: repeat(3, calc(var(--die-size) * 0.82));
+}
+
 body.mode-tui .die-slot {
   border-radius: 0;
   border: 1px dashed var(--frame);
+  height: calc(var(--die-size) * 0.82);
 }
 
 body.mode-tui .tui-die {
@@ -1427,7 +1437,7 @@ body.mode-tui .tui-mark {
   }
 
   .header-status {
-    font-size: clamp(0.95rem, 3.8vw, 1.15rem);
+    font-size: clamp(0.84rem, 3.5vw, 1.08rem);
   }
 
   .header-meta {
@@ -1513,6 +1523,7 @@ body.mode-tui .tui-mark {
     font-size: 0.78rem;
     min-height: 0;
     margin-top: 0;
+    white-space: nowrap;
   }
 
   .tray-side {
@@ -1614,6 +1625,10 @@ body.mode-tui .tui-mark {
     font-size: 0.72rem;
     padding-top: 1px;
     margin-top: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 }
 

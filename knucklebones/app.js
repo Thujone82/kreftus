@@ -2936,7 +2936,7 @@
 
     const solveForGap = (gap) => {
       const maxW = (availBoardsW - boxPadH - 3 * colPadH - 2 * gap - 4) / 3;
-      const fixedH = scoresH + dividerH + colCountGap + 2 * boxPadV + 2 * colPadV + 4 * gap + 8;
+      const fixedH = scoresH + dividerH + colCountGap + 2 * boxPadV + 2 * colPadV + 4 * gap + 12;
       const maxH = (availBoardsH - fixedH) / (6 * dieHFactor);
       return Math.floor(Math.max(minDie, Math.min(maxW, maxH, maxDie)));
     };
