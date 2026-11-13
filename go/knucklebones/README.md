@@ -1,10 +1,14 @@
 # Knucklebones — Terminal Dice Duel
 
-**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-12
+**Version:** 1.1 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-13
 
 ## Description
 
 `Knucklebones` is a cross-platform terminal version of the dice game from *Cult of the Lamb*, written in Go with tcell. The terminal UI is the main mode; a matching graphical window (built with [Ebitengine](https://ebitengine.org/)) opens when you double-click the program or pass `-gui`. Two players face each other across 3×3 grids. Each turn you roll one die and drop it into one of your three columns. Matching dice in a column multiply, and placing a die destroys every die of the same value in your opponent's facing column. The game ends the moment either grid is full, and the higher total wins.
+
+### What's New in v1.1
+
+- **Online Play (Cross-Platform Lobby)**: Unified **Network Play** modal with **Online** mode (default) connecting to the TLS/WSS rendezvous server at `vps.kreft.us:8647`, enabling Web, PWA, CLI/TUI, and GUI players to host and join open matches without port forwarding, complete with padlock room-code indicators, live lobby/match/dice telemetry, and direct PWA **Share** invite links (`?room=`).
 
 Play against three AI opponents, against someone on the same keyboard, or against a friend over the network. It follows the features of [knucklebones.io](https://knucklebones.io/) and the rules in the [dice.now Knucklebones guide](https://dice.now/knucklebones#guide).
 

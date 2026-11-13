@@ -705,7 +705,7 @@
       </div>
       <div class="nav-brand-title">
         <span>Knucklebones</span>
-        <span class="pill accent">v1.0</span>
+        <span class="pill accent">v1.1</span>
         <span class="pill gold">Terminal &amp; GUI</span>
       </div>
     </a>
@@ -768,7 +768,7 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>Release Downloads &amp; Binaries</span>
         </div>
-        <span class="pill accent">v1.0 Ready to Play</span>
+        <span class="pill accent">v1.1 Ready to Play</span>
       </div>
       <div class="downloads-grid">
         <a href="./bin/win/x64/Knucklebones.exe" class="download-btn" download title="Download Knucklebones for Windows x64">
@@ -874,11 +874,15 @@
   <script type="text/markdown" id="embeddedReadme">
 # Knucklebones — Terminal Dice Duel
 
-**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-12
+**Version:** 1.1 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-13
 
 ## Description
 
 `Knucklebones` is a cross-platform terminal version of the dice game from *Cult of the Lamb*, written in Go with tcell. The terminal UI is the main mode; a matching graphical window (built with [Ebitengine](https://ebitengine.org/)) opens when you double-click the program or pass `-gui`. Two players face each other across 3×3 grids. Each turn you roll one die and drop it into one of your three columns. Matching dice in a column multiply, and placing a die destroys every die of the same value in your opponent's facing column. The game ends the moment either grid is full, and the higher total wins.
+
+### What's New in v1.1
+
+- **Online Play (Cross-Platform Lobby)**: Unified **Network Play** modal with **Online** mode (default) connecting to the TLS/WSS rendezvous server at `vps.kreft.us:8647`, enabling Web, PWA, CLI/TUI, and GUI players to host and join open matches without port forwarding, complete with padlock room-code indicators, live lobby/match/dice telemetry, and direct PWA **Share** invite links (`?room=`).
 
 Play against three AI opponents, against someone on the same keyboard, or against a friend over the network. It follows the features of [knucklebones.io](https://knucklebones.io/) and the rules in the [dice.now Knucklebones guide](https://dice.now/knucklebones#guide).
 

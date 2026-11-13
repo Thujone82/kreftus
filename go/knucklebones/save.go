@@ -17,7 +17,7 @@ import (
 
 const (
 	saveFileName        = "knucklebones.json"
-	knucklebonesVersion = "1.0"
+	knucklebonesVersion = "1.1"
 	maxHighScores       = 10
 	maxNameLen          = 16
 	maxSaveBytes        = 1 << 20

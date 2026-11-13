@@ -4,7 +4,7 @@
   // =========================================================================
   // 1. CONSTANTS & THEMES (Exact parity with go/knucklebones/theme.go & rules.go)
   // =========================================================================
-  const APP_VERSION = '1.0';
+  const APP_VERSION = '1.1';
   const SAVE_STORAGE_KEY = 'knucklebones.save.v1';
   const DEFAULT_PORT = 8647;
   const DEFAULT_RENDEZVOUS_ADDR = 'vps.kreft.us:8647';
