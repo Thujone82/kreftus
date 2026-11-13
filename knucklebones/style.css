@@ -149,11 +149,13 @@ body.mode-tui {
 }
 
 .ios-haptic-hit {
+  display: block;
   position: absolute;
   inset: 0;
   z-index: 6;
   background: transparent;
   cursor: pointer;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -234,6 +236,9 @@ body.mode-tui {
 
 /* ---- Buttons & Cards ---- */
 .kb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   appearance: none;
   border: 1.5px solid transparent;
   background: var(--btn-bg);
@@ -821,6 +826,14 @@ body.mode-tui .board-box.winner-board {
   transition: background 0.1s ease;
 }
 
+.grid-col > .die-face,
+.grid-col > .die-slot,
+.grid-col > .tui-die,
+.tray-die-wrap > .die-face,
+.tray-die-wrap > .tui-die {
+  pointer-events: none;
+}
+
 .grid-col.aimed {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
@@ -1253,6 +1266,9 @@ table.stats-table tr.empty-row td {
 }
 
 .toast-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--accent);
   color: var(--bg);
   border: none;
@@ -1264,6 +1280,9 @@ table.stats-table tr.empty-row td {
 }
 
 .toast-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   color: var(--dim);

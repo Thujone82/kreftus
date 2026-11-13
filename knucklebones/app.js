@@ -1964,6 +1964,15 @@
     return enabled ? `<label class="ios-haptic-hit" for="${IOS_HAPTIC_SWITCH_ID}" aria-hidden="true"></label>` : '';
   }
 
+  function renderActionButton(cls, attrs, labelHtml, options = {}) {
+    const { disabled = false, allowHaptic = !disabled } = options;
+    if (allowHaptic && iosHapticControlsActive()) {
+      ensureIosHapticSwitch();
+      return `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="${cls}"${attrs ? ' ' + attrs : ''}>${labelHtml}</label>`;
+    }
+    return `<button type="button" class="${cls}"${attrs ? ' ' + attrs : ''}${disabled ? ' disabled' : ''}>${labelHtml}</button>`;
+  }
+
   function ensureIosHapticSwitch() {
     if (iosHapticLabel && iosHapticLabel.isConnected && document.getElementById(IOS_HAPTIC_SWITCH_ID)) {
       return iosHapticLabel;
@@ -2498,10 +2507,10 @@
       { id: 'options', label: 'Options' }
     ];
     const installBtn = !isPwaStandalone() && app.installPromptEvent
-      ? `<button type="button" class="kb-btn sm pill on" data-action="install">Install PWA</button>`
+      ? renderActionButton('kb-btn sm pill on', 'data-action="install"', 'Install PWA')
       : '';
     const updatePill = app.swPendingUpdate
-      ? `<button type="button" class="kb-btn sm pill on" data-action="apply-update">Update Available · Reload</button>`
+      ? renderActionButton('kb-btn sm pill on', 'data-action="apply-update"', 'Update Available · Reload')
       : '';
 
     const quickPills = `${installBtn}${updatePill}`;
@@ -2514,7 +2523,7 @@
              <div style="display:flex;gap:6px;margin:4px 0;">${[1, 2, 3, 4, 5, 6].map((v) => renderDieHTML(v, '', '', false)).join('')}</div>`}
         <p class="subtitle">The dice game from Cult of the Lamb</p>
         <div class="menu-list">
-          ${items.map((it, idx) => `<button type="button" class="kb-btn ${idx === app.menuIndex ? 'selected' : ''}" data-menu="${it.id}">${escHtml(it.label)}</button>`).join('')}
+          ${items.map((it, idx) => renderActionButton(`kb-btn ${idx === app.menuIndex ? 'selected' : ''}`, `data-menu="${it.id}"`, escHtml(it.label))).join('')}
         </div>
         ${quickPills ? `<div class="menu-quickbar">${quickPills}</div>` : ''}
         <div class="credits">
@@ -2564,7 +2573,7 @@
     const showInstallBtn = app.setupMode === 'options' && !isPwaStandalone() && !!app.installPromptEvent;
     const showIosHint = app.setupMode === 'options' && !isPwaStandalone() && !app.installPromptEvent && isIosDevice();
     const pwaInstallHtml = showInstallBtn
-      ? `<div class="pwa-install-box"><button type="button" class="kb-btn sm pill on" data-action="install">Install Knucklebones</button></div>`
+      ? `<div class="pwa-install-box">${renderActionButton('kb-btn sm pill on', 'data-action="install"', 'Install Knucklebones')}</div>`
       : showIosHint
         ? `<p class="ios-install-hint" aria-live="polite">To install on iPhone/iPad: open in Safari, tap Share, then Add to Home Screen.</p>`
         : '';
@@ -2579,7 +2588,7 @@
             const sel = idx === app.setIndex;
             const [label, val] = settingDisplay(row);
             if (row === 'start' || row === 'done') {
-              return `${app.setupMode === 'options' ? pwaInstallHtml : ''}<div class="btn-row"><button type="button" class="kb-btn ${sel ? 'selected' : 'primary'}" data-set-action="${row}">${escHtml(label)}</button></div>`;
+              return `${app.setupMode === 'options' ? pwaInstallHtml : ''}<div class="btn-row">${renderActionButton(`kb-btn ${sel ? 'selected' : 'primary'}`, `data-set-action="${row}"`, escHtml(label))}</div>`;
             }
             const hapticOnRow = isIosDevice() && (save.settings.haptics || row === 'haptics');
             if (hapticOnRow) ensureIosHapticSwitch();
@@ -2610,7 +2619,7 @@
         </div>
         ${hint ? `<p class="note-hint">${escHtml(hint)}</p>` : ''}
         ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-        <div class="btn-row"><button type="button" class="kb-btn" data-action="back-menu">Back</button></div>
+        <div class="btn-row">${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}</div>
         ${app.setupMode === 'options' ? renderOptionsCacheFooter() : ''}
       </div>
       <div class="footer-hint">Click a setting or ↑↓ select · ←→ change · Enter · Esc back</div>
@@ -2624,7 +2633,7 @@
     return `
       <div class="options-version-row">
         <span class="options-version-text">Cache: ${escHtml(ver)}${escHtml(status)}</span>
-        <button type="button" class="kb-btn xs" data-action="${app.swPendingUpdate ? 'apply-update' : 'check-update'}" ${app.updateChecking ? 'disabled' : ''}>${btnLabel}</button>
+        ${renderActionButton('kb-btn xs', `data-action="${app.swPendingUpdate ? 'apply-update' : 'check-update'}"`, btnLabel, { disabled: app.updateChecking })}
       </div>
     `;
   }
@@ -2642,8 +2651,8 @@
           </div>
           ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
           <div class="btn-row">
-            <button type="button" class="kb-btn" data-action="back-menu">Back</button>
-            <button type="button" class="kb-btn selected" data-action="save-name">Save</button>
+            ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn selected', 'data-action="save-name"', 'Save')}
           </div>
         </div>
       </div>
@@ -2671,8 +2680,8 @@
           ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
           ${location.protocol === 'https:' ? '<p class="note-hint" style="margin-top:8px;">From HTTPS, use <strong>localhost:8647</strong> to join a host on this computer (remote LAN IPs require WSS/TLS or the desktop app).</p>' : ''}
           <div class="btn-row">
-            <button type="button" class="kb-btn" data-action="back-menu">Back</button>
-            <button type="button" class="kb-btn selected" data-action="submit-join">Join</button>
+            ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn selected', 'data-action="submit-join"', 'Join')}
           </div>
         </div>
       </div>
@@ -2710,8 +2719,8 @@
             <p class="error-text" style="font-size:1.05rem;">${escHtml(errText)}</p>
             <p class="note-hint" style="margin-top:10px;">${escHtml(ctl.addr())}</p>
             <div class="btn-row">
-              <button type="button" class="kb-btn ${!canRetry ? 'selected' : ''}" data-action="back-join">Back</button>
-              ${canRetry ? `<button type="button" class="kb-btn selected" data-action="retry-join">Retry</button>` : ''}
+              ${renderActionButton(`kb-btn ${!canRetry ? 'selected' : ''}`, 'data-action="back-join"', 'Back')}
+              ${canRetry ? renderActionButton('kb-btn selected', 'data-action="retry-join"', 'Retry') : ''}
             </div>
           </div>
         </div>
@@ -2729,7 +2738,7 @@
           <p style="text-align:center;font-size:1.1rem;margin:18px 0 8px;">Waiting for game to start...</p>
           <p class="invite-code" style="text-align:center;font-size:1.25rem;">${escHtml(ctl.addr())}</p>
           <p class="note-hint">Waiting time: <span id="lobby-wait-time">${wait}</span></p>
-          <div class="btn-row"><button type="button" class="kb-btn" data-action="back-join">Cancel</button></div>
+          <div class="btn-row">${renderActionButton('kb-btn', 'data-action="back-join"', 'Cancel')}</div>
         </div>
       </div>
       <div class="footer-hint">Esc cancel</div>
@@ -2747,7 +2756,7 @@
             return `<p class="guide-p">${escHtml(item.text)}</p>`;
           }).join('')}
         </div>
-        <div class="btn-row"><button type="button" class="kb-btn" data-action="back-menu">Back</button></div>
+        <div class="btn-row">${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}</div>
       </div>
       <div class="footer-hint">Scroll to read · Esc back</div>
     `;
@@ -2785,13 +2794,13 @@
             ${hsHtml}
             ${app.note ? `<p class="note-hint" style="color:var(--win);margin-top:8px;">${escHtml(app.note)}</p>` : ''}
             <div class="btn-row" style="margin-top:16px;">
-              <button type="button" class="kb-btn sm" data-action="export-save">Export knucklebones.json</button>
-              <button type="button" class="kb-btn sm" data-action="import-save">Import knucklebones.json</button>
-              <button type="button" class="kb-btn sm" data-action="reset-stats">Reset Stats</button>
+              ${renderActionButton('kb-btn sm', 'data-action="export-save"', 'Export knucklebones.json')}
+              ${renderActionButton('kb-btn sm', 'data-action="import-save"', 'Import knucklebones.json')}
+              ${renderActionButton('kb-btn sm', 'data-action="reset-stats"', 'Reset Stats')}
               <input id="import-save-file" type="file" accept=".json,application/json" class="hidden">
             </div>
           </div>
-          <div class="btn-row"><button type="button" class="kb-btn" data-action="back-menu">Back</button></div>
+          <div class="btn-row">${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}</div>
         </div>
       </div>
       <div class="footer-hint">Esc back</div>
@@ -3007,17 +3016,13 @@
       );
     }
 
-    if (iosHapticControlsActive()) ensureIosHapticSwitch();
     const showThumbRow = !app.replayActive && s.phase === 'play';
     const thumbBarHtml = showThumbRow
       ? `<div class="thumb-drop-bar ${myTurn(s) ? '' : 'hidden-turn'}">${[0, 1, 2].map((c) => {
           const full = openSlot(m.grids[mover][c]) < 0;
           const armed = !save.settings.quickTap && app.touchArmedCol === c && !full;
           const lbl = full ? `Col ${c + 1} Full` : armed ? `Drop ${c + 1} ✓` : `Col ${c + 1}`;
-          if (!full && myTurn(s) && iosHapticControlsActive()) {
-            return `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}" data-drop-col="${c}">${lbl}</label>`;
-          }
-          return `<button type="button" class="kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}" data-drop-col="${c}" ${(full || !myTurn(s)) ? 'disabled' : ''}>${lbl}</button>`;
+          return renderActionButton(`kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}`, `data-drop-col="${c}"`, lbl, { disabled: full || !myTurn(s) });
         }).join('')}</div>`
       : '';
 
@@ -3025,11 +3030,11 @@
     const hasMobileSideInfo = !!(hasSeries || fairTxt || probData);
 
     const flipBtnHtml = s.mode === 'local'
-      ? `<button type="button" class="kb-btn sm pill ${app.flipP2 ? 'on' : ''}" data-action="toggle-flip-p2">Flip P2</button>`
+      ? renderActionButton(`kb-btn sm pill ${app.flipP2 ? 'on' : ''}`, 'data-action="toggle-flip-p2"', 'Flip P2')
       : '';
 
     const updateBtn = app.swPendingUpdate
-      ? `<button type="button" class="kb-btn sm pill on" data-action="apply-update">Update Ready</button>`
+      ? renderActionButton('kb-btn sm pill on', 'data-action="apply-update"', 'Update Ready')
       : '';
 
     const touchHint = app.replayActive
@@ -3099,14 +3104,14 @@
               : ''}
             <div class="side-toggles">
               ${flipBtnHtml}
-              <button type="button" class="kb-btn sm pill ${save.settings.winMeter ? 'on' : ''}" data-action="toggle-prob">Prob: ${save.settings.winMeter ? 'On' : 'Off'} [P]</button>
-              <button type="button" class="kb-btn sm pill ${save.settings.sound ? 'on' : ''}" data-action="toggle-sound">Sound: ${save.settings.sound ? 'On' : 'Off'} [S]</button>
+              ${renderActionButton(`kb-btn sm pill ${save.settings.winMeter ? 'on' : ''}`, 'data-action="toggle-prob"', `Prob: ${save.settings.winMeter ? 'On' : 'Off'} [P]`)}
+              ${renderActionButton(`kb-btn sm pill ${save.settings.sound ? 'on' : ''}`, 'data-action="toggle-sound"', `Sound: ${save.settings.sound ? 'On' : 'Off'} [S]`)}
             </div>
           </aside>
         </div>
 
         <div class="play-actions">
-          ${actions.map((a) => `<button type="button" class="kb-btn sm" data-play-act="${a.id}">${escHtml(a.label)}</button>`).join('')}
+          ${actions.map((a) => renderActionButton('kb-btn sm', `data-play-act="${a.id}"`, escHtml(a.label))).join('')}
         </div>
         <div class="footer-hint">
           <span class="footer-desktop">${desktopHint}</span>
@@ -3236,7 +3241,7 @@
           <div class="kb-card overlay-card">
             <h2 class="kb-card-title">Logs</h2>
             <div class="overlay-scroll">${lines}</div>
-            <div class="btn-row"><button type="button" class="kb-btn sm" data-action="close-overlay">Close</button></div>
+            <div class="btn-row">${renderActionButton('kb-btn sm', 'data-action="close-overlay"', 'Close')}</div>
           </div>
         </div>`;
     }
@@ -3252,7 +3257,7 @@
           <div class="kb-card overlay-card">
             <h2 class="kb-card-title">History</h2>
             <div class="overlay-scroll">${lines}</div>
-            <div class="btn-row"><button type="button" class="kb-btn sm" data-action="close-overlay">Close</button></div>
+            <div class="btn-row">${renderActionButton('kb-btn sm', 'data-action="close-overlay"', 'Close')}</div>
           </div>
         </div>`;
     }
@@ -3270,8 +3275,8 @@
             <h2 class="kb-card-title">${escHtml(title)}</h2>
             <p style="text-align:center;font-size:1.02rem;">${escHtml(warn)}</p>
             <div class="btn-row">
-              <button type="button" class="kb-btn ${app.confirmIndex === 0 ? 'selected' : ''}" data-action="close-overlay">${escHtml(noLabel)}</button>
-              <button type="button" class="kb-btn ${app.confirmIndex === 1 ? 'danger-selected' : ''}" data-action="${isRes ? 'confirm-resign' : 'leave-game'}">${escHtml(yesLabel)}</button>
+              ${renderActionButton(`kb-btn ${app.confirmIndex === 0 ? 'selected' : ''}`, 'data-action="close-overlay"', escHtml(noLabel))}
+              ${renderActionButton(`kb-btn ${app.confirmIndex === 1 ? 'danger-selected' : ''}`, `data-action="${isRes ? 'confirm-resign' : 'leave-game'}"`, escHtml(yesLabel))}
             </div>
           </div>
         </div>`;
@@ -3308,9 +3313,9 @@
             ${s.bestOf !== 1 || s.freePlay ? `<p class="note-hint">Rounds won ${s.wins[0]} – ${s.wins[1]} · ${escHtml(roundsLabel(s.bestOf))}</p>` : ''}
             ${voteStatus ? `<p class="note-hint" style="color:var(--accent);font-weight:700;">${escHtml(voteStatus)}</p>` : ''}
             <div class="btn-row">
-              ${choices.map((ch, idx) => `<button type="button" class="kb-btn ${idx === app.resultIndex ? 'selected' : ''}" data-result-choice="${ch}">${escHtml(labels[ch])}</button>`).join('')}
-              ${s.roundMoves && s.roundMoves.length > 0 ? `<button type="button" class="kb-btn" data-play-act="enter-replay">Replay</button>` : ''}
-              <button type="button" class="kb-btn" data-play-act="toggle-result">Board</button>
+              ${choices.map((ch, idx) => renderActionButton(`kb-btn ${idx === app.resultIndex ? 'selected' : ''}`, `data-result-choice="${ch}"`, escHtml(labels[ch]))).join('')}
+              ${s.roundMoves && s.roundMoves.length > 0 ? renderActionButton('kb-btn', 'data-play-act="enter-replay"', 'Replay') : ''}
+              ${renderActionButton('kb-btn', 'data-play-act="toggle-result"', 'Board')}
             </div>
           </div>
         </div>`;
@@ -3341,12 +3346,13 @@
       case 'destroy': st.rules.noDestroy = !st.rules.noDestroy; break;
       case 'dice': st.rules.twoDice = !st.rules.twoDice; break;
       case 'end': st.rules.fillBoth = !st.rules.fillBoth; break;
-      case 'theme': stepTheme(step); render(); return;
-      case 'display': toggleDisplayMode(); render(); return;
+      case 'theme': stepTheme(step); triggerHaptic('aim'); render(); return;
+      case 'display': toggleDisplayMode(); triggerHaptic('aim'); render(); return;
       case 'sound':
         st.sound = !st.sound;
         persistSave(save);
         if (st.sound) emitSound('click');
+        triggerHaptic('aim');
         render();
         return;
       case 'haptics':
@@ -3366,6 +3372,7 @@
     }
     persistSave(save);
     emitSound('click');
+    triggerHaptic('aim');
     render();
   }
 
@@ -3574,6 +3581,7 @@
   function handleRootClick(e) {
     const menuEl = e.target.closest('[data-menu]');
     if (menuEl) {
+      triggerHaptic('aim');
       activateMenuItem(menuEl.dataset.menu);
       return;
     }
@@ -3605,6 +3613,7 @@
 
     const setAct = e.target.closest('[data-set-action]');
     if (setAct) {
+      triggerHaptic('aim');
       if (setAct.dataset.setAction === 'done') {
         emitSound('click');
         app.view = 'menu';
@@ -3645,6 +3654,7 @@
     if (resChoice && app.ctl) {
       const ch = resChoice.dataset.resultChoice;
       emitSound('click');
+      triggerHaptic('aim');
       if (ch === 'menu') leaveGame();
       else app.ctl.vote(ch);
       return;
@@ -3652,6 +3662,7 @@
 
     const playAct = e.target.closest('[data-play-act]');
     if (playAct && app.ctl) {
+      triggerHaptic('aim');
       const s = app.ctl.state();
       switch (playAct.dataset.playAct) {
         case 'open-cb':
@@ -3714,6 +3725,8 @@
 
     const actEl = e.target.closest('[data-action]');
     if (actEl) {
+      if (actEl.disabled || actEl.getAttribute('aria-disabled') === 'true') return;
+      triggerHaptic('aim');
       const act = actEl.dataset.action;
       if (act === 'back-menu') {
         emitSound('click');
@@ -3815,6 +3828,7 @@
     if (e.target.dataset.closeOverlay === '1') {
       app.overlay = 'none';
       emitSound('click');
+      triggerHaptic('aim');
       render();
     }
   }
@@ -3899,6 +3913,14 @@
     }
 
     const low = e.key.toLowerCase();
+    if ((e.key === 'Enter' || e.key === ' ') && (app.view === 'guide' || app.view === 'stats' || app.view === 'name' || app.view === 'join' || app.view === 'lobby')) {
+      const ae = document.activeElement;
+      if (ae && ae.matches && ae.matches(`label[role="button"][for="${IOS_HAPTIC_SWITCH_ID}"]`)) {
+        e.preventDefault();
+        ae.click();
+        return;
+      }
+    }
     if (app.view === 'menu') {
       const keys = ['ai', 'local', 'join', 'guide', 'stats', 'name', 'options'];
       if (e.key === 'ArrowUp' || low === 'w') {
@@ -4092,7 +4114,18 @@
     return !!(s && s.phase === 'play');
   }
 
+  function syncUpdateToastMarkup() {
+    const toast = document.getElementById('update-toast');
+    if (!toast) return;
+    toast.innerHTML = `
+      <span id="update-toast-text">A new version is ready.</span>
+      ${renderActionButton('toast-btn', 'id="update-toast-btn"', 'Update now')}
+      ${renderActionButton('toast-dismiss', 'id="update-toast-dismiss" aria-label="Dismiss"', '&times;')}
+    `;
+  }
+
   function showUpdateToast() {
+    syncUpdateToastMarkup();
     const toast = document.getElementById('update-toast');
     if (toast) toast.classList.remove('hidden');
   }
@@ -4106,9 +4139,16 @@
     window.location.reload();
   }
 
-  document.getElementById('update-toast-btn')?.addEventListener('click', applyPendingUpdateNow);
-  document.getElementById('update-toast-dismiss')?.addEventListener('click', () => {
-    document.getElementById('update-toast')?.classList.add('hidden');
+  document.getElementById('update-toast')?.addEventListener('click', (e) => {
+    if (e.target.closest('#update-toast-btn')) {
+      triggerHaptic('aim');
+      applyPendingUpdateNow();
+    } else if (e.target.closest('#update-toast-dismiss')) {
+      triggerHaptic('aim');
+      const hideToast = () => document.getElementById('update-toast')?.classList.add('hidden');
+      if (e.target.closest(`label[for="${IOS_HAPTIC_SWITCH_ID}"]`)) setTimeout(hideToast, 0);
+      else hideToast();
+    }
   });
 
   function setTempUpdateStatus(msg) {
