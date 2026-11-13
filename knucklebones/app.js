@@ -1947,12 +1947,54 @@
     AudioEngine.play(id, save.settings.sound);
   }
 
+  let iosHapticLabel = null;
+  function ensureIosHapticSwitch() {
+    if (iosHapticLabel && iosHapticLabel.isConnected) return iosHapticLabel;
+    if (typeof document === 'undefined' || !document.body) return null;
+    const id = 'kb-ios-haptic-switch';
+    let label = document.querySelector(`label[for="${id}"]`);
+    let input = document.getElementById(id);
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'checkbox';
+      input.id = id;
+      input.setAttribute('switch', '');
+      input.tabIndex = -1;
+      input.setAttribute('aria-hidden', 'true');
+      input.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;margin:0;padding:0;';
+      document.body.appendChild(input);
+    }
+    if (!label) {
+      label = document.createElement('label');
+      label.htmlFor = id;
+      label.setAttribute('aria-hidden', 'true');
+      label.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;margin:0;padding:0;';
+      document.body.appendChild(label);
+    }
+    iosHapticLabel = label;
+    return iosHapticLabel;
+  }
+
+  function pulseIosHaptic() {
+    const label = ensureIosHapticSwitch();
+    if (label) label.click();
+  }
+
   function triggerHaptic(kind) {
-    if (!save.settings.haptics || !navigator.vibrate) return;
+    if (!save.settings.haptics) return;
     try {
-      if (kind === 'aim') navigator.vibrate(8);
-      else if (kind === 'place') navigator.vibrate(18);
-      else if (kind === 'destroy' || kind === 'win') navigator.vibrate([20, 30, 28]);
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        if (kind === 'aim') navigator.vibrate(8);
+        else if (kind === 'place') navigator.vibrate(18);
+        else if (kind === 'destroy' || kind === 'win') navigator.vibrate([20, 30, 28]);
+        return;
+      }
+      if (isIosDevice()) {
+        pulseIosHaptic();
+        if (kind === 'destroy' || kind === 'win') {
+          setTimeout(() => { try { pulseIosHaptic(); } catch {} }, 65);
+        }
+      }
     } catch {}
   }
 
