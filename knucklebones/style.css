@@ -1377,6 +1377,11 @@ body.mode-tui .tui-mark {
     min-height: 44px;
   }
 
+  .setting-row .arrow-btn {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
   .arrow-btn,
   .toast-dismiss {
     min-width: 44px;
@@ -1392,15 +1397,78 @@ body.mode-tui .tui-mark {
 }
 
 /* ---- Mobile / Portrait Responsiveness ---- */
-@media (max-width: 960px) {
+@media (max-width: 720px) {
+  .screen.screen-top {
+    gap: 6px;
+    padding-top: 2px;
+  }
+
+  .screen.screen-top .section-heading {
+    font-size: 1.24rem;
+  }
+
+  .screen.screen-top .subtitle {
+    font-size: 0.86rem;
+  }
+
+  .settings-list {
+    gap: 5px;
+  }
+
+  .setting-row {
+    padding: 6px 10px;
+    gap: 8px;
+    border-radius: 8px;
+  }
+
+  .setting-label {
+    font-size: 0.9rem;
+    line-height: 1.2;
+  }
+
+  .setting-ctrl {
+    min-width: 0;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .setting-val {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    min-width: 76px;
+  }
+
+  .setting-row .arrow-btn {
+    padding: 2px 8px;
+    font-size: 0.9rem;
+  }
+
+  .setting-row .kb-input {
+    width: auto;
+    min-width: 0;
+    max-width: 170px;
+    padding: 5px 8px;
+    font-size: 0.9rem;
+  }
+
+  .screen.screen-top .kb-btn {
+    padding: 8px 14px;
+    font-size: 0.94rem;
+    min-height: 38px;
+  }
+}
+
+@media (max-width: 349px) {
   .setting-row {
     flex-direction: column;
     align-items: stretch;
+    gap: 4px;
   }
 
   .setting-ctrl,
   .setting-row .kb-input {
     width: 100%;
+    max-width: none;
     min-width: 0;
   }
 }
