@@ -3115,10 +3115,13 @@ function createRawAutoBattle(game, u2Mutations) {
         }
       }
 
-      if (g.fluffyExp2) cfg.fluffyExp2 = g.fluffyExp2;
-      if (g.u2MutationData) {
-        cfg.u2Mutations.Dust = !!g.u2MutationData.Dust;
-        cfg.u2Mutations.Dust2 = !!g.u2MutationData.Dust2;
+      if (g.fluffyExp2 != null) cfg.fluffyExp2 = g.fluffyExp2;
+      else if (source.fluffyExp2 != null) cfg.fluffyExp2 = source.fluffyExp2;
+
+      var mutSrc = source.u2Mutations || g.u2MutationData;
+      if (mutSrc) {
+        cfg.u2Mutations.Dust = !!mutSrc.Dust;
+        cfg.u2Mutations.Dust2 = !!mutSrc.Dust2;
       }
 
       var rSource = (targetBuild && targetBuild.r) || source.r || source.ring || source.rings || (abData && (abData.rings || abData.ring)) || {};
