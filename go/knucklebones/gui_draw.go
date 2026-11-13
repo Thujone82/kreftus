@@ -472,8 +472,8 @@ func (a *guiApp) drawScene(dst *ebiten.Image) {
 		a.drawSettings(dst)
 	case viewName:
 		a.drawPrompt(dst, "Your name", "Shown to your opponent and on your Top 10.", "Save")
-	case viewJoin:
-		a.drawJoin(dst)
+	case viewNetwork:
+		a.drawNetwork(dst)
 	case viewLobby:
 		a.drawLobby(dst)
 	case viewPlay:
@@ -574,7 +574,7 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 	switch g.setupMode {
 	case modeAI:
 		a.center(dst, difficultyHints[g.save.Settings.Difficulty], y, 16, fontRegular, a.c(p.dim))
-	case setupHost:
+	case setupHost, setupOnlineHost:
 		a.center(dst, "Room code is optional and never saved to disk.", y, 16, fontRegular, a.c(p.dim))
 	}
 	for i, l := range wrapPx(g.note, 16, fontRegular, 900) {
@@ -656,14 +656,38 @@ func (a *guiApp) drawLobby(dst *ebiten.Image) {
 		a.footer(dst, "Esc cancel")
 		return
 	}
-	a.card(dst, c, "Join Game")
+	if rid := l.hostRoomID(); rid != "" {
+		st := g.save.Settings
+		a.card(dst, c, "Waiting for an opponent")
+		y := c.Y + 86
+		a.center(dst, "Listed on Online Lobby ("+l.lobbyAddr()+")", y, 18, fontBold, a.c(p.accent))
+		y += 38
+		a.center(dst, "Room ID: "+rid, y, 19, fontRegular, a.c(p.fg))
+		y += 34
+		if rc := l.hostRoomCode(); rc != "" {
+			a.center(dst, "Locked with room code: "+rc, y, 17, fontBold, a.c(p.accent))
+			y += 32
+		}
+		y += 8
+		a.center(dst, "Waiting time: "+formatWait(time.Since(l.waitingSince())), y, 17, fontRegular, a.c(p.fg))
+		a.center(dst, roundsLabel(st.BestOf)+" · "+rulesSummary(st.Rules), y+28, 16, fontRegular, a.c(p.dim))
+		back, _ := lobbyButtons(false)
+		a.button(dst, back, "Cancel", false, p.accent)
+		a.footer(dst, "Esc cancel")
+		return
+	}
+	targetAddr := l.lobbyAddr()
+	if targetAddr == "" {
+		targetAddr = g.save.Settings.JoinAddr
+	}
+	a.card(dst, c, "Network Play")
 	if e := l.lobbyError(); e != "" {
 		y := c.Y + 100
 		for _, line := range wrapPx(lobbyErrorText(e), 18, fontRegular, c.W-80) {
 			a.center(dst, line, y, 18, fontRegular, a.c(p.lose))
 			y += 28
 		}
-		a.center(dst, g.save.Settings.JoinAddr, y+20, 17, fontRegular, a.c(p.dim))
+		a.center(dst, targetAddr, y+20, 17, fontRegular, a.c(p.dim))
 		retry := lobbyCanRetry(e)
 		back, again := lobbyButtons(retry)
 		a.button(dst, back, "Back", !retry || g.lobbyBackFocus, p.accent)
@@ -677,24 +701,153 @@ func (a *guiApp) drawLobby(dst *ebiten.Image) {
 	}
 	dots := strings.Repeat(".", int(time.Now().UnixMilli()/400%4))
 	a.center(dst, "Waiting for game to start"+dots, c.Y+120, 20, fontRegular, a.c(p.fg))
-	a.center(dst, g.save.Settings.JoinAddr, c.Y+160, 18, fontBold, a.c(p.accent))
+	a.center(dst, targetAddr, c.Y+160, 18, fontBold, a.c(p.accent))
 	back, _ := lobbyButtons(false)
 	a.button(dst, back, "Cancel", false, p.accent)
 	a.footer(dst, "Esc cancel")
 }
 
-func (a *guiApp) drawJoin(dst *ebiten.Image) {
+func (a *guiApp) drawPadlock(dst *ebiten.Image, x, cy float64, col color.Color) {
+	shackle := rect{x + 3, cy - 8, 10, 7}
+	a.stroke(dst, shackle, col, 4, 2)
+	body := rect{x, cy - 2, 16, 11}
+	a.fill(dst, body, col, 3)
+}
+
+func (a *guiApp) drawNetwork(dst *ebiten.Image) {
 	g, p := a.g, a.g.pal
-	a.image(dst, a.logo, centered(baseW/2, 48, 84, 84))
-	a.smallTitle(dst, 158)
-	c := joinCard()
-	a.card(dst, c, "Join Game")
+	a.image(dst, a.logo, centered(baseW/2, 14, 76, 76))
+	a.smallTitle(dst, 108)
+	c := networkCard()
+	a.card(dst, c, "Network Play")
+
+	onBtn, dirBtn := netModeButtons()
+	a.button(dst, onBtn, "Online ("+g.rendezvousAddr()+")", g.netOnline, p.accent)
+	a.button(dst, dirBtn, "Direct", !g.netOnline, p.accent)
+
+	if g.netOnline {
+		snap := g.networkSnapshot()
+		sb := netStatsRect()
+		a.fill(dst, sb, a.c(p.emptyBg), 8)
+		statsTxt := fmt.Sprintf("Live matches: %d  ·  Completed: %s  ·  Dice played: %s",
+			snap.Stats.LiveMatches, formatCompactUint(snap.Stats.CompletedMatches), formatCompactUint(snap.Stats.TotalDicePlayed))
+		stCol := a.c(p.dim)
+		if !snap.Connected {
+			if snap.Err != "" {
+				statsTxt = "Lobby offline: " + snap.Err
+				stCol = a.c(p.lose)
+			} else {
+				statsTxt = "Connecting to " + g.rendezvousAddr() + "..."
+			}
+		} else {
+			stCol = a.c(p.fg)
+		}
+		a.text(dst, truncPx(statsTxt, 14, fontRegular, sb.W-20), sb.cx(), sb.cy(), 14, fontRegular, stCol, text.AlignCenter)
+
+		lr := netRoomsRect()
+		a.fill(dst, lr, a.c(p.emptyBg), 10)
+		if g.netFocus == netFocusRooms {
+			a.stroke(dst, lr, a.c(p.accent), 10, 1.5)
+		}
+
+		if len(snap.Rooms) == 0 {
+			msg := "No open matches right now — click Host Online Match to start one!"
+			if !snap.Connected && snap.Err != "" {
+				msg = "Could not reach lobby (press R to retry or switch to Direct)."
+			} else if !snap.Connected {
+				msg = "Connecting to rendezvous lobby..."
+			}
+			a.text(dst, truncPx(msg, 15, fontRegular, lr.W-36), lr.cx(), lr.cy(), 15, fontRegular, a.c(p.dim), text.AlignCenter)
+		} else {
+			g.clampNetworkRoom(len(snap.Rooms))
+			if g.netRoomIdx >= g.netRoomScroll+netVisibleRooms {
+				g.netRoomScroll = g.netRoomIdx - netVisibleRooms + 1
+			}
+			for i := 0; i < netVisibleRooms && g.netRoomScroll+i < len(snap.Rooms); i++ {
+				idx := g.netRoomScroll + i
+				rm := snap.Rooms[idx]
+				rr := netRoomRowRect(i)
+				sel := idx == g.netRoomIdx
+				if sel {
+					a.fill(dst, rr, a.c(p.accent), 8)
+					if g.netFocus == netFocusRooms {
+						a.stroke(dst, rr, a.c(p.fg), 8, 1.5)
+					}
+				} else {
+					a.fill(dst, rr, a.cardBg(), 8)
+				}
+				tx := rr.X + 14
+				nameCol := a.c(p.fg)
+				if sel {
+					nameCol = a.c(p.bg)
+				}
+				if rm.Locked {
+					lockCol := a.c(p.accent)
+					if sel {
+						lockCol = a.c(p.bg)
+					}
+					a.drawPadlock(dst, tx, rr.cy(), lockCol)
+					tx += 24
+				}
+				meta := formatRoomMeta(rm)
+				waitTxt := ""
+				if rm.CreatedAt > 0 {
+					waitTxt = formatWait(time.Since(time.Unix(rm.CreatedAt, 0)))
+				}
+				rightW := 0.0
+				if waitTxt != "" {
+					dimCol := a.c(p.dim)
+					if sel {
+						dimCol = a.c(p.bg)
+					}
+					a.text(dst, waitTxt, rr.X+rr.W-14, rr.cy(), 14, fontRegular, dimCol, text.AlignEnd)
+					rightW = 64
+				}
+				rowLine := fmt.Sprintf("%s  ·  %s", rm.Host, meta)
+				a.text(dst, truncPx(rowLine, 16, fontBold, rr.W-(tx-rr.X)-rightW-16), tx, rr.cy(), 16, fontRegular, nameCol, text.AlignStart)
+			}
+		}
+
+		cf := netOnlineCodeRect()
+		lc := a.c(p.dim)
+		if g.netFocus == netFocusCode {
+			lc = a.c(p.accent)
+		}
+		a.text(dst, "Room code (only needed for locked matches)", cf.X, cf.Y-14, 14, fontRegular, lc, text.AlignStart)
+		a.fill(dst, cf, a.c(p.emptyBg), 8)
+		if g.netFocus == netFocusCode {
+			a.stroke(dst, cf, a.c(p.accent), 8, 2)
+			shown, cpos := visibleWithCaret(g.joinCode, g.inputPos, cf.W-24, 18, fontRegular)
+			a.drawCaretText(dst, shown, cpos, cf.X+12, cf.cy(), 18, a.c(p.fg))
+		} else if g.joinCode == "" {
+			a.text(dst, "(optional)", cf.X+12, cf.cy(), 18, fontRegular, a.c(p.dim), text.AlignStart)
+		} else {
+			a.text(dst, truncPx(g.joinCode, 18, fontRegular, cf.W-24), cf.X+12, cf.cy(), 18, fontRegular, a.c(p.fg), text.AlignStart)
+		}
+
+		if g.note != "" {
+			a.center(dst, truncPx(g.note, 15, fontRegular, c.W-60), cf.Y+cf.H+18, 15, fontRegular, a.c(p.lose))
+		}
+		back, join, host := netOnlineButtons()
+		a.button(dst, back, "Back", false, p.accent)
+		a.button(dst, join, "Join Selected", g.netFocus == netFocusJoin || (g.netFocus == netFocusRooms && len(snap.Rooms) > 0), p.accent)
+		a.button(dst, host, "Host Online Match", g.netFocus == netFocusHost || len(snap.Rooms) == 0, p.accent)
+		a.footer(dst, "Click room or ↑↓ select · Tab focus · H host · Enter confirm · Esc back")
+		return
+	}
+
+	// Direct Mode
+	hb := netDirectHostButton()
+	a.button(dst, hb, "Host Direct Game", g.netFocus == netFocusHost, p.accent)
+	a.center(dst, "Open a direct port, or enter a host's address below to join:", c.Y+192, 15, fontRegular, a.c(p.dim))
+
 	labels := [2]string{"Host address (host:port)", "Room code (optional, leave blank if open)"}
 	vals := [2]string{g.input, g.joinCode}
-	placeholders := [2]string{"", "(optional)"}
+	placeholders := [2]string{"192.168.1.20:8647", "(optional)"}
+	focusTargets := [2]int{netFocusAddr, netFocusCode}
 	for i := 0; i < 2; i++ {
-		f := joinFieldRect(i)
-		active := g.joinField == i
+		f := netDirectFieldRect(i)
+		active := g.netFocus == focusTargets[i]
 		lc := a.c(p.dim)
 		if active {
 			lc = a.c(p.accent)
@@ -712,13 +865,13 @@ func (a *guiApp) drawJoin(dst *ebiten.Image) {
 		}
 	}
 	if g.note != "" {
-		f1 := joinFieldRect(1)
-		a.text(dst, truncPx(g.note, 15, fontRegular, c.W-60), c.X+30, f1.Y+f1.H+18, 15, fontRegular, a.c(p.lose), text.AlignStart)
+		f1 := netDirectFieldRect(1)
+		a.text(dst, truncPx(g.note, 15, fontRegular, c.W-60), c.X+30, f1.Y+f1.H+22, 15, fontRegular, a.c(p.lose), text.AlignStart)
 	}
-	back, ok := joinButtons()
+	back, ok := netDirectButtons()
 	a.button(dst, back, "Back", false, p.accent)
-	a.button(dst, ok, "Join", true, p.accent)
-	a.footer(dst, "Tab / ↑↓ switch field · Enter join · Esc back")
+	a.button(dst, ok, "Join Direct", g.netFocus == netFocusJoin || g.netFocus == netFocusAddr, p.accent)
+	a.footer(dst, "Tab switch field · Enter join · Esc back")
 }
 
 // ---- play screen ----

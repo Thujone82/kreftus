@@ -48,6 +48,13 @@ type frameSig struct {
 	hostRoomCode  string
 	joinCode      string
 	joinField     int
+	netOnline     bool
+	netFocus      int
+	netRoomIdx    int
+	netRoomScroll int
+	netRoomsLen   int
+	netUpdatedNs  int64
+	netStatsKey   uint64
 	sound         bool
 	colorblind    bool
 	winMeter      bool
@@ -168,6 +175,13 @@ func (a *guiApp) Update() error {
 			a.dirty = true
 		}
 	}
+	if g.watcher != nil {
+		select {
+		case <-g.watcher.Notify():
+			a.dirty = true
+		default:
+		}
+	}
 	g.syncView()
 	a.pageSizes()
 	for _, ev := range a.keyEvents() {
@@ -230,19 +244,51 @@ func (a *guiApp) hoverTag(x, y float64) int {
 		if ok.has(x, y) {
 			return 2
 		}
-	case viewJoin:
-		back, ok := joinButtons()
-		if back.has(x, y) {
-			return 1
+	case viewNetwork:
+		onBtn, dirBtn := netModeButtons()
+		if onBtn.has(x, y) {
+			return 10
 		}
-		if ok.has(x, y) {
-			return 2
+		if dirBtn.has(x, y) {
+			return 11
 		}
-		if joinFieldRect(0).has(x, y) {
-			return 3
-		}
-		if joinFieldRect(1).has(x, y) {
-			return 4
+		if g.netOnline {
+			back, join, host := netOnlineButtons()
+			if back.has(x, y) {
+				return 1
+			}
+			if join.has(x, y) {
+				return 2
+			}
+			if host.has(x, y) {
+				return 3
+			}
+			if netOnlineCodeRect().has(x, y) {
+				return 4
+			}
+			snap := g.networkSnapshot()
+			for i := 0; i < netVisibleRooms && g.netRoomScroll+i < len(snap.Rooms); i++ {
+				if netRoomRowRect(i).has(x, y) {
+					return 20 + i
+				}
+			}
+		} else {
+			if netDirectHostButton().has(x, y) {
+				return 3
+			}
+			back, ok := netDirectButtons()
+			if back.has(x, y) {
+				return 1
+			}
+			if ok.has(x, y) {
+				return 2
+			}
+			if netDirectFieldRect(0).has(x, y) {
+				return 5
+			}
+			if netDirectFieldRect(1).has(x, y) {
+				return 4
+			}
 		}
 	case viewLobby:
 		l, _ := g.ctl.(lobby)
@@ -347,6 +393,10 @@ func (a *guiApp) frameSignature(now time.Time) (frameSig, bool) {
 		hostRoomCode:  g.hostRoomCode,
 		joinCode:      g.joinCode,
 		joinField:     g.joinField,
+		netOnline:     g.netOnline,
+		netFocus:      g.netFocus,
+		netRoomIdx:    g.netRoomIdx,
+		netRoomScroll: g.netRoomScroll,
 		sound:         st.Sound,
 		colorblind:    st.Colorblind,
 		winMeter:      st.WinMeter,
@@ -357,8 +407,24 @@ func (a *guiApp) frameSignature(now time.Time) (frameSig, bool) {
 	}
 	anim := false
 	switch g.view {
-	case viewName, viewJoin:
+	case viewName:
 		sig.clockTick = now.UnixMilli() / 500
+	case viewNetwork:
+		if g.netFocus == netFocusAddr || g.netFocus == netFocusCode {
+			sig.clockTick = now.UnixMilli() / 500
+		}
+		if g.netOnline {
+			snap := g.networkSnapshot()
+			sig.netRoomsLen = len(snap.Rooms)
+			sig.netUpdatedNs = snap.UpdatedAt.UnixNano()
+			sig.netStatsKey = uint64(snap.Stats.LiveMatches)*1000003 + snap.Stats.CompletedMatches*1009 + snap.Stats.TotalDicePlayed
+			if snap.Err != "" {
+				sig.lobbyErr = snap.Err
+			}
+			if len(snap.Rooms) > 0 && g.netFocus != netFocusCode {
+				sig.clockTick = now.Unix()
+			}
+		}
 	case viewSettings:
 		rows := g.settingRows()
 		if g.setIndex >= 0 && g.setIndex < len(rows) && (rows[g.setIndex] == rowPlayer2 || rows[g.setIndex] == rowPort || rows[g.setIndex] == rowRoomCode) {
@@ -369,7 +435,7 @@ func (a *guiApp) frameSignature(now time.Time) (frameSig, bool) {
 			sig.lobbyErr = l.lobbyError()
 			sig.lobbyPort = l.hostPort()
 			sig.lobbyBackFocus = g.lobbyBackFocus
-			if sig.lobbyPort > 0 {
+			if sig.lobbyPort > 0 || l.hostRoomID() != "" {
 				sig.clockTick = int64(time.Since(l.waitingSince()).Seconds())
 			} else if sig.lobbyErr == "" {
 				sig.clockTick = now.UnixMilli() / 400
@@ -578,28 +644,95 @@ func (a *guiApp) mouse() bool {
 		case ok.has(x, y):
 			return send(keyEv(tcell.KeyEnter))
 		}
-	case viewJoin:
+	case viewNetwork:
+		if g.netOnline && wheel != 0 && netRoomsRect().has(x, y) {
+			snap := g.networkSnapshot()
+			maxScroll := len(snap.Rooms) - netVisibleRooms
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+			g.netRoomScroll -= int(wheel)
+			if g.netRoomScroll < 0 {
+				g.netRoomScroll = 0
+			}
+			if g.netRoomScroll > maxScroll {
+				g.netRoomScroll = maxScroll
+			}
+		}
 		if !click {
 			return false
 		}
-		for i := 0; i < 2; i++ {
-			f := joinFieldRect(i)
-			if f.has(x, y) {
-				g.focusJoinField(i)
-				val := g.input
-				if i == 1 {
-					val = g.joinCode
+		onBtn, dirBtn := netModeButtons()
+		if onBtn.has(x, y) {
+			if !g.netOnline {
+				g.openNetwork(true)
+			}
+			return false
+		}
+		if dirBtn.has(x, y) {
+			if g.netOnline {
+				g.openNetwork(false)
+			}
+			return false
+		}
+		if g.netOnline {
+			snap := g.networkSnapshot()
+			for i := 0; i < netVisibleRooms && g.netRoomScroll+i < len(snap.Rooms); i++ {
+				if netRoomRowRect(i).has(x, y) {
+					idx := g.netRoomScroll + i
+					if g.netRoomIdx == idx && g.netFocus == netFocusRooms {
+						g.joinSelectedOnlineRoom()
+					} else {
+						g.netRoomIdx = idx
+						g.focusNetworkField(netFocusRooms)
+					}
+					return false
 				}
-				g.inputPos = caretIndexAt(val, x, f.X+12, 18, fontRegular)
+			}
+			cf := netOnlineCodeRect()
+			if cf.has(x, y) {
+				g.focusNetworkField(netFocusCode)
+				g.inputPos = caretIndexAt(g.joinCode, x, cf.X+12, 18, fontRegular)
+				return false
+			}
+			back, join, host := netOnlineButtons()
+			switch {
+			case back.has(x, y):
+				return send(keyEv(tcell.KeyEscape))
+			case join.has(x, y):
+				g.joinSelectedOnlineRoom()
+				return false
+			case host.has(x, y):
+				g.stopWatcher()
+				g.openSettings(setupOnlineHost)
+				return false
+			}
+			return false
+		}
+		if netDirectHostButton().has(x, y) {
+			g.openSettings(setupHost)
+			return false
+		}
+		for i := 0; i < 2; i++ {
+			f := netDirectFieldRect(i)
+			if f.has(x, y) {
+				if i == 0 {
+					g.focusNetworkField(netFocusAddr)
+					g.inputPos = caretIndexAt(g.input, x, f.X+12, 18, fontRegular)
+				} else {
+					g.focusNetworkField(netFocusCode)
+					g.inputPos = caretIndexAt(g.joinCode, x, f.X+12, 18, fontRegular)
+				}
 				return false
 			}
 		}
-		back, ok := joinButtons()
+		back, ok := netDirectButtons()
 		switch {
 		case back.has(x, y):
 			return send(keyEv(tcell.KeyEscape))
 		case ok.has(x, y):
-			return send(keyEv(tcell.KeyEnter))
+			g.joinDirect()
+			return false
 		}
 	case viewLobby:
 		if !click {

@@ -125,6 +125,8 @@ func lobbyErrorText(e string) string {
 	switch e {
 	case errRoomFull:
 		return "That game already has two players."
+	case errRoomNotFound:
+		return "That match is no longer waiting in the lobby."
 	case errOldProtocol:
 		return "This game version is no longer compatible with the host."
 	case errBadAuth:
@@ -144,7 +146,7 @@ func lobbyErrorText(e string) string {
 // lobbyCanRetry reports whether retrying a failed connection with the same
 // address and room code could succeed.
 func lobbyCanRetry(errCode string) bool {
-	return errCode != "" && errCode != errBadAuth && errCode != errOldProtocol
+	return errCode != "" && errCode != errBadAuth && errCode != errOldProtocol && errCode != errRoomNotFound
 }
 
 func lobbyHostAddresses(bindIP string, port int) []string {

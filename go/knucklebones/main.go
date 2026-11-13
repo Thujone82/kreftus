@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,7 +21,7 @@ const (
 	viewMenu = iota
 	viewSettings
 	viewName
-	viewJoin
+	viewNetwork
 	viewLobby
 	viewPlay
 	viewGuide
@@ -38,14 +39,22 @@ const (
 const (
 	menuAI = iota
 	menuLocal
-	menuHost
-	menuJoin
+	menuNetwork
 	menuGuide
 	menuStats
 	menuName
 	menuOptions
 	menuQuit
 	menuCount
+)
+
+const (
+	netFocusMode = iota
+	netFocusRooms
+	netFocusCode
+	netFocusJoin
+	netFocusHost
+	netFocusAddr
 )
 
 const (
@@ -68,12 +77,13 @@ const (
 )
 
 const (
-	setupHost    = "host"
-	setupOptions = "options"
-	choiceMenu   = "menu"
-	rollDuration = 450 * time.Millisecond
-	aiDelay      = 950 * time.Millisecond
-	maxAddrLen   = 64
+	setupHost       = "host"
+	setupOnlineHost = "online-host"
+	setupOptions    = "options"
+	choiceMenu      = "menu"
+	rollDuration    = 450 * time.Millisecond
+	aiDelay         = 950 * time.Millisecond
+	maxAddrLen      = 64
 )
 
 var roundChoices = []int{1, 3, 5, 0}
@@ -104,6 +114,8 @@ type lobby interface {
 	lobbyError() string
 	retryConnect()
 	hostPort() int
+	hostRoomID() string
+	lobbyAddr() string
 	hostRoomCode() string
 }
 
@@ -237,6 +249,15 @@ type game struct {
 	joinCode       string // ephemeral guest room code, never persisted to disk
 	joinField      int    // 0 = address, 1 = room code
 	lobbyBackFocus bool   // on retryable join errors, whether Back is focused instead of Retry
+
+	netOnline     bool
+	netFocus      int
+	netRoomIdx    int
+	netRoomScroll int
+	watcher       *rWatcher
+	netAddr       string
+	netTLSConfig  *tls.Config
+	netPlainTCP   bool
 
 	ctl           controller
 	overlay       int
@@ -484,6 +505,7 @@ func (g *game) previewMove(s *session) (Move, bool) {
 }
 
 func (g *game) beginGame(c controller) {
+	g.stopWatcher()
 	g.ctl = c
 	g.overlay = overlayNone
 	g.resultIndex = 0
@@ -513,6 +535,7 @@ func (g *game) leaveGame() {
 		g.ctl.leave()
 		g.ctl = nil
 	}
+	g.stopWatcher()
 	g.overlay = overlayNone
 	g.exitReplay()
 	g.soundQueue = nil
@@ -522,23 +545,31 @@ func (g *game) leaveGame() {
 }
 
 func (g *game) backFromLobby() {
-	isClient := true
-	field := g.joinField
+	online := g.netOnline
+	focus := g.netFocus
+	savedInput := g.input
+	savedCode := g.joinCode
 	if l, ok := g.ctl.(lobby); ok {
-		isClient = l.hostPort() == 0
-		if l.lobbyError() == errBadAuth {
-			field = 1
-		} else if isClient && l.lobbyError() != "" {
-			field = 0
+		if l.hostPort() > 0 {
+			online = false
+			focus = netFocusHost
+		} else if l.hostRoomID() != "" {
+			online = true
+			focus = netFocusHost
+		} else if l.lobbyError() == errBadAuth {
+			focus = netFocusCode
+		} else if online {
+			focus = netFocusRooms
+		} else {
+			focus = netFocusAddr
 		}
 	}
 	g.leaveGame()
-	if !isClient {
-		return
-	}
+	g.openNetwork(online)
+	g.input = savedInput
+	g.joinCode = savedCode
 	g.note = ""
-	g.focusJoinField(field)
-	g.view = viewJoin
+	g.focusNetworkField(focus)
 }
 
 // ---- results and stats ----
@@ -673,8 +704,8 @@ func (g *game) handleKey(e *tcell.EventKey) bool {
 		g.keySettings(e)
 	case viewName:
 		g.keyName(e)
-	case viewJoin:
-		g.keyJoin(e)
+	case viewNetwork:
+		g.keyNetwork(e)
 	case viewLobby:
 		g.keyLobby(e)
 	case viewPlay:
@@ -730,14 +761,8 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 			g.openSettings(modeAI)
 		case menuLocal:
 			g.openSettings(modeLocal)
-		case menuHost:
-			g.openSettings(setupHost)
-		case menuJoin:
-			g.input = g.save.Settings.JoinAddr
-			g.joinCode = ""
-			g.joinField = 0
-			g.inputPos = runeLen(g.input)
-			g.view = viewJoin
+		case menuNetwork:
+			g.openNetwork(true)
 		case menuGuide:
 			g.guideScroll = 0
 			g.view = viewGuide
@@ -775,6 +800,8 @@ func (g *game) settingRows() []int {
 		return []int{rowPlayer2, rowRounds, rowDestroy, rowDice, rowEnd, rowStart}
 	case setupOptions:
 		return []int{rowTheme, rowSound, rowColorblind, rowWinMeter, rowDone}
+	case setupOnlineHost:
+		return []int{rowRounds, rowTimer, rowRoomCode, rowDestroy, rowDice, rowEnd, rowStart}
 	}
 	return []int{rowRounds, rowTimer, rowPort, rowBindIP, rowRoomCode, rowDestroy, rowDice, rowEnd, rowStart}
 }
@@ -871,7 +898,12 @@ func (g *game) keySettings(e *tcell.EventKey) {
 		g.save.Settings.Player2 = cleanName(g.save.Settings.Player2, "Player 2")
 		g.hostRoomCode = cleanRoomCode(g.hostRoomCode)
 		g.persist()
-		g.view = viewMenu
+		if g.setupMode == setupHost || g.setupMode == setupOnlineHost {
+			g.openNetwork(g.setupMode == setupOnlineHost)
+			g.focusNetworkField(netFocusHost)
+		} else {
+			g.view = viewMenu
+		}
 	case e.Key() == tcell.KeyUp || e.Key() == tcell.KeyBacktab:
 		g.setIndex = (g.setIndex + len(rows) - 1) % len(rows)
 		g.focusSettingCaret()
@@ -976,6 +1008,18 @@ func (g *game) startFromSettings() {
 		}, g.rng)
 		if err != nil {
 			g.note = fmt.Sprintf("Could not open port %d: %v", st.Port, err)
+			return
+		}
+		g.beginGame(h)
+	case setupOnlineHost:
+		h, err := startOnlineHost(g.save.Name, g.rendezvousAddr(), hostConfig{
+			BestOf:      st.BestOf,
+			Rules:       st.Rules,
+			TurnSeconds: st.TurnSeconds,
+			RoomCode:    g.hostRoomCode,
+		}, g.rng, g.netTLSConfig, g.netPlainTCP)
+		if err != nil {
+			g.note = fmt.Sprintf("Could not connect to rendezvous: %v", err)
 			return
 		}
 		g.beginGame(h)
@@ -1085,44 +1129,232 @@ func (g *game) keyName(e *tcell.EventKey) {
 	}
 }
 
-func (g *game) focusJoinField(idx int) {
-	if idx < 0 || idx > 1 {
-		idx = 0
+func (g *game) rendezvousAddr() string {
+	if g.netAddr != "" {
+		return g.netAddr
 	}
-	g.joinField = idx
-	if idx == 0 {
-		g.inputPos = runeLen(g.input)
+	return defaultRendezvousAddr
+}
+
+func (g *game) ensureWatcher() {
+	if g.watcher != nil {
+		return
+	}
+	g.watcher = startRendezvousWatcher(g.rendezvousAddr(), g.netTLSConfig, g.netPlainTCP)
+}
+
+func (g *game) stopWatcher() {
+	if g.watcher != nil {
+		g.watcher.Close()
+		g.watcher = nil
+	}
+}
+
+func (g *game) networkSnapshot() lobbySnapshot {
+	if g.watcher == nil {
+		return lobbySnapshot{}
+	}
+	return g.watcher.Snapshot()
+}
+
+func (g *game) openNetwork(online bool) {
+	g.netOnline = online
+	g.note = ""
+	g.input = g.save.Settings.JoinAddr
+	g.joinCode = ""
+	if online {
+		g.netRoomIdx = 0
+		g.netRoomScroll = 0
+		g.focusNetworkField(netFocusRooms)
+		g.ensureWatcher()
 	} else {
+		g.focusNetworkField(netFocusAddr)
+		g.stopWatcher()
+	}
+	g.view = viewNetwork
+}
+
+func (g *game) focusNetworkField(focus int) {
+	g.netFocus = focus
+	switch focus {
+	case netFocusAddr:
+		g.joinField = 0
+		g.inputPos = runeLen(g.input)
+	case netFocusCode:
+		g.joinField = 1
 		g.inputPos = runeLen(g.joinCode)
 	}
 }
 
-func (g *game) keyJoin(e *tcell.EventKey) {
-	switch {
-	case e.Key() == tcell.KeyEscape:
+func (g *game) networkFocusOrder() []int {
+	if g.netOnline {
+		return []int{netFocusMode, netFocusRooms, netFocusCode, netFocusJoin, netFocusHost}
+	}
+	return []int{netFocusMode, netFocusHost, netFocusAddr, netFocusCode, netFocusJoin}
+}
+
+func (g *game) cycleNetworkFocus(step int) {
+	order := g.networkFocusOrder()
+	idx := 0
+	for i, f := range order {
+		if f == g.netFocus {
+			idx = i
+			break
+		}
+	}
+	next := order[(idx+step+len(order))%len(order)]
+	g.focusNetworkField(next)
+}
+
+func (g *game) clampNetworkRoom(count int) {
+	if count <= 0 {
+		g.netRoomIdx = 0
+		g.netRoomScroll = 0
+		return
+	}
+	if g.netRoomIdx < 0 {
+		g.netRoomIdx = 0
+	}
+	if g.netRoomIdx >= count {
+		g.netRoomIdx = count - 1
+	}
+	if g.netRoomIdx < g.netRoomScroll {
+		g.netRoomScroll = g.netRoomIdx
+	}
+}
+
+func (g *game) joinSelectedOnlineRoom() {
+	snap := g.networkSnapshot()
+	if len(snap.Rooms) == 0 {
+		g.note = "No waiting matches right now. Press H to host one!"
+		return
+	}
+	g.clampNetworkRoom(len(snap.Rooms))
+	rm := snap.Rooms[g.netRoomIdx]
+	code := cleanRoomCode(g.joinCode)
+	if rm.Locked && code == "" {
+		g.note = "Room code required for locked match."
+		g.focusNetworkField(netFocusCode)
+		return
+	}
+	g.joinCode = code
+	g.note = ""
+	g.beginGame(startOnlineClient(g.save.Name, g.rendezvousAddr(), rm.RoomID, code, g.netTLSConfig, g.netPlainTCP))
+}
+
+func (g *game) joinDirect() {
+	addr := normalizeJoinAddr(g.input)
+	if addr == "" {
+		g.note = "Enter the host's address, for example 192.168.1.20:8647"
+		g.focusNetworkField(netFocusAddr)
+		return
+	}
+	code := cleanRoomCode(g.joinCode)
+	g.input = addr
+	g.joinCode = code
+	g.inputPos = runeLen(addr)
+	g.save.Settings.JoinAddr = addr
+	g.persist()
+	g.note = ""
+	g.beginGame(startClientWithCode(g.save.Name, addr, code))
+}
+
+func (g *game) keyNetwork(e *tcell.EventKey) {
+	if e.Key() == tcell.KeyEscape {
+		g.stopWatcher()
 		g.view = viewMenu
-	case e.Key() == tcell.KeyUp || e.Key() == tcell.KeyBacktab || e.Key() == tcell.KeyDown || e.Key() == tcell.KeyTab:
-		g.focusJoinField(1 - g.joinField)
-	case isEnter(e):
-		addr := normalizeJoinAddr(g.input)
-		if addr == "" {
-			g.note = "Enter the host's address, for example 192.168.1.20:8647"
-			g.focusJoinField(0)
+		return
+	}
+	if e.Key() == tcell.KeyTab {
+		g.cycleNetworkFocus(1)
+		return
+	}
+	if e.Key() == tcell.KeyBacktab {
+		g.cycleNetworkFocus(-1)
+		return
+	}
+	if g.netFocus == netFocusAddr {
+		if next, pos, ok := editLine(e, g.input, g.inputPos, maxAddrLen, func(r rune) bool { return unicode.IsPrint(r) && r != ' ' }); ok {
+			g.input = next
+			g.inputPos = pos
 			return
 		}
-		code := cleanRoomCode(g.joinCode)
-		g.input = addr
-		g.joinCode = code
-		g.inputPos = runeLen(addr)
-		g.save.Settings.JoinAddr = addr
-		g.persist()
-		g.note = ""
-		g.beginGame(startClientWithCode(g.save.Name, addr, code))
-	default:
-		if g.joinField == 1 {
-			g.joinCode, g.inputPos, _ = editLine(e, g.joinCode, g.inputPos, maxRoomCodeLen, isRoomCodeRune)
+	}
+	if g.netFocus == netFocusCode {
+		if next, pos, ok := editLine(e, g.joinCode, g.inputPos, maxRoomCodeLen, isRoomCodeRune); ok {
+			g.joinCode = next
+			g.inputPos = pos
+			return
+		}
+	}
+
+	snap := g.networkSnapshot()
+	switch {
+	case g.netFocus == netFocusMode && (isLeft(e) || isRight(e) || isEnter(e) || isRune(e, ' ')):
+		g.openNetwork(!g.netOnline)
+		g.focusNetworkField(netFocusMode)
+	case g.netOnline && (g.netFocus == netFocusJoin || g.netFocus == netFocusHost) && (isLeft(e) || isRight(e)):
+		if g.netFocus == netFocusJoin {
+			g.focusNetworkField(netFocusHost)
 		} else {
-			g.input, g.inputPos, _ = editLine(e, g.input, g.inputPos, maxAddrLen, func(r rune) bool { return unicode.IsPrint(r) && r != ' ' })
+			g.focusNetworkField(netFocusJoin)
+		}
+	case g.netOnline && g.netFocus == netFocusRooms && isUp(e):
+		if len(snap.Rooms) > 0 && g.netRoomIdx > 0 {
+			g.netRoomIdx--
+			g.clampNetworkRoom(len(snap.Rooms))
+		} else {
+			g.focusNetworkField(netFocusMode)
+		}
+	case g.netOnline && g.netFocus == netFocusRooms && isDown(e):
+		if len(snap.Rooms) > 0 && g.netRoomIdx < len(snap.Rooms)-1 {
+			g.netRoomIdx++
+			g.clampNetworkRoom(len(snap.Rooms))
+		} else {
+			g.focusNetworkField(netFocusCode)
+		}
+	case isUp(e):
+		g.cycleNetworkFocus(-1)
+		if g.netOnline && g.netFocus == netFocusRooms && len(snap.Rooms) > 0 {
+			g.netRoomIdx = len(snap.Rooms) - 1
+			g.clampNetworkRoom(len(snap.Rooms))
+		}
+	case isDown(e):
+		g.cycleNetworkFocus(1)
+		if g.netOnline && g.netFocus == netFocusRooms && len(snap.Rooms) > 0 {
+			g.netRoomIdx = 0
+			g.clampNetworkRoom(len(snap.Rooms))
+		}
+	case isRune(e, 'm') && g.netFocus != netFocusAddr && g.netFocus != netFocusCode:
+		g.openNetwork(!g.netOnline)
+		g.focusNetworkField(netFocusMode)
+	case isRune(e, 'h') && g.netFocus != netFocusAddr && g.netFocus != netFocusCode:
+		g.stopWatcher()
+		if g.netOnline {
+			g.openSettings(setupOnlineHost)
+		} else {
+			g.openSettings(setupHost)
+		}
+	case isRune(e, 'r') && g.netOnline && g.netFocus != netFocusAddr && g.netFocus != netFocusCode:
+		if g.watcher != nil {
+			g.watcher.Reconnect()
+		}
+	case isEnter(e) || (isRune(e, ' ') && g.netFocus != netFocusAddr && g.netFocus != netFocusCode):
+		if g.netOnline {
+			switch g.netFocus {
+			case netFocusHost:
+				g.stopWatcher()
+				g.openSettings(setupOnlineHost)
+			case netFocusRooms, netFocusCode, netFocusJoin:
+				g.joinSelectedOnlineRoom()
+			}
+		} else {
+			switch g.netFocus {
+			case netFocusHost:
+				g.openSettings(setupHost)
+			case netFocusAddr, netFocusCode, netFocusJoin:
+				g.joinDirect()
+			}
 		}
 	}
 }

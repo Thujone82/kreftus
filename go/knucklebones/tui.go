@@ -92,7 +92,19 @@ func runTUI() {
 		if g.ctl != nil {
 			netCh = g.ctl.netEvents()
 		}
+		var watchCh <-chan struct{}
+		if g.watcher != nil {
+			watchCh = g.watcher.Notify()
+		}
 		select {
+		case <-watchCh:
+			now := time.Now()
+			sig, _ := tuiSnapshot(g, now)
+			if sig != lastSig {
+				g.afterChange()
+				playTUI(now)
+				lastSig, _ = tuiSnapshot(g, now)
+			}
 		case ev := <-events:
 			switch e := ev.(type) {
 			case *tcell.EventResize:
@@ -149,6 +161,12 @@ type tuiSig struct {
 	lobbyClock     int64
 	lobbyErr       string
 	lobbyBackFocus bool
+	netOnline      bool
+	netFocus       int
+	netRoomIdx     int
+	netUpdatedNs   int64
+	netRooms       int
+	netStatsKey    uint64
 	turnClock     int64
 	sessPhase     string
 	sessMoves     int
@@ -180,11 +198,27 @@ func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
 	}
 	anim := false
 	switch g.view {
+	case viewNetwork:
+		sig.netOnline = g.netOnline
+		sig.netFocus = g.netFocus
+		sig.netRoomIdx = g.netRoomIdx
+		if g.netOnline {
+			snap := g.networkSnapshot()
+			sig.netUpdatedNs = snap.UpdatedAt.UnixNano()
+			sig.netRooms = len(snap.Rooms)
+			sig.netStatsKey = uint64(snap.Stats.LiveMatches)*1000003 + snap.Stats.CompletedMatches*1009 + snap.Stats.TotalDicePlayed
+			if snap.Err != "" {
+				sig.lobbyErr = snap.Err
+			}
+			if len(snap.Rooms) > 0 {
+				sig.lobbyClock = now.Unix()
+			}
+		}
 	case viewLobby:
 		if l, ok := g.ctl.(lobby); ok {
 			sig.lobbyErr = l.lobbyError()
 			sig.lobbyBackFocus = g.lobbyBackFocus
-			if l.hostPort() > 0 {
+			if l.hostPort() > 0 || l.hostRoomID() != "" {
 				sig.lobbyClock = int64(time.Since(l.waitingSince()).Seconds())
 			} else if sig.lobbyErr == "" {
 				sig.lobbyClock = now.UnixMilli() / 400

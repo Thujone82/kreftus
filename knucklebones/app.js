@@ -7,6 +7,7 @@
   const APP_VERSION = '1.0';
   const SAVE_STORAGE_KEY = 'knucklebones.save.v1';
   const DEFAULT_PORT = 8647;
+  const DEFAULT_RENDEZVOUS_ADDR = 'vps.kreft.us:8647';
   const GRID_COLS = 3;
   const GRID_ROWS = 3;
   const ROLL_DURATION_MS = 450;
@@ -101,8 +102,8 @@
     { kind: 'p', text: '• Ratau (Easy) drops dice in any open column.' },
     { kind: 'p', text: '• Flinky (Medium) takes the biggest immediate swing.' },
     { kind: 'p', text: '• Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it.' },
-    { kind: 'h', text: 'Online play & Fair Play' },
-    { kind: 'p', text: 'Hosts run on the desktop/terminal Knucklebones app; pick Join Game and enter the host IP address and port (default 8647). Optional room codes authenticate the handshake with HMAC-SHA256. Host dice are verified via SHA-256 commit-reveal at round end. Turns can be timed (three timeouts forfeit the match), and dropped players have 30 seconds to reconnect.' },
+    { kind: 'h', text: 'Online & Network Play & Fair Play' },
+    { kind: 'p', text: 'Open Network Play to browse live matches hosted through vps.kreft.us or host your own Online match from the PWA. Switch to Direct to join a PC/Linux host by IP address and port (default 8647). Optional room codes authenticate the handshake with HMAC-SHA256. Host dice are verified via SHA-256 commit-reveal at round end. Turns can be timed (three timeouts forfeit the match), and dropped players have 30 seconds to reconnect.' },
     { kind: 'h', text: 'Credits' },
     { kind: 'p', text: 'The original Knucklebones game in Cult of the Lamb was created by Massive Monster. This is a fan-made web PWA edition with full parity to the desktop Go/Ebitengine and Terminal editions.' }
   ];
@@ -255,6 +256,12 @@
   function helloAuthMAC(roomKey, nonce, name, token, guestSeed) {
     if (!roomKey) return '';
     return bytesToHex(hmacSha256Bytes(roomKey, `hello\x00${nonce}\x00${name}\x00${token}\x00${guestSeed}`));
+  }
+
+  function verifyHelloAuth(roomKey, nonce, name, token, guestSeed, macHex) {
+    if (!roomKey || roomKey.length === 0) return true;
+    if (typeof macHex !== 'string' || macHex.length !== 64 || !validHex(macHex, 64)) return false;
+    return helloAuthMAC(roomKey, nonce, name, token, guestSeed) === macHex.toLowerCase();
   }
 
   function validHex(s, maxLen) {
@@ -455,8 +462,18 @@
     const norm = normalizeJoinAddr(s);
     const sp = splitHostPort(norm);
     const loop = sp && isLoopbackHost(sp.host);
-    const scheme = (location.protocol === 'https:' && !loop) ? 'wss' : 'ws';
+    const forceTls = sp && sp.host && sp.host.toLowerCase() === 'vps.kreft.us';
+    const scheme = (forceTls || (location.protocol === 'https:' && !loop)) ? 'wss' : 'ws';
     return `${scheme}://${norm}`;
+  }
+
+  function getRendezvousAddr() {
+    if (isLoopbackHost(location.hostname)) {
+      const params = new URLSearchParams(location.search);
+      const override = normalizeJoinAddr(cleanText(params.get('rv') || '', 80));
+      if (override) return override;
+    }
+    return DEFAULT_RENDEZVOUS_ADDR;
   }
 
   // =========================================================================
@@ -1228,17 +1245,19 @@
   // =========================================================================
   // 7. SESSION & REPLAY (session.go & viewmodel.go parity)
   // =========================================================================
-  function createSession(mode, names, difficulty, bestOf, rules, turnSeconds = 0, useCommit = false) {
+  function createSession(mode, names, difficulty, bestOf, rules, turnSeconds = 0, useCommit = false, initSeeds = null) {
     const s = {
       proto: PROTO_VERSION,
       mode,
       difficulty,
       bestOf,
       turnSeconds,
+      turnLimit: turnSeconds,
       freePlay: bestOf === 0,
       names: [names[0], names[1]],
       wins: [0, 0],
-      round: 1,
+      ties: 0,
+      round: 0,
       series: 1,
       phase: 'play',
       match: createMatch(rules, 0),
@@ -1248,6 +1267,7 @@
       votes: ['', ''],
       log: [],
       history: [],
+      roundRolls: [],
       roundMoves: [],
       timeouts: [0, 0],
       turnDeadline: 0,
@@ -1255,12 +1275,22 @@
       aimCol: 0,
       aimDie: 0,
       hostCommit: '',
-      hostSeed: '',
-      guestSeed: '',
+      hostSeed: initSeeds ? (initSeeds.hostSeed || '') : '',
+      nextHostSeed: '',
+      guestSeed: initSeeds ? (initSeeds.guestSeed || '') : '',
+      nextGuestSeed: '',
+      hostReveal: '',
+      nextHostCommit: '',
       connected: [true, mode !== 'online']
     };
     startRound(s, useCommit);
     return s;
+  }
+
+  function sessionLeader(s) {
+    if (s.wins[0] > s.wins[1]) return 0;
+    if (s.wins[1] > s.wins[0]) return 1;
+    return -1;
   }
 
   function roundNeeded(bestOf) {
@@ -1270,16 +1300,33 @@
   function seriesWinner(s) {
     if (s.forfeit) return 1 - s.forfeit.loser;
     if (s.bestOf === 1) return matchWinner(s.match);
-    if (s.wins[0] > s.wins[1]) return 0;
-    if (s.wins[1] > s.wins[0]) return 1;
-    return -1;
+    return sessionLeader(s);
+  }
+
+  function revealRound(s) {
+    if (s.mode !== 'online' || !s.hostSeed) return;
+    s.hostReveal = s.hostSeed;
+    if (!s.nextHostSeed) s.nextHostSeed = newRandomHex(32);
+    s.nextHostCommit = commitSeed(s.nextHostSeed);
   }
 
   function startRound(s, useCommit = false) {
+    s.round++;
+    if (s.nextHostSeed) {
+      s.hostSeed = s.nextHostSeed;
+      s.nextHostSeed = '';
+      if (s.nextGuestSeed) s.guestSeed = s.nextGuestSeed;
+      s.nextGuestSeed = '';
+    }
+    s.hostReveal = '';
+    s.nextHostCommit = '';
+    s.roundRolls = [];
+    s.roundMoves = [];
+
     let first;
     if (useCommit) {
-      s.hostSeed = newRandomHex(16);
-      s.guestSeed = s.guestSeed || newRandomHex(16);
+      s.hostSeed = s.hostSeed || newRandomHex(32);
+      s.guestSeed = s.guestSeed || newRandomHex(32);
       s.hostCommit = commitSeed(s.hostSeed);
       first = roundCoin(s.hostSeed, s.guestSeed);
     } else {
@@ -1292,12 +1339,13 @@
     s.last = null;
     s.forfeit = null;
     s.votes = ['', ''];
-    s.roundMoves = [];
     s.phase = 'play';
     s.aiming = false;
 
     if (useCommit) {
-      s.match.dice = roundRoll(s.hostSeed, s.guestSeed, s.match.moves, s.match.rules.twoDice);
+      const r = roundRoll(s.hostSeed, s.guestSeed, s.match.moves, s.match.rules.twoDice);
+      s.match.dice = r;
+      s.roundRolls.push([r[0], r[1]]);
     } else {
       rollForTurn(s.match, () => Math.floor(Math.random() * 6) + 1);
     }
@@ -1310,11 +1358,15 @@
   }
 
   function finishRound(s) {
+    const prevLead = sessionLeader(s);
     const scores = matchScores(s.match);
     const w = matchWinner(s.match);
     if (w >= 0) s.wins[w]++;
+    else s.ties = (s.ties || 0) + 1;
+    const nowLead = sessionLeader(s);
+    const lead = (nowLead >= 0 && nowLead !== prevLead) ? nowLead : -1;
     s.log.push({ kind: 'round', round: s.round, player: w, scores });
-    s.history.push({ round: s.round, scores, winner: w });
+    s.history.push({ round: s.round, scores, winner: w, lead });
     const need = roundNeeded(s.bestOf);
     if (need > 0 && (s.wins[0] >= need || s.wins[1] >= need || (s.bestOf === 1 && w >= 0))) {
       s.phase = 'game';
@@ -1324,6 +1376,7 @@
       s.phase = 'round';
     }
     s.turnDeadline = 0;
+    revealRound(s);
   }
 
   function sessionPlace(s, p, mv) {
@@ -1349,7 +1402,10 @@
       finishRound(s);
     } else {
       if (s.hostSeed && s.guestSeed) {
-        s.match.dice = roundRoll(s.hostSeed, s.guestSeed, s.match.moves, s.match.rules.twoDice);
+        const r = roundRoll(s.hostSeed, s.guestSeed, s.match.moves, s.match.rules.twoDice);
+        s.match.dice = r;
+        if (!Array.isArray(s.roundRolls)) s.roundRolls = [];
+        s.roundRolls.push([r[0], r[1]]);
       } else {
         rollForTurn(s.match, () => Math.floor(Math.random() * 6) + 1);
       }
@@ -1361,33 +1417,58 @@
   function sessionForfeit(s, loser, reason) {
     if (s.phase === 'game') return;
     s.forfeit = { loser, reason };
+    s.match.over = true;
+    s.match.dice = [0, 0];
     s.phase = 'game';
+    s.votes = ['', ''];
     s.turnDeadline = 0;
     s.aiming = false;
     s.log.push({ kind: 'forfeit', round: s.round, player: loser, reason });
+    revealRound(s);
+  }
+
+  function sessionTimeout(s) {
+    if (s.phase !== 'play') return false;
+    const p = s.match.turn;
+    s.timeouts[p] = (s.timeouts[p] || 0) + 1;
+    s.log.push({ kind: 'timeout', round: s.round, player: p, count: s.timeouts[p] });
+    if (s.timeouts[p] >= MAX_TIMEOUTS) {
+      sessionForfeit(s, p, 'timeout');
+      return true;
+    }
+    const legal = legalMoves(s.match);
+    if (legal.length === 0) return false;
+    const mv = legal[Math.floor(Math.random() * legal.length)];
+    return sessionPlace(s, p, mv);
   }
 
   function sessionOptions(s) {
     if (s.phase === 'round') return ['continue'];
-    if (s.phase === 'game') return ['rematch', 'free'];
+    if (s.phase === 'game') {
+      if (s.forfeit && s.forfeit.reason === 'disconnect') return [];
+      const opts = ['rematch'];
+      if (!s.forfeit && s.bestOf > 0 && !s.freePlay) opts.push('free');
+      return opts;
+    }
     return [];
   }
 
   function sessionApplyOutcomeChoice(s, choice, useCommit) {
     if (choice === 'continue') {
-      s.round++;
       startRound(s, useCommit);
     } else if (choice === 'free') {
       s.freePlay = true;
       s.bestOf = 0;
-      s.round++;
       startRound(s, useCommit);
     } else if (choice === 'rematch') {
       s.series++;
-      s.round = 1;
+      s.round = 0;
       s.wins = [0, 0];
+      s.ties = 0;
       s.timeouts = [0, 0];
       s.history = [];
+      s.forfeit = null;
+      s.freePlay = false;
       startRound(s, useCommit);
     }
   }
@@ -1432,8 +1513,11 @@
   // 8. ONLINE MULTIPLAYER TRANSPORT (WebSocket over TCP · Protocol v2)
   // =========================================================================
   function createWsGuestController(cfg, onUpdate) {
-    const rawAddr = String(cfg.addr || '').trim();
-    const displayAddr = normalizeJoinAddr(rawAddr);
+    const isRelay = !!cfg.roomId;
+    const rawAddr = String(isRelay ? (cfg.rendezvousAddr || getRendezvousAddr()) : (cfg.addr || '')).trim();
+    const displayAddr = isRelay
+      ? (cfg.hostName ? `${cfg.hostName} · Online Match` : 'Online Match')
+      : normalizeJoinAddr(rawAddr);
     const wsUrl = buildWsUrl(rawAddr);
     const guestToken = newRandomHex(8); // 16 hex chars, matches net.go newToken()
     const roomKey = deriveRoomKey(cfg.roomCode || '');
@@ -1602,6 +1686,14 @@
 
     function onWireMsg(msg) {
       if (closed || !msg || typeof msg !== 'object') return;
+      if (msg.type === 'r_paired') return;
+      if (msg.type === 'r_error') {
+        lobbyErr = msg.code || msg.text || 'room-not-found';
+        fatal = true;
+        closeSocket();
+        onUpdate();
+        return;
+      }
       if (msg.type === 'challenge') {
         if (gotChallenge) return;
         if (msg.version !== PROTO_VERSION) {
@@ -1727,6 +1819,14 @@
       sock.onopen = () => {
         if (closed || ws !== sock) return;
         openedThisAttempt = true;
+        if (isRelay) {
+          sendRaw({
+            type: 'r_join',
+            roomId: cfg.roomId,
+            token: guestToken,
+            name: cfg.guestName
+          });
+        }
       };
       sock.onmessage = (ev) => {
         if (closed || ws !== sock) return;
@@ -1776,9 +1876,12 @@
       state: () => sess,
       waitingSince: () => waitingAt,
       addr: () => displayAddr,
+      roomId: () => cfg.roomId || '',
       roomCode: () => cfg.roomCode || '',
+      isHost: () => false,
+      lobbyMode: () => (isRelay ? 'online-guest' : 'direct-guest'),
       lobbyError: () => lobbyErr,
-      canRetry: () => lobbyErr !== '' && lobbyErr !== 'bad-room-code' && lobbyErr !== 'unsupported-protocol',
+      canRetry: () => lobbyErr !== '' && lobbyErr !== 'bad-room-code' && lobbyErr !== 'unsupported-protocol' && lobbyErr !== 'room-not-found',
       retryConnect: () => connectAttempt(),
       fairness: () => fairState,
       opponentGone: () => hostGone,
@@ -1825,6 +1928,526 @@
           if (!ws && now >= retryAt) {
             retryAt = now + 2000;
             connectAttempt();
+          }
+        }
+        return false;
+      }
+    };
+  }
+
+  function createRendezvousWatcher(addr, onUpdate) {
+    const rawAddr = String(addr || getRendezvousAddr()).trim();
+    const wsUrl = buildWsUrl(rawAddr);
+    let ws = null;
+    let closed = false;
+    let connected = false;
+    let errMsg = '';
+    let rooms = [];
+    let stats = {
+      liveMatches: 0,
+      waitingRooms: 0,
+      completedMatches: 0,
+      completedRounds: 0,
+      totalDicePlayed: 0,
+      totalDiceDestroyed: 0,
+      totalPointsScored: 0,
+      updatedAt: 0
+    };
+    let retryTimer = null;
+    let pingTimer = null;
+
+    function clearTimers() {
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+    }
+
+    function connect() {
+      if (closed || !wsUrl) return;
+      clearTimers();
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (err) {
+        errMsg = err && err.message ? err.message : 'Unable to connect to lobby server';
+        connected = false;
+        onUpdate();
+        retryTimer = setTimeout(connect, 3000);
+        return;
+      }
+      const sock = ws;
+      sock.onopen = () => {
+        if (closed || ws !== sock) return;
+        connected = true;
+        errMsg = '';
+        try { sock.send(JSON.stringify({ type: 'r_watch' }) + '\n'); } catch {}
+        pingTimer = setInterval(() => {
+          if (!closed && ws === sock && sock.readyState === WebSocket.OPEN) {
+            try { sock.send(JSON.stringify({ type: 'ping' }) + '\n'); } catch {}
+          }
+        }, 18000);
+        onUpdate();
+      };
+      sock.onmessage = (ev) => {
+        if (closed || ws !== sock) return;
+        for (const chunk of String(ev.data || '').split('\n')) {
+          const line = chunk.trim();
+          if (!line) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg && msg.type === 'r_lobby') {
+              rooms = Array.isArray(msg.rooms)
+                ? msg.rooms.map((r) => ({ ...r, roomId: r.roomId || r.id || '' }))
+                : [];
+              if (msg.stats && typeof msg.stats === 'object') {
+                stats = { ...stats, ...msg.stats };
+              }
+              onUpdate();
+            }
+          } catch {}
+        }
+      };
+      sock.onerror = () => {};
+      sock.onclose = () => {
+        if (closed || ws !== sock) return;
+        ws = null;
+        clearTimers();
+        connected = false;
+        if (!errMsg) errMsg = `Disconnected from ${rawAddr}`;
+        onUpdate();
+        retryTimer = setTimeout(connect, 2500);
+      };
+    }
+
+    connect();
+
+    return {
+      addr: () => rawAddr,
+      connected: () => connected,
+      error: () => errMsg,
+      rooms: () => rooms,
+      stats: () => stats,
+      close: () => {
+        closed = true;
+        clearTimers();
+        if (ws) {
+          const old = ws;
+          ws = null;
+          old.onopen = null;
+          old.onmessage = null;
+          old.onclose = null;
+          old.onerror = null;
+          try { old.close(); } catch {}
+        }
+      }
+    };
+  }
+
+  function createWsHostController(cfg, onUpdate) {
+    const rawAddr = String(cfg.rendezvousAddr || getRendezvousAddr()).trim();
+    const displayAddr = normalizeJoinAddr(rawAddr);
+    const wsUrl = buildWsUrl(rawAddr);
+    const hostName = cleanName(cfg.hostName, 'Host');
+    const roomCode = cleanRoomCode(cfg.roomCode || '');
+    const roomKey = deriveRoomKey(roomCode);
+    const hostToken = newRandomHex(8);
+    const waitingAt = Date.now();
+
+    let ws = null;
+    let sess = null;
+    let roomID = '';
+    let lobbyErr = '';
+    let closed = false;
+    let fatal = false;
+    let openedThisAttempt = false;
+
+    let activeSeq = 0;
+    let wireKey = null;
+    let nonce = '';
+    let txSeq = 0;
+    let rxSeq = 0;
+    let authed = false;
+    let pendingHostSeed = '';
+    let guestToken = '';
+
+    let lostAt = 0;
+    let opponentLeft = false;
+    let lastPing = 0;
+    let lastAimAt = 0;
+
+    function closeSocket() {
+      if (ws) {
+        const old = ws;
+        ws = null;
+        old.onopen = null;
+        old.onmessage = null;
+        old.onclose = null;
+        old.onerror = null;
+        try { old.close(); } catch {}
+      }
+      activeSeq = 0;
+      wireKey = null;
+      authed = false;
+      txSeq = 0;
+      rxSeq = 0;
+    }
+
+    function sendRaw(obj) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+      try {
+        ws.send(JSON.stringify(obj) + '\n');
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function sendRelay(seq, msgObj) {
+      if (!seq || closed) return false;
+      return sendRaw({ type: 'r_relay', connSeq: seq, data: JSON.stringify(msgObj) });
+    }
+
+    function sendWire(msgObj) {
+      if (closed || !authed || activeSeq <= 0) return;
+      const pkg = { ...msgObj };
+      if (wireKey && wireKey.length > 0) {
+        txSeq++;
+        signWireMsg(wireKey, txSeq, pkg);
+      }
+      sendRelay(activeSeq, pkg);
+    }
+
+    function broadcast() {
+      if (!sess || !authed || activeSeq <= 0) return;
+      const now = Date.now();
+      sess.turnLeftMs = (sess.phase === 'play' && sess.turnDeadline > 0)
+        ? Math.max(0, sess.turnDeadline - now)
+        : 0;
+      sess.waitLeftMs = (lostAt > 0 && sess.phase !== 'game')
+        ? Math.max(0, DISCONNECT_GRACE_MS - (now - lostAt))
+        : 0;
+      sendWire({ type: 'state', state: canonicalSession(sess) });
+    }
+
+    function rejectConn(seq, text) {
+      sendRelay(seq, { type: 'error', text });
+      sendRaw({ type: 'r_guest_drop', connSeq: seq });
+      if (seq === activeSeq) {
+        activeSeq = 0;
+        wireKey = null;
+        authed = false;
+        txSeq = 0;
+        rxSeq = 0;
+      }
+    }
+
+    function onGuestJoined(seq) {
+      if (sess && authed) {
+        rejectConn(seq, sess.phase === 'game' ? 'match-ended' : 'room-full');
+        return;
+      }
+      if (sess && !authed && (opponentLeft || sess.phase === 'game')) {
+        rejectConn(seq, 'match-ended');
+        return;
+      }
+      activeSeq = seq;
+      nonce = newRandomHex(32);
+      wireKey = deriveWireKey(roomKey, nonce);
+      txSeq = 0;
+      rxSeq = 0;
+      authed = false;
+
+      let commitHex;
+      if (!sess) {
+        pendingHostSeed = newRandomHex(32);
+        commitHex = commitSeed(pendingHostSeed);
+      } else {
+        commitHex = sess.hostCommit || commitSeed(sess.hostSeed);
+      }
+      sendRelay(seq, {
+        type: 'challenge',
+        version: PROTO_VERSION,
+        authReq: roomKey.length > 0,
+        nonce,
+        commit: commitHex
+      });
+    }
+
+    function onRelayMsg(seq, inner) {
+      if (seq !== activeSeq || !inner || typeof inner !== 'object') return;
+      if (!authed) {
+        if (inner.type !== 'hello') {
+          rejectConn(seq, 'expected-hello');
+          return;
+        }
+        if (inner.version !== PROTO_VERSION) {
+          rejectConn(seq, 'unsupported-protocol');
+          return;
+        }
+        if (roomKey && roomKey.length > 0) {
+          if (!verifyHelloAuth(roomKey, nonce, inner.name || '', inner.token || '', inner.seed || '', inner.auth || '')) {
+            rejectConn(seq, 'bad-room-code');
+            return;
+          }
+        }
+        if (!validHex(inner.seed, 64)) {
+          rejectConn(seq, 'invalid-seed');
+          return;
+        }
+        if (!sess) {
+          guestToken = String(inner.token || '');
+          sess = createSession(
+            'online',
+            [hostName, cleanName(inner.name, 'Guest')],
+            '',
+            cfg.bestOf,
+            { ...cfg.rules },
+            cfg.turnSeconds,
+            true,
+            { hostSeed: pendingHostSeed, guestSeed: inner.seed }
+          );
+          sess.connected = [true, true];
+          authed = true;
+          broadcast();
+          onUpdate();
+        } else {
+          if (guestToken && String(inner.token || '') !== guestToken) {
+            rejectConn(seq, 'room-full');
+            return;
+          }
+          authed = true;
+          lostAt = 0;
+          sess.connected[1] = true;
+          broadcast();
+          onUpdate();
+        }
+        return;
+      }
+
+      if (wireKey && wireKey.length > 0) {
+        if (!verifyWireMsg(wireKey, rxSeq + 1, inner)) {
+          rejectConn(seq, 'bad-mac');
+          return;
+        }
+        rxSeq = inner.seq;
+      }
+
+      if (inner.type === 'ping') {
+        sendWire({ type: 'pong' });
+      } else if (inner.type === 'move' && sess && sess.phase === 'play' && sess.match.turn === 1) {
+        if (sessionPlace(sess, 1, { col: inner.col || 0, die: inner.die || 0 })) {
+          broadcast();
+          onUpdate();
+        }
+      } else if (inner.type === 'aim' && sess && sess.phase === 'play' && sess.match.turn === 1) {
+        const c = inner.col || 0;
+        const d = inner.die || 0;
+        if (c >= 0 && c < GRID_COLS && d >= 0 && d <= 1 && sess.match.dice[d] !== 0) {
+          sess.aiming = true;
+          sess.aimCol = c;
+          sess.aimDie = d;
+          onUpdate();
+        }
+      } else if (inner.type === 'vote' && sess && (sess.phase === 'round' || sess.phase === 'game')) {
+        const v = inner.vote || '';
+        if (!sessionOptions(sess).includes(v)) return;
+        sess.votes[1] = v;
+        if (inner.seed && validHex(inner.seed, 64)) sess.nextGuestSeed = inner.seed;
+        if (sess.votes[0] && sess.votes[0] === sess.votes[1]) {
+          sessionApplyOutcomeChoice(sess, sess.votes[0], true);
+        }
+        broadcast();
+        onUpdate();
+      } else if (inner.type === 'resign' && sess && sess.phase !== 'game') {
+        sessionForfeit(sess, 1, 'resign');
+        broadcast();
+        onUpdate();
+      } else if (inner.type === 'bye') {
+        opponentLeft = true;
+        if (sess) {
+          sess.connected[1] = false;
+          if (sess.phase !== 'game') sessionForfeit(sess, 1, 'resign');
+        }
+        broadcast();
+        activeSeq = 0;
+        wireKey = null;
+        authed = false;
+        onUpdate();
+      }
+    }
+
+    function connectAttempt() {
+      if (closed) return;
+      closeSocket();
+      roomID = '';
+      lobbyErr = '';
+      fatal = false;
+      openedThisAttempt = false;
+      if (!displayAddr || !wsUrl) {
+        lobbyErr = 'invalid address';
+        onUpdate();
+        return;
+      }
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (err) {
+        lobbyErr = err && err.message ? err.message : 'Could not connect to lobby server';
+        onUpdate();
+        return;
+      }
+      const sock = ws;
+      sock.onopen = () => {
+        if (closed || ws !== sock) return;
+        openedThisAttempt = true;
+        lastPing = Date.now();
+        sendRaw({
+          type: 'r_host',
+          name: hostName,
+          bestOf: cfg.bestOf,
+          rules: { ...cfg.rules },
+          turnSeconds: cfg.turnSeconds,
+          locked: roomCode !== '',
+          token: hostToken
+        });
+      };
+      sock.onmessage = (ev) => {
+        if (closed || ws !== sock) return;
+        for (const chunk of String(ev.data || '').split('\n')) {
+          const line = chunk.trim();
+          if (!line) continue;
+          let msg;
+          try { msg = JSON.parse(line); } catch { continue; }
+          if (!msg || typeof msg !== 'object') continue;
+          if (msg.type === 'r_hosted') {
+            roomID = msg.roomId || '';
+            lobbyErr = '';
+            onUpdate();
+          } else if (msg.type === 'r_error') {
+            lobbyErr = msg.code || msg.text || 'rendezvous-error';
+            fatal = true;
+            closeSocket();
+            onUpdate();
+          } else if (msg.type === 'r_guest_joined') {
+            onGuestJoined(msg.connSeq || 0);
+          } else if (msg.type === 'r_guest_drop') {
+            if ((msg.connSeq || 0) !== activeSeq) continue;
+            activeSeq = 0;
+            wireKey = null;
+            authed = false;
+            if (sess) {
+              sess.connected[1] = false;
+              sess.aiming = false;
+              if (sess.phase !== 'game' && !opponentLeft) lostAt = Date.now();
+              onUpdate();
+            }
+          } else if (msg.type === 'r_relay' && msg.data) {
+            try {
+              onRelayMsg(msg.connSeq || 0, JSON.parse(msg.data));
+            } catch {}
+          }
+        }
+      };
+      sock.onerror = () => {};
+      sock.onclose = () => {
+        if (closed || ws !== sock) return;
+        closeSocket();
+        if (fatal) {
+          onUpdate();
+          return;
+        }
+        if (!sess) {
+          if (!lobbyErr) {
+            lobbyErr = openedThisAttempt
+              ? 'lobby connection closed'
+              : `could not reach ${displayAddr}`;
+          }
+          onUpdate();
+        } else if (sess.phase !== 'game' && !opponentLeft) {
+          opponentLeft = true;
+          sess.connected[1] = false;
+          sessionForfeit(sess, 1, 'disconnect');
+          onUpdate();
+        }
+      };
+    }
+
+    connectAttempt();
+
+    return {
+      mode: 'online',
+      seat: () => 0,
+      state: () => sess,
+      waitingSince: () => waitingAt,
+      addr: () => displayAddr,
+      roomId: () => roomID,
+      roomCode: () => roomCode,
+      isHost: () => true,
+      lobbyMode: () => 'online-host',
+      lobbyError: () => lobbyErr,
+      canRetry: () => !sess && lobbyErr !== '',
+      retryConnect: () => connectAttempt(),
+      fairness: () => 'verified',
+      opponentGone: () => opponentLeft,
+      disconnectLeft: (now) => {
+        if (!lostAt || !sess || sess.phase === 'game') return { seat: -1, left: 0 };
+        return { seat: 1, left: Math.max(0, DISCONNECT_GRACE_MS - (now - lostAt)) };
+      },
+      turnLeft: (now) => {
+        if (!sess || !sess.turnDeadline || sess.phase !== 'play') return 0;
+        const left = sess.turnDeadline - now;
+        return left > 0 ? left : 1;
+      },
+      place: (mv) => {
+        if (!sess || sess.phase !== 'play' || sess.match.turn !== 0) return;
+        if (sessionPlace(sess, 0, mv)) {
+          broadcast();
+          onUpdate();
+        }
+      },
+      aim: (col, die) => {
+        if (!authed || !sess || sess.phase !== 'play' || sess.match.turn !== 0) return;
+        const now = Date.now();
+        if (now - lastAimAt < 75) return;
+        lastAimAt = now;
+        sendWire({ type: 'aim', aiming: true, col, die });
+      },
+      vote: (v) => {
+        if (!sess || v === 'menu' || !sessionOptions(sess).includes(v)) return;
+        sess.votes[0] = v;
+        if (sess.votes[0] === sess.votes[1]) {
+          sessionApplyOutcomeChoice(sess, v, true);
+        }
+        broadcast();
+        onUpdate();
+      },
+      resign: () => {
+        if (!sess || sess.phase === 'game') return;
+        sessionForfeit(sess, 0, 'resign');
+        broadcast();
+        onUpdate();
+      },
+      leave: () => {
+        closed = true;
+        try { if (authed && activeSeq > 0) sendWire({ type: 'bye' }); } catch {}
+        try { sendRaw({ type: 'r_leave' }); } catch {}
+        closeSocket();
+      },
+      tick: (now) => {
+        if (closed) return false;
+        if (ws && ws.readyState === WebSocket.OPEN && now - lastPing >= 18000) {
+          lastPing = now;
+          sendRaw({ type: 'ping' });
+        }
+        if (lostAt > 0 && sess && sess.phase !== 'game' && now - lostAt >= DISCONNECT_GRACE_MS) {
+          lostAt = 0;
+          opponentLeft = true;
+          sess.connected[1] = false;
+          sessionForfeit(sess, 1, 'disconnect');
+          broadcast();
+          return true;
+        }
+        if (sess && sess.phase === 'play' && sess.turnDeadline > 0 && now >= sess.turnDeadline) {
+          if (sessionTimeout(sess)) {
+            broadcast();
+            return true;
           }
         }
         return false;
@@ -1899,6 +2522,10 @@
     joinAddr: save.settings.joinAddr || `localhost:${DEFAULT_PORT}`,
     joinCode: '',
     joinField: 0,
+    netOnline: true,
+    netRoomIdx: 0,
+    watcher: null,
+    hostRoomCode: '',
     nameDraft: save.name,
     note: '',
     ctl: null,
@@ -2220,7 +2847,35 @@
     app.replayFrames = [];
   }
 
+  function stopNetWatcher() {
+    if (app.watcher) {
+      app.watcher.close();
+      app.watcher = null;
+    }
+  }
+
+  function ensureNetWatcher() {
+    const targetAddr = getRendezvousAddr();
+    if (!app.watcher || app.watcher.addr() !== targetAddr) {
+      stopNetWatcher();
+      app.watcher = createRendezvousWatcher(targetAddr, () => {
+        if (app.view === 'network') updateNetLobbyInPlace();
+      });
+    }
+  }
+
+  function openNetworkView(keepMode = false) {
+    if (!keepMode) app.netOnline = true;
+    app.joinAddr = save.settings.joinAddr || `localhost:${DEFAULT_PORT}`;
+    app.view = 'network';
+    app.joinField = 0;
+    app.note = '';
+    ensureNetWatcher();
+    render();
+  }
+
   function beginGame(ctl) {
+    stopNetWatcher();
     app.ctl = ctl;
     app.overlay = 'none';
     app.resultIndex = 0;
@@ -2250,6 +2905,7 @@
   }
 
   function leaveGame() {
+    stopNetWatcher();
     if (app.ctl) {
       app.ctl.leave();
       app.ctl = null;
@@ -2489,7 +3145,7 @@
     if (app.view === 'menu') renderMenu();
     else if (app.view === 'settings') renderSettings();
     else if (app.view === 'name') renderNamePrompt();
-    else if (app.view === 'join') renderJoin();
+    else if (app.view === 'network') renderNetwork();
     else if (app.view === 'lobby') renderLobby();
     else if (app.view === 'guide') renderGuide();
     else if (app.view === 'stats') renderStats();
@@ -2500,7 +3156,7 @@
     const items = [
       { id: 'ai', label: 'Play vs AI' },
       { id: 'local', label: '2 Players (Same Device)' },
-      { id: 'join', label: 'Join Game' },
+      { id: 'network', label: 'Network Play' },
       { id: 'guide', label: 'How to Play' },
       { id: 'stats', label: 'Stats & High Scores' },
       { id: 'name', label: `Change Name (${save.name})` },
@@ -2538,6 +3194,7 @@
   function settingRowsForMode() {
     if (app.setupMode === 'ai') return ['difficulty', 'rounds', 'destroy', 'dice', 'end', 'start'];
     if (app.setupMode === 'local') return ['player2', 'rounds', 'destroy', 'dice', 'end', 'start'];
+    if (app.setupMode === 'onlineHost') return ['rounds', 'turnTimer', 'roomCode', 'destroy', 'dice', 'end', 'start'];
     return ['theme', 'display', 'sound', 'haptics', 'quickTap', 'colorblind', 'winMeter', 'done'];
   }
 
@@ -2547,6 +3204,8 @@
       case 'difficulty': return ['AI difficulty', `${DIFF_LABEL[st.difficulty]} · ${AI_NAME[st.difficulty]}`];
       case 'player2': return ['Player 2 name', st.player2];
       case 'rounds': return ['Number of rounds', roundsLabel(st.bestOf)];
+      case 'turnTimer': return ['Turn time limit', st.turnSeconds > 0 ? `${st.turnSeconds}s` : 'No limit'];
+      case 'roomCode': return ['Room code', app.hostRoomCode || '(optional)'];
       case 'destroy': return ['Destroy matching dice', st.rules.noDestroy ? 'Off' : 'On'];
       case 'dice': return ['Dice per turn', st.rules.twoDice ? 'Two (place one)' : 'One'];
       case 'end': return ['Game ends when', st.rules.fillBoth ? 'Both boards are full' : 'One board is full'];
@@ -2558,17 +3217,22 @@
       case 'colorblind': return ['Colorblind marks', st.colorblind ? 'On' : 'Off'];
       case 'winMeter': return ['Win probability', st.winMeter ? 'On' : 'Off'];
       case 'done': return ['Done', ''];
-      default: return ['Start game', ''];
+      default: return [app.setupMode === 'onlineHost' ? 'Start hosting' : 'Start game', ''];
     }
   }
 
   function renderSettings() {
-    const titles = { ai: 'Play vs AI', local: '2 Players (Same Device)', options: 'Options' };
-    const subtitle = app.setupMode === 'options' ? 'Appearance & audio' : 'Game settings';
+    const titles = { ai: 'Play vs AI', local: '2 Players (Same Device)', onlineHost: 'Host Online Match', options: 'Options' };
+    const subtitle = app.setupMode === 'options'
+      ? 'Appearance & audio'
+      : app.setupMode === 'onlineHost'
+        ? `Hosted via ${getRendezvousAddr()}`
+        : 'Game settings';
     const rows = settingRowsForMode();
     if (app.setIndex >= rows.length) app.setIndex = rows.length - 1;
 
     const hint = app.setupMode === 'ai' ? DIFF_HINT[save.settings.difficulty] : '';
+    const backAction = app.setupMode === 'onlineHost' ? 'back-network' : 'back-menu';
 
     const showInstallBtn = app.setupMode === 'options' && !isPwaStandalone() && !!app.installPromptEvent;
     const showIosHint = app.setupMode === 'options' && !isPwaStandalone() && !app.installPromptEvent && isIosDevice();
@@ -2599,6 +3263,13 @@
                   <input id="input-player2" class="kb-input" type="text" maxlength="16" value="${escHtml(save.settings.player2)}" placeholder="Player 2">
                 </div>`;
             }
+            if (row === 'roomCode') {
+              return `
+                <div class="setting-row ${sel ? 'selected' : ''}" data-set-idx="${idx}">
+                  <span class="setting-label">${escHtml(label)}</span>
+                  <input id="input-host-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.hostRoomCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
+                </div>`;
+            }
             const prevBtn = hapticOnRow
               ? `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="arrow-btn" data-set-step="-1" data-set-idx="${idx}" aria-label="Previous">◀</label>`
               : `<button type="button" class="arrow-btn" data-set-step="-1" data-set-idx="${idx}" aria-label="Previous">◀</button>`;
@@ -2619,7 +3290,7 @@
         </div>
         ${hint ? `<p class="note-hint">${escHtml(hint)}</p>` : ''}
         ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-        <div class="btn-row">${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}</div>
+        <div class="btn-row">${renderActionButton('kb-btn', `data-action="${backAction}"`, 'Back')}</div>
         ${app.setupMode === 'options' ? renderOptionsCacheFooter() : ''}
       </div>
       <div class="footer-hint">Click a setting or ↑↓ select · ←→ change · Enter · Esc back</div>
@@ -2662,36 +3333,138 @@
     if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }
 
-  function renderJoin() {
+  function renderPadlockSvg(cls = 'lock-icon') {
+    return `<svg class="${cls}" viewBox="0 0 16 16" width="14" height="14" aria-label="Room code required" role="img"><path fill="currentColor" d="M5 7V5a3 3 0 1 1 6 0v2h1.5A1.5 1.5 0 0 1 14 8.5v5A1.5 1.5 0 0 1 12.5 15h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H5zm1.5-2v2h3V5a1.5 1.5 0 0 0-3 0z"/></svg>`;
+  }
+
+  function formatRoomMeta(r) {
+    const parts = [roundsLabel(r.bestOf || 0)];
+    if (r.turnSeconds > 0) parts.push(`${r.turnSeconds}s`);
+    const rs = rulesSummary(r.rules || {});
+    if (rs) parts.push(rs);
+    return parts.join(' · ');
+  }
+
+  function renderNetLobbyInner() {
+    const w = app.watcher;
+    const conn = w ? w.connected() : false;
+    const err = w ? w.error() : '';
+    const rooms = w ? w.rooms() : [];
+    const st = w ? w.stats() : { liveMatches: 0, waitingRooms: 0, completedMatches: 0, totalDicePlayed: 0 };
+    if (rooms.length === 0) app.netRoomIdx = 0;
+    else if (app.netRoomIdx >= rooms.length) app.netRoomIdx = rooms.length - 1;
+
+    const statusLine = conn
+      ? `<span class="net-status-dot on"></span> <span>Live: <strong>${st.liveMatches || 0}</strong> playing · <strong>${rooms.length}</strong> open</span><span class="net-stats-sep">·</span><span>All-time: <strong>${st.completedMatches || 0}</strong> matches · <strong>${st.totalDicePlayed || 0}</strong> dice</span>`
+      : `<span class="net-status-dot"></span> <span>${escHtml(err || `Connecting to ${getRendezvousAddr()}…`)}</span>`;
+
+    const listHtml = rooms.length === 0
+      ? `<div class="net-empty">${conn ? 'No open matches waiting right now. Host one below!' : 'Fetching open matches…'}</div>`
+      : rooms.map((r, idx) => {
+          const sel = idx === app.netRoomIdx;
+          return `
+            <button type="button" class="net-room-item ${sel ? 'selected' : ''}" data-net-room="${idx}">
+              <span class="net-room-main">
+                ${r.locked ? renderPadlockSvg('net-lock') : ''}
+                <span class="net-room-host">${escHtml(r.host || 'Host')}</span>
+              </span>
+              <span class="net-room-meta">${escHtml(formatRoomMeta(r))}</span>
+            </button>`;
+        }).join('');
+
+    return `
+      <div class="net-stats-bar">${statusLine}</div>
+      <div class="net-rooms-list" role="listbox" aria-label="Open online matches">
+        ${listHtml}
+      </div>
+    `;
+  }
+
+  function updateNetLobbyInPlace() {
+    if (app.view !== 'network' || !app.netOnline) return;
+    const box = document.getElementById('net-lobby-live');
+    if (!box) {
+      render();
+      return;
+    }
+    box.innerHTML = renderNetLobbyInner();
+    const rooms = app.watcher ? app.watcher.rooms() : [];
+    const joinBtn = document.querySelector('[data-action="submit-online-join"]');
+    if (joinBtn) {
+      const disabled = rooms.length === 0;
+      joinBtn.disabled = disabled;
+      joinBtn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    }
+    const selRoom = rooms[app.netRoomIdx];
+    const codeLabel = document.getElementById('label-online-code');
+    if (codeLabel) {
+      codeLabel.textContent = selRoom && selRoom.locked
+        ? 'Room code (required for selected match)'
+        : 'Room code (optional, only for locked matches)';
+    }
+  }
+
+  function renderNetwork() {
+    const rooms = app.watcher ? app.watcher.rooms() : [];
+    if (rooms.length === 0) app.netRoomIdx = 0;
+    else if (app.netRoomIdx >= rooms.length) app.netRoomIdx = rooms.length - 1;
+    const selRoom = rooms[app.netRoomIdx];
+
+    const bodyHtml = app.netOnline
+      ? `
+        <div id="net-lobby-live">${renderNetLobbyInner()}</div>
+        <div class="form-field" style="margin-top:10px;">
+          <label id="label-online-code" for="input-join-code">${selRoom && selRoom.locked ? 'Room code (required for selected match)' : 'Room code (optional, only for locked matches)'}</label>
+          <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
+        </div>
+        ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
+        <p class="note-hint" style="margin-top:4px;">Server: ${escHtml(getRendezvousAddr())}</p>
+        <div class="btn-row">
+          ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+          ${renderActionButton('kb-btn', 'data-action="open-online-host"', 'Host Match')}
+          ${renderActionButton('kb-btn selected', 'data-action="submit-online-join"', 'Join Match', { disabled: rooms.length === 0 })}
+        </div>
+      `
+      : `
+        <div class="form-field ${app.joinField === 0 ? 'active' : ''}">
+          <label for="input-join-addr">Host address (host:port)</label>
+          <input id="input-join-addr" class="kb-input" type="text" maxlength="80" value="${escHtml(app.joinAddr)}" placeholder="localhost:8647" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="form-field ${app.joinField === 1 ? 'active' : ''}">
+          <label for="input-join-code">Room code (optional, leave blank if open)</label>
+          <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
+        </div>
+        ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
+        <p class="note-hint" style="margin-top:8px;">Games can be hosted with the PC/Linux version</p>
+        <div class="btn-row">
+          ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+          ${renderActionButton('kb-btn selected', 'data-action="submit-join"', 'Join')}
+        </div>
+      `;
+
     rootEl.innerHTML = `
-      <div class="screen">
+      <div class="screen screen-top">
         <img src="./die.png" alt="" class="die-emblem">
         <p class="small-title">K N U C K L E B O N E S</p>
-        <div class="kb-card" style="max-width:520px;">
-          <h2 class="kb-card-title">Join Game</h2>
-          <div class="form-field ${app.joinField === 0 ? 'active' : ''}">
-            <label for="input-join-addr">Host address (host:port)</label>
-            <input id="input-join-addr" class="kb-input" type="text" maxlength="80" value="${escHtml(app.joinAddr)}" placeholder="localhost:8647" autocomplete="off" spellcheck="false">
+        <div class="kb-card net-card">
+          <h2 class="kb-card-title">Network Play</h2>
+          <div class="net-toggle" role="tablist" aria-label="Network mode">
+            <button type="button" role="tab" aria-selected="${app.netOnline}" class="kb-btn sm ${app.netOnline ? 'selected' : ''}" data-net-tab="online">Online</button>
+            <button type="button" role="tab" aria-selected="${!app.netOnline}" class="kb-btn sm ${!app.netOnline ? 'selected' : ''}" data-net-tab="direct">Direct</button>
           </div>
-          <div class="form-field ${app.joinField === 1 ? 'active' : ''}">
-            <label for="input-join-code">Room code (optional, leave blank if open)</label>
-            <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
-          </div>
-          ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-          <p class="note-hint" style="margin-top:8px;">Games can be hosted with the PC/Linux version</p>
-          <div class="btn-row">
-            ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
-            ${renderActionButton('kb-btn selected', 'data-action="submit-join"', 'Join')}
-          </div>
+          ${bodyHtml}
         </div>
       </div>
-      <div class="footer-hint">Tab / ↑↓ switch field · Enter join · Esc back</div>
+      <div class="footer-hint">${app.netOnline ? '↑↓ select match · Enter join · Esc back' : 'Tab / ↑↓ switch field · Enter join · Esc back'}</div>
     `;
-    const targetId = app.joinField === 1 ? 'input-join-code' : 'input-join-addr';
-    const inp = document.getElementById(targetId);
-    if (inp) {
-      inp.focus();
-      try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch {}
+
+    if (!app.netOnline) {
+      const targetId = app.joinField === 1 ? 'input-join-code' : 'input-join-addr';
+      const inp = document.getElementById(targetId);
+      if (inp) {
+        inp.focus();
+        try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch {}
+      }
     }
   }
 
@@ -2700,13 +3473,17 @@
     if (!ctl) return;
     const wait = formatWait(Date.now() - ctl.waitingSince());
     const err = ctl.lobbyError();
+    const isHost = ctl.isHost && ctl.isHost();
+    const heading = isHost ? 'Online Match' : (ctl.lobbyMode && ctl.lobbyMode() === 'online-guest' ? 'Online Match' : 'Join Game');
     if (err) {
       const errMap = {
         'room-full': 'That game already has two players.',
+        'room-not-found': 'That online match is no longer open.',
         'unsupported-protocol': 'This game version is no longer compatible with the host.',
         'bad-room-code': 'Incorrect room code.',
         'invalid-state': 'The host sent invalid game data.',
-        'connection-rejected': 'The host rejected the connection.'
+        'connection-rejected': 'The host rejected the connection.',
+        'rendezvous-full': 'The online lobby server is currently full.'
       };
       const errText = errMap[err] || `Could not connect: ${err}`;
       const canRetry = ctl.canRetry();
@@ -2715,7 +3492,7 @@
           <img src="./die.png" alt="" class="die-emblem">
           <p class="small-title">K N U C K L E B O N E S</p>
           <div class="kb-card">
-            <h2 class="kb-card-title">Join Game</h2>
+            <h2 class="kb-card-title">${escHtml(heading)}</h2>
             <p class="error-text" style="font-size:1.05rem;">${escHtml(errText)}</p>
             <p class="note-hint" style="margin-top:10px;">${escHtml(ctl.addr())}</p>
             <div class="btn-row">
@@ -2729,14 +3506,22 @@
       return;
     }
 
+    const rid = ctl.roomId && ctl.roomId();
+    const code = ctl.roomCode && ctl.roomCode();
+    const hostBadges = isHost
+      ? `<p class="invite-code" style="text-align:center;font-size:1.15rem;">${rid ? `Room ${escHtml(rid)}` : 'Registering room…'}</p>` +
+        (code ? `<p class="note-hint" style="margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;">${renderPadlockSvg('net-lock')} <span>Room code: <strong>${escHtml(code)}</strong></span></p>` : '') +
+        `<p class="note-hint" style="margin-top:4px;">Server: ${escHtml(ctl.addr())}</p>`
+      : `<p class="invite-code" style="text-align:center;font-size:1.25rem;">${escHtml(ctl.addr())}</p>`;
+
     rootEl.innerHTML = `
       <div class="screen">
         <img src="./die.png" alt="" class="die-emblem">
         <p class="small-title">K N U C K L E B O N E S</p>
         <div class="kb-card">
-          <h2 class="kb-card-title">Join Game</h2>
-          <p style="text-align:center;font-size:1.1rem;margin:18px 0 8px;">Waiting for game to start...</p>
-          <p class="invite-code" style="text-align:center;font-size:1.25rem;">${escHtml(ctl.addr())}</p>
+          <h2 class="kb-card-title">${escHtml(heading)}</h2>
+          <p style="text-align:center;font-size:1.1rem;margin:18px 0 8px;">${isHost ? 'Waiting for an opponent to join…' : 'Waiting for game to start...'}</p>
+          ${hostBadges}
           <p class="note-hint">Waiting time: <span id="lobby-wait-time">${wait}</span></p>
           <div class="btn-row">${renderActionButton('kb-btn', 'data-action="back-join"', 'Cancel')}</div>
         </div>
@@ -3343,6 +4128,7 @@
     switch (row) {
       case 'difficulty': st.difficulty = cyc(DIFF_ORDER, st.difficulty); break;
       case 'rounds': st.bestOf = cyc(ROUND_CHOICES, st.bestOf); break;
+      case 'turnTimer': st.turnSeconds = cyc(TIMER_CHOICES, st.turnSeconds); break;
       case 'destroy': st.rules.noDestroy = !st.rules.noDestroy; break;
       case 'dice': st.rules.twoDice = !st.rules.twoDice; break;
       case 'end': st.rules.fillBoth = !st.rules.fillBoth; break;
@@ -3390,7 +4176,60 @@
       if (p2.toLowerCase() === save.name.toLowerCase()) p2 += ' (2)';
       const sess = createSession('local', [save.name, p2], '', save.settings.bestOf, save.settings.rules, 0, false);
       beginGame(createOfflineController(sess, false, () => { syncSessionEvents(); render(); }));
+    } else if (app.setupMode === 'onlineHost') {
+      const codeInput = document.getElementById('input-host-code');
+      if (codeInput) app.hostRoomCode = codeInput.value;
+      let h = null;
+      h = createWsHostController({
+        hostName: save.name,
+        bestOf: save.settings.bestOf,
+        rules: { ...save.settings.rules },
+        turnSeconds: save.settings.turnSeconds,
+        roomCode: cleanRoomCode(app.hostRoomCode),
+        rendezvousAddr: getRendezvousAddr()
+      }, () => {
+        if (app.ctl && app.ctl === h) {
+          syncSessionEvents();
+          render();
+        }
+      });
+      beginGame(h);
     }
+  }
+
+  function submitOnlineJoin() {
+    const codeInput = document.getElementById('input-join-code');
+    if (codeInput) app.joinCode = codeInput.value;
+    const rooms = app.watcher ? app.watcher.rooms() : [];
+    const room = rooms[app.netRoomIdx];
+    const roomId = room ? (room.roomId || room.id || '') : '';
+    if (!room || !roomId) {
+      app.note = 'Select an open match first, or host your own.';
+      render();
+      return;
+    }
+    const cleanCode = cleanRoomCode(app.joinCode);
+    if (room.locked && !cleanCode) {
+      app.note = 'Enter the room code for this locked match.';
+      render();
+      document.getElementById('input-join-code')?.focus();
+      return;
+    }
+    app.note = '';
+    let g = null;
+    g = createWsGuestController({
+      roomId,
+      hostName: room.host,
+      rendezvousAddr: getRendezvousAddr(),
+      roomCode: cleanCode,
+      guestName: save.name
+    }, () => {
+      if (app.ctl && app.ctl === g) {
+        syncSessionEvents();
+        render();
+      }
+    });
+    beginGame(g);
   }
 
   function submitJoin() {
@@ -3409,12 +4248,13 @@
     save.settings.joinAddr = addr;
     persistSave(save);
     app.note = '';
-    const g = createWsGuestController({
+    let g = null;
+    g = createWsGuestController({
       addr,
       roomCode: cleanRoomCode(app.joinCode),
       guestName: save.name
     }, () => {
-      if (app.ctl === g) {
+      if (app.ctl && app.ctl === g) {
         syncSessionEvents();
         render();
       }
@@ -3427,11 +4267,8 @@
     app.note = '';
     if (id === 'ai' || id === 'local' || id === 'options') {
       openSettings(id);
-    } else if (id === 'join') {
-      app.joinAddr = save.settings.joinAddr || `localhost:${DEFAULT_PORT}`;
-      app.view = 'join';
-      app.joinField = 0;
-      render();
+    } else if (id === 'network') {
+      openNetworkView(false);
     } else if (id === 'guide') {
       app.view = 'guide';
       render();
@@ -3552,6 +4389,7 @@
   rootEl.addEventListener('input', (e) => {
     const id = e.target.id;
     if (id === 'input-player2') save.settings.player2 = e.target.value;
+    else if (id === 'input-host-code') app.hostRoomCode = e.target.value;
     else if (id === 'input-player-name') app.nameDraft = e.target.value;
     else if (id === 'input-join-addr') app.joinAddr = e.target.value;
     else if (id === 'input-join-code') app.joinCode = e.target.value;
@@ -3601,13 +4439,35 @@
       const idx = Number(rowEl.dataset.setIdx);
       app.setIndex = idx;
       const row = settingRowsForMode()[idx];
-      if (row === 'player2') {
+      if (row === 'player2' || row === 'roomCode') {
         render();
         const inp = rowEl.querySelector('input');
         if (inp) inp.focus();
       } else {
         changeSetting(row, 1);
       }
+      return;
+    }
+
+    const netTab = e.target.closest('[data-net-tab]');
+    if (netTab) {
+      triggerHaptic('aim');
+      emitSound('click');
+      app.netOnline = netTab.dataset.netTab === 'online';
+      app.note = '';
+      app.joinField = 0;
+      ensureNetWatcher();
+      render();
+      return;
+    }
+
+    const netRoom = e.target.closest('[data-net-room]');
+    if (netRoom) {
+      triggerHaptic('aim');
+      emitSound('click');
+      app.netRoomIdx = Number(netRoom.dataset.netRoom) || 0;
+      app.note = '';
+      render();
       return;
     }
 
@@ -3730,9 +4590,17 @@
       const act = actEl.dataset.action;
       if (act === 'back-menu') {
         emitSound('click');
+        stopNetWatcher();
         app.note = '';
         app.view = 'menu';
         render();
+      } else if (act === 'back-network') {
+        emitSound('click');
+        openNetworkView(true);
+      } else if (act === 'open-online-host') {
+        openSettings('onlineHost');
+      } else if (act === 'submit-online-join') {
+        submitOnlineJoin();
       } else if (act === 'cycle-theme') {
         stepTheme(1);
         render();
@@ -3765,14 +4633,23 @@
         emitSound('click');
         leaveGame();
       } else if (act === 'back-join') {
-        const wasBadAuth = app.ctl && app.ctl.lobbyError && app.ctl.lobbyError() === 'bad_auth';
+        const wasBadAuth = app.ctl && app.ctl.lobbyError && app.ctl.lobbyError() === 'bad-room-code';
+        const wasHost = !!(app.ctl && app.ctl.isHost && app.ctl.isHost());
+        const wasOnline = !!(app.ctl && app.ctl.lobbyMode && app.ctl.lobbyMode().startsWith('online'));
         if (app.ctl) { app.ctl.leave(); app.ctl = null; }
         stopClockLoop();
         app.note = '';
-        app.joinField = wasBadAuth ? 1 : 0;
-        app.view = 'join';
         emitSound('click');
-        render();
+        if (wasHost) {
+          openSettings('onlineHost');
+        } else {
+          app.netOnline = wasOnline;
+          app.joinField = wasBadAuth ? 1 : 0;
+          openNetworkView(true);
+          if (wasBadAuth) {
+            document.getElementById('input-join-code')?.focus();
+          }
+        }
       } else if (act === 'retry-join') {
         if (app.ctl && app.ctl.retryConnect) {
           emitSound('click');
@@ -3853,7 +4730,13 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       if (app.view === 'menu') return;
-      if (app.view === 'settings' || app.view === 'name' || app.view === 'join' || app.view === 'guide' || app.view === 'stats') {
+      if (app.view === 'settings' && app.setupMode === 'onlineHost') {
+        emitSound('click');
+        openNetworkView(true);
+        return;
+      }
+      if (app.view === 'settings' || app.view === 'name' || app.view === 'network' || app.view === 'guide' || app.view === 'stats') {
+        stopNetWatcher();
         app.note = '';
         app.view = 'menu';
         emitSound('click');
@@ -3861,7 +4744,7 @@
         return;
       }
       if (app.view === 'lobby') {
-        if (app.ctl && app.ctl.seat() === 1) {
+        if (app.ctl && (app.ctl.seat() === 1 || (app.ctl.isHost && app.ctl.isHost()))) {
           document.querySelector('[data-action="back-join"]')?.click();
         } else {
           leaveGame();
@@ -3896,15 +4779,16 @@
           persistSave(save);
           app.view = 'menu';
           render();
-        } else if (app.view === 'join') {
-          submitJoin();
+        } else if (app.view === 'network') {
+          if (app.netOnline) submitOnlineJoin();
+          else submitJoin();
         } else if (app.view === 'settings') {
           const rows = settingRowsForMode();
           app.setIndex = (app.setIndex + 1) % rows.length;
           document.activeElement.blur();
           render();
         }
-      } else if ((e.key === 'Tab' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && app.view === 'join') {
+      } else if ((e.key === 'Tab' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && app.view === 'network' && !app.netOnline) {
         e.preventDefault();
         app.joinField = 1 - app.joinField;
         render();
@@ -3913,7 +4797,7 @@
     }
 
     const low = e.key.toLowerCase();
-    if ((e.key === 'Enter' || e.key === ' ') && (app.view === 'guide' || app.view === 'stats' || app.view === 'name' || app.view === 'join' || app.view === 'lobby')) {
+    if ((e.key === 'Enter' || e.key === ' ') && (app.view === 'guide' || app.view === 'stats' || app.view === 'name' || app.view === 'network' || app.view === 'lobby')) {
       const ae = document.activeElement;
       if (ae && ae.matches && ae.matches(`label[role="button"][for="${IOS_HAPTIC_SWITCH_ID}"]`)) {
         e.preventDefault();
@@ -3921,8 +4805,24 @@
         return;
       }
     }
+    if (app.view === 'network' && app.netOnline) {
+      const rooms = app.watcher ? app.watcher.rooms() : [];
+      if ((e.key === 'ArrowUp' || low === 'w') && rooms.length > 0) {
+        e.preventDefault();
+        app.netRoomIdx = (app.netRoomIdx + rooms.length - 1) % rooms.length;
+        render();
+      } else if ((e.key === 'ArrowDown' || low === 's') && rooms.length > 0) {
+        e.preventDefault();
+        app.netRoomIdx = (app.netRoomIdx + 1) % rooms.length;
+        render();
+      } else if (e.key === 'Enter' && document.activeElement === document.body) {
+        e.preventDefault();
+        if (rooms.length > 0) submitOnlineJoin();
+      }
+      return;
+    }
     if (app.view === 'menu') {
-      const keys = ['ai', 'local', 'join', 'guide', 'stats', 'name', 'options'];
+      const keys = ['ai', 'local', 'network', 'guide', 'stats', 'name', 'options'];
       if (e.key === 'ArrowUp' || low === 'w') {
         e.preventDefault();
         app.menuIndex = (app.menuIndex + keys.length - 1) % keys.length;
@@ -3965,7 +4865,7 @@
         e.preventDefault();
         if (row === 'start') startFromSettings();
         else if (row === 'done') { app.view = 'menu'; emitSound('click'); render(); }
-        else if (row === 'player2') {
+        else if (row === 'player2' || row === 'roomCode') {
           render();
           document.querySelector('.setting-row.selected input')?.focus();
         } else changeSetting(row, 1);
@@ -4296,22 +5196,27 @@
     });
   }
 
-  // Handle URL deep-links (?join=HOST:PORT or ?mode=ai|local|join|options)
+  // Handle URL deep-links (?join=HOST:PORT or ?mode=ai|local|network|join|options)
   function handleInitialQuery() {
     const params = new URLSearchParams(location.search);
     const join = normalizeJoinAddr(cleanText(params.get('join') || '', 80));
     const mode = params.get('mode');
     if (join) {
+      app.netOnline = false;
       app.joinAddr = join;
       app.joinField = 1;
-      app.view = 'join';
+      app.view = 'network';
+      ensureNetWatcher();
     } else if (mode === 'ai' || mode === 'local' || mode === 'options') {
       openSettings(mode);
       return;
+    } else if (mode === 'network') {
+      openNetworkView(false);
+      return;
     } else if (mode === 'join') {
-      app.joinAddr = save.settings.joinAddr || `localhost:${DEFAULT_PORT}`;
-      app.joinField = 0;
-      app.view = 'join';
+      app.netOnline = false;
+      openNetworkView(true);
+      return;
     }
     render();
   }

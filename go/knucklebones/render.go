@@ -44,8 +44,8 @@ func (g *game) render() {
 		g.drawSettings()
 	case viewName:
 		g.drawPrompt("Your name", "Shown to your opponent and on your Top 10.", g.input)
-	case viewJoin:
-		g.drawJoin()
+	case viewNetwork:
+		g.drawNetwork()
 	case viewLobby:
 		g.drawLobby()
 	case viewPlay:
@@ -410,7 +410,7 @@ func (g *game) drawSettings() {
 		switch g.setupMode {
 		case modeAI:
 			drawCentered(g.screen, w/2, hintY, difficultyHints[g.save.Settings.Difficulty], g.st(g.pal.dim))
-		case setupHost:
+		case setupHost, setupOnlineHost:
 			if g.setIndex >= 0 && g.setIndex < len(rows) && rows[g.setIndex] == rowRoomCode {
 				drawCentered(g.screen, w/2, hintY, "Optional room code locks joins & enables wire MACs.", g.st(g.pal.dim))
 			}
@@ -460,34 +460,217 @@ func drawFieldSlice(s tcell.Screen, x, y, fieldW int, value string, pos int, act
 	drawText(s, x+1, y, shown, field)
 }
 
-func (g *game) drawJoin() {
+func formatCompactUint(n uint64) string {
+	s := fmt.Sprintf("%d", n)
+	if len(s) <= 3 {
+		return s
+	}
+	var b strings.Builder
+	rem := len(s) % 3
+	if rem > 0 {
+		b.WriteString(s[:rem])
+	}
+	for i := rem; i < len(s); i += 3 {
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(s[i : i+3])
+	}
+	return b.String()
+}
+
+func formatRoomMeta(rm lobbyRoomInfo) string {
+	parts := []string{roundsLabel(rm.BestOf)}
+	if summary := rulesSummary(rm.Rules); summary != "standard rules" {
+		parts = append(parts, summary)
+	}
+	if rm.TurnSeconds > 0 {
+		parts = append(parts, fmt.Sprintf("%ds", rm.TurnSeconds))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (g *game) drawNetwork() {
 	w, h := g.width, g.height
 	g.drawTitle(1)
-	bw := 52
+
+	bw := 68
 	if bw > w-2 {
 		bw = w - 2
 	}
-	bx, by := w/2-bw/2, h/2-5
-	if by < 3 {
-		by = 3
+	bh := h - 6
+	if bh < 14 {
+		bh = 14
 	}
-	g.drawBox(bx, by, bw, 10, "Join Game")
-	lbl0, lbl1 := g.st(g.pal.dim), g.st(g.pal.dim)
-	if g.joinField == 0 {
-		lbl0 = g.st(g.pal.accent).Bold(true)
+	if bh > 20 {
+		bh = 20
+	}
+	bx, by := w/2-bw/2, 3
+	if by+bh >= h-1 {
+		by = 2
+	}
+	g.drawBox(bx, by, bw, bh, "Network Play")
+
+	// Mode toggle row: [ Online ]  [ Direct ]
+	onLbl := "  Online (vps.kreft.us)  "
+	dirLbl := "  Direct  "
+	onSt, dirSt := g.st(g.pal.dim), g.st(g.pal.dim)
+	if g.netOnline {
+		onLbl = "▶ Online (vps.kreft.us) ◀"
+		if g.netFocus == netFocusMode {
+			onSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+		} else {
+			onSt = g.st(g.pal.accent).Bold(true)
+		}
 	} else {
-		lbl1 = g.st(g.pal.accent).Bold(true)
+		dirLbl = "▶ Direct ◀"
+		if g.netFocus == netFocusMode {
+			dirSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+		} else {
+			dirSt = g.st(g.pal.accent).Bold(true)
+		}
 	}
+	toggleW := textWidth(onLbl) + 2 + textWidth(dirLbl)
+	tx := w/2 - toggleW/2
+	tx = drawText(g.screen, tx, by+1, onLbl, onSt) + 2
+	drawText(g.screen, tx, by+1, dirLbl, dirSt)
+
 	field := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
 	dimField := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.dim)
-	drawText(g.screen, bx+3, by+2, "Host address (host:port)", lbl0)
-	drawFieldSlice(g.screen, bx+3, by+3, bw-6, g.input, g.inputPos, g.joinField == 0, field, dimField, "")
-	drawText(g.screen, bx+3, by+5, "Room code (optional)", lbl1)
-	drawFieldSlice(g.screen, bx+3, by+6, bw-6, g.joinCode, g.inputPos, g.joinField == 1, field, dimField, "(optional)")
-	if g.note != "" {
-		drawCentered(g.screen, w/2, by+11, g.note, g.st(g.pal.lose))
+	accentBtn := tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+	idleBtn := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
+
+	if g.netOnline {
+		snap := g.networkSnapshot()
+		statsLine := fmt.Sprintf("Live matches: %d · Completed: %s · Dice played: %s",
+			snap.Stats.LiveMatches, formatCompactUint(snap.Stats.CompletedMatches), formatCompactUint(snap.Stats.TotalDicePlayed))
+		if !snap.Connected {
+			if snap.Err != "" {
+				statsLine = "Offline (" + truncate(snap.Err, bw-18) + ")"
+			} else {
+				statsLine = "Connecting to " + g.rendezvousAddr() + "..."
+			}
+		}
+		drawCentered(g.screen, w/2, by+3, truncate(statsLine, bw-4), g.st(g.pal.dim))
+
+		listTop := by + 5
+		listH := bh - 11
+		if listH < 3 {
+			listH = 3
+		}
+		roomsTitle := fmt.Sprintf("Open Matches (%d)", len(snap.Rooms))
+		titleSt := g.st(g.pal.dim)
+		if g.netFocus == netFocusRooms {
+			titleSt = g.st(g.pal.accent).Bold(true)
+		}
+		drawText(g.screen, bx+3, listTop-1, roomsTitle, titleSt)
+
+		if len(snap.Rooms) == 0 {
+			msg := "No unstarted matches waiting right now. Press H to host one!"
+			if !snap.Connected {
+				if snap.Err != "" {
+					msg = "Unable to reach lobby (Press R to retry or switch to Direct)"
+				} else {
+					msg = "Connecting to rendezvous lobby..."
+				}
+			}
+			drawCentered(g.screen, w/2, listTop+listH/2, truncate(msg, bw-6), g.st(g.pal.dim))
+		} else {
+			g.clampNetworkRoom(len(snap.Rooms))
+			if g.netRoomIdx >= g.netRoomScroll+listH {
+				g.netRoomScroll = g.netRoomIdx - listH + 1
+			}
+			for row := 0; row < listH && g.netRoomScroll+row < len(snap.Rooms); row++ {
+				idx := g.netRoomScroll + row
+				rm := snap.Rooms[idx]
+				selected := idx == g.netRoomIdx
+				rowSt := g.st(g.pal.fg)
+				prefix := "  "
+				if selected {
+					prefix = "▸ "
+					if g.netFocus == netFocusRooms {
+						rowSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+					} else {
+						rowSt = g.st(g.pal.accent).Bold(true)
+					}
+					fillRect(g.screen, bx+3, listTop+row, bw-6, 1, tcell.StyleDefault.Background(g.pal.emptyBg))
+				}
+				lockMark := ""
+				if rm.Locked {
+					lockMark = "🔒 "
+				}
+				waitStr := ""
+				if rm.CreatedAt > 0 {
+					waitStr = " · " + formatWait(time.Since(time.Unix(rm.CreatedAt, 0)))
+				}
+				line := fmt.Sprintf("%s%s%s · %s%s", prefix, lockMark, rm.Host, formatRoomMeta(rm), waitStr)
+				drawText(g.screen, bx+3, listTop+row, truncate(line, bw-6), rowSt)
+			}
+		}
+
+		codeY := listTop + listH + 1
+		codeLblSt := g.st(g.pal.dim)
+		if g.netFocus == netFocusCode {
+			codeLblSt = g.st(g.pal.accent).Bold(true)
+		}
+		drawText(g.screen, bx+3, codeY, "Room code (for 🔒 locked match):", codeLblSt)
+		drawFieldSlice(g.screen, bx+3, codeY+1, bw-6, g.joinCode, g.inputPos, g.netFocus == netFocusCode, field, dimField, "(optional)")
+
+		btnY := by + bh - 2
+		joinLbl := "  Join Selected  "
+		hostLbl := "  Host Online Match  "
+		joinSt, hostSt := idleBtn, idleBtn
+		if g.netFocus == netFocusJoin {
+			joinLbl = "▶ Join Selected ◀"
+			joinSt = accentBtn
+		} else if g.netFocus == netFocusHost {
+			hostLbl = "▶ Host Online Match ◀"
+			hostSt = accentBtn
+		}
+		btot := textWidth(joinLbl) + 3 + textWidth(hostLbl)
+		rx := w/2 - btot/2
+		rx = drawText(g.screen, rx, btnY, joinLbl, joinSt) + 3
+		drawText(g.screen, rx, btnY, hostLbl, hostSt)
+
+		if g.note != "" && by+bh < h-1 {
+			drawCentered(g.screen, w/2, by+bh, truncate(g.note, w-4), g.st(g.pal.lose))
+		}
+		drawCentered(g.screen, w/2, h-1, truncate("↑↓←→ navigate · Tab · H host · M mode · Enter confirm · Esc back", w-2), g.st(g.pal.dim))
+		return
 	}
-	drawCentered(g.screen, w/2, h-1, "↑↓/Tab field · ←→ cursor · Enter join · Esc back", g.st(g.pal.dim))
+
+	// Direct Mode
+	hostLbl := "  Host Direct Game  "
+	hostSt := idleBtn
+	if g.netFocus == netFocusHost {
+		hostLbl = "▶ Host Direct Game ◀"
+		hostSt = accentBtn
+	}
+	drawCentered(g.screen, w/2, by+3, hostLbl, hostSt)
+	drawCentered(g.screen, w/2, by+4, "Open a port directly or enter a host address to join:", g.st(g.pal.dim))
+
+	lblAddr, lblCode := g.st(g.pal.dim), g.st(g.pal.dim)
+	if g.netFocus == netFocusAddr {
+		lblAddr = g.st(g.pal.accent).Bold(true)
+	} else if g.netFocus == netFocusCode {
+		lblCode = g.st(g.pal.accent).Bold(true)
+	}
+	drawText(g.screen, bx+3, by+6, "Host address (host:port)", lblAddr)
+	drawFieldSlice(g.screen, bx+3, by+7, bw-6, g.input, g.inputPos, g.netFocus == netFocusAddr, field, dimField, "")
+	drawText(g.screen, bx+3, by+9, "Room code (optional)", lblCode)
+	drawFieldSlice(g.screen, bx+3, by+10, bw-6, g.joinCode, g.inputPos, g.netFocus == netFocusCode, field, dimField, "(optional)")
+
+	joinLbl := "  Join Direct  "
+	joinSt := idleBtn
+	if g.netFocus == netFocusJoin {
+		joinLbl = "▶ Join Direct ◀"
+		joinSt = accentBtn
+	}
+	drawCentered(g.screen, w/2, by+12, joinLbl, joinSt)
+	if g.note != "" && by+bh < h-1 {
+		drawCentered(g.screen, w/2, by+bh, truncate(g.note, w-4), g.st(g.pal.lose))
+	}
+	drawCentered(g.screen, w/2, h-1, truncate("↑↓←→ navigate · Tab · M mode · Enter join · Esc back", w-2), g.st(g.pal.dim))
 }
 
 func (g *game) drawPrompt(title, label, value string) {
@@ -566,6 +749,30 @@ func (g *game) drawLobby() {
 		drawCentered(g.screen, w/2, h-1, "Esc cancel", g.st(g.pal.dim))
 		return
 	}
+	if rid := l.hostRoomID(); rid != "" {
+		st := g.save.Settings
+		rc := l.hostRoomCode()
+		bh := 11
+		if rc != "" {
+			bh += 2
+		}
+		g.drawBox(bx, by, bw, bh, "Waiting for an opponent")
+		drawCentered(g.screen, w/2, by+2, "Listed on Online Lobby ("+l.lobbyAddr()+")", g.st(g.pal.accent).Bold(true))
+		drawCentered(g.screen, w/2, by+4, "Room ID: "+rid, g.st(g.pal.fg))
+		row := by + 6
+		if rc != "" {
+			drawCentered(g.screen, w/2, row, "🔒 Room code: "+rc, g.st(g.pal.accent).Bold(true))
+			row += 2
+		}
+		drawCentered(g.screen, w/2, row, "Waiting time: "+formatWait(time.Since(l.waitingSince())), g.st(g.pal.fg))
+		drawCentered(g.screen, w/2, row+1, roundsLabel(st.BestOf)+" · "+rulesSummary(st.Rules), g.st(g.pal.dim))
+		drawCentered(g.screen, w/2, h-1, "Esc cancel", g.st(g.pal.dim))
+		return
+	}
+	targetAddr := l.lobbyAddr()
+	if targetAddr == "" {
+		targetAddr = g.save.Settings.JoinAddr
+	}
 	if e := l.lobbyError(); e != "" {
 		lines := wrap(lobbyErrorText(e), bw-6)
 		btnY := by + 2 + len(lines) + 3
@@ -577,13 +784,13 @@ func (g *game) drawLobby() {
 			bh = h - by - 1
 			btnY = by + bh - 3
 		}
-		g.drawBox(bx, by, bw, bh, "Join Game")
+		g.drawBox(bx, by, bw, bh, "Network Play")
 		for i, line := range lines {
 			drawCentered(g.screen, w/2, by+2+i, line, g.st(g.pal.lose))
 		}
 		addrY := btnY - 2
 		if addrY > by+1+len(lines) {
-			drawCentered(g.screen, w/2, addrY, g.save.Settings.JoinAddr, g.st(g.pal.dim))
+			drawCentered(g.screen, w/2, addrY, targetAddr, g.st(g.pal.dim))
 		}
 		if !lobbyCanRetry(e) {
 			st := tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
@@ -609,10 +816,10 @@ func (g *game) drawLobby() {
 		drawCentered(g.screen, w/2, h-1, "←→ select · Enter confirm · Esc back", g.st(g.pal.dim))
 		return
 	}
-	g.drawBox(bx, by, bw, 9, "Join Game")
+	g.drawBox(bx, by, bw, 9, "Network Play")
 	dots := strings.Repeat(".", int(time.Now().UnixMilli()/400%4))
 	drawCentered(g.screen, w/2, by+2, "Waiting for game to start"+dots, g.st(g.pal.fg))
-	drawCentered(g.screen, w/2, by+4, g.save.Settings.JoinAddr, g.st(g.pal.accent))
+	drawCentered(g.screen, w/2, by+4, targetAddr, g.st(g.pal.accent))
 	drawCentered(g.screen, w/2, by+6, "▶ Cancel ◀", tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true))
 	drawCentered(g.screen, w/2, h-1, "Esc cancel", g.st(g.pal.dim))
 }
@@ -1262,8 +1469,8 @@ var guideText = []guideLine{
 	{"• Ratau (Easy) drops dice in any open column.", 0},
 	{"• Flinky (Medium) takes the biggest immediate swing.", 0},
 	{"• Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it.", 0},
-	{"Online play", 1},
-	{"One player picks Host Game and shares an address shown in the lobby; the other picks Join Game and types it. The host rolls the dice. Turns can be timed; three timeouts lose the match. A player who drops has 30 seconds to reconnect. After a game, both players choose the same option to play again.", 0},
+	{"Network play", 1},
+	{"Open Network Play to host or join via Online Lobby (vps.kreft.us) or Direct connect. Locked rooms (🔒) require the host's room code. The host rolls the dice; turns can be timed and three timeouts lose the match. A dropped player has 30 seconds to reconnect.", 0},
 	{"Credits", 1},
 	{"The original Knucklebones game in Cult of the Lamb was created by Massive Monster. This is a fan-made game and not an official implementation. Rules and strategy notes follow the dice.now Knucklebones guide.", 0},
 }

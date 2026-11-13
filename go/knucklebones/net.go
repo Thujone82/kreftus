@@ -182,13 +182,15 @@ type hostConfig struct {
 
 // netHost owns the session. It is seat 0; the guest is seat 1.
 type netHost struct {
-	name   string
-	cfg    hostConfig
-	rng    *mrand.Rand
-	ln     net.Listener
-	port   int
-	events chan netEvent
-	done   chan struct{}
+	name         string
+	cfg          hostConfig
+	rng          *mrand.Rand
+	ln           net.Listener
+	port         int
+	onlineRoomID string
+	onlineAddr   string
+	events       chan netEvent
+	done         chan struct{}
 
 	roomKey       []byte
 	wireKey       []byte
@@ -215,11 +217,6 @@ type netHost struct {
 }
 
 func startHost(name string, port int, cfg hostConfig, rng *mrand.Rand) (*netHost, error) {
-	cfg.RoomCode = cleanRoomCode(cfg.RoomCode)
-	roomKey, err := deriveRoomKey(cfg.RoomCode)
-	if err != nil {
-		return nil, err
-	}
 	listenAddr := fmt.Sprintf(":%d", port)
 	if bindIP := cleanText(cfg.BindIP, 64); bindIP != "" {
 		listenAddr = net.JoinHostPort(bindIP, strconv.Itoa(port))
@@ -228,12 +225,30 @@ func startHost(name string, port int, cfg hostConfig, rng *mrand.Rand) (*netHost
 	if err != nil {
 		return nil, err
 	}
+	h, err := startHostWithListener(name, ln, cfg, rng)
+	if err != nil {
+		_ = ln.Close()
+		return nil, err
+	}
+	return h, nil
+}
+
+func startHostWithListener(name string, ln net.Listener, cfg hostConfig, rng *mrand.Rand) (*netHost, error) {
+	cfg.RoomCode = cleanRoomCode(cfg.RoomCode)
+	roomKey, err := deriveRoomKey(cfg.RoomCode)
+	if err != nil {
+		return nil, err
+	}
+	listenPort := 0
+	if ta, ok := ln.Addr().(*net.TCPAddr); ok {
+		listenPort = ta.Port
+	}
 	h := &netHost{
 		name:          cleanName(name, "Host"),
 		cfg:           cfg,
 		rng:           rng,
 		ln:            ln,
-		port:          ln.Addr().(*net.TCPAddr).Port,
+		port:          listenPort,
 		events:        make(chan netEvent, 64),
 		done:          make(chan struct{}),
 		roomKey:       roomKey,
@@ -275,8 +290,10 @@ func (h *netHost) waitingSince() time.Time    { return h.since }
 func (h *netHost) lobbyError() string         { return "" }
 func (h *netHost) retryConnect()              {}
 func (h *netHost) peerConnected() bool        { return h.s != nil && h.s.Connected[1] }
-func (h *netHost) hostPort() int              { return h.port }
-func (h *netHost) hostRoomCode() string       { return h.cfg.RoomCode }
+func (h *netHost) hostPort() int        { return h.port }
+func (h *netHost) hostRoomID() string   { return h.onlineRoomID }
+func (h *netHost) lobbyAddr() string    { return h.onlineAddr }
+func (h *netHost) hostRoomCode() string { return h.cfg.RoomCode }
 
 func (h *netHost) handle(ev netEvent, now time.Time) bool {
 	switch ev.kind {
@@ -641,6 +658,7 @@ type netClient struct {
 	addr     string
 	roomCode string
 	token    string
+	dialFn   func(string) (net.Conn, error)
 	events   chan netEvent
 	done     chan struct{}
 
@@ -681,6 +699,10 @@ func startClient(name, addr string) *netClient {
 }
 
 func startClientWithCode(name, addr, roomCode string) *netClient {
+	return startClientWithDialer(name, addr, roomCode, nil)
+}
+
+func startClientWithDialer(name, addr, roomCode string, dialFn func(string) (net.Conn, error)) *netClient {
 	code := cleanRoomCode(roomCode)
 	rk, err := deriveRoomKey(code)
 	c := &netClient{
@@ -689,6 +711,7 @@ func startClientWithCode(name, addr, roomCode string) *netClient {
 		roomCode: code,
 		roomKey:  rk,
 		token:    newToken(),
+		dialFn:   dialFn,
 		events:   make(chan netEvent, 64),
 		done:     make(chan struct{}),
 		since:    time.Now(),
@@ -706,9 +729,15 @@ func startClientWithCode(name, addr, roomCode string) *netClient {
 func (c *netClient) dial() {
 	c.dialing = true
 	c.nextID++
-	id, addr, out, done := c.nextID, c.addr, c.events, c.done
+	id, addr, fn, out, done := c.nextID, c.addr, c.dialFn, c.events, c.done
 	go func() {
-		conn, err := net.DialTimeout("tcp", addr, dialTimeout)
+		var conn net.Conn
+		var err error
+		if fn != nil {
+			conn, err = fn(addr)
+		} else {
+			conn, err = net.DialTimeout("tcp", addr, dialTimeout)
+		}
 		// Prefer done over a send so leave()/shutdown cannot lose the race
 		// and rejoin a host that is waiting out a disconnect forfeit.
 		select {
@@ -736,8 +765,10 @@ func (c *netClient) opponentGone() bool         { return c.hostLeft }
 func (c *netClient) waitingSince() time.Time    { return c.since }
 func (c *netClient) lobbyError() string         { return c.errText }
 func (c *netClient) peerConnected() bool        { return c.conn != nil }
-func (c *netClient) hostPort() int              { return 0 }
-func (c *netClient) hostRoomCode() string       { return c.roomCode }
+func (c *netClient) hostPort() int        { return 0 }
+func (c *netClient) hostRoomID() string   { return "" }
+func (c *netClient) lobbyAddr() string    { return c.addr }
+func (c *netClient) hostRoomCode() string { return c.roomCode }
 func (c *netClient) fairness() int              { return c.fairStatus }
 
 func (c *netClient) retryConnect() {
@@ -849,6 +880,10 @@ func (c *netClient) handle(ev netEvent, now time.Time) bool {
 		if ev.err != nil {
 			if c.s == nil && c.lostAt.IsZero() {
 				c.errText = cleanText(ev.err.Error(), 120)
+				var fe *fatalDialError
+				if errors.As(ev.err, &fe) {
+					c.fatal = true
+				}
 			}
 			c.retryAt = now.Add(redialEvery)
 			return true

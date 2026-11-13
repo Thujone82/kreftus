@@ -54,34 +54,72 @@ func assertNoRectOverlap(t *testing.T, rects map[string]rect) {
 }
 
 func TestPhase45LayoutsDoNotOverlap(t *testing.T) {
-	jc := joinCard()
-	assertRectInViewport(t, "joinCard", jc)
-	jf0 := joinFieldRect(0)
-	jf1 := joinFieldRect(1)
-	jbBack, jbOK := joinButtons()
-	assertRectInside(t, "joinFieldRect(0)", jf0, "joinCard", jc)
-	assertRectInside(t, "joinFieldRect(1)", jf1, "joinCard", jc)
-	assertRectInside(t, "joinBack", jbBack, "joinCard", jc)
-	assertRectInside(t, "joinOK", jbOK, "joinCard", jc)
+	nc := networkCard()
+	assertRectInViewport(t, "networkCard", nc)
+	onBtn, dirBtn := netModeButtons()
+	sb := netStatsRect()
+	lr := netRoomsRect()
+	oc := netOnlineCodeRect()
+	obBack, obJoin, obHost := netOnlineButtons()
+	assertRectInside(t, "netModeOnline", onBtn, "networkCard", nc)
+	assertRectInside(t, "netModeDirect", dirBtn, "networkCard", nc)
+	assertRectInside(t, "netStatsRect", sb, "networkCard", nc)
+	assertRectInside(t, "netRoomsRect", lr, "networkCard", nc)
+	assertRectInside(t, "netOnlineCodeRect", oc, "networkCard", nc)
+	assertRectInside(t, "netOnlineBack", obBack, "networkCard", nc)
+	assertRectInside(t, "netOnlineJoin", obJoin, "networkCard", nc)
+	assertRectInside(t, "netOnlineHost", obHost, "networkCard", nc)
 	assertNoRectOverlap(t, map[string]rect{
-		"joinField0": jf0,
-		"joinField1": jf1,
-		"joinBack":   jbBack,
-		"joinOK":     jbOK,
+		"modeOnline": onBtn,
+		"modeDirect": dirBtn,
+		"stats":      sb,
+		"rooms":      lr,
+		"code":       oc,
+		"back":       obBack,
+		"join":       obJoin,
+		"host":       obHost,
+	})
+	rowRects := make(map[string]rect)
+	for i := 0; i < netVisibleRooms; i++ {
+		rr := netRoomRowRect(i)
+		assertRectInside(t, fmt.Sprintf("netRoomRow(%d)", i), rr, "netRoomsRect", lr)
+		rowRects[fmt.Sprintf("row_%d", i)] = rr
+	}
+	assertNoRectOverlap(t, rowRects)
+
+	dh := netDirectHostButton()
+	df0 := netDirectFieldRect(0)
+	df1 := netDirectFieldRect(1)
+	dbBack, dbOK := netDirectButtons()
+	assertRectInside(t, "netDirectHost", dh, "networkCard", nc)
+	assertRectInside(t, "netDirectField(0)", df0, "networkCard", nc)
+	assertRectInside(t, "netDirectField(1)", df1, "networkCard", nc)
+	assertRectInside(t, "netDirectBack", dbBack, "networkCard", nc)
+	assertRectInside(t, "netDirectOK", dbOK, "networkCard", nc)
+	assertNoRectOverlap(t, map[string]rect{
+		"modeOnline": onBtn,
+		"modeDirect": dirBtn,
+		"directHost": dh,
+		"directF0":   df0,
+		"directF1":   df1,
+		"directBack": dbBack,
+		"directOK":   dbOK,
 	})
 
 	g := newTestGame(t, 96, 34)
-	g.openSettings(setupHost)
-	hostRects := map[string]rect{"back": backButton()}
-	for i, row := range g.settingRows() {
-		r := settingsRowRect(i)
-		if row == rowStart {
-			r = settingsStartRect(i)
+	for _, sm := range []string{setupHost, setupOnlineHost} {
+		g.openSettings(sm)
+		hostRects := map[string]rect{"back": backButton()}
+		for i, row := range g.settingRows() {
+			r := settingsRowRect(i)
+			if row == rowStart {
+				r = settingsStartRect(i)
+			}
+			assertRectInViewport(t, fmt.Sprintf("%sRow(%d)", sm, i), r)
+			hostRects[fmt.Sprintf("row_%d", i)] = r
 		}
-		assertRectInViewport(t, fmt.Sprintf("hostRow(%d)", i), r)
-		hostRects[fmt.Sprintf("row_%d", i)] = r
+		assertNoRectOverlap(t, hostRects)
 	}
-	assertNoRectOverlap(t, hostRects)
 
 	g.openSettings(setupOptions)
 	optRects := map[string]rect{"back": backButton()}
@@ -194,9 +232,20 @@ func TestOptionsAndThemesPersistence(t *testing.T) {
 		t.Fatalf("expected Colorblind=true and WinMeter=true persisted, got %+v", reloaded.Settings)
 	}
 
-	// Open Host setup, cycle BindIP, type a secret RoomCode, and verify RoomCode NEVER writes to disk.
-	g.menuIndex = menuHost
+	// Open Network Play -> Direct Host setup, cycle BindIP, type a secret RoomCode, and verify RoomCode NEVER writes to disk.
+	g.netAddr = "127.0.0.1:1"
+	defer g.stopWatcher()
+	g.menuIndex = menuNetwork
 	g.handleKey(key(tcell.KeyEnter))
+	if g.view != viewNetwork || !g.netOnline {
+		t.Fatalf("expected viewNetwork in Online mode by default, got view=%v online=%v", g.view, g.netOnline)
+	}
+	g.openNetwork(false)
+	g.focusNetworkField(netFocusHost)
+	g.handleKey(key(tcell.KeyEnter))
+	if g.view != viewSettings || g.setupMode != setupHost {
+		t.Fatalf("expected setupHost settings from Direct Host, got view=%v setup=%q", g.view, g.setupMode)
+	}
 	rows := g.settingRows()
 	bindIdx, codeIdx := -1, -1
 	for i, r := range rows {
@@ -253,10 +302,16 @@ func TestJoinTwoFieldWASDAndRoomCodeUI(t *testing.T) {
 	g.save = newSaveData()
 	g.save.Name = "Guest"
 
-	g.menuIndex = menuJoin
+	g.netAddr = "127.0.0.1:1"
+	defer g.stopWatcher()
+	g.menuIndex = menuNetwork
 	g.handleKey(key(tcell.KeyEnter))
-	if g.view != viewJoin || g.joinField != 0 {
-		t.Fatalf("expected viewJoin field 0, got view=%v field=%d", g.view, g.joinField)
+	if g.view != viewNetwork || !g.netOnline {
+		t.Fatalf("expected viewNetwork online default, got view=%v online=%v", g.view, g.netOnline)
+	}
+	g.openNetwork(false)
+	if g.view != viewNetwork || g.netOnline || g.netFocus != netFocusAddr {
+		t.Fatalf("expected viewNetwork direct addr field, got view=%v online=%v focus=%d", g.view, g.netOnline, g.netFocus)
 	}
 
 	// Verify WASD inserts literal characters rather than hijacking field focus.
@@ -264,25 +319,25 @@ func TestJoinTwoFieldWASDAndRoomCodeUI(t *testing.T) {
 	for _, r := range "wasd" {
 		g.handleKey(runeKey(r))
 	}
-	if g.input != prevInput+"wasd" || g.joinField != 0 {
-		t.Fatalf("WASD broke address field input: input=%q want=%q field=%d", g.input, prevInput+"wasd", g.joinField)
+	if g.input != prevInput+"wasd" || g.netFocus != netFocusAddr {
+		t.Fatalf("WASD broke address field input: input=%q want=%q focus=%d", g.input, prevInput+"wasd", g.netFocus)
 	}
 	g.handleKey(key(tcell.KeyTab))
-	if g.joinField != 1 {
-		t.Fatalf("Tab did not switch to room code field")
+	if g.netFocus != netFocusCode {
+		t.Fatalf("Tab did not switch to room code field, focus=%d", g.netFocus)
 	}
 	for _, r := range "wasd" {
 		g.handleKey(runeKey(r))
 	}
-	if g.joinCode != "wasd" || g.joinField != 1 {
-		t.Fatalf("WASD broke room code field input: joinCode=%q field=%d", g.joinCode, g.joinField)
+	if g.joinCode != "wasd" || g.netFocus != netFocusCode {
+		t.Fatalf("WASD broke room code field input: joinCode=%q focus=%d", g.joinCode, g.netFocus)
 	}
 
 	// Replace with host address & wrong code first, confirm errBadAuth UI text, then retry with right code.
-	g.focusJoinField(0)
+	g.focusNetworkField(netFocusAddr)
 	g.input = fmt.Sprintf("127.0.0.1:%d", host.hostPort())
 	g.inputPos = runeLen(g.input)
-	g.focusJoinField(1)
+	g.focusNetworkField(netFocusCode)
 	g.joinCode = "wrongcode"
 	g.inputPos = runeLen(g.joinCode)
 	g.handleKey(key(tcell.KeyEnter))
@@ -329,12 +384,11 @@ func TestJoinTwoFieldWASDAndRoomCodeUI(t *testing.T) {
 	}
 	g.leaveGame()
 
-	// Now connect with the right room code through keyJoin.
-	g.menuIndex = menuJoin
-	g.handleKey(key(tcell.KeyEnter))
+	// Now connect with the right room code through keyNetwork Direct.
+	g.openNetwork(false)
 	g.input = fmt.Sprintf("127.0.0.1:%d", host.hostPort())
 	g.inputPos = runeLen(g.input)
-	g.handleKey(key(tcell.KeyDown))
+	g.handleKey(key(tcell.KeyTab))
 	for _, r := range "secret42" {
 		g.handleKey(runeKey(r))
 	}
@@ -614,11 +668,13 @@ func (c *stubLobbyCtl) fairness() int                                 { return 0
 func (c *stubLobbyCtl) waitingSince() time.Time                       { return time.Now() }
 func (c *stubLobbyCtl) lobbyError() string                            { return c.err }
 func (c *stubLobbyCtl) retryConnect()                                 { c.retried++ }
-func (c *stubLobbyCtl) hostPort() int                                 { return c.port }
-func (c *stubLobbyCtl) hostRoomCode() string                          { return "" }
+func (c *stubLobbyCtl) hostPort() int          { return c.port }
+func (c *stubLobbyCtl) hostRoomID() string     { return "" }
+func (c *stubLobbyCtl) lobbyAddr() string      { return "" }
+func (c *stubLobbyCtl) hostRoomCode() string   { return "" }
 
 func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
-	if lobbyCanRetry("") || lobbyCanRetry(errBadAuth) || lobbyCanRetry(errOldProtocol) {
+	if lobbyCanRetry("") || lobbyCanRetry(errBadAuth) || lobbyCanRetry(errOldProtocol) || lobbyCanRetry(errRoomNotFound) {
 		t.Fatalf("expected non-retryable lobby errors to return false from lobbyCanRetry")
 	}
 	if !lobbyCanRetry(errRoomFull) || !lobbyCanRetry("dial failed") {
@@ -655,12 +711,13 @@ func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
 	g.save = newSaveData()
 	g.save.Name = "Guest"
 
-	g.menuIndex = menuJoin
-	g.handleKey(key(tcell.KeyEnter))
+	g.netAddr = "127.0.0.1:1"
+	defer g.stopWatcher()
+	g.openNetwork(false)
 	wantAddr := fmt.Sprintf("127.0.0.1:%d", host.hostPort())
 	g.input = wantAddr
 	g.inputPos = runeLen(wantAddr)
-	g.handleKey(key(tcell.KeyDown))
+	g.handleKey(key(tcell.KeyTab))
 	for _, r := range "wrong99" {
 		g.handleKey(runeKey(r))
 	}
@@ -713,22 +770,22 @@ func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
 		t.Fatalf("wrong room code screen should not offer Retry button:\n%s", txt)
 	}
 
-	// Esc from wrong room code returns to Join screen keeping address & room code, focusing room code field.
+	// Esc from wrong room code returns to Network Direct screen keeping address & room code, focusing room code field.
 	g.handleKey(key(tcell.KeyEscape))
-	if g.view != viewJoin || g.ctl != nil || g.joinField != 1 {
-		t.Fatalf("Esc did not return to viewJoin room code field: view=%v ctl=%v field=%d", g.view, g.ctl, g.joinField)
+	if g.view != viewNetwork || g.ctl != nil || g.netFocus != netFocusCode || g.netOnline {
+		t.Fatalf("Esc did not return to viewNetwork room code field: view=%v ctl=%v focus=%d online=%v", g.view, g.ctl, g.netFocus, g.netOnline)
 	}
 	if g.input != wantAddr || g.joinCode != "wrong99" {
 		t.Fatalf("Esc lost join inputs: input=%q joinCode=%q", g.input, g.joinCode)
 	}
 
-	// Re-submit and confirm Enter on the highlighted Back button also returns to Join screen.
+	// Re-submit and confirm Enter on the highlighted Back button also returns to Network screen.
 	g.handleKey(key(tcell.KeyEnter))
 	pumpUntilErr(errBadAuth)
 	g.handleKey(key(tcell.KeyLeft)) // should not toggle away from Back when !lobbyCanRetry
 	g.handleKey(key(tcell.KeyEnter))
-	if g.view != viewJoin || g.ctl != nil || g.joinField != 1 {
-		t.Fatalf("Enter on Back button did not return to viewJoin: view=%v ctl=%v field=%d", g.view, g.ctl, g.joinField)
+	if g.view != viewNetwork || g.ctl != nil || g.netFocus != netFocusCode {
+		t.Fatalf("Enter on Back button did not return to viewNetwork: view=%v ctl=%v focus=%d", g.view, g.ctl, g.netFocus)
 	}
 	if g.input != wantAddr || g.joinCode != "wrong99" {
 		t.Fatalf("Enter on Back button lost join inputs: input=%q joinCode=%q", g.input, g.joinCode)
@@ -738,7 +795,7 @@ func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
 		t.Fatalf("expected room code field to receive input right after returning from Back, got %q", g.joinCode)
 	}
 
-	// Retryable client error shows both Back and Retry, supports focus toggle, and Back returns to viewJoin field 0.
+	// Retryable client error shows both Back and Retry, supports focus toggle, and Back returns to viewNetwork addr field.
 	retryCtl := &stubLobbyCtl{err: errRoomFull}
 	g.beginGame(retryCtl)
 	g.view = viewLobby
@@ -756,11 +813,11 @@ func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
 		t.Fatalf("Tab should switch lobby focus to Back")
 	}
 	g.handleKey(runeKey(' '))
-	if g.view != viewJoin || g.joinField != 0 || retryCtl.left != 1 {
-		t.Fatalf("Space with Back focused should return to viewJoin field 0: view=%v field=%d left=%d", g.view, g.joinField, retryCtl.left)
+	if g.view != viewNetwork || g.netFocus != netFocusAddr || retryCtl.left != 1 {
+		t.Fatalf("Space with Back focused should return to viewNetwork addr field: view=%v focus=%d left=%d", g.view, g.netFocus, retryCtl.left)
 	}
 
-	// Client connecting screen shows Cancel and Esc returns to viewJoin.
+	// Client connecting screen shows Cancel and Esc returns to viewNetwork.
 	connCtl := &stubLobbyCtl{}
 	g.beginGame(connCtl)
 	g.view = viewLobby
@@ -769,11 +826,11 @@ func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
 		t.Fatalf("client connecting screen missing Cancel button:\n%s", screenText(g))
 	}
 	g.handleKey(key(tcell.KeyEscape))
-	if g.view != viewJoin || connCtl.left != 1 {
-		t.Fatalf("client connecting Esc should return to viewJoin: view=%v left=%d", g.view, connCtl.left)
+	if g.view != viewNetwork || connCtl.left != 1 {
+		t.Fatalf("client connecting Esc should return to viewNetwork: view=%v left=%d", g.view, connCtl.left)
 	}
 
-	// Host lobby Esc cancel still returns to Main Menu.
+	// Host lobby Esc cancel returns to viewNetwork Direct host button.
 	hostCtl := &stubLobbyCtl{port: 8647}
 	g.beginGame(hostCtl)
 	g.view = viewLobby
@@ -782,7 +839,101 @@ func TestWrongRoomCodeBackToJoinScreen(t *testing.T) {
 		t.Fatalf("host lobby missing Esc cancel footer:\n%s", screenText(g))
 	}
 	g.handleKey(key(tcell.KeyEscape))
-	if g.view != viewMenu || hostCtl.left != 1 {
-		t.Fatalf("host lobby Esc should return to viewMenu: view=%v left=%d", g.view, hostCtl.left)
+	if g.view != viewNetwork || g.netOnline || g.netFocus != netFocusHost || hostCtl.left != 1 {
+		t.Fatalf("host lobby Esc should return to viewNetwork direct host: view=%v online=%v focus=%d left=%d", g.view, g.netOnline, g.netFocus, hostCtl.left)
 	}
 }
+
+func TestNetworkModalArrowNavigation(t *testing.T) {
+	g := newTestGame(t, 80, 24)
+	g.view = viewNetwork
+	g.netOnline = true
+	g.focusNetworkField(netFocusRooms)
+
+	// With zero open rooms, Up/Down should exit Rooms cleanly instead of trapping focus.
+	g.watcher = &rWatcher{
+		snap:     lobbySnapshot{Connected: true},
+		notifyCh: make(chan struct{}, 1),
+		retryCh:  make(chan struct{}, 1),
+		done:     make(chan struct{}),
+	}
+	steps := []struct {
+		ev        *tcell.EventKey
+		wantFocus int
+	}{
+		{key(tcell.KeyDown), netFocusCode},
+		{key(tcell.KeyDown), netFocusJoin},
+		{key(tcell.KeyRight), netFocusHost},
+		{key(tcell.KeyLeft), netFocusJoin},
+		{key(tcell.KeyUp), netFocusCode},
+		{key(tcell.KeyUp), netFocusRooms},
+		{key(tcell.KeyUp), netFocusMode},
+		{key(tcell.KeyUp), netFocusHost},
+		{key(tcell.KeyDown), netFocusMode},
+		{key(tcell.KeyDown), netFocusRooms},
+	}
+	for i, st := range steps {
+		g.handleKey(st.ev)
+		if g.netFocus != st.wantFocus {
+			t.Fatalf("empty online step %d: focus=%d want=%d", i, g.netFocus, st.wantFocus)
+		}
+	}
+
+	// With two rooms, Up/Down walks each room before leaving the list top/bottom.
+	g.watcher.mu.Lock()
+	g.watcher.snap.Rooms = []lobbyRoomInfo{
+		{ID: "r1", RoomID: "r1", Host: "Alpha", BestOf: 1},
+		{ID: "r2", RoomID: "r2", Host: "Beta", BestOf: 3},
+	}
+	g.watcher.mu.Unlock()
+	g.netRoomIdx = 0
+	g.focusNetworkField(netFocusMode)
+
+	g.handleKey(key(tcell.KeyDown))
+	if g.netFocus != netFocusRooms || g.netRoomIdx != 0 {
+		t.Fatalf("Down from Mode should focus Rooms[0], got focus=%d idx=%d", g.netFocus, g.netRoomIdx)
+	}
+	g.handleKey(key(tcell.KeyDown))
+	if g.netFocus != netFocusRooms || g.netRoomIdx != 1 {
+		t.Fatalf("Down should advance to Rooms[1], got focus=%d idx=%d", g.netFocus, g.netRoomIdx)
+	}
+	g.handleKey(key(tcell.KeyDown))
+	if g.netFocus != netFocusCode {
+		t.Fatalf("Down past last room should focus Code, got focus=%d", g.netFocus)
+	}
+	g.handleKey(key(tcell.KeyUp))
+	if g.netFocus != netFocusRooms || g.netRoomIdx != 1 {
+		t.Fatalf("Up from Code should enter last room Rooms[1], got focus=%d idx=%d", g.netFocus, g.netRoomIdx)
+	}
+	g.handleKey(key(tcell.KeyUp))
+	if g.netFocus != netFocusRooms || g.netRoomIdx != 0 {
+		t.Fatalf("Up should move to Rooms[0], got focus=%d idx=%d", g.netFocus, g.netRoomIdx)
+	}
+	g.handleKey(key(tcell.KeyUp))
+	if g.netFocus != netFocusMode {
+		t.Fatalf("Up past first room should focus Mode, got focus=%d", g.netFocus)
+	}
+
+	// Left/Right on Mode switches Online <-> Direct and Up/Down navigates Direct fields.
+	g.handleKey(key(tcell.KeyRight))
+	if g.netOnline || g.netFocus != netFocusMode {
+		t.Fatalf("Right on Mode should switch to Direct keeping Mode focus, got online=%v focus=%d", g.netOnline, g.netFocus)
+	}
+	g.handleKey(key(tcell.KeyDown))
+	if g.netFocus != netFocusHost {
+		t.Fatalf("Down from Direct Mode should focus Host, got focus=%d", g.netFocus)
+	}
+	g.handleKey(key(tcell.KeyDown))
+	if g.netFocus != netFocusAddr {
+		t.Fatalf("Down from Direct Host should focus Addr, got focus=%d", g.netFocus)
+	}
+	g.handleKey(key(tcell.KeyDown))
+	if g.netFocus != netFocusCode {
+		t.Fatalf("Down from Direct Addr should focus Code, got focus=%d", g.netFocus)
+	}
+	g.handleKey(key(tcell.KeyDown))
+	if g.netFocus != netFocusJoin {
+		t.Fatalf("Down from Direct Code should focus Join, got focus=%d", g.netFocus)
+	}
+}
+

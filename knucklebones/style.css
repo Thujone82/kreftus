@@ -580,6 +580,126 @@ body.mode-tui {
   margin: 10px 0;
 }
 
+.net-card {
+  max-width: 560px;
+  width: 100%;
+}
+
+.net-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.net-stats-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--dim);
+  background: var(--empty-bg);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+}
+
+.net-stats-bar strong {
+  color: var(--fg);
+}
+
+.net-stats-sep {
+  opacity: 0.55;
+}
+
+.net-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lose);
+  flex-shrink: 0;
+}
+
+.net-status-dot.on {
+  background: var(--win);
+}
+
+.net-rooms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--frame);
+  border-radius: 10px;
+  background: var(--empty-bg);
+  padding: 8px;
+}
+
+.net-empty {
+  color: var(--dim);
+  font-size: 0.92rem;
+  text-align: center;
+  padding: 20px 10px;
+}
+
+.net-room-item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--btn);
+  color: var(--fg);
+  border: 1.5px solid var(--frame);
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.net-room-item:hover {
+  border-color: var(--accent);
+}
+
+.net-room-item.selected {
+  background: var(--accent);
+  color: var(--btn-sel-fg);
+  border-color: var(--accent);
+}
+
+.net-room-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.net-room-host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-room-meta {
+  font-size: 0.84rem;
+  opacity: 0.85;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.net-lock {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
 .invite-code {
   font-size: 1.85rem;
   font-weight: 800;
@@ -1315,6 +1435,9 @@ body.mode-tui .kb-card,
 body.mode-tui .guide-card,
 body.mode-tui .setting-row,
 body.mode-tui .kb-btn,
+body.mode-tui .net-stats-bar,
+body.mode-tui .net-rooms-list,
+body.mode-tui .net-room-item,
 body.mode-tui .player-panel,
 body.mode-tui .side-panel,
 body.mode-tui .board-box {
@@ -1933,6 +2056,21 @@ body.mode-tui .tui-mark {
 
 @media (max-width: 520px) {
   .header-brand span {
+    display: none;
+  }
+
+  .net-room-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 8px 10px;
+  }
+
+  .net-room-meta {
+    white-space: normal;
+  }
+
+  .net-stats-sep {
     display: none;
   }
 }

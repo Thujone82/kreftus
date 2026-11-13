@@ -66,11 +66,17 @@ func dump(t *testing.T, g *game, name string) string {
 func TestRenderEveryView(t *testing.T) {
 	for _, size := range [][2]int{{80, 30}, {60, 22}, {120, 40}} {
 		g := newTestGame(t, size[0], size[1])
-		for _, v := range []int{viewMenu, viewName, viewJoin, viewGuide, viewStats} {
+		g.netAddr = "127.0.0.1:1"
+		for _, v := range []int{viewMenu, viewName, viewNetwork, viewGuide, viewStats} {
 			g.view = v
+			g.netOnline = true
 			dump(t, g, "view")
+			if v == viewNetwork {
+				g.netOnline = false
+				dump(t, g, "view direct")
+			}
 		}
-		for _, m := range []string{modeAI, modeLocal, setupHost} {
+		for _, m := range []string{modeAI, modeLocal, setupHost, setupOnlineHost} {
 			g.openSettings(m)
 			dump(t, g, "settings "+m)
 		}

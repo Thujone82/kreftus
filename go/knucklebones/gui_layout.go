@@ -95,19 +95,63 @@ func promptButtons() (back, ok rect) {
 	return rect{c.cx() - 170, c.Y + 172, 160, 42}, rect{c.cx() + 10, c.Y + 172, 160, 42}
 }
 
-func joinCard() rect { return centered(baseW/2, 206, 580, 316) }
+const netVisibleRooms = 5
 
-func joinFieldRect(i int) rect {
-	c := joinCard()
-	if i == 1 {
-		return rect{c.X + 30, c.Y + 184, c.W - 60, 44}
-	}
-	return rect{c.X + 30, c.Y + 96, c.W - 60, 44}
+func networkCard() rect { return centered(baseW/2, 134, 720, 566) }
+
+func netModeButtons() (online, direct rect) {
+	c := networkCard()
+	w, h, gap := 210.0, 34.0, 14.0
+	x := c.cx() - (w*2+gap)/2
+	y := c.Y + 54
+	return rect{x, y, w, h}, rect{x + w + gap, y, w, h}
 }
 
-func joinButtons() (back, ok rect) {
-	c := joinCard()
-	return rect{c.cx() - 170, c.Y + 250, 160, 42}, rect{c.cx() + 10, c.Y + 250, 160, 42}
+func netStatsRect() rect {
+	c := networkCard()
+	return rect{c.X + 30, c.Y + 98, c.W - 60, 32}
+}
+
+func netRoomsRect() rect {
+	c := networkCard()
+	return rect{c.X + 30, c.Y + 140, c.W - 60, 240}
+}
+
+func netRoomRowRect(i int) rect {
+	r := netRoomsRect()
+	return rect{r.X + 6, r.Y + 6 + float64(i)*46, r.W - 12, 42}
+}
+
+func netOnlineCodeRect() rect {
+	c := networkCard()
+	return rect{c.X + 30, c.Y + 414, c.W - 60, 42}
+}
+
+func netOnlineButtons() (back, join, host rect) {
+	c := networkCard()
+	y, h := c.Y+c.H-64, 42.0
+	bw, jw, hw, gap := 150.0, 190.0, 220.0, 16.0
+	x := c.cx() - (bw+jw+hw+gap*2)/2
+	return rect{x, y, bw, h}, rect{x + bw + gap, y, jw, h}, rect{x + bw + jw + gap*2, y, hw, h}
+}
+
+func netDirectHostButton() rect {
+	c := networkCard()
+	return centered(c.cx(), c.Y+124, 300, 44)
+}
+
+func netDirectFieldRect(i int) rect {
+	c := networkCard()
+	if i == 1 {
+		return rect{c.X + 30, c.Y + 334, c.W - 60, 44}
+	}
+	return rect{c.X + 30, c.Y + 244, c.W - 60, 44}
+}
+
+func netDirectButtons() (back, ok rect) {
+	c := networkCard()
+	y := c.Y + c.H - 64
+	return rect{c.cx() - 190, y, 180, 42}, rect{c.cx() + 10, y, 180, 42}
 }
 
 func winMeterToggleRect() rect {
