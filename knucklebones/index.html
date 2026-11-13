@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Knucklebones — Dice Duel PWA</title>
+  <meta name="description" content="Installable Knucklebones PWA adapted from Cult of the Lamb. Features 3 AI opponents (Ratau, Flinky, Shrumy), local 2-player, TCP/IP (WebSocket) Join Game to desktop Go hosts with optional HMAC room codes and commit-reveal fair play, synthesized Web Audio, 4 themes, colorblind marks, Monte Carlo win probability, round replay, and GUI/TUI modes.">
+  <link rel="canonical" href="https://kreft.us/knucklebones/">
+
+  <!-- Open Graph & Twitter -->
+  <meta property="og:title" content="Knucklebones — Dice Duel PWA">
+  <meta property="og:description" content="Play Knucklebones offline or online vs AI, locally, or join a desktop host over TCP/IP (WebSocket) with full feature parity to the Go GUI and TUI editions.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kreft.us/knucklebones/">
+  <meta property="og:image" content="https://kreft.us/knucklebones/icons/512x512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Knucklebones — Dice Duel PWA">
+  <meta name="twitter:description" content="Play Knucklebones offline or online vs AI, locally, or join a desktop host over TCP/IP (WebSocket).">
+  <meta name="twitter:image" content="https://kreft.us/knucklebones/icons/512x512.png">
+
+  <!-- PWA & Icons -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icons/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/32x32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/192x192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/180x180.png">
+  <meta name="theme-color" content="#000000" id="meta-theme-color">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Knucklebones">
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body class="theme-dark mode-gui">
+  <div id="app" class="app-root" aria-live="polite"></div>
+
+  <div id="update-toast" class="update-toast hidden" role="status" aria-live="assertive">
+    <span id="update-toast-text">A new version is ready.</span>
+    <button id="update-toast-btn" type="button" class="toast-btn">Update now</button>
+    <button id="update-toast-dismiss" type="button" class="toast-dismiss" aria-label="Dismiss">&times;</button>
+  </div>
+
+  <noscript>
+    <div style="padding:2rem;text-align:center;color:#fff;background:#000;font-family:sans-serif;">
+      Knucklebones requires JavaScript to run.
+    </div>
+  </noscript>
+
+  <script src="./app.js"></script>
+</body>
+</html>

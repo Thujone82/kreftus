@@ -1,6 +1,6 @@
 # Knucklebones — Terminal Dice Duel
 
-**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-11
+**Version:** 1.0 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-12
 
 ## Description
 
@@ -43,13 +43,14 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 - **Log**: the side panel shows the latest moves. **L** opens the full log of rolls, placements, destruction, timeouts, and results
 - **History**: **H** lists each round's score and winner, plus who took the lead
 - **Resign**: **R** with a confirmation. Vs AI and online it counts as a loss
-- **Online play (Protocol v2)**: one player hosts on a TCP port (default 8647) with an optional bind interface and optional room code; the other joins via the 2-field Join screen (`host:port` + optional room code)
+- **Online play (Protocol v2)**: one player hosts on a desktop binary's dual-protocol TCP + WebSocket port (default `8647`) with an optional bind interface and optional room code; another desktop client or the [Knucklebones Web App (PWA)](../../knucklebones/) joins via the 2-field Join screen (`host:port` + optional room code, last host remembered)
   - When a host sets a room code, both peers authenticate with challenge-response and protect wire messages with HKDF-SHA256 / HMAC-SHA256 and monotonic sequence numbers. Leaving the room code blank keeps the room open for trusted LAN play (unexpected codes are rejected)
   - **Commit-reveal fair play**: the host commits to its dice PRNG seed before play begins and reveals it at round end so the guest verifies all observed rolls (`Fair play commit locked` / `Fair play verified` / `(!) Host dice unverifiable`)
   - While a player aims, their column and die choice are shared (rate-limited) so both screens show the placement preview before the move is confirmed
   - Optional turn timer (15, 30, or 60 seconds). A timed-out turn places the die in a random open column; three timeouts lose the match
   - A player who drops has 30 seconds to reconnect before forfeiting. Leaving mid-game counts as resigning
   - After a game, both players must pick the same option (play again, continue, free play). The result panel shows "Waiting for…" and "… wants to rematch!"
+- **Web App (PWA) companion**: play offline in any modern browser or install via **Options** (including iOS Share → Add to Home Screen instructions) with matching GUI & TUI views (**M** or Options), 4 themes (**T** or Options), colorblind marks (**C** or Options), Web Audio sound synthesis (**S**), Monte Carlo win odds (**P**), round replay (**X**), and WebSocket **Join Game** to desktop Go hosts
 - **Stats**: games, wins, losses, draws, and best score for each AI, online, and same-keyboard play, plus best-of series won and lost. A Top 10 of final scores; making it is announced on the result panel
 - **Themes & Options**: four built-in themes (**Dark**, **Light**, **High Contrast**, **Parchment** — press **T** on the menu or `←`/`→` on **Options**) plus **Options** for **Theme**, **Sound effects**, **Colorblind marks**, and **Win probability**
 - **Sound effects**: enabled by default and toggled in **Options → Sound effects** or in game by pressing **S** / clicking `Sound [S]` in the GUI side panel (persisted in `knucklebones.json`). Both the graphical window and local desktop TUI play synthesized PCM sound effects via `ebiten/v2/audio` (`click`, `place`, `destroy`, `turn`, `win`, `lose`). PCM audio is bypassed in headless/SSH sessions (or when `KNUCKLEBONES_HEADLESS=1` is set) and in `CGO_ENABLED=0` builds, where the TUI falls back to throttled terminal bells (`Beep()`) on captures and round outcomes
@@ -143,11 +144,11 @@ The best column is 54, so the best board is 162. The game stops as soon as any b
 
 ## Online play
 
-1. The host picks **Host Game**, sets rounds, turn timer, port, bind interface, an optional room code, and house rules, then **Start game**. The lobby lists the bound address(es) and active room code (if set).
-2. The other player picks **Join Game**, enters the host address (for example `192.168.1.20:8647`; a bare host name uses port `8647`), and optionally enters the matching room code in the second field.
-3. The game starts as soon as the guest completes the Protocol v2 handshake (`unsupported-protocol` rejects incompatible v1 peers). The host's copy runs the game and commits to its dice seed for fair-play verification at round end.
+1. The host starts **Host Game** in a desktop Knucklebones executable (TUI or GUI), sets rounds, turn timer, port, bind interface, an optional room code, and house rules, then **Start game**. The lobby lists the bound address(es) (`host:port` and `localhost:8647` on the host machine) and active room code indicator (if set).
+2. The other player picks **Join Game** in either the desktop app or the [Knucklebones PWA](../../knucklebones/), enters the host address (for example `192.168.1.20:8647` or `localhost:8647`; a bare host name uses port `8647`), and optionally enters the matching room code in the second field. Both desktop and browser PWA remember the last host address used (room codes are never saved).
+3. The game starts as soon as the guest completes the Protocol v2 handshake (`unsupported-protocol` rejects incompatible v1 peers). On the host listener (`net.go` / `ws.go`), native TCP and browser RFC 6455 WebSocket upgrades share the same port seamlessly, while the host commits to its dice seed for fair-play verification at round end.
 
-The game is played directly between the two computers, so both must reach each other (same network, VPN, or a forwarded port). Windows may ask to allow Knucklebones through the firewall the first time you host. A room holds two players; a third connection is turned away.
+The game is played directly between the host and guest, so both must reach each other (same network, VPN, or a forwarded port; from HTTPS browser origins, same-machine connections use `localhost:8647` / `127.0.0.1:8647`, while remote LAN IPs require a `wss://` TLS reverse proxy or running from a local origin). Windows may ask to allow Knucklebones through the firewall the first time you host. A room holds two players; a third connection is turned away.
 
 ## Save file
 

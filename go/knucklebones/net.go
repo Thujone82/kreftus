@@ -250,12 +250,20 @@ func (h *netHost) acceptLoop() {
 		if err != nil {
 			return
 		}
-		select {
-		case h.events <- netEvent{kind: evAccepted, conn: c}:
-		case <-h.done:
-			c.Close()
-			return
-		}
+		go h.acceptOne(c)
+	}
+}
+
+func (h *netHost) acceptOne(raw net.Conn) {
+	c, err := acceptNetOrWSConn(raw)
+	if err != nil {
+		raw.Close()
+		return
+	}
+	select {
+	case h.events <- netEvent{kind: evAccepted, conn: c}:
+	case <-h.done:
+		c.Close()
 	}
 }
 

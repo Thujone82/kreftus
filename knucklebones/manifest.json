@@ -1,0 +1,65 @@
+{
+  "name": "Knucklebones",
+  "short_name": "Knucklebones",
+  "description": "Fast-paced dice duel from Cult of the Lamb with 3 AI opponents, local 2-player, online TCP/IP play, synthesized audio, round replay, and 4 themes.",
+  "version": "1.0.0",
+  "start_url": "/knucklebones/",
+  "scope": "/knucklebones/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#141218",
+  "orientation": "any",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "./icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/images/knucklebones3.png",
+      "sizes": "1090x760",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Knucklebones match board and scoreboard (Dark theme)"
+    },
+    {
+      "src": "/images/knucklebones1.png",
+      "sizes": "679x758",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Knucklebones start menu and setup"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Play vs AI",
+      "short_name": "vs AI",
+      "description": "Start a match against Ratau, Flinky, or Shrumy",
+      "url": "/knucklebones/?mode=ai",
+      "icons": [{ "src": "./icons/192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Join Online Game",
+      "short_name": "Join Game",
+      "description": "Connect to a desktop Knucklebones host by host:port",
+      "url": "/knucklebones/?mode=join",
+      "icons": [{ "src": "./icons/192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}
