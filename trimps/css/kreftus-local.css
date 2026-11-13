@@ -3433,6 +3433,11 @@ span.heirloomRare12 {
   margin-top: 12px !important;
 }
 
+#cancelChallengeBtn[style*="display: none"],
+#cancelChallengeBtn[style*="display:none"] {
+  display: none !important;
+}
+
 #cancelChallengeBtn.btn-warning {
   background: linear-gradient(180deg, rgba(82, 22, 32, 0.96), rgba(50, 14, 21, 0.98)) !important;
   border: 1px solid rgba(244, 63, 94, 0.55) !important;
