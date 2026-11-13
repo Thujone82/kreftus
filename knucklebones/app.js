@@ -2519,8 +2519,8 @@
       <div class="screen">
         ${save.displayMode === 'gui'
           ? `<div class="menu-banner-wrap"><img src="./banner-web.png" alt="Knucklebones" class="menu-banner"></div>`
-          : `<h1 class="title-lettered">K N U C K L E B O N E S</h1>
-             <div style="display:flex;gap:6px;margin:4px 0;">${[1, 2, 3, 4, 5, 6].map((v) => renderDieHTML(v, '', '', false)).join('')}</div>`}
+          : `<h1 class="title-lettered"><span class="title-word">K N U C K L E</span><span class="title-word">B O N E S</span></h1>
+             <div class="menu-dice-strip">${[1, 2, 3, 4, 5, 6].map((v) => renderDieHTML(v, '', '', false)).join('')}</div>`}
         <p class="subtitle">The dice game from Cult of the Lamb</p>
         <div class="menu-list">
           ${items.map((it, idx) => renderActionButton(`kb-btn ${idx === app.menuIndex ? 'selected' : ''}`, `data-menu="${it.id}"`, escHtml(it.label))).join('')}
@@ -2678,7 +2678,7 @@
             <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
           </div>
           ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-          ${location.protocol === 'https:' ? '<p class="note-hint" style="margin-top:8px;">From HTTPS, use <strong>localhost:8647</strong> to join a host on this computer (remote LAN IPs require WSS/TLS or the desktop app).</p>' : ''}
+          <p class="note-hint" style="margin-top:8px;">Games can be hosted with the PC/Linux version</p>
           <div class="btn-row">
             ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
             ${renderActionButton('kb-btn selected', 'data-action="submit-join"', 'Join')}

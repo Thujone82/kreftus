@@ -194,6 +194,12 @@ body.mode-tui {
 }
 
 .title-lettered {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  column-gap: 0.35em;
+  row-gap: 4px;
   font-size: clamp(1.3rem, 3.6vw, 2rem);
   font-weight: 800;
   letter-spacing: 0.24em;
@@ -201,6 +207,19 @@ body.mode-tui {
   text-align: center;
   margin: 2px 0;
   text-transform: uppercase;
+}
+
+.title-word {
+  white-space: nowrap;
+  padding-left: 0.24em;
+}
+
+.menu-dice-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 4px 0;
 }
 
 .small-title {
@@ -1537,6 +1556,29 @@ body.mode-tui .tui-mark {
     padding: 2px 8px;
     font-size: 0.72rem;
     min-height: 24px;
+  }
+}
+
+@media (max-width: 540px) {
+  .title-lettered {
+    flex-direction: column;
+    font-size: clamp(1.35rem, 6.2vw, 1.85rem);
+    letter-spacing: 0.28em;
+    line-height: 1.18;
+    gap: 2px;
+  }
+
+  .title-word {
+    padding-left: 0.28em;
+  }
+
+  .menu-dice-strip {
+    --die-size: clamp(44px, min(16vw, 6.8dvh), 64px);
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 8px;
+    justify-content: center;
+    margin: 6px 0;
   }
 }
 
