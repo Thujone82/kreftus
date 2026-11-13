@@ -1931,6 +1931,10 @@
     pendingShakeAnim: false,
     installPromptEvent: null,
     swPendingUpdate: false,
+    cacheVersion: '',
+    updateChecking: false,
+    updateStatus: '',
+    updateStatusTimer: 0,
     tickHandle: null
   };
 
@@ -1947,35 +1951,50 @@
     AudioEngine.play(id, save.settings.sound);
   }
 
+  const IOS_HAPTIC_SWITCH_ID = 'kb-ios-haptic-switch';
+  const IOS_HAPTIC_FALLBACK_LABEL_ID = 'kb-ios-haptic-fallback';
   let iosHapticLabel = null;
+  let lastRealIosHapticAt = 0;
+
+  function iosHapticControlsActive() {
+    return !!(save.settings.haptics && isIosDevice());
+  }
+
+  function iosHapticHitMarkup(enabled = iosHapticControlsActive()) {
+    return enabled ? `<label class="ios-haptic-hit" for="${IOS_HAPTIC_SWITCH_ID}" aria-hidden="true"></label>` : '';
+  }
+
   function ensureIosHapticSwitch() {
-    if (iosHapticLabel && iosHapticLabel.isConnected) return iosHapticLabel;
+    if (iosHapticLabel && iosHapticLabel.isConnected && document.getElementById(IOS_HAPTIC_SWITCH_ID)) {
+      return iosHapticLabel;
+    }
     if (typeof document === 'undefined' || !document.body) return null;
-    const id = 'kb-ios-haptic-switch';
-    let label = document.querySelector(`label[for="${id}"]`);
-    let input = document.getElementById(id);
+    let input = document.getElementById(IOS_HAPTIC_SWITCH_ID);
     if (!input) {
       input = document.createElement('input');
       input.type = 'checkbox';
-      input.id = id;
+      input.id = IOS_HAPTIC_SWITCH_ID;
       input.setAttribute('switch', '');
       input.tabIndex = -1;
       input.setAttribute('aria-hidden', 'true');
-      input.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;margin:0;padding:0;';
+      input.style.cssText = 'position:fixed;left:0;top:0;z-index:-1;opacity:0.001;margin:0;';
       document.body.appendChild(input);
     }
+    let label = document.getElementById(IOS_HAPTIC_FALLBACK_LABEL_ID);
     if (!label) {
       label = document.createElement('label');
-      label.htmlFor = id;
+      label.id = IOS_HAPTIC_FALLBACK_LABEL_ID;
+      label.htmlFor = IOS_HAPTIC_SWITCH_ID;
       label.setAttribute('aria-hidden', 'true');
-      label.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;margin:0;padding:0;';
+      label.style.cssText = 'position:fixed;left:0;top:0;z-index:-1;opacity:0.001;margin:0;';
       document.body.appendChild(label);
     }
     iosHapticLabel = label;
     return iosHapticLabel;
   }
 
-  function pulseIosHaptic() {
+  function pulseIosHaptic(force = false) {
+    if (!force && (Date.now() - lastRealIosHapticAt) < 80) return;
     const label = ensureIosHapticSwitch();
     if (label) label.click();
   }
@@ -1990,9 +2009,9 @@
         return;
       }
       if (isIosDevice()) {
-        pulseIosHaptic();
+        pulseIosHaptic(false);
         if (kind === 'destroy' || kind === 'win') {
-          setTimeout(() => { try { pulseIosHaptic(); } catch {} }, 65);
+          setTimeout(() => { try { pulseIosHaptic(true); } catch {} }, 65);
         }
       }
     } catch {}
@@ -2443,7 +2462,20 @@
     return { text: `${s.names[w]} won the ${scope} with ${sc[w]} points!`, color: c };
   }
 
+  let deferClickRender = false;
+  let deferredRenderQueued = false;
+
   function render() {
+    if (deferClickRender) {
+      if (!deferredRenderQueued) {
+        deferredRenderQueued = true;
+        setTimeout(() => {
+          deferredRenderQueued = false;
+          render();
+        }, 0);
+      }
+      return;
+    }
     applyThemeAndMode();
     if (app.view === 'menu') renderMenu();
     else if (app.view === 'settings') renderSettings();
@@ -2549,6 +2581,8 @@
             if (row === 'start' || row === 'done') {
               return `${app.setupMode === 'options' ? pwaInstallHtml : ''}<div class="btn-row"><button type="button" class="kb-btn ${sel ? 'selected' : 'primary'}" data-set-action="${row}">${escHtml(label)}</button></div>`;
             }
+            const hapticOnRow = isIosDevice() && (save.settings.haptics || row === 'haptics');
+            if (hapticOnRow) ensureIosHapticSwitch();
             if (row === 'player2') {
               return `
                 <div class="setting-row ${sel ? 'selected' : ''}" data-set-idx="${idx}">
@@ -2556,13 +2590,20 @@
                   <input id="input-player2" class="kb-input" type="text" maxlength="16" value="${escHtml(save.settings.player2)}" placeholder="Player 2">
                 </div>`;
             }
+            const prevBtn = hapticOnRow
+              ? `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="arrow-btn" data-set-step="-1" data-set-idx="${idx}" aria-label="Previous">◀</label>`
+              : `<button type="button" class="arrow-btn" data-set-step="-1" data-set-idx="${idx}" aria-label="Previous">◀</button>`;
+            const nextBtn = hapticOnRow
+              ? `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="arrow-btn" data-set-step="1" data-set-idx="${idx}" aria-label="Next">▶</label>`
+              : `<button type="button" class="arrow-btn" data-set-step="1" data-set-idx="${idx}" aria-label="Next">▶</button>`;
             return `
               <div class="setting-row ${sel ? 'selected' : ''}" data-set-idx="${idx}">
+                ${iosHapticHitMarkup(hapticOnRow)}
                 <span class="setting-label">${escHtml(label)}</span>
                 <div class="setting-ctrl">
-                  <button type="button" class="arrow-btn" data-set-step="-1" data-set-idx="${idx}" aria-label="Previous">◀</button>
+                  ${prevBtn}
                   <span class="setting-val">${escHtml(val)}</span>
-                  <button type="button" class="arrow-btn" data-set-step="1" data-set-idx="${idx}" aria-label="Next">▶</button>
+                  ${nextBtn}
                 </div>
               </div>`;
           }).join('')}
@@ -2570,8 +2611,21 @@
         ${hint ? `<p class="note-hint">${escHtml(hint)}</p>` : ''}
         ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
         <div class="btn-row"><button type="button" class="kb-btn" data-action="back-menu">Back</button></div>
+        ${app.setupMode === 'options' ? renderOptionsCacheFooter() : ''}
       </div>
       <div class="footer-hint">Click a setting or ↑↓ select · ←→ change · Enter · Esc back</div>
+    `;
+  }
+
+  function renderOptionsCacheFooter() {
+    const ver = app.cacheVersion || (('serviceWorker' in navigator) ? 'checking…' : 'unavailable');
+    const status = app.updateStatus ? ` · ${app.updateStatus}` : '';
+    const btnLabel = app.swPendingUpdate ? 'Apply update' : (app.updateChecking ? 'Checking…' : 'Check update');
+    return `
+      <div class="options-version-row">
+        <span class="options-version-text">Cache: ${escHtml(ver)}${escHtml(status)}</span>
+        <button type="button" class="kb-btn xs" data-action="${app.swPendingUpdate ? 'apply-update' : 'check-update'}" ${app.updateChecking ? 'disabled' : ''}>${btnLabel}</button>
+      </div>
     `;
   }
 
@@ -2833,7 +2887,8 @@
             : '';
 
         const colCls = ['grid-col', colAimed ? 'aimed' : '', colAimed && isFullCol ? 'full' : '', fxLoss ? 'impact-loss' : '', fxLoss && playShake ? 'col-shake' : ''].filter(Boolean).join(' ');
-        colsHtml += `<div class="${colCls}" data-col="${c}">${cellsHtml}${badge}</div>`;
+        const colHapticHit = (!app.replayActive && myTurn(s) && openSlot(m.grids[mover][c]) >= 0) ? iosHapticHitMarkup() : '';
+        colsHtml += `<div class="${colCls}" data-col="${c}">${cellsHtml}${badge}${colHapticHit}</div>`;
       }
 
       const scoresHtml = [0, 1, 2].map((c) => {
@@ -2874,7 +2929,8 @@
           const variant = m.dice[1] !== 0 && i !== selDie ? 'ghost' : '';
           const selectedCls = m.dice[1] !== 0 && i === selDie ? 'selected-die' : '';
           const selectCls = myTurn(s) && m.dice[1] !== 0 ? 'selectable' : '';
-          return `<div class="tray-die-wrap ${selectedCls} ${selectCls}" data-die="${i}">${renderDieHTML(v, variant, '', false, false)}</div>`;
+          const dieHapticHit = selectCls ? iosHapticHitMarkup() : '';
+          return `<div class="tray-die-wrap ${selectedCls} ${selectCls}" data-die="${i}">${renderDieHTML(v, variant, '', false, false)}${dieHapticHit}</div>`;
         }).join('');
 
         let subNote = '';
@@ -2951,12 +3007,16 @@
       );
     }
 
+    if (iosHapticControlsActive()) ensureIosHapticSwitch();
     const showThumbRow = !app.replayActive && s.phase === 'play';
     const thumbBarHtml = showThumbRow
       ? `<div class="thumb-drop-bar ${myTurn(s) ? '' : 'hidden-turn'}">${[0, 1, 2].map((c) => {
           const full = openSlot(m.grids[mover][c]) < 0;
           const armed = !save.settings.quickTap && app.touchArmedCol === c && !full;
           const lbl = full ? `Col ${c + 1} Full` : armed ? `Drop ${c + 1} ✓` : `Col ${c + 1}`;
+          if (!full && myTurn(s) && iosHapticControlsActive()) {
+            return `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}" data-drop-col="${c}">${lbl}</label>`;
+          }
           return `<button type="button" class="kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}" data-drop-col="${c}" ${(full || !myTurn(s)) ? 'disabled' : ''}>${lbl}</button>`;
         }).join('')}</div>`
       : '';
@@ -3268,6 +3328,7 @@
     app.note = '';
     app.view = 'settings';
     emitSound('click');
+    if (mode === 'options') refreshCacheVersion();
     render();
   }
 
@@ -3510,7 +3571,7 @@
     }
   });
 
-  rootEl.addEventListener('click', (e) => {
+  function handleRootClick(e) {
     const menuEl = e.target.closest('[data-menu]');
     if (menuEl) {
       activateMenuItem(menuEl.dataset.menu);
@@ -3744,6 +3805,9 @@
         });
       } else if (act === 'apply-update') {
         applyPendingUpdateNow();
+      } else if (act === 'check-update') {
+        emitSound('click');
+        checkForUpdatesNow();
       }
       return;
     }
@@ -3752,6 +3816,19 @@
       app.overlay = 'none';
       emitSound('click');
       render();
+    }
+  }
+
+  rootEl.addEventListener('click', (e) => {
+    const hapticLabelHit = e.target && e.target.closest && e.target.closest(`label[for="${IOS_HAPTIC_SWITCH_ID}"]`);
+    if (hapticLabelHit) {
+      lastRealIosHapticAt = Date.now();
+      deferClickRender = true;
+    }
+    try {
+      handleRootClick(e);
+    } finally {
+      deferClickRender = false;
     }
   });
 
@@ -4034,6 +4111,94 @@
     document.getElementById('update-toast')?.classList.add('hidden');
   });
 
+  function setTempUpdateStatus(msg) {
+    if (app.updateStatusTimer) {
+      clearTimeout(app.updateStatusTimer);
+      app.updateStatusTimer = 0;
+    }
+    app.updateStatus = msg;
+    if (app.view === 'settings' && app.setupMode === 'options') render();
+    if (msg && msg !== 'Checking…' && msg !== 'Updating…') {
+      app.updateStatusTimer = setTimeout(() => {
+        app.updateStatusTimer = 0;
+        if (app.updateStatus === msg) {
+          app.updateStatus = '';
+          if (app.view === 'settings' && app.setupMode === 'options') render();
+        }
+      }, 4000);
+    }
+  }
+
+  function refreshCacheVersion() {
+    if (!('serviceWorker' in navigator)) return;
+    const worker = navigator.serviceWorker.controller || (swReg && (swReg.active || swReg.waiting));
+    if (worker) {
+      try { worker.postMessage({ type: 'GET_VERSION' }); } catch {}
+    }
+    if (!app.cacheVersion && typeof caches !== 'undefined' && caches.keys) {
+      caches.keys().then((names) => {
+        const hit = names.filter((n) => n.startsWith('knucklebones-')).pop();
+        if (hit && !app.cacheVersion) {
+          app.cacheVersion = hit;
+          if (app.view === 'settings' && app.setupMode === 'options') render();
+        }
+      }).catch(() => {});
+    }
+  }
+
+  async function checkForUpdatesNow() {
+    if (app.updateChecking) return;
+    if (!('serviceWorker' in navigator)) {
+      setTempUpdateStatus('Unavailable');
+      return;
+    }
+    app.updateChecking = true;
+    setTempUpdateStatus('Checking…');
+    try {
+      let reg = swReg || await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        reg = await navigator.serviceWorker.register('./sw.js');
+        swReg = reg;
+      }
+      if (reg && reg.waiting) {
+        app.updateChecking = false;
+        setTempUpdateStatus('Updating…');
+        applyPendingUpdateNow();
+        return;
+      }
+      if (reg) await reg.update();
+      if (reg && reg.waiting) {
+        app.updateChecking = false;
+        setTempUpdateStatus('Updating…');
+        applyPendingUpdateNow();
+        return;
+      }
+      if (reg && reg.installing) {
+        const worker = reg.installing;
+        await new Promise((resolve) => {
+          const done = () => resolve();
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' || worker.state === 'activated' || worker.state === 'redundant') done();
+          });
+          setTimeout(done, 8000);
+        });
+        if (reg.waiting) {
+          app.updateChecking = false;
+          setTempUpdateStatus('Updating…');
+          applyPendingUpdateNow();
+          return;
+        }
+      }
+      refreshCacheVersion();
+      setTempUpdateStatus('Up to date');
+    } catch {
+      setTempUpdateStatus('Check failed');
+    } finally {
+      app.updateChecking = false;
+      if (app.view === 'settings' && app.setupMode === 'options') render();
+    }
+  }
+
   if ('serviceWorker' in navigator) {
     let hasActiveController = !!navigator.serviceWorker.controller;
 
@@ -4049,6 +4214,7 @@
     }
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+      refreshCacheVersion();
       if (!hasActiveController) {
         hasActiveController = true;
         return; // first-time SW claim
@@ -4057,7 +4223,13 @@
     });
 
     navigator.serviceWorker.addEventListener('message', (ev) => {
+      if (ev.data && ev.data.type === 'VERSION' && ev.data.version) {
+        app.cacheVersion = String(ev.data.version);
+        if (app.view === 'settings' && app.setupMode === 'options') render();
+        return;
+      }
       if (ev.data && ev.data.type === 'SW_UPDATED') {
+        if (ev.data.version) app.cacheVersion = String(ev.data.version);
         if (!hasActiveController) return;
         triggerSwUpdate();
       }
@@ -4066,6 +4238,7 @@
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js').then((reg) => {
         swReg = reg;
+        refreshCacheVersion();
         reg.update().catch(() => {});
 
         document.addEventListener('visibilitychange', () => {

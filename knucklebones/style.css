@@ -143,7 +143,18 @@ body.mode-tui {
   justify-content: space-between;
   padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   position: relative;
+  z-index: 1;
+  background: var(--bg);
   overflow-x: clip;
+}
+
+.ios-haptic-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .screen {
@@ -268,6 +279,36 @@ body.mode-tui {
   border-radius: 8px;
 }
 
+.kb-btn.xs {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  border-radius: 6px;
+  color: var(--dim);
+  border-color: var(--frame);
+  min-height: 0;
+}
+
+.kb-btn.xs:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.options-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: var(--dim);
+}
+
+.options-version-text {
+  letter-spacing: 0.01em;
+}
+
 .kb-btn.pill {
   border: 1.5px solid var(--frame);
   padding: 6px 11px;
@@ -353,6 +394,7 @@ body.mode-tui {
 }
 
 .setting-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -379,11 +421,18 @@ body.mode-tui {
 }
 
 .setting-ctrl {
+  position: relative;
+  z-index: 7;
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 240px;
   justify-content: space-between;
+}
+
+.setting-row .kb-input {
+  position: relative;
+  z-index: 7;
 }
 
 .arrow-btn {
@@ -654,6 +703,7 @@ body.mode-tui {
 }
 
 .tray-die-wrap {
+  position: relative;
   --die-size: var(--tray-die-size);
   padding: 3px;
   border-radius: clamp(10px, calc(var(--die-size) * 0.22), 18px);
@@ -1344,6 +1394,9 @@ body.mode-tui .tui-mark {
 }
 
 .thumb-drop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   font-weight: 800;
   font-size: 0.94rem;
@@ -1375,6 +1428,10 @@ body.mode-tui .tui-mark {
   .toast-btn,
   .toast-dismiss {
     min-height: 44px;
+  }
+
+  .kb-btn.xs {
+    min-height: 26px;
   }
 
   .setting-row .arrow-btn {
@@ -1455,6 +1512,12 @@ body.mode-tui .tui-mark {
     padding: 8px 14px;
     font-size: 0.94rem;
     min-height: 38px;
+  }
+
+  .screen.screen-top .kb-btn.xs {
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    min-height: 24px;
   }
 }
 
