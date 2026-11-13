@@ -465,61 +465,231 @@
   const AudioEngine = {
     ctx: null,
     noiseBuffer: null,
+    resumePromise: null,
+    resumeCtxRef: null,
+    needsVerify: false,
+    fgCheckAt: 0,
+    fgCheckTime: 0,
+    fgResumeStartedAt: 0,
 
-    ensure() {
-      if (this.ctx) {
-        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
-        return this.ctx;
-      }
+    _createContext() {
       const Ctor = window.AudioContext || window.webkitAudioContext;
       if (!Ctor) return null;
-      this.ctx = new Ctor();
-      const len = Math.floor(this.ctx.sampleRate * 0.5);
-      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const old = this.ctx;
+      this.ctx = null;
+      this.noiseBuffer = null;
+      this.resumePromise = null;
+      this.resumeCtxRef = null;
+      if (old) {
+        try {
+          if (old.state !== 'closed' && typeof old.close === 'function') {
+            old.close().catch(() => {});
+          }
+        } catch {}
+      }
+      const ctx = new Ctor();
+      this.ctx = ctx;
+      const len = Math.floor(ctx.sampleRate * 0.5);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
       this.noiseBuffer = buf;
+      const onState = () => {
+        if (this.ctx !== ctx) return;
+        if (ctx.state === 'closed') {
+          this.ctx = null;
+          this.noiseBuffer = null;
+          this.resumePromise = null;
+          this.resumeCtxRef = null;
+        } else if (ctx.state === 'interrupted') {
+          this.needsVerify = true;
+        }
+      };
+      if (typeof ctx.addEventListener === 'function') {
+        ctx.addEventListener('statechange', onState);
+      } else {
+        ctx.onstatechange = onState;
+      }
+      this.needsVerify = false;
+      this.fgCheckAt = 0;
+      this.fgCheckTime = 0;
+      this.fgResumeStartedAt = 0;
+      return ctx;
+    },
+
+    _primeSilent(ctx) {
+      if (!ctx || ctx.state === 'closed') return;
+      try {
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch {}
+    },
+
+    _resume(ctx) {
+      if (!ctx || ctx.state === 'closed') return Promise.resolve(false);
+      if (ctx.state === 'running') return Promise.resolve(true);
+      if (this.resumePromise && this.resumeCtxRef === ctx) return this.resumePromise;
+      this.resumeCtxRef = ctx;
+      let timer = 0;
+      let p;
+      try {
+        p = Promise.race([
+          Promise.resolve(ctx.resume()).then(() => ctx.state === 'running').catch(() => false),
+          new Promise((resolve) => {
+            timer = setTimeout(() => resolve(ctx.state === 'running'), 300);
+          })
+        ]).finally(() => {
+          if (timer) clearTimeout(timer);
+          if (this.resumePromise === p) {
+            this.resumePromise = null;
+            this.resumeCtxRef = null;
+          }
+        });
+      } catch {
+        return Promise.resolve(false);
+      }
+      this.resumePromise = p;
+      return p;
+    },
+
+    _rebuildForGesture() {
+      const ctx = this._createContext();
+      if (!ctx) return null;
+      this._resume(ctx);
+      this._primeSilent(ctx);
+      return ctx;
+    },
+
+    ensure(fromGesture = false) {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return null;
+      if (this.ctx && this.ctx.state === 'closed') {
+        this.ctx = null;
+        this.noiseBuffer = null;
+      }
+      if (!this.ctx) {
+        if (!fromGesture) {
+          const ctx = this._createContext();
+          if (ctx && ctx.state !== 'running') this._resume(ctx);
+          return ctx;
+        }
+        return this._rebuildForGesture();
+      }
+      const ctx = this.ctx;
+      const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      if (ctx.state === 'running' && this.needsVerify && this.fgCheckAt > 0) {
+        if (ctx.currentTime > this.fgCheckTime + 0.002) {
+          this.needsVerify = false;
+          this.fgCheckAt = 0;
+          this.fgResumeStartedAt = 0;
+        } else if (fromGesture && (nowMs - this.fgCheckAt) > 150) {
+          return this._rebuildForGesture();
+        }
+      }
+      if (fromGesture && ctx.state === 'interrupted') {
+        return this._rebuildForGesture();
+      }
+      if (fromGesture && ctx.state !== 'running' && this.fgResumeStartedAt > 0 && (nowMs - this.fgResumeStartedAt) > 200) {
+        return this._rebuildForGesture();
+      }
+      if (ctx.state !== 'running') {
+        if (!this.fgResumeStartedAt) this.fgResumeStartedAt = nowMs;
+        this._resume(ctx);
+        if (fromGesture) this._primeSilent(ctx);
+      }
       return this.ctx;
     },
 
     unlock() {
-      this.ensure();
+      this.ensure(true);
+    },
+
+    onBackground() {
+      if (!this.ctx) return;
+      this.needsVerify = true;
+      this.fgCheckAt = 0;
+      this.fgCheckTime = this.ctx.currentTime || 0;
+      this.fgResumeStartedAt = 0;
+    },
+
+    onForeground() {
+      if (!this.ctx) return;
+      if (this.ctx.state === 'closed') {
+        this.ctx = null;
+        this.noiseBuffer = null;
+        return;
+      }
+      const ctx = this.ctx;
+      const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      this.needsVerify = true;
+      if (ctx.state === 'running') {
+        this.fgCheckAt = nowMs;
+        this.fgCheckTime = ctx.currentTime;
+        this.fgResumeStartedAt = 0;
+        return;
+      }
+      this.fgCheckAt = 0;
+      this.fgCheckTime = ctx.currentTime;
+      this.fgResumeStartedAt = nowMs;
+      this._resume(ctx).then((ok) => {
+        if (ok && this.ctx === ctx && ctx.state === 'running') {
+          this.fgCheckAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+          this.fgCheckTime = ctx.currentTime;
+        }
+      });
     },
 
     play(id, enabled) {
       if (!enabled || !id) return;
-      const ctx = this.ensure();
+      const ctx = this.ensure(false);
       if (!ctx) return;
-      const now = ctx.currentTime;
-      switch (id) {
-        case 'click':
-          this.tone(now, 'triangle', 760, 520, 0.028, 0.14);
-          break;
-        case 'place':
-          this.tone(now, 'triangle', 250, 115, 0.075, 0.28);
-          this.noise(now, 540, 220, 0.024, 0.10);
-          break;
-        case 'destroy':
-          this.noise(now, 360, 85, 0.130, 0.30);
-          this.tone(now, 'square', 220, 110, 0.110, 0.24);
-          break;
-        case 'turn':
-          this.tone(now, 'sine', 523.25, 523.25, 0.095, 0.16);
-          break;
-        case 'win':
-          this.tone(now + 0.000, 'sine', 523.25, 523.25, 0.120, 0.18);
-          this.tone(now + 0.085, 'sine', 659.25, 659.25, 0.130, 0.18);
-          this.tone(now + 0.170, 'sine', 783.99, 783.99, 0.210, 0.20);
-          break;
-        case 'lose':
-          this.tone(now + 0.000, 'triangle', 329.63, 311.13, 0.140, 0.20);
-          this.tone(now + 0.120, 'triangle', 246.94, 220.00, 0.230, 0.20);
-          break;
+      if (ctx.state === 'running') {
+        this._emit(id, ctx);
+        return;
       }
+      this._resume(ctx).then((ok) => {
+        if (ok && this.ctx === ctx && ctx.state === 'running') {
+          this._emit(id, ctx);
+        }
+      });
     },
 
-    tone(start, type, f0, f1, dur, amp) {
-      const ctx = this.ctx;
+    _emit(id, ctx) {
+      if (!ctx || ctx.state !== 'running') return;
+      try {
+        const now = ctx.currentTime;
+        switch (id) {
+          case 'click':
+            this.tone(ctx, now, 'triangle', 760, 520, 0.028, 0.14);
+            break;
+          case 'place':
+            this.tone(ctx, now, 'triangle', 250, 115, 0.075, 0.28);
+            this.noise(ctx, now, 540, 220, 0.024, 0.10);
+            break;
+          case 'destroy':
+            this.noise(ctx, now, 360, 85, 0.130, 0.30);
+            this.tone(ctx, now, 'square', 220, 110, 0.110, 0.24);
+            break;
+          case 'turn':
+            this.tone(ctx, now, 'sine', 523.25, 523.25, 0.095, 0.16);
+            break;
+          case 'win':
+            this.tone(ctx, now + 0.000, 'sine', 523.25, 523.25, 0.120, 0.18);
+            this.tone(ctx, now + 0.085, 'sine', 659.25, 659.25, 0.130, 0.18);
+            this.tone(ctx, now + 0.170, 'sine', 783.99, 783.99, 0.210, 0.20);
+            break;
+          case 'lose':
+            this.tone(ctx, now + 0.000, 'triangle', 329.63, 311.13, 0.140, 0.20);
+            this.tone(ctx, now + 0.120, 'triangle', 246.94, 220.00, 0.230, 0.20);
+            break;
+        }
+      } catch {}
+    },
+
+    tone(ctx, start, type, f0, f1, dur, amp) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = type;
@@ -534,8 +704,7 @@
       osc.stop(start + dur + 0.01);
     },
 
-    noise(start, cut0, cut1, dur, amp) {
-      const ctx = this.ctx;
+    noise(ctx, start, cut0, cut1, dur, amp) {
       const src = ctx.createBufferSource();
       src.buffer = this.noiseBuffer;
       const filter = ctx.createBiquadFilter();
@@ -3199,9 +3368,23 @@
 
   let lastPointerType = 'mouse';
   let touchSwipeStart = null;
+  const unlockOnGesture = () => AudioEngine.unlock();
+  document.addEventListener('pointerdown', unlockOnGesture, { capture: true, passive: true });
+  document.addEventListener('touchend', unlockOnGesture, { capture: true, passive: true });
+  document.addEventListener('click', unlockOnGesture, { capture: true, passive: true });
+  document.addEventListener('keydown', unlockOnGesture, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') AudioEngine.onBackground();
+    else AudioEngine.onForeground();
+  });
+  document.addEventListener('freeze', () => AudioEngine.onBackground());
+  document.addEventListener('resume', () => AudioEngine.onForeground());
+  window.addEventListener('pagehide', () => AudioEngine.onBackground());
+  window.addEventListener('pageshow', () => AudioEngine.onForeground());
+  window.addEventListener('focus', () => AudioEngine.onForeground());
+
   rootEl.addEventListener('pointerdown', (e) => {
     if (e.pointerType) lastPointerType = e.pointerType;
-    AudioEngine.unlock();
   }, { passive: true });
 
   rootEl.addEventListener('touchstart', (e) => {
@@ -3286,8 +3469,6 @@
   });
 
   rootEl.addEventListener('click', (e) => {
-    AudioEngine.unlock();
-
     const menuEl = e.target.closest('[data-menu]');
     if (menuEl) {
       activateMenuItem(menuEl.dataset.menu);
@@ -3533,7 +3714,6 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    AudioEngine.unlock();
     const activeTag = document.activeElement && document.activeElement.tagName;
     const typing = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
 
