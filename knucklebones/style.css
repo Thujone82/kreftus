@@ -1,7 +1,9 @@
 :root,
 body.theme-dark {
   --die-size: 66px;
-  --col-size: 74px;
+  --tray-die-size: 62px;
+  --col-pad: 4px;
+  --col-size: calc(var(--die-size) + 2 * var(--col-pad));
   --grid-gap: 10px;
   --bg: #000000;
   --fg: #ffffff;
@@ -141,6 +143,7 @@ body.mode-tui {
   justify-content: space-between;
   padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   position: relative;
+  overflow-x: clip;
 }
 
 .screen {
@@ -571,6 +574,7 @@ body.mode-tui {
   gap: 18px;
   align-items: stretch;
   flex: 1;
+  min-height: 0;
 }
 
 .left-panels {
@@ -593,6 +597,10 @@ body.mode-tui {
 
 .player-panel.active-turn {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.player-info {
+  min-width: 0;
 }
 
 .player-name {
@@ -642,8 +650,9 @@ body.mode-tui {
 }
 
 .tray-die-wrap {
+  --die-size: var(--tray-die-size);
   padding: 3px;
-  border-radius: 14px;
+  border-radius: clamp(10px, calc(var(--die-size) * 0.22), 18px);
   border: 2.5px solid transparent;
   cursor: default;
   touch-action: manipulation;
@@ -698,6 +707,8 @@ body.mode-gui .tray-die-wrap.rolling-die .die-face {
   justify-content: center;
   gap: 6px;
   position: relative;
+  min-width: 0;
+  min-height: 0;
 }
 
 body.mode-gui .boards-column::before {
@@ -717,7 +728,7 @@ body.mode-gui .boards-column > * {
 .board-box {
   position: relative;
   padding: 8px;
-  border-radius: 14px;
+  border-radius: clamp(12px, calc(var(--die-size) * 0.2), 20px);
   border: 2px solid transparent;
   transition: border-color 0.12s ease, box-shadow 0.2s ease;
 }
@@ -746,9 +757,9 @@ body.mode-tui .board-box.winner-board {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 4px;
-  border-radius: 12px;
+  gap: var(--grid-gap);
+  padding: var(--col-pad);
+  border-radius: clamp(10px, calc(var(--die-size) * 0.18), 18px);
   position: relative;
   cursor: pointer;
   touch-action: manipulation;
@@ -801,7 +812,7 @@ body.mode-gui .grid-col.col-shake {
 .die-slot {
   width: var(--die-size);
   height: var(--die-size);
-  border-radius: 12px;
+  border-radius: clamp(8px, calc(var(--die-size) * 0.18), 18px);
   background: var(--empty-bg);
 }
 
@@ -809,7 +820,7 @@ body.mode-gui .grid-col.col-shake {
 .die-face {
   width: var(--die-size);
   height: var(--die-size);
-  border-radius: 12px;
+  border-radius: clamp(8px, calc(var(--die-size) * 0.18), 18px);
   background: var(--die-bg);
   color: var(--pip);
   box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.32);
@@ -908,7 +919,7 @@ body.mode-gui .die-pip {
   top: 2px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.78rem;
+  font-size: clamp(0.68rem, calc(var(--die-size) * 0.18), 1.15rem);
   font-weight: 900;
   line-height: 1;
   color: currentColor;
@@ -920,13 +931,13 @@ body.mode-gui .die-pip {
   grid-template-columns: repeat(3, var(--col-size));
   gap: var(--grid-gap);
   text-align: center;
-  font-size: 1.05rem;
+  font-size: clamp(0.92rem, calc(var(--die-size) * 0.22), 1.25rem);
   font-weight: 800;
 }
 
 .aim-divider {
-  width: 100%;
-  max-width: 280px;
+  width: auto;
+  max-width: 100%;
   min-height: 26px;
   display: grid;
   grid-template-columns: repeat(3, var(--col-size));
@@ -941,6 +952,7 @@ body.mode-gui .die-pip {
 .aim-divider.replay-bar {
   display: flex;
   justify-content: center;
+  width: min(100%, 420px);
   max-width: 420px;
   color: var(--accent);
   font-weight: 700;
@@ -1254,7 +1266,7 @@ body.mode-tui .tui-mark {
   position: absolute;
   top: 1px;
   right: 3px;
-  font-size: 0.78rem;
+  font-size: clamp(0.68rem, calc(var(--die-size) * 0.18), 1.15rem);
   font-weight: 800;
 }
 
@@ -1296,6 +1308,13 @@ body.mode-tui .tui-mark {
   gap: 3px;
 }
 
+.tray-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
 .play-shell.flip-p2 .panel-top,
 .play-shell.flip-p2 .grid-top {
   transform: rotate(180deg);
@@ -1305,9 +1324,13 @@ body.mode-tui .tui-mark {
   display: none;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  width: 100%;
-  max-width: 300px;
+  width: min(100%, max(260px, calc(3 * var(--col-size) + 2 * var(--grid-gap) + 12px)));
   margin: 0 auto;
+}
+
+.thumb-drop-bar.hidden-turn {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .thumb-drop-btn {
@@ -1336,12 +1359,6 @@ body.mode-tui .tui-mark {
   }
 }
 
-@media (pointer: coarse), (max-width: 720px) {
-  .thumb-drop-bar {
-    display: grid;
-  }
-}
-
 @media (pointer: coarse) {
   .kb-btn,
   .arrow-btn,
@@ -1366,22 +1383,37 @@ body.mode-tui .tui-mark {
 
 /* ---- Mobile / Portrait Responsiveness ---- */
 @media (max-width: 960px) {
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .setting-ctrl,
+  .setting-row .kb-input {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 960px) and (orientation: portrait), (max-width: 639px) {
   :root,
   body.theme-dark,
   body.theme-light,
   body.theme-contrast,
   body.theme-parchment {
-    --die-size: clamp(34px, min(12.8vw, 4.7dvh), 50px);
-    --col-size: calc(var(--die-size) + 6px);
-    --grid-gap: clamp(4px, 1.3vw, 7px);
+    --die-size: clamp(36px, min(18vw, 7.6dvh), 88px);
+    --tray-die-size: clamp(36px, 9.5vw, 46px);
+    --col-pad: 3px;
+    --col-size: calc(var(--die-size) + 2 * var(--col-pad));
+    --grid-gap: clamp(4px, 1.5vw, 9px);
   }
 
   .app-root {
-    padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   }
 
   .play-shell {
-    gap: 3px;
+    gap: 4px;
   }
 
   .play-header {
@@ -1403,9 +1435,11 @@ body.mode-tui .tui-mark {
   }
 
   .play-arena {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 4px;
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .left-panels {
@@ -1414,12 +1448,14 @@ body.mode-tui .tui-mark {
 
   .player-panel.panel-top,
   .player-panel.panel-bottom {
+    flex: 0 0 auto;
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
     justify-content: space-between;
     padding: 5px 10px;
     gap: 8px;
+    min-height: 58px;
   }
 
   .player-panel.panel-top {
@@ -1428,20 +1464,19 @@ body.mode-tui .tui-mark {
 
   .boards-column {
     order: 2;
-    gap: 2px;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  body.mode-gui .boards-column::before {
+    inset: -8px 0;
   }
 
   .board-box {
-    padding: 4px;
-  }
-
-  .grid-col {
-    gap: var(--grid-gap);
-    padding: 2px;
-  }
-
-  .col-scores-row {
-    font-size: 0.92rem;
+    padding: 5px;
   }
 
   .aim-divider {
@@ -1451,6 +1486,11 @@ body.mode-tui .tui-mark {
 
   .player-panel.panel-bottom {
     order: 3;
+  }
+
+  .player-info {
+    flex: 1;
+    min-width: 0;
   }
 
   .player-name {
@@ -1472,11 +1512,19 @@ body.mode-tui .tui-mark {
   .timer-text {
     font-size: 0.78rem;
     min-height: 0;
+    margin-top: 0;
   }
 
   .tray-side {
-    align-items: flex-end;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 8px;
     flex-shrink: 0;
+  }
+
+  .tray-meta {
+    align-items: flex-end;
+    text-align: right;
   }
 
   .tray-row {
@@ -1484,18 +1532,28 @@ body.mode-tui .tui-mark {
     gap: 6px;
   }
 
+  .tray-die-wrap {
+    padding: 2px;
+  }
+
   .thumb-drop-bar {
     order: 4;
+    flex: 0 0 auto;
   }
 
   .side-panel {
     order: 5;
+    flex: 0 0 auto;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     padding: 4px 8px;
     gap: 4px 8px;
+  }
+
+  .side-panel.has-mobile-info {
+    justify-content: space-between;
   }
 
   .side-log-title,
@@ -1528,6 +1586,10 @@ body.mode-tui .tui-mark {
     display: flex;
     flex-wrap: nowrap;
     gap: 5px;
+    margin-left: 0;
+  }
+
+  .side-panel.has-mobile-info .side-toggles {
     margin-left: auto;
   }
 
@@ -1551,18 +1613,108 @@ body.mode-tui .tui-mark {
   .footer-hint {
     font-size: 0.72rem;
     padding-top: 1px;
-    margin-top: 2px;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 960px) and (orientation: portrait) and (pointer: coarse),
+       (max-width: 960px) and (orientation: portrait) and (max-width: 720px),
+       (max-width: 639px) {
+  .thumb-drop-bar {
+    display: grid;
+  }
+}
+
+@media (max-height: 560px) and (min-width: 640px) {
+  :root,
+  body.theme-dark,
+  body.theme-light,
+  body.theme-contrast,
+  body.theme-parchment {
+    --tray-die-size: 38px;
+    --col-pad: 2px;
   }
 
-  .setting-row {
-    flex-direction: column;
-    align-items: stretch;
+  .app-root {
+    padding: max(4px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   }
 
-  .setting-ctrl,
-  .setting-row .kb-input {
-    width: 100%;
-    min-width: 0;
+  .play-shell {
+    gap: 3px;
+  }
+
+  .play-header {
+    padding: 2px 4px;
+  }
+
+  .play-arena {
+    grid-template-columns: 185px minmax(180px, 1fr) 195px;
+    gap: 10px;
+  }
+
+  .left-panels {
+    padding: 2px 0;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .player-panel,
+  .side-panel {
+    padding: 5px 8px;
+  }
+
+  .player-name {
+    font-size: 0.96rem;
+  }
+
+  .player-total-val {
+    font-size: 1.04rem;
+  }
+
+  .tray-side {
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tray-meta {
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .tray-row {
+    margin-top: 0;
+  }
+
+  .boards-column {
+    gap: 2px;
+  }
+
+  .board-box {
+    padding: 3px;
+  }
+
+  .col-scores-row {
+    font-size: 0.8rem;
+  }
+
+  .aim-divider {
+    min-height: 18px;
+    font-size: 0.82rem;
+  }
+
+  .side-log-list {
+    max-height: 100px;
+  }
+
+  .play-actions .kb-btn.sm {
+    padding: 4px 8px;
+    font-size: 0.74rem;
+    min-height: 30px;
+  }
+
+  .play-shell .footer-hint {
+    display: none;
   }
 }
 
@@ -1579,30 +1731,6 @@ body.mode-tui .tui-mark {
 }
 
 @media (max-width: 440px) {
-  :root,
-  body.theme-dark,
-  body.theme-light,
-  body.theme-contrast,
-  body.theme-parchment {
-    --die-size: clamp(32px, min(12.2vw, 4.5dvh), 46px);
-    --col-size: calc(var(--die-size) + 6px);
-    --grid-gap: 4px;
-  }
-
-  .app-root {
-    padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
-  }
-
-  .die-face,
-  .die-slot {
-    border-radius: 9px;
-  }
-
-  .tray-die-wrap {
-    padding: 2px;
-    border-radius: 11px;
-  }
-
   .thumb-drop-btn {
     min-height: 40px;
     font-size: 0.88rem;

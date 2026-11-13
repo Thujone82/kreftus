@@ -2676,12 +2676,13 @@
         const timerHtml = tLeft > 0
           ? `<div class="timer-text ${Math.ceil(tLeft / 1000) <= 5 ? 'urgent' : ''}" id="turn-timer-val">Time left: ${Math.ceil(tLeft / 1000)}s</div>`
           : '';
-        trayHtml = `<div class="tray-side"><div class="tray-row" id="tray-dice">${diceEls}</div>${subNote}${timerHtml}</div>`;
+        const metaHtml = (subNote || timerHtml) ? `<div class="tray-meta">${subNote}${timerHtml}</div>` : '';
+        trayHtml = `<div class="tray-side"><div class="tray-row" id="tray-dice">${diceEls}</div>${metaHtml}</div>`;
       }
 
       return `
         <div class="player-panel ${isTop ? 'panel-top' : 'panel-bottom'} ${turn ? 'active-turn' : ''}">
-          <div>
+          <div class="player-info">
             <div class="player-name">${escHtml(panelName(s, pi))}</div>
             <div class="player-total"><span class="player-total-label">Total</span><span class="player-total-val">${total}</span></div>
             ${winsStr ? `<div class="player-sub">${escHtml(winsStr)}</div>` : ''}
@@ -2739,14 +2740,18 @@
       );
     }
 
-    const thumbBarHtml = (!app.replayActive && s.phase === 'play' && myTurn(s))
-      ? `<div class="thumb-drop-bar">${[0, 1, 2].map((c) => {
+    const showThumbRow = !app.replayActive && s.phase === 'play';
+    const thumbBarHtml = showThumbRow
+      ? `<div class="thumb-drop-bar ${myTurn(s) ? '' : 'hidden-turn'}">${[0, 1, 2].map((c) => {
           const full = openSlot(m.grids[mover][c]) < 0;
           const armed = !save.settings.quickTap && app.touchArmedCol === c && !full;
           const lbl = full ? `Col ${c + 1} Full` : armed ? `Drop ${c + 1} ✓` : `Col ${c + 1}`;
-          return `<button type="button" class="kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}" data-drop-col="${c}" ${full ? 'disabled' : ''}>${lbl}</button>`;
+          return `<button type="button" class="kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}" data-drop-col="${c}" ${(full || !myTurn(s)) ? 'disabled' : ''}>${lbl}</button>`;
         }).join('')}</div>`
       : '';
+
+    const hasSeries = s.bestOf !== 1 || s.freePlay || s.history.length > 0;
+    const hasMobileSideInfo = !!(hasSeries || fairTxt || probData);
 
     const flipBtnHtml = s.mode === 'local'
       ? `<button type="button" class="kb-btn sm pill ${app.flipP2 ? 'on' : ''}" data-action="toggle-flip-p2">Flip P2</button>`
@@ -2802,8 +2807,8 @@
 
           ${thumbBarHtml}
 
-          <aside class="side-panel">
-            ${s.bestOf !== 1 || s.freePlay || s.history.length > 0
+          <aside class="side-panel ${hasMobileSideInfo ? 'has-mobile-info' : ''}">
+            ${hasSeries
               ? `<div class="side-series">Series ${s.wins[0]} – ${s.wins[1]}</div>
                  <div class="side-meta side-meta-sub">${escHtml(s.names[0])} v ${escHtml(s.names[1])}</div>`
               : ''}
@@ -2839,6 +2844,112 @@
       </div>
       ${renderOverlayHTML(s)}
     `;
+    fitPlayLayout();
+  }
+
+  let fitRaf = 0;
+  function scheduleFitPlayLayout() {
+    if (app.view !== 'play') return;
+    if (fitRaf) cancelAnimationFrame(fitRaf);
+    fitRaf = requestAnimationFrame(() => {
+      fitRaf = 0;
+      fitPlayLayout();
+    });
+  }
+
+  function fitPlayLayout() {
+    if (app.view !== 'play') return;
+    const playShell = rootEl.querySelector('.play-shell');
+    const arenaEl = playShell && playShell.querySelector('.play-arena');
+    const boardsColEl = arenaEl && arenaEl.querySelector('.boards-column');
+    const boardBoxEl = boardsColEl && boardsColEl.querySelector('.board-box');
+    const gridColEl = boardsColEl && boardsColEl.querySelector('.grid-col');
+    if (!playShell || !arenaEl || !boardsColEl || !boardBoxEl || !gridColEl) return;
+
+    const rootStyle = getComputedStyle(rootEl);
+    const padY = (parseFloat(rootStyle.paddingTop) || 0) + (parseFloat(rootStyle.paddingBottom) || 0);
+    const vpH = Math.min(
+      window.innerHeight || Infinity,
+      document.documentElement.clientHeight || Infinity
+    );
+    const usableRootH = Math.max(320, vpH - padY);
+
+    const boxHeight = (el) => (el ? el.getBoundingClientRect().height : 0);
+
+    const shellStyle = getComputedStyle(playShell);
+    const shellGap = parseFloat(shellStyle.rowGap) || 0;
+    let nonArenaShellH = 0;
+    let shellCount = 1;
+    for (const sel of ['.play-header', '.play-actions', '.footer-hint']) {
+      const el = playShell.querySelector(sel);
+      const h = boxHeight(el);
+      if (h > 0) {
+        nonArenaShellH += h;
+        shellCount++;
+      }
+    }
+    const availArenaH = usableRootH - nonArenaShellH - Math.max(0, shellCount - 1) * shellGap;
+
+    const arenaStyle = getComputedStyle(arenaEl);
+    const isStacked = arenaStyle.flexDirection === 'column' ||
+      arenaStyle.gridTemplateColumns.trim().split(/\s+/).length <= 1;
+
+    let availBoardsH = availArenaH;
+    let availBoardsW = boardsColEl.clientWidth;
+
+    if (isStacked) {
+      const arenaGap = parseFloat(arenaStyle.rowGap) || 0;
+      let otherArenaH = 0;
+      let arenaCount = 1;
+      for (const sel of ['.panel-top', '.panel-bottom', '.thumb-drop-bar', '.side-panel']) {
+        const el = arenaEl.querySelector(sel);
+        if (el && getComputedStyle(el).display !== 'none') {
+          otherArenaH += boxHeight(el);
+          arenaCount++;
+        }
+      }
+      availBoardsH = availArenaH - otherArenaH - Math.max(0, arenaCount - 1) * arenaGap;
+      availBoardsW = arenaEl.clientWidth;
+    }
+
+    const boardsStyle = getComputedStyle(boardsColEl);
+    const boardsGap = parseFloat(boardsStyle.rowGap) || 0;
+    let scoresH = 0;
+    boardsColEl.querySelectorAll('.col-scores-row').forEach((el) => { scoresH += boxHeight(el); });
+    const dividerEl = boardsColEl.querySelector('.aim-divider');
+    const dividerH = boxHeight(dividerEl);
+
+    const boxStyle = getComputedStyle(boardBoxEl);
+    const boxPadV = (parseFloat(boxStyle.paddingTop) || 0) + (parseFloat(boxStyle.paddingBottom) || 0) +
+      (parseFloat(boxStyle.borderTopWidth) || 0) + (parseFloat(boxStyle.borderBottomWidth) || 0);
+    const boxPadH = (parseFloat(boxStyle.paddingLeft) || 0) + (parseFloat(boxStyle.paddingRight) || 0) +
+      (parseFloat(boxStyle.borderLeftWidth) || 0) + (parseFloat(boxStyle.borderRightWidth) || 0);
+
+    const colStyle = getComputedStyle(gridColEl);
+    const colPadV = (parseFloat(colStyle.paddingTop) || 0) + (parseFloat(colStyle.paddingBottom) || 0);
+    const colPadH = (parseFloat(colStyle.paddingLeft) || 0) + (parseFloat(colStyle.paddingRight) || 0);
+
+    const dieHFactor = document.body.classList.contains('mode-tui') ? 0.82 : 1;
+    const minDie = 24;
+    const maxDie = isStacked ? 108 : 116;
+    const colCountGap = Math.max(0, boardsColEl.children.length - 1) * boardsGap;
+
+    const solveForGap = (gap) => {
+      const maxW = (availBoardsW - boxPadH - 3 * colPadH - 2 * gap - 4) / 3;
+      const fixedH = scoresH + dividerH + colCountGap + 2 * boxPadV + 2 * colPadV + 4 * gap + 8;
+      const maxH = (availBoardsH - fixedH) / (6 * dieHFactor);
+      return Math.floor(Math.max(minDie, Math.min(maxW, maxH, maxDie)));
+    };
+
+    let dieSize = solveForGap(isStacked ? 7 : 10);
+    let gridGap = Math.round(Math.max(4, Math.min(12, dieSize * 0.12)));
+    dieSize = solveForGap(gridGap);
+    gridGap = Math.round(Math.max(4, Math.min(12, dieSize * 0.12)));
+    const colSize = dieSize + Math.ceil(colPadH);
+
+    playShell.style.setProperty('--die-size', `${dieSize}px`);
+    playShell.style.setProperty('--col-size', `${colSize}px`);
+    playShell.style.setProperty('--grid-gap', `${gridGap}px`);
   }
 
   function renderOverlayHTML(s) {
@@ -3769,6 +3880,9 @@
     }
     render();
   }
+
+  window.addEventListener('resize', scheduleFitPlayLayout);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleFitPlayLayout);
 
   applyThemeAndMode();
   handleInitialQuery();
