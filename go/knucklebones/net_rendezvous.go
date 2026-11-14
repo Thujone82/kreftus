@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultRendezvousAddr = "vps.kreft.us:8647"
+	defaultRendezvousAddr = "kb.kreft.us:8647"
 	errRoomNotFound       = "room-not-found"
 	rendezvousPingEvery   = 18 * time.Second
 	rendezvousReadWait    = 50 * time.Second

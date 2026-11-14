@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -44,7 +45,7 @@ type room struct {
 	connSeq    int
 	live       bool
 	progress   roomProgress
-	closed     bool
+	closed     atomic.Bool
 }
 
 type hub struct {
@@ -78,7 +79,7 @@ func (r *room) writeHost(env envelope) error {
 	}
 	r.hostWmu.Lock()
 	defer r.hostWmu.Unlock()
-	if r.closed {
+	if r.closed.Load() {
 		return net.ErrClosed
 	}
 	return writeRawLine(r.hostConn, b, writeTimeout)
@@ -86,7 +87,7 @@ func (r *room) writeHost(env envelope) error {
 
 func (h *hub) countsLocked() (live int, waiting []RoomInfo) {
 	for _, r := range h.rooms {
-		if r.closed {
+		if r.closed.Load() {
 			continue
 		}
 		if r.live {
@@ -106,6 +107,36 @@ func (h *hub) countsLocked() (live int, waiting []RoomInfo) {
 		return waiting[i].ID < waiting[j].ID
 	})
 	return live, waiting
+}
+
+func (h *hub) liveMatchesLocked() []LiveMatchInfo {
+	var out []LiveMatchInfo
+	for _, r := range h.rooms {
+		if r.closed.Load() || !r.live || r.progress.ended {
+			continue
+		}
+		host := r.progress.liveNames[0]
+		if host == "" {
+			host = r.info.Host
+		}
+		guest := r.progress.liveNames[1]
+		if guest == "" {
+			guest = "Guest"
+		}
+		out = append(out, LiveMatchInfo{
+			ID:     r.id,
+			Host:   host,
+			Guest:  guest,
+			Round:  r.progress.liveRound,
+			BestOf: r.info.BestOf,
+			Wins:   r.progress.liveWins,
+			Scores: r.progress.liveScores,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
+	return out
 }
 
 func (h *hub) snapshotLocked() ([]RoomInfo, StatsView) {
@@ -222,11 +253,10 @@ func (h *hub) createRoom(conn net.Conn, req envelope) (*room, error) {
 
 func (h *hub) removeRoom(r *room) {
 	h.mu.Lock()
-	if r.closed {
+	if r.closed.Swap(true) {
 		h.mu.Unlock()
 		return
 	}
-	r.closed = true
 	guest := r.guestConn
 	r.guestConn = nil
 	delete(h.rooms, r.id)
@@ -242,7 +272,7 @@ func (h *hub) removeRoom(r *room) {
 func (h *hub) pairGuest(conn net.Conn, req envelope) (*room, int, error) {
 	h.mu.Lock()
 	r := h.rooms[req.RoomID]
-	if r == nil || r.closed {
+	if r == nil || r.closed.Load() {
 		h.mu.Unlock()
 		return nil, 0, errors.New(errRoomNotFound)
 	}
@@ -286,7 +316,7 @@ func (h *hub) pairGuest(conn net.Conn, req envelope) (*room, int, error) {
 
 func (h *hub) dropGuest(r *room, seq int, notifyHost bool) {
 	h.mu.Lock()
-	if r.closed || r.connSeq != seq || r.guestConn == nil {
+	if r.closed.Load() || r.connSeq != seq || r.guestConn == nil {
 		h.mu.Unlock()
 		return
 	}
@@ -361,7 +391,8 @@ func (h *hub) handleHTTPGet(ac *acceptedConn) {
 	live, waiting := h.countsLocked()
 	watchers := len(h.watchers)
 	sv := h.stats.Snapshot(live, len(waiting), watchers)
-	full := h.stats.FullDump(live, len(waiting), watchers)
+	matches := h.liveMatchesLocked()
+	full := h.stats.FullDump(live, len(waiting), watchers, waiting, matches)
 	h.mu.Unlock()
 
 	var body []byte
@@ -446,7 +477,7 @@ func (h *hub) runHost(conn net.Conn, br *bufio.Reader, req envelope) {
 				return
 			}
 			h.mu.Lock()
-			active := !r.closed && env.ConnSeq == r.connSeq
+			active := !r.closed.Load() && env.ConnSeq == r.connSeq
 			guest := r.guestConn
 			h.mu.Unlock()
 

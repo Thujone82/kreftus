@@ -84,6 +84,16 @@ type PersistentStats struct {
 	UpdatedAt            int64             `json:"updatedAt"`
 }
 
+type LiveMatchInfo struct {
+	ID     string `json:"id"`
+	Host   string `json:"host"`
+	Guest  string `json:"guest"`
+	Round  int    `json:"round"`
+	BestOf int    `json:"bestOf"`
+	Wins   [2]int `json:"wins"`
+	Scores [2]int `json:"scores"`
+}
+
 type roomProgress struct {
 	countedMatch  bool
 	anyMovePlayed bool
@@ -91,6 +101,10 @@ type roomProgress struct {
 	lastRoundKey  [2]int // {series, round}
 	lastSeriesKey int
 	ended         bool
+	liveRound     int
+	liveNames     [2]string
+	liveWins      [2]int
+	liveScores    [2]int
 }
 
 type statsStore struct {
@@ -205,13 +219,21 @@ func (s *statsStore) Snapshot(live, waiting, lobbyWatchers int) StatsView {
 	}
 }
 
-func (s *statsStore) FullDump(live, waiting, lobbyWatchers int) map[string]any {
+func (s *statsStore) FullDump(live, waitingCount, lobbyWatchers int, waiting []RoomInfo, matches []LiveMatchInfo) map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if waiting == nil {
+		waiting = []RoomInfo{}
+	}
+	if matches == nil {
+		matches = []LiveMatchInfo{}
+	}
 	return map[string]any{
 		"lobbyWatchers": lobbyWatchers,
 		"liveMatches":   live,
-		"waitingRooms":  waiting,
+		"waitingRooms":  waitingCount,
+		"rooms":         waiting,
+		"matches":       matches,
 		"stats":         s.data,
 	}
 }
@@ -287,6 +309,13 @@ func (s *statsStore) ObserveState(prog *roomProgress, ws *wireSession) (changed 
 	if ws.Phase == phasePlay {
 		prog.ended = false
 	}
+	prog.liveRound = ws.Round
+	prog.liveNames = [2]string{
+		cleanDisplay(ws.Names[0], "Host", 16),
+		cleanDisplay(ws.Names[1], "Guest", 16),
+	}
+	prog.liveWins = ws.Wins
+	prog.liveScores = [2]int{ws.Match.Grids[0].score(), ws.Match.Grids[1].score()}
 
 	mvKey := [3]int{ws.Series, ws.Round, ws.Match.Moves}
 	if ws.Last != nil && ws.Match.Moves > 0 && cmpTriplet(mvKey, prog.lastMoveKey) > 0 {

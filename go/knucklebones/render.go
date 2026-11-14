@@ -512,11 +512,11 @@ func (g *game) drawNetwork() {
 	g.drawBox(bx, by, bw, bh, "Network Play")
 
 	// Mode toggle row: [ Online ]  [ Direct ]
-	onLbl := "  Online (vps.kreft.us)  "
+	onLbl := "  Online (kb.kreft.us)  "
 	dirLbl := "  Direct  "
 	onSt, dirSt := g.st(g.pal.dim), g.st(g.pal.dim)
 	if g.netOnline {
-		onLbl = "▶ Online (vps.kreft.us) ◀"
+		onLbl = "▶ Online (kb.kreft.us) ◀"
 		if g.netFocus == netFocusMode {
 			onSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
 		} else {
@@ -1470,7 +1470,7 @@ var guideText = []guideLine{
 	{"• Flinky (Medium) takes the biggest immediate swing.", 0},
 	{"• Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it.", 0},
 	{"Network play", 1},
-	{"Open Network Play to host or join via Online Lobby (vps.kreft.us) or Direct connect. Locked rooms (🔒) require the host's room code. The host rolls the dice; turns can be timed and three timeouts lose the match. A dropped player has 30 seconds to reconnect.", 0},
+	{"Open Network Play to host or join via Online Lobby (kb.kreft.us) or Direct connect. Locked rooms (🔒) require the host's room code. The host rolls the dice; turns can be timed and three timeouts lose the match. A dropped player has 30 seconds to reconnect.", 0},
 	{"Credits", 1},
 	{"The original Knucklebones game in Cult of the Lamb was created by Massive Monster. This is a fan-made game and not an official implementation. Rules and strategy notes follow the dice.now Knucklebones guide.", 0},
 }

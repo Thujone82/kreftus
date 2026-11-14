@@ -7,7 +7,7 @@
   const APP_VERSION = '1.1';
   const SAVE_STORAGE_KEY = 'knucklebones.save.v1';
   const DEFAULT_PORT = 8647;
-  const DEFAULT_RENDEZVOUS_ADDR = 'vps.kreft.us:8647';
+  const DEFAULT_RENDEZVOUS_ADDR = 'kb.kreft.us:8647';
   const GRID_COLS = 3;
   const GRID_ROWS = 3;
   const ROLL_DURATION_MS = 450;
@@ -103,7 +103,7 @@
     { kind: 'p', text: '• Flinky (Medium) takes the biggest immediate swing.' },
     { kind: 'p', text: '• Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it.' },
     { kind: 'h', text: 'Online & Network Play & Fair Play' },
-    { kind: 'p', text: 'Open Network Play to browse live matches hosted through vps.kreft.us or host your own Online match from the PWA. Switch to Direct to join a PC/Linux host by IP address and port (default 8647). Optional room codes authenticate the handshake with HMAC-SHA256. Host dice are verified via SHA-256 commit-reveal at round end. Turns can be timed (three timeouts forfeit the match), and dropped players have 30 seconds to reconnect.' },
+    { kind: 'p', text: 'Open Network Play to browse live matches hosted through kb.kreft.us or host your own Online match from the PWA. Switch to Direct to join a PC/Linux host by IP address and port (default 8647). Optional room codes authenticate the handshake with HMAC-SHA256. Host dice are verified via SHA-256 commit-reveal at round end. Turns can be timed (three timeouts forfeit the match), and dropped players have 30 seconds to reconnect.' },
     { kind: 'h', text: 'Credits' },
     { kind: 'p', text: 'The original Knucklebones game in Cult of the Lamb was created by Massive Monster. This is a fan-made web PWA edition with full parity to the desktop Go/Ebitengine and Terminal editions.' }
   ];
@@ -462,7 +462,8 @@
     const norm = normalizeJoinAddr(s);
     const sp = splitHostPort(norm);
     const loop = sp && isLoopbackHost(sp.host);
-    const forceTls = sp && sp.host && sp.host.toLowerCase() === 'vps.kreft.us';
+    const hostLower = sp && sp.host ? sp.host.toLowerCase() : '';
+    const forceTls = hostLower === 'kb.kreft.us' || hostLower === 'vps.kreft.us';
     const scheme = (forceTls || (location.protocol === 'https:' && !loop)) ? 'wss' : 'ws';
     return `${scheme}://${norm}`;
   }
