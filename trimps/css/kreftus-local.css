@@ -2935,6 +2935,59 @@ span.heirloomRare12 {
   padding: 6px 10px !important;
 }
 
+#fluffyFormulaCell {
+  background: var(--surface-2, #191d27) !important;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.14)) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  padding: 7px 11px !important;
+  margin: 6px 0 4px 0 !important;
+  color: var(--text-bright, #e5e7eb) !important;
+  line-height: 1.5 !important;
+}
+
+#fluffyFormulaCell .fluffFormZone,
+#fluffyFormulaCell .fluffFormBattlescruff {
+  color: #60a5fa !important;
+}
+#fluffyFormulaCell .fluffFormDaily {
+  color: #facc15 !important;
+}
+#fluffyFormulaCell .fluffFormStaff,
+#fluffyFormulaCell .fluffFormStuffy {
+  color: #4ade80 !important;
+  text-shadow: none !important;
+}
+#fluffyFormulaCell .fluffFormKnowledge {
+  color: #c084fc !important;
+}
+#fluffyFormulaCell .fluffFormClassy {
+  color: #22d3ee !important;
+}
+#fluffyFormulaCell .fluffFormFlufffocus {
+  color: #f87171 !important;
+}
+#fluffyFormulaCell .fluffFormCurious {
+  color: #f472b6 !important;
+}
+#fluffyFormulaCell .fluffFormCunning {
+  color: #84cc16 !important;
+}
+#fluffyFormulaCell .fluffFormSpecial {
+  color: #f0abfc !important;
+}
+#fluffyFormulaCell .fluffFormFrigid {
+  color: #38bdf8 !important;
+}
+#fluffyFormulaCell .fluffFormIce {
+  color: #818cf8 !important;
+}
+#fluffyFormulaCell .fluffFormLab {
+  color: #fb923c !important;
+}
+#fluffyFormulaCell .fluffFormMutators {
+  color: #fbbf24 !important;
+}
+
 #fluffyLevelBreakdownContainer {
   max-height: 52vh !important;
   overflow-y: auto !important;
