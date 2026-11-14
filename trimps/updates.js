@@ -627,7 +627,7 @@ function tooltip(what, isItIn, event, textString, attachFunction, numCheck, rena
 		}
 		else if (textString == "Export"){
 			what = "Export Perk Setup";
-			tooltipText = "Click to export a copy of your current perk setup to share with friends, or to save and import later!"
+			tooltipText = "Click to export a copy of your current perk setup to share with friends, or to save and import later! <b>Shift-Click</b> to instantly copy to clipboard!";
 		}
 		else if (textString > 0 && textString <= 3){
 			var presetGroup = (portalUniverse == 2) ? game.global.perkPresetU2 : game.global.perkPresetU1;
@@ -8006,4 +8006,95 @@ tooltips.importPerksFromClipboardDirect = function (btnElem) {
 	}
 
 	showFeedback("Clipboard API unavailable", false);
+};
+
+
+/**
+ * Helper to export save string or perks directly to clipboard without opening the modal dialog.
+ * @param {HTMLElement} btnElem - The clicked element to show visual feedback on
+ * @param {string} [type='save'] - 'save' (default) or 'perks'
+ */
+tooltips.exportToClipboardDirect = function (btnElem, type) {
+	if (!type) type = 'save';
+	var isPerks = (type === 'perks');
+	var exportStr = "";
+
+	if (isPerks) {
+		exportStr = (typeof exportPerks === 'function') ? exportPerks() : "";
+	} else {
+		exportStr = (typeof save === 'function') ? save(true) : "";
+	}
+
+	if (!exportStr) {
+		message("Export failed: could not generate export string", "Notices");
+		return;
+	}
+
+	var showFeedback = function (isSuccess) {
+		if (btnElem) {
+			var targetElem = (btnElem.querySelector && (btnElem.querySelector('a') || btnElem.querySelector('div'))) ? (btnElem.querySelector('a') || btnElem.querySelector('div')) : btnElem;
+			if (targetElem) {
+				var orig = targetElem.getAttribute('data-orig-html');
+				if (!orig) {
+					orig = targetElem.innerHTML;
+					targetElem.setAttribute('data-orig-html', orig);
+				}
+				var iconSpan = targetElem.querySelector ? targetElem.querySelector('.kreftus-theme-only') : null;
+				var iconHtml = iconSpan ? iconSpan.outerHTML : '';
+				targetElem.innerHTML = iconHtml + (isSuccess ? "Copied!" : "Copy Failed");
+				setTimeout(function () {
+					if (targetElem) targetElem.innerHTML = orig;
+				}, 1800);
+			}
+		}
+
+		if (isPerks) {
+			var storyElem = document.getElementById('portalStory');
+			if (storyElem) {
+				storyElem.innerHTML = "<span style='color: " + (isSuccess ? "#4ade80" : "#fb7185") + "; font-weight: bold;'>" + (isSuccess ? "Perks copied to clipboard!" : "Failed to copy perks to clipboard") + "</span>";
+			}
+			message(isSuccess ? "Perks exported to clipboard!" : "Failed to copy perks to clipboard", "Notices");
+		} else {
+			message(isSuccess ? "Save string copied to clipboard!" : "Failed to copy save string to clipboard", "Notices");
+		}
+	};
+
+	var copyFallback = function (text) {
+		var textArea = document.createElement("textarea");
+		textArea.value = text;
+		textArea.style.position = "fixed";
+		textArea.style.top = "0";
+		textArea.style.left = "0";
+		textArea.style.opacity = "0";
+		document.body.appendChild(textArea);
+		textArea.focus();
+		textArea.select();
+		var successful = false;
+		try {
+			successful = document.execCommand('copy');
+		} catch (err) {
+			successful = false;
+		}
+		document.body.removeChild(textArea);
+		return successful;
+	};
+
+	if (navigator.clipboard && navigator.clipboard.writeText) {
+		navigator.clipboard.writeText(exportStr).then(function () {
+			showFeedback(true);
+		}).catch(function (err) {
+			if (copyFallback(exportStr)) {
+				showFeedback(true);
+			} else {
+				showFeedback(false);
+			}
+		});
+		return;
+	}
+
+	if (copyFallback(exportStr)) {
+		showFeedback(true);
+	} else {
+		showFeedback(false);
+	}
 };

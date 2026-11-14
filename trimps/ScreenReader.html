@@ -1054,7 +1054,7 @@
 						<li class="tabNotEnabled" id="presetTabRename" onclick="renamePerkPreset(true)">
 							<a>Rename</a>
 						</li>
-						<li class="tabNotEnabled" id="presetTabExport" onclick="tooltip('Export Perks', null, 'update')">
+						<li class="tabNotEnabled" id="presetTabExport" onclick="if (event && (event.shiftKey || shiftPressed)) { tooltips.exportToClipboardDirect(this, 'perks'); } else { tooltip('Export Perks', null, 'update'); }">
 							<a>Export</a>
 						</li>
 						<li class="tabNotEnabled" id="presetTabImport" onclick="tooltip('Import Perks', null, 'update')">
@@ -1448,7 +1448,7 @@
 				<td class="btn btn-info" onclick="save(false, true)">
 					Save <span id="saveIndicator"></span><span id="playFabIndicator"></span>
 				</td>
-				<td class="btn btn-info" onclick="tooltip('Export', null, 'update')">
+				<td class="btn btn-info" id="exportBtn" onclick="if (event && (event.shiftKey || shiftPressed)) { tooltips.exportToClipboardDirect(this, 'save'); } else { tooltip('Export', null, 'update'); }" title="Shift-Click to copy save to clipboard">
 					<div>Export</div>
 				</td>
 				<td class="btn btn-info" onclick="tooltip('Import', null, 'update')">

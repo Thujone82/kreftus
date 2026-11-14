@@ -1009,7 +1009,7 @@
 					<td class="btn btn-info" onclick="save(false, true)">
 						<span class="kreftus-theme-only glyphicon glyphicon-floppy-disk" style="display: none;"></span>Save <span id="saveIndicator"></span><span id="playFabIndicator"></span>
 					</td>
-					<td class="btn btn-info" onclick="tooltip('Export', null, 'update')">
+					<td class="btn btn-info" id="exportBtn" onclick="if (event && (event.shiftKey || shiftPressed)) { tooltips.exportToClipboardDirect(this, 'save'); } else { tooltip('Export', null, 'update'); }" title="Shift-Click to copy save to clipboard">
 						<div><span class="kreftus-theme-only glyphicon glyphicon-export" style="display: none;"></span>Export</div>
 					</td>
 					<td class="btn btn-info" onclick="tooltip('Import', null, 'update')">
@@ -1107,7 +1107,7 @@
 						<li role="presentation" class="tabNotEnabled" id="presetTabRename" onclick="renamePerkPreset(true)" onmouseover="tooltip('Perk Preset', null, event, 'Rename')" onmouseout="tooltip('hide')">
 							<a>Rename</a>
 						</li>
-						<li role="presentation" class="tabNotEnabled" id="presetTabExport" onclick="tooltip('Export Perks', null, 'update')" onmouseover="tooltip('Perk Preset', null, event, 'Export')" onmouseout="tooltip('hide')">
+						<li role="presentation" class="tabNotEnabled" id="presetTabExport" onclick="if (event && (event.shiftKey || shiftPressed)) { tooltips.exportToClipboardDirect(this, 'perks'); } else { tooltip('Export Perks', null, 'update'); }" onmouseover="tooltip('Perk Preset', null, event, 'Export')" onmouseout="tooltip('hide')">
 							<a>Export</a>
 						</li>
 						<li role="presentation" class="tabNotEnabled" id="presetTabImport" onclick="if (event && (event.shiftKey || shiftPressed)) { tooltips.importPerksFromClipboardDirect(this); } else { tooltip('Import Perks', null, 'update'); }" onmouseover="tooltip('Perk Preset', null, event, 'Import')" onmouseout="tooltip('hide')">
@@ -1393,7 +1393,7 @@
 	<script type="text/javascript" src="lz-string.js"></script>
 	<script type="text/javascript" src="decimal.min.js"></script>
 	<script type="text/javascript" src="config.js?62"></script>
-	<script type="text/javascript" src="updates.js?66"></script>
+	<script type="text/javascript" src="updates.js?67"></script>
 	<script type="text/javascript" src="playerSpire.js?62"></script>
 	<script type="text/javascript" src="objects.js?62"></script>
 	<script type="text/javascript" src="main.js?65"></script>
