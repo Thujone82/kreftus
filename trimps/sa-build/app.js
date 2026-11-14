@@ -5568,7 +5568,7 @@ var ONE_TIMER_MILESTONES = [
       "</div>";
 
     return "<div class='bb-info-wrap' tabindex='0' data-open-build='" + esc(buildId(b)) + "'>" +
-      "<button type='button' class='" + pillCls + "' data-open-build='" + esc(buildId(b)) + "' title='Click to view item swaps, Ring settings, and build guidance'>" + ICONS.info + "<span>" + esc(pillTxt) + "</span></button>" +
+      "<button type='button' class='" + pillCls + "' data-open-build='" + esc(buildId(b)) + "'>" + ICONS.info + "<span>" + esc(pillTxt) + "</span></button>" +
       popHtml +
       "</div>";
   }
@@ -7642,7 +7642,6 @@ function renderPresetsModal() {
           var costSubTxt = "";
           var costSubCls = "";
           var popoverHtml = "";
-          var titleText = "";
 
           if (isReady) {
             var pctOfTotal = curFunds > 0 ? ((cost / curFunds) * 100) : 0;
@@ -7650,11 +7649,6 @@ function renderPresetsModal() {
             var remAfter = Math.max(0, curFunds - cost);
             costSubTxt = cost > 0 ? (pctStr + " of bank") : "Free";
             costSubCls = "ready";
-
-            titleText = "Cost: " + costTxt + "\n" +
-              "• Status: Ready to buy now!\n" +
-              "• Takes: " + pctStr + " of your current " + resName + " (" + prettify(cost) + " / " + prettify(curFunds) + ")\n" +
-              "• Balance remaining after purchase: " + prettify(remAfter) + " " + resName;
 
             popoverHtml = "<div class='sim-cost-popover " + (idx >= results.length / 2 ? "pop-up" : "pop-down") + "'>" +
               "<div class='scp-head'><span class='scp-badge ready'>" + ICONS.check + " Ready to Buy</span><span class='scp-pct'>" + pctStr + " of total</span></div>" +
@@ -7675,12 +7669,6 @@ function renderPresetsModal() {
             costSubTxt = "~" + waitStr;
             costSubCls = "wait";
 
-            titleText = "Cost: " + costTxt + "\n" +
-              "• Status: Saving required (~" + waitStr + ")\n" +
-              "• Need: " + prettify(need) + " more " + resName + " (" + progressPct.toFixed(1) + "% funded: " + prettify(curFunds) + " / " + prettify(cost) + ")\n" +
-              "• Time to finish saving: ~" + waitStr + "\n" +
-              "• Earning rate from main build: " + earnStr;
-
             popoverHtml = "<div class='sim-cost-popover " + (idx >= results.length / 2 ? "pop-up" : "pop-down") + "'>" +
               "<div class='scp-head'><span class='scp-badge wait'>" + ICONS.clock + " Saving Required</span><span class='scp-pct'>~" + waitStr + "</span></div>" +
               "<div class='scp-body'>" +
@@ -7700,7 +7688,7 @@ function renderPresetsModal() {
           return "<tr>" +
             "<td>#" + (idx + 1) + "</td>" +
             "<td><b>" + esc(r.label) + "</b></td>" +
-            "<td class='mono sim-cost-cell' title='" + esc(titleText) + "'>" +
+            "<td class='mono sim-cost-cell'>" +
               "<div class='sim-cost-wrap' tabindex='0'>" +
                 "<div class='sim-cost-main'>" +
                   "<span>" + esc(costTxt) + "</span>" +
