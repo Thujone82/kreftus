@@ -3436,53 +3436,68 @@ function createRawAutoBattle(game, u2Mutations) {
     evaluateUpgradeROI: function(sourceConfig, options) {
       options = options || {};
       var cfg = SASimEngine.normalizeConfig(sourceConfig);
-      var baseline = SASimEngine.runBatch(cfg, { kills: options.maxKills || 30, maxFights: 40 });
+      var roiKills = options.maxKills || 30;
+      var roiFights = options.maxFights || Math.max(40, Math.round(roiKills * 1.5));
+      var baseline = SASimEngine.runBatch(cfg, { kills: roiKills, maxFights: roiFights });
 
       var results = [];
       var keys = cfg.equipped && cfg.equipped.length ? cfg.equipped : Object.keys(cfg.items);
 
-      // 1. Test ring upgrade
-      var ringCfg = JSON.parse(JSON.stringify(cfg));
-      ringCfg.ring.level++;
-      ringCfg.rings.level = ringCfg.ring.level;
-      var ringSim = SASimEngine.runBatch(ringCfg, { kills: options.maxKills || 30, maxFights: 40 });
-      var ringDelta = ringSim.dustPs - baseline.dustPs;
-      var ringDeltaK = Math.max(0, (baseline.secPerKill || 0) - (ringSim.secPerKill || 0));
-      results.push({
-        type: 'ring',
-        key: 'ring',
-        label: 'The Ring Lv ' + cfg.ring.level + ' → ' + (cfg.ring.level + 1),
-        cost: Math.ceil(15 * Math.pow(2, cfg.ring.level)),
-        shards: true,
-        currentLevel: cfg.ring.level,
-        nextLevel: cfg.ring.level + 1,
-        baselineDustPs: baseline.dustPs,
-        newDustPs: ringSim.dustPs,
-        deltaDustPs: ringDelta,
-        baselineSecPerKill: baseline.secPerKill,
-        newSecPerKill: ringSim.secPerKill,
-        deltaSecPerKill: ringDeltaK,
-        paybackSec: ringDelta > 0 ? ((Math.ceil(15 * Math.pow(2, cfg.ring.level)) * 1e9) / ringDelta) : Infinity,
-        pctGain: baseline.dustPs > 0 ? ((ringDelta / baseline.dustPs) * 100) : 0
-      });
+      // 1. Test ring upgrade when The Ring is unlocked
+      var ringUnlocked = !cfg.oneTimers || Object.keys(cfg.oneTimers).length === 0 || !!cfg.oneTimers.The_Ring;
+      if (ringUnlocked) {
+        var ringCfg = JSON.parse(JSON.stringify(cfg));
+        ringCfg.ring.level++;
+        ringCfg.rings.level = ringCfg.ring.level;
+        var ringSim = SASimEngine.runBatch(ringCfg, { kills: roiKills, maxFights: roiFights });
+        var ringDelta = ringSim.dustPs - baseline.dustPs;
+        var ringFlipWin = baseline.kills === 0 && ringSim.kills > 0;
+        var ringDeltaK = ringFlipWin
+          ? Infinity
+          : ((baseline.secPerKill > 0 && ringSim.secPerKill > 0) ? Math.max(0, baseline.secPerKill - ringSim.secPerKill) : 0);
+        results.push({
+          type: 'ring',
+          key: 'ring',
+          label: 'The Ring Lv ' + cfg.ring.level + ' → ' + (cfg.ring.level + 1),
+          cost: Math.ceil(15 * Math.pow(2, cfg.ring.level)),
+          shards: true,
+          currentLevel: cfg.ring.level,
+          nextLevel: cfg.ring.level + 1,
+          baselineDustPs: baseline.dustPs,
+          newDustPs: ringSim.dustPs,
+          deltaDustPs: ringDelta,
+          baselineWinRate: baseline.winRate,
+          newWinRate: ringSim.winRate,
+          flippedToWin: ringFlipWin,
+          baselineSecPerKill: baseline.secPerKill,
+          newSecPerKill: ringSim.secPerKill,
+          deltaSecPerKill: ringDeltaK,
+          paybackSec: ringDelta > 0 ? ((Math.ceil(15 * Math.pow(2, cfg.ring.level)) * 1e9) / ringDelta) : Infinity,
+          pctGain: baseline.dustPs > 0 ? ((ringDelta / baseline.dustPs) * 100) : 0
+        });
+      }
 
       // 2. Test equipped items
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
-        if (typeof SA_DATA !== 'undefined' && SA_DATA.items && SA_DATA.items[k]) {
-          if (SA_DATA.items[k].noUp || (SA_DATA.items[k].max && SA_DATA.items[k].max <= 1)) continue;
-        }
         var itemObj = cfg.items[k] || { level: 1, equipped: true };
         var curLv = itemObj.level || 1;
+        if (typeof SA_DATA !== 'undefined' && SA_DATA.items && SA_DATA.items[k]) {
+          var meta = SA_DATA.items[k];
+          if (meta.noUp || (meta.max && (meta.max <= 1 || curLv >= meta.max))) continue;
+        }
         var testCfg = JSON.parse(JSON.stringify(cfg));
         if (!testCfg.items[k] || typeof testCfg.items[k] !== 'object') {
           testCfg.items[k] = { level: curLv, equipped: true };
         }
         testCfg.items[k].level = curLv + 1;
 
-        var sim = SASimEngine.runBatch(testCfg, { kills: options.maxKills || 30, maxFights: 40 });
+        var sim = SASimEngine.runBatch(testCfg, { kills: roiKills, maxFights: roiFights });
         var delta = sim.dustPs - baseline.dustPs;
-        var deltaK = Math.max(0, (baseline.secPerKill || 0) - (sim.secPerKill || 0));
+        var flipWin = baseline.kills === 0 && sim.kills > 0;
+        var deltaK = flipWin
+          ? Infinity
+          : ((baseline.secPerKill > 0 && sim.secPerKill > 0) ? Math.max(0, baseline.secPerKill - sim.secPerKill) : 0);
         var label = (typeof itemName === 'function' ? itemName(k) : k.replace(/_/g, ' ')) + ' Lv ' + curLv + ' → ' + (curLv + 1);
 
         var itemCost = 0;
@@ -3514,6 +3529,9 @@ function createRawAutoBattle(game, u2Mutations) {
           baselineDustPs: baseline.dustPs,
           newDustPs: sim.dustPs,
           deltaDustPs: delta,
+          baselineWinRate: baseline.winRate,
+          newWinRate: sim.winRate,
+          flippedToWin: flipWin,
           baselineSecPerKill: baseline.secPerKill,
           newSecPerKill: sim.secPerKill,
           deltaSecPerKill: deltaK,

@@ -810,6 +810,7 @@ var ONE_TIMER_MILESTONES = [
   }
 
   var levelSimCache = {};
+  var upgradeRoiCache = {};
 
   function getCurrentCombatStats(lvl) {
     var l = Number(lvl) || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
@@ -1217,9 +1218,31 @@ var ONE_TIMER_MILESTONES = [
     return list;
   }
 
+  function renderMacroValHtml(mb, bList) {
+    var byId = {};
+    if (bList) {
+      bList.forEach(function (b) { byId[b.id] = b; });
+    }
+    function seg(txt, id) {
+      var ready = !!(byId[id] && byId[id].isReady);
+      return "<span class='bp-macro-seg" + (ready ? " ready" : "") + "'>" + esc(txt) + "</span>";
+    }
+    var parts = [
+      seg("+" + mb.radonPct + "% Rn", "Radon"),
+      seg("+" + mb.statsPct + "% Stats", "Stats")
+    ];
+    if (mb.scaffoldLvl > 0 || (byId.Scaffolding && byId.Scaffolding.isReady)) {
+      parts.push(seg(mb.scaffoldLvl + " Scaff", "Scaffolding"));
+    }
+    if (byId.Extra_Limbs && byId.Extra_Limbs.isReady) {
+      parts.push(seg("+Limb", "Extra_Limbs"));
+    }
+    return parts.join(" · ");
+  }
+
   function renderBonusesHtml(mb, bnk, rate) {
     var bList = getBonusList(bnk, rate);
-    var macroVal = "+" + mb.radonPct + "% Rn · +" + mb.statsPct + "% Stats" + (mb.scaffoldLvl > 0 ? (" · " + mb.scaffoldLvl + " Scaff") : "");
+    var macroHtml = renderMacroValHtml(mb, bList);
 
     var rowsHtml = bList.map(function (b) {
       var badgeHtml = b.isMax
@@ -1251,7 +1274,7 @@ var ONE_TIMER_MILESTONES = [
 
     return "<div class='fact-wrap fact-spire-buffs-wrap' id='factSpireBuffsWrap' tabindex='0'>" +
       '<div class="fact fact-spire-buffs" id="factSpireBuffs" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
-        ICONS.target + '<span>Spire Buffs</span><b id="factSpireBuffsVal">' + esc(macroVal) + '</b>' +
+        ICONS.target + '<span>Spire Buffs</span><b id="factSpireBuffsVal">' + macroHtml + '</b>' +
       '</div>' +
       "<div class='bonuses-popover' id='bonusesPopover' role='tooltip'>" +
         "<div class='bp-head'>" +
@@ -1272,6 +1295,11 @@ var ONE_TIMER_MILESTONES = [
     var fact = $("factSpireBuffs");
     if (!fact && !pop) return;
     var bList = getBonusList(bnk, rate);
+    var macroValEl = $("factSpireBuffsVal");
+    if (macroValEl) {
+      var macroHtml = renderMacroValHtml(macroBonusInfo(), bList);
+      if (macroValEl.innerHTML !== macroHtml) macroValEl.innerHTML = macroHtml;
+    }
 
     var popRate = $("bpLiveRate");
     if (popRate) {
@@ -2207,6 +2235,7 @@ var ONE_TIMER_MILESTONES = [
     }
     pushSimCache = {};
     levelSimCache = {};
+    upgradeRoiCache = {};
     state._cachedDiag = null;
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
@@ -3026,6 +3055,174 @@ var ONE_TIMER_MILESTONES = [
     });
   }
 
+  function getCachedUpgradeROI(lvl) {
+    if (typeof SASimEngine === "undefined" || !state.save) return null;
+    var l = Number(lvl) || state.level || 1;
+    var sig = (state.ab ? getLoadoutSignature() : "nosave") + "@" + l;
+    if (upgradeRoiCache[sig]) return upgradeRoiCache[sig];
+    try {
+      var res = SASimEngine.evaluateUpgradeROI({ save: state.save, level: l }, { maxKills: 40, maxFights: 60 });
+      upgradeRoiCache[sig] = res || [];
+      return upgradeRoiCache[sig];
+    } catch (e) {
+      console.warn("Simulator evaluateUpgradeROI failed:", e);
+      return null;
+    }
+  }
+
+  function isBuildEquippedNow(build) {
+    if (!build || !build.i || !runnable(build)) return false;
+    var keys = Object.keys(build.i);
+    for (var i = 0; i < keys.length; i++) {
+      var it = userItem(keys[i]);
+      if (!it || !it.equipped) return false;
+    }
+    if (build.r && build.r.m && build.r.m.length) {
+      var reqMods = build.r.m.map(function (m) { return String(m).toLowerCase(); }).sort().join(",");
+      var curMods = (ringMods() || []).map(function (m) { return String(m).toLowerCase(); }).sort().join(",");
+      if (reqMods !== curMods) return false;
+    }
+    return true;
+  }
+
+  function effectiveBuildDustPs(build, steps) {
+    if (build && build._simDustPs > 0) return build._simDustPs;
+    if (steps && steps.length) {
+      for (var si = steps.length - 1; si >= 0; si--) {
+        var rLvl = steps[si]._postRateLevel;
+        if (steps[si]._postRate > 0 && (rLvl == null || Number(rLvl) === Number(state.level))) {
+          return steps[si]._postRate;
+        }
+      }
+    }
+    return (build && build.d) ? build.d : 0;
+  }
+
+  function scorePlanCandidate(planObj, mode, cmpCur, curK, bnk, earnRate) {
+    var steps = planObj.allSteps || planObj.steps || [];
+    var wInfo = calculateStepWaitTimes(steps, bnk, earnRate);
+    var totalCostDust = (wInfo.totalCostDust || 0) + ((wInfo.totalCostShards || 0) * SHARD_DUST);
+    var waitSec = (wInfo.totalWait != null && isFinite(wInfo.totalWait)) ? wInfo.totalWait : Infinity;
+    var blocked = !!planObj.blocked || steps.some(function (s) { return s.kind === "contract" && !s.reach; });
+    if (blocked) waitSec = Infinity;
+
+    if (mode === "push") {
+      var targetK = buildSecPerKill(planObj.build, state.level);
+      var deltaK = isFinite(curK)
+        ? Math.max(0, curK - targetK)
+        : (targetK > 0 && isFinite(targetK) ? Infinity : 0);
+      var costPerSec = (deltaK > 0.005 && isFinite(deltaK))
+        ? (totalCostDust > 0 ? (totalCostDust / deltaK) : 0)
+        : (deltaK === Infinity ? totalCostDust : Infinity);
+      return Object.assign({}, planObj, {
+        totalCostDust: totalCostDust,
+        waitSec: waitSec,
+        deltaK: deltaK,
+        costPerSec: costPerSec,
+        paybackSec: costPerSec,
+        breakEvenSec: isFinite(waitSec) && isFinite(costPerSec) ? (waitSec + costPerSec) : Infinity
+      });
+    }
+
+    var effDust = effectiveBuildDustPs(planObj.build, steps);
+    var gain = effDust - cmpCur;
+    var paybackSec = (gain > 0 && totalCostDust > 0) ? (totalCostDust / gain) : (gain > 0 ? 0 : Infinity);
+    var breakEvenSec = (isFinite(waitSec) && isFinite(paybackSec)) ? (waitSec + paybackSec) : Infinity;
+    return Object.assign({}, planObj, {
+      gain: gain,
+      totalCostDust: totalCostDust,
+      waitSec: waitSec,
+      paybackSec: paybackSec,
+      breakEvenSec: breakEvenSec,
+      costPerSec: Infinity
+    });
+  }
+
+  function buildSimUpgradeCandidate(mode, cur, curCombatK, bnk, earnRate) {
+    var roiResults = getCachedUpgradeROI(state.level);
+    if (!roiResults || !roiResults.length) return null;
+
+    var chosen = null;
+    if (mode === "push") {
+      var isCurWinning = (curCombatK && isFinite(curCombatK) && curCombatK > 0);
+      var pushCands = [];
+      for (var i = 0; i < roiResults.length; i++) {
+        var r = roiResults[i];
+        var costDust = r.shards ? (r.cost * SHARD_DUST) : r.cost;
+        var waitSec = timeForCost(r.cost, !!r.shards, earnRate, bnk.dust, bnk.shards);
+        if (!isCurWinning) {
+          if (r.flippedToWin || (r.newWinRate > 0 && r.newSecPerKill > 0)) {
+            pushCands.push({ raw: r, costDust: costDust, waitSec: waitSec, costPerSec: costDust });
+          }
+        } else if (r.deltaSecPerKill > 0.005) {
+          var cps = costDust > 0 ? (costDust / r.deltaSecPerKill) : 0;
+          pushCands.push({ raw: r, costDust: costDust, waitSec: waitSec, costPerSec: cps });
+        }
+      }
+      if (!pushCands.length) return null;
+      pushCands.sort(function (a, b) {
+        if (!isCurWinning) {
+          if (a.waitSec !== b.waitSec) return a.waitSec - b.waitSec;
+          return a.costDust - b.costDust;
+        }
+        if (Math.abs(a.costPerSec - b.costPerSec) > 1e-6) return a.costPerSec - b.costPerSec;
+        return a.waitSec - b.waitSec;
+      });
+      chosen = pushCands[0];
+    } else {
+      var bestFarm = null;
+      for (var fi = 0; fi < roiResults.length; fi++) {
+        var fr = roiResults[fi];
+        if (fr.deltaDustPs > 0 && isFinite(fr.paybackSec)) {
+          var fCostDust = fr.shards ? (fr.cost * SHARD_DUST) : fr.cost;
+          var fWaitSec = timeForCost(fr.cost, !!fr.shards, earnRate, bnk.dust, bnk.shards);
+          var fPayback = fCostDust > 0 ? (fCostDust / fr.deltaDustPs) : 0;
+          var fBreakEven = isFinite(fWaitSec) ? (fWaitSec + fPayback) : Infinity;
+          var cand = { raw: fr, costDust: fCostDust, waitSec: fWaitSec, paybackSec: fPayback, breakEvenSec: fBreakEven, costPerSec: Infinity };
+          if (!bestFarm || cand.breakEvenSec < bestFarm.breakEvenSec - 1e-6) {
+            bestFarm = cand;
+          }
+        }
+      }
+      chosen = bestFarm;
+    }
+
+    if (!chosen) return null;
+    var top = chosen.raw;
+    var uStep = (top.type === "ring")
+      ? { kind: "ring", from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards }
+      : { kind: "level", key: top.key, from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards };
+    var curBld = getCurrentEquippedCombatBuild(state.level) || { n: "Current Loadout" };
+    var newK = (top.newSecPerKill && top.newSecPerKill > 0) ? top.newSecPerKill : (curCombatK || 15);
+    var cloneBld = Object.assign({}, curBld, { k: newK });
+    return {
+      step: uStep,
+      mode: "upgradeValue",
+      isLocked: false,
+      isOptimal: true,
+      remaining: 1,
+      totalSteps: 1,
+      completedCount: 0,
+      allSteps: [uStep],
+      activeIndex: 0,
+      gain: top.deltaDustPs,
+      cost: top.cost,
+      shards: top.shards,
+      totalCostDust: chosen.costDust,
+      waitSec: chosen.waitSec,
+      label: top.label,
+      paybackSec: chosen.paybackSec != null ? chosen.paybackSec : top.paybackSec,
+      breakEvenSec: chosen.breakEvenSec != null ? chosen.breakEvenSec : Infinity,
+      costPerSec: chosen.costPerSec,
+      flippedToWin: !!top.flippedToWin,
+      currentDustPs: cur,
+      currentCombatSec: (curCombatK && isFinite(curCombatK)) ? curCombatK : top.baselineSecPerKill,
+      newCombatSec: newK,
+      deltaSecPerKill: top.deltaSecPerKill,
+      build: cloneBld
+    };
+  }
+
   function bestNextUpgrade(rec, rateOverride, cmpRateOverride) {
     var earnRate = (typeof rateOverride === "number" && rateOverride > 0)
       ? rateOverride
@@ -3115,17 +3312,14 @@ var ONE_TIMER_MILESTONES = [
         seen[id] = true;
         var unlocked = bestAfter(s);
         var gain = (mode === "push")
-          ? Math.max(0, curK - (unlocked ? buildSecPerKill(unlocked, state.level) : Infinity))
+          ? (isFinite(curK) ? Math.max(0, curK - (unlocked ? buildSecPerKill(unlocked, state.level) : Infinity)) : ((unlocked && isFinite(buildSecPerKill(unlocked, state.level))) ? Infinity : 0))
           : ((unlocked ? unlocked.d || 0 : 0) - cmpCur);
         var wInfo = stepsWaitInfo([s], 1, bnk);
         var effCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : Math.max(1, wInfo.combined * 1e-6);
-        if (gain > 0 && unlocked) immediate.push({ step: s, gain: gain, cost: wInfo.combined, roi: gain / effCost, build: unlocked, mode: "unlocks", remaining: 1, allSteps: [s], activeIndex: 0 });
+        if (gain > 0 && unlocked) immediate.push({ step: s, gain: gain, cost: wInfo.combined, roi: gain / effCost, build: unlocked, mode: "unlocks", remaining: 1, allSteps: [s], activeIndex: 0, blocked: false });
       });
     });
-    if (immediate.length) {
-      immediate.sort(function (a, b) { return b.roi - a.roi; });
-      return immediate[0];
-    }
+
     var paths = list.map(function (b) {
       var steps = applyStepOrder(state.level, b, expandSteps(gapSteps(b)));
       var wInfo = calculateStepWaitTimes(steps, bnk, earnRate);
@@ -3135,97 +3329,101 @@ var ONE_TIMER_MILESTONES = [
       var pathGain = (mode === "push")
         ? Math.max(0, curK - buildSecPerKill(b, state.level))
         : ((b.d || 0) - cmpCur);
-      return { build: b, steps: steps, cost: wInfo.combined, remaining: steps.length, blocked: blocked, roi: pathGain / effCost };
-    });
-    paths.sort(function (a, b) { return (a.blocked - b.blocked) || a.remaining - b.remaining || b.roi - a.roi; });
-    var p = null;
-    var first = null;
-    var activeIdx = 0;
-    for (var i = 0; i < paths.length; i++) {
-      for (var j = 0; j < paths[i].steps.length; j++) {
-        if (paths[i].steps[j].kind === "contract" && !paths[i].steps[j].reach) continue;
-        first = atomicStep(paths[i].steps[j]);
-        p = paths[i];
-        activeIdx = j;
+      var firstStep = null;
+      var activeIdx = 0;
+      for (var sj = 0; sj < steps.length; sj++) {
+        if (steps[sj].kind === "contract" && !steps[sj].reach) continue;
+        firstStep = atomicStep(steps[sj]);
+        activeIdx = sj;
         break;
       }
-      if (first) break;
-    }
+      return {
+        step: firstStep,
+        build: b,
+        steps: steps,
+        allSteps: steps,
+        cost: stepsCostDust(firstStep ? [firstStep] : []).combined,
+        remaining: steps.length,
+        blocked: blocked,
+        activeIndex: activeIdx,
+        mode: "toward",
+        roi: pathGain / effCost
+      };
+    });
 
-    // If no better build exists in push or farm mode without a locked plan, use simulator Upgrade Value
-    if (!lockedEntry) {
-      var shouldFallbackROI = false;
-      if (mode === "push") {
-        var hasFasterPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
-        var isCurWinning = (curCombatK && isFinite(curCombatK) && curCombatK > 0);
-        var isCurOptimal = isCurWinning && (curCombatK <= recK + 0.01);
-        if (isCurWinning && (!hasFasterPath || isCurOptimal)) {
-          shouldFallbackROI = true;
-        } else if (!hasFasterPath && (!p || !first) && isCurWinning) {
-          shouldFallbackROI = true;
-        }
-      } else if (mode === "farm") {
-        var isWinningFarm = (cur > 0) || (curCombatK && isFinite(curCombatK) && curCombatK > 0);
-        var hasBetterFarmPath = (immediate.length > 0) || (paths.some(function(item) { return !item.blocked && item.roi > 0; }));
-        if (isWinningFarm && (!hasBetterFarmPath || !p || !first)) {
-          shouldFallbackROI = true;
-        }
-      }
-      if (shouldFallbackROI) {
-        if (typeof SASimEngine !== "undefined" && state.save) {
-          try {
-            var cfgSrc = (simState.config && simState.config.items && Number(simState.config.level) === Number(state.level))
-              ? simState.config
-              : { save: state.save, level: state.level };
-            var roiResults = SASimEngine.evaluateUpgradeROI(cfgSrc, { maxKills: 20 });
-            if (roiResults && roiResults.length > 0) {
-              var top = roiResults[0];
-              var uStep = (top.type === "ring")
-                ? { kind: "ring", from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards }
-                : { kind: "level", key: top.key, from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards };
-              var curBld = getCurrentEquippedCombatBuild(state.level) || { n: "Current Loadout" };
-              var newK = (top.newSecPerKill && top.newSecPerKill > 0) ? top.newSecPerKill : (curCombatK || 15);
-              var cloneBld = Object.assign({}, curBld, { k: newK });
-              return {
-                step: uStep,
-                mode: "upgradeValue",
-                isLocked: false,
-                isOptimal: true,
-                remaining: 1,
-                totalSteps: 1,
-                completedCount: 0,
-                allSteps: [uStep],
-                activeIndex: 0,
-                gain: top.deltaDustPs,
-                cost: top.cost,
-                shards: top.shards,
-                label: top.label,
-                paybackSec: top.paybackSec,
-                currentDustPs: cur,
-                currentCombatSec: (curCombatK && isFinite(curCombatK)) ? curCombatK : top.baselineSecPerKill,
-                newCombatSec: newK,
-                deltaSecPerKill: top.deltaSecPerKill,
-                build: cloneBld
-              };
-            }
-          } catch (e) {
-            console.warn("Simulator evaluateUpgradeROI fallback failed:", e);
-          }
-        }
+    // Score unblocked candidate plans (1-step unlocks + multi-step paths) on true cost-benefit
+    var scoredPlans = [];
+    for (var ii = 0; ii < immediate.length; ii++) {
+      scoredPlans.push(scorePlanCandidate(immediate[ii], mode, cmpCur, curK, bnk, earnRate));
+    }
+    for (var pi = 0; pi < paths.length; pi++) {
+      if (!paths[pi].blocked && paths[pi].step) {
+        scoredPlans.push(scorePlanCandidate(paths[pi], mode, cmpCur, curK, bnk, earnRate));
       }
     }
+    scoredPlans.sort(function (a, b) {
+      var ma = (mode === "push") ? a.costPerSec : a.breakEvenSec;
+      var mb = (mode === "push") ? b.costPerSec : b.breakEvenSec;
+      var aFin = isFinite(ma), bFin = isFinite(mb);
+      if (aFin !== bFin) return aFin ? -1 : 1;
+      if (aFin && bFin) {
+        var relDiff = Math.abs(ma - mb) / Math.max(1, Math.min(ma, mb));
+        if (relDiff > 0.01) return ma - mb;
+      }
+      if (a.remaining !== b.remaining) return a.remaining - b.remaining;
+      return b.roi - a.roi;
+    });
 
-    if (!p || !first) return null;
-    return {
-      step: first,
-      gain: (p.build.d || 0) - cmpCur,
-      cost: stepsCostDust([first]).combined,
-      build: p.build,
-      mode: "toward",
-      remaining: p.remaining,
-      allSteps: p.steps,
-      activeIndex: activeIdx
-    };
+    var bestPlan = scoredPlans.length ? scoredPlans[0] : null;
+    if (bestPlan && !isFinite(mode === "push" ? bestPlan.costPerSec : bestPlan.paybackSec) && (mode !== "push" || bestPlan.deltaK <= 0)) {
+      bestPlan = null;
+    }
+
+    // Evaluate most efficient single-item upgrade from Combat Simulator when current loadout is applicable
+    var isCurWinning = (mode === "push")
+      ? (curCombatK && isFinite(curCombatK) && curCombatK > 0)
+      : ((cur > 0) || (curCombatK && isFinite(curCombatK) && curCombatK > 0));
+    var curBeatsOrMatchesRec = !rec ||
+      isBuildEquippedNow(rec) ||
+      (mode === "farm" ? (cur >= (rec.d || 0) * 0.98) : (isCurWinning && curCombatK <= recK + 0.05));
+    var canCompareSim = (typeof SASimEngine !== "undefined" && state.save && (curBeatsOrMatchesRec || (!isCurWinning && !bestPlan)));
+    var simCand = canCompareSim ? buildSimUpgradeCandidate(mode, cur, curCombatK, bnk, earnRate) : null;
+
+    // Weigh best plan candidate vs most efficient single-item sim upgrade
+    if (bestPlan && simCand) {
+      var simWins = (mode === "push")
+        ? (!isCurWinning
+            ? (simCand.flippedToWin && simCand.waitSec <= bestPlan.waitSec)
+            : (simCand.costPerSec <= bestPlan.costPerSec))
+        : (simCand.breakEvenSec <= bestPlan.breakEvenSec);
+      if (simWins) {
+        simCand.vsPlan = {
+          name: bestPlan.build.n,
+          remaining: bestPlan.remaining,
+          waitSec: bestPlan.waitSec,
+          paybackSec: bestPlan.paybackSec,
+          breakEvenSec: bestPlan.breakEvenSec,
+          gain: bestPlan.gain
+        };
+        return simCand;
+      }
+      bestPlan.vsSim = {
+        label: simCand.label,
+        waitSec: simCand.waitSec,
+        paybackSec: simCand.paybackSec,
+        breakEvenSec: simCand.breakEvenSec,
+        gain: simCand.gain
+      };
+      return bestPlan;
+    }
+    if (simCand) return simCand;
+    if (bestPlan) return bestPlan;
+
+    paths.sort(function (a, b) { return (a.blocked - b.blocked) || a.remaining - b.remaining || b.roi - a.roi; });
+    for (var i = 0; i < paths.length; i++) {
+      if (paths[i].step) return scorePlanCandidate(paths[i], mode, cmpCur, curK, bnk, earnRate);
+    }
+    return null;
   }
 
   function render() {
@@ -3763,41 +3961,42 @@ var ONE_TIMER_MILESTONES = [
     var isOptimalClear = false;
     var isOptimalFarm = false;
     var currentCombatSec = null;
+    var curDust = 0;
+    var activePick = null;
 
     if (mode === "push" && !isPlanLocked) {
       currentCombatSec = getCurrentCombatSecPerKill(state.level);
       var isCurWinning = isFinite(currentCombatSec) && currentCombatSec > 0;
       var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+      activePick = bestNextUpgrade(rec, rate);
       if (isCurWinning && (recK >= currentCombatSec - 0.01 || !rec)) {
-        // Current loadout can actually beat the level and is as fast or faster than any runnable sheet build
-        var curCombatBuild = getCurrentEquippedCombatBuild(state.level);
-        if (curCombatBuild) {
-          activeBuild = curCombatBuild;
-          activeBuild.k = currentCombatSec;
-          isOptimalClear = true;
+        // Weigh cost-benefit: only target a future sheet plan if it beats single-item sim ROI
+        if (activePick && activePick.mode !== "upgradeValue" && activePick.build && !runnable(activePick.build) && buildSecPerKill(activePick.build, state.level) < currentCombatSec - 0.01) {
+          activeBuild = activePick.build;
+        } else {
+          var curCombatBuild = getCurrentEquippedCombatBuild(state.level);
+          if (curCombatBuild) {
+            activeBuild = curCombatBuild;
+            activeBuild.k = currentCombatSec;
+            isOptimalClear = true;
+          }
         }
       } else if (!rec || !isCurWinning) {
-        // Current build cannot beat the level (or no runnable sheet build exists):
-        // Recommend the fastest ROI push plan instead!
-        var pushPick = bestNextUpgrade(rec, rate);
-        if (pushPick && pushPick.build) {
-          activeBuild = pushPick.build;
+        if (activePick && activePick.build) {
+          activeBuild = activePick.build;
         }
       }
     } else if (mode === "farm" && !isPlanLocked) {
       var curStats = getCurrentCombatStats(state.level);
-      var curDust = levelCurrentDustPs(state.level, rec);
+      curDust = levelCurrentDustPs(state.level, rec);
       var isWinningOnLevel = curDust > 0 || !!(curStats && curStats.kills > 0);
       var recDust = rec ? (rec.d || 0) : 0;
       if (isWinningOnLevel && curDust > 0 && curDust > recDust) {
-        // Current loadout outperforms the runnable sheet build on this level.
-        // Check if there is a better income sheet available via the advisor:
-        var farmPick = bestNextUpgrade(rec, rate, curDust);
-        if (farmPick && farmPick.build && (farmPick.build.d || 0) > curDust) {
-          // Target the better income sheet build (e.g. anon1)
-          activeBuild = farmPick.build;
+        // Current loadout outperforms runnable sheet builds; weigh best plan vs single-item sim upgrade
+        activePick = bestNextUpgrade(rec, rate, curDust);
+        if (activePick && activePick.mode !== "upgradeValue" && activePick.build && (activePick.build.d || 0) > curDust) {
+          activeBuild = activePick.build;
         } else {
-          // No better income sheet build available: set Current Loadout as optimal farm
           var curFarmBuild = getCurrentEquippedCombatBuild(state.level);
           if (curFarmBuild) {
             activeBuild = curFarmBuild;
@@ -3818,7 +4017,7 @@ var ONE_TIMER_MILESTONES = [
     }
 
     var isTargetOnly = !runnable(activeBuild);
-    var pickForRec = bestNextUpgrade(rec, rate);
+    var pickForRec = activePick || bestNextUpgrade(rec, rate);
     var pStepsForRec = (pickForRec && pickForRec.build && buildId(pickForRec.build) === buildId(activeBuild)) ? pickForRec.allSteps : null;
     var summaryInfo = probeBuildSummary(state.level, activeBuild, rate, pStepsForRec);
     state.lastActiveBuild = activeBuild;
@@ -3991,13 +4190,25 @@ var ONE_TIMER_MILESTONES = [
     if (isPlanLocked && rec && rec.n !== activeBuild.n) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your plan <b>" + esc(activeBuild.n) + "</b>. Currently running: <b>" + esc(rec.n) + "</b> (" + prettify(rec.d) + "/s). Follow the swap guide above and the Next Upgrade Advisor on the right to transition.</span></div>";
     } else if (isOptimalClear || isOptimalFarm) {
+      var vsPlanNote = (pickForRec && pickForRec.vsPlan)
+        ? (" Nearest stronger sheet plan (<b>" + esc(pickForRec.vsPlan.name) + "</b>, " + pickForRec.vsPlan.remaining + " steps) currently has worse cost-benefit than single-item upgrades.")
+        : "";
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" +
         (isOptimalFarm
-          ? ("Your current equipped loadout earns " + prettify(dispD) + "/s on SA " + state.level + ". No higher-income runnable sheet build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")
-          : ("Your current equipped loadout clears SA " + state.level + " in ~" + (isFinite(currentCombatSec) ? currentCombatSec.toFixed(1) : "15.0") + "s per kill. No faster runnable clear build exists on this level. Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")) +
+          ? ("Your current equipped loadout earns " + prettify(dispD) + "/s on SA " + state.level + ". No higher-income runnable sheet build exists on this level." + vsPlanNote + " Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")
+          : ("Your current equipped loadout clears SA " + state.level + " in ~" + (isFinite(currentCombatSec) ? currentCombatSec.toFixed(1) : "15.0") + "s per kill. No faster runnable clear build exists on this level." + vsPlanNote + " Follow the Upgrade Value advisor on the right for the highest-impact stat upgrades.")) +
         "</span></div>";
     } else if (isTargetOnly) {
-      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No sheet build on SA " + state.level + " is currently runnable with your items and levels. Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock). Follow the swap guide above and the Next Upgrade Advisor on the right to progress toward this build.</span></div>";
+      var vsSimNote = (pickForRec && pickForRec.vsSim)
+        ? (" Outperforms single-item sim upgrades (e.g. <b>" + esc(pickForRec.vsSim.label) + "</b>) on cost-benefit.")
+        : "";
+      if (!rec) {
+        explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No sheet build on SA " + state.level + " is currently runnable with your items and levels. Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock)." + vsSimNote + " Follow the swap guide above and the Next Upgrade Advisor on the right to progress toward this build.</span></div>";
+      } else if (mode === "farm") {
+        explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Your current loadout (" + prettify(curDust) + "/s) outperforms all runnable sheet builds on SA " + state.level + " (best runnable: <b>" + esc(rec.n) + "</b> at " + prettify(rec.d) + "/s). Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock) as the best cost-benefit plan to improve your rate." + vsSimNote + "</span></div>";
+      } else {
+        explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No runnable sheet build clears SA " + state.level + " faster than your current loadout (best runnable: <b>" + esc(rec.n) + "</b> at ~" + buildSecPerKill(rec, state.level).toFixed(1) + "s/kill). Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock) to push faster." + vsSimNote + "</span></div>";
+      }
     } else if (activeBuild.note) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>" + esc(activeBuild.note) + "</span></div>";
     }
@@ -5042,26 +5253,39 @@ var ONE_TIMER_MILESTONES = [
       }
     } else if (pick.mode === "upgradeValue") {
       var kStr = (pick.currentCombatSec && isFinite(pick.currentCombatSec)) ? pick.currentCombatSec.toFixed(1) : "—";
+      var planCmp = "";
+      if (pick.vsPlan) {
+        var vpWait = isFinite(pick.vsPlan.waitSec) ? fmtDuration(pick.vsPlan.waitSec) : "blocked";
+        var vpPay = (mode === "farm" && isFinite(pick.vsPlan.paybackSec) && pick.vsPlan.paybackSec > 0)
+          ? (", ~" + fmtTime(pick.vsPlan.paybackSec) + " payback")
+          : "";
+        planCmp = " Better cost-benefit right now than targeting <b>" + esc(pick.vsPlan.name) + "</b> (" + pick.vsPlan.remaining + " steps, " + esc(vpWait) + " wait" + esc(vpPay) + ").";
+      }
       if (mode === "farm") {
         var curD = (pick.currentDustPs && pick.currentDustPs > 0) ? (prettify(pick.currentDustPs) + "/s") : (prettify(levelCurrentDustPs(state.level, rec)) + "/s");
         var gainNote = (pick.gain && pick.gain > 0) ? (" (+" + prettify(pick.gain) + "/s)") : "";
-        why = "Your current loadout earns " + curD + " on SA " + state.level + " (~" + kStr + "s/kill), higher than all recorded runnable sheet builds. The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + gainNote + " as the highest-value upgrade.";
+        var sheetRel = (!rec || (pick.currentDustPs || levelCurrentDustPs(state.level, rec)) >= (rec.d || 0))
+          ? "higher than all recorded runnable sheet builds"
+          : "matching runnable sheet builds";
+        why = "Your current loadout earns " + curD + " on SA " + state.level + " (~" + kStr + "s/kill), " + sheetRel + ". The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + gainNote + " as the highest-value upgrade." + planCmp;
       } else {
         var saveNote = (pick.deltaSecPerKill && pick.deltaSecPerKill > 0)
           ? (" (saving ~" + pick.deltaSecPerKill.toFixed(1) + "s per kill)")
-          : "";
-        why = "Your current loadout clears SA " + state.level + " in ~" + kStr + "s per kill (faster than all recorded runnable sheet builds). The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + saveNote + " as the highest-value upgrade to improve combat performance.";
+          : (pick.flippedToWin ? " (enables clearing SA " + state.level + ")" : "");
+        why = "Your current loadout clears SA " + state.level + " in ~" + kStr + "s per kill (at or ahead of runnable sheet builds). The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + saveNote + " as the highest-value upgrade." + planCmp;
       }
     } else if (pick.mode === "unlocks") {
-      why = (mode === "push")
+      var simCmpUn = pick.vsSim ? (" Outperforms single-item upgrade <b>" + esc(pick.vsSim.label) + "</b> on cost-benefit.") : "";
+      why = ((mode === "push")
         ? "Largest clear time improvement among single-step upgrades that immediately unlock a faster sheet build (click Lock Plan to latch)."
-        : "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build (click Lock Plan to latch).";
+        : "Highest dust/s gain per cost among single-step upgrades that immediately unlock a stronger sheet build (click Lock Plan to latch).") + simCmpUn;
     } else if (isCustom) {
       why = "Custom step order active — hover Step 1 of " + pick.remaining + " to drag and reorder your unlock plan.";
     } else {
-      why = (mode === "push")
-        ? "First step on the fewest-gap path to a faster clear build for SA " + state.level + " (hover Step 1 of " + pick.remaining + " to reorder plan)."
-        : "First step on the fewest-gap path to a stronger sheet build (hover Step 1 of " + pick.remaining + " to reorder plan).";
+      var simCmpTw = pick.vsSim ? (" Better cost-benefit than single-item upgrade <b>" + esc(pick.vsSim.label) + "</b>.") : "";
+      why = ((mode === "push")
+        ? "First step on the best cost-benefit path to a faster clear build for SA " + state.level + " (hover Step 1 of " + pick.remaining + " to reorder plan)."
+        : "First step on the best cost-benefit path to a stronger sheet build (hover Step 1 of " + pick.remaining + " to reorder plan).") + simCmpTw;
     }
 
     var nextSimBtnHtml = "<button type='button' class='btn sm ghost sim-plan-btn' id='nextSimPlanBtn' title='Load " + esc(pick.build.n) + " into Combat Simulator'>⚔️ Sim</button>";
@@ -6241,6 +6465,7 @@ var ONE_TIMER_MILESTONES = [
       planRatesCache = {};
       pushSimCache = {};
       levelSimCache = {};
+      upgradeRoiCache = {};
       buildKillTimeCache = {};
       betterSimToken++;
       if (state.lastBetterBuilds) {
