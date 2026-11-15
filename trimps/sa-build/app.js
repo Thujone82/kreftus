@@ -5123,9 +5123,32 @@ var ONE_TIMER_MILESTONES = [
     state._cachedRec = rec;
     state._cachedPick = pick;
     if (!pick) {
-      el.innerHTML = rec
-        ? "<div class='next'><div class='next-kicker'>" + ICONS.check + " Peak Build Reached</div><p class='empty'>You already match the strongest sheet farm on SA " + state.level + ".</p></div>"
-        : "<div class='next'><div class='next-kicker'>" + ICONS.info + " Next Upgrade</div><p class='empty'>No upgrade on this level matches the current filters.</p></div>";
+      var noPickMode = getLevelMode(state.level);
+      var noPickStats = getCurrentCombatStats(state.level);
+      var curInsufficient = !!(noPickStats && (!(noPickStats.winRate > 0) || !(noPickStats.dustPs > 0) || !isFinite(noPickStats.effSecPerKill)));
+      var recNotEquipped = !!(state.ab && rec && !isBuildEquippedNow(rec));
+      var modeDesc = noPickMode === "push" ? "fastest sheet clear setup" : "strongest sheet farm";
+      var nextSubNoPick = $("nextCardSub");
+      if (nextSubNoPick) {
+        nextSubNoPick.textContent = (noPickMode === "push")
+          ? "Fastest progression step to clear SA " + state.level + " (Clear Priority)"
+          : "Highest ROI progression step (Dust Priority)";
+      }
+      if (rec) {
+        if (curInsufficient && recNotEquipped) {
+          el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--warn);'>" + ICONS.warn + " Adjustments Needed</div><p class='empty'>Your current loadout cannot beat SA " + state.level + " (" + Math.round(noPickStats.winRate || 0) + "% WR). Apply the swaps on the left to switch to <b>" + esc(rec.n) + "</b> (" + modeDesc + ").</p></div>";
+        } else if (curInsufficient) {
+          el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--warn);'>" + ICONS.warn + " Build Insufficient</div><p class='empty'>Your current loadout cannot beat SA " + state.level + " (" + Math.round(noPickStats.winRate || 0) + "% WR), and no stronger sheet build or single-step upgrade unlocks a clear yet.</p></div>";
+        } else if (recNotEquipped && noPickStats && (noPickMode === "push" ? (!isFinite(noPickStats.effSecPerKill) || noPickStats.effSecPerKill > buildSecPerKill(rec, state.level) + 0.05) : (noPickStats.dustPs < (rec.d || 0) * 0.98))) {
+          el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--accent);'>" + ICONS.target + " Adjustments Needed</div><p class='empty'>Apply the swaps on the left to switch to <b>" + esc(rec.n) + "</b>, the " + modeDesc + " on SA " + state.level + ".</p></div>";
+        } else {
+          el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--buy);'>" + ICONS.check + " Peak Build Reached</div><p class='empty'>You already match the " + modeDesc + " on SA " + state.level + ".</p></div>";
+        }
+      } else if (curInsufficient) {
+        el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--warn);'>" + ICONS.warn + " Build Insufficient</div><p class='empty'>Your current loadout cannot beat SA " + state.level + " (" + Math.round(noPickStats.winRate || 0) + "% WR), and no runnable sheet build or single-step upgrade is available for this level yet.</p></div>";
+      } else {
+        el.innerHTML = "<div class='next'><div class='next-kicker'>" + ICONS.info + " Next Upgrade</div><p class='empty'>No upgrade on this level matches the current filters.</p></div>";
+      }
       return;
     }
     if (pick.mode === "completed") {
