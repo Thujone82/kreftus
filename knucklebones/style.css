@@ -1542,9 +1542,137 @@ body.mode-tui .tui-mark {
   gap: 2px;
 }
 
-.play-shell.flip-p2 .panel-top,
-.play-shell.flip-p2 .grid-top {
+.play-shell.lay-mode .play-header {
+  height: 44px;
+  min-height: 44px;
+  padding: 4px;
+  overflow: hidden;
+}
+
+.play-shell.lay-mode .thumb-drop-bar {
+  display: grid;
+  height: 44px;
+  min-height: 44px;
+}
+
+.play-shell.lay-mode .thumb-drop-btn {
+  min-height: 44px;
+  height: 44px;
+}
+
+.play-shell.lay-mode .play-arena {
+  grid-template-rows: 1fr auto;
+  row-gap: 8px;
+  column-gap: 18px;
+}
+
+.play-shell.lay-mode .left-panels {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.play-shell.lay-mode .boards-column {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.play-shell.lay-mode .thumb-drop-bar {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.play-shell.lay-mode .side-panel {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+
+.play-shell.lay-mode.lay-p2 > .play-arena {
+  order: 1;
+  grid-template-rows: auto 1fr;
+}
+
+.play-shell.lay-mode.lay-p2 > .play-header {
+  order: 2;
+}
+
+.play-shell.lay-mode.lay-p2 > .play-actions {
+  order: 3;
+}
+
+.play-shell.lay-mode.lay-p2 > .footer-hint {
+  order: 4;
+}
+
+.play-shell.lay-mode.lay-p2 .thumb-drop-bar {
+  grid-row: 1;
+}
+
+.play-shell.lay-mode.lay-p2 .boards-column {
+  grid-row: 2;
+}
+
+.play-shell.lay-p2 .play-header,
+.play-shell.lay-p2 .player-panel,
+.play-shell.lay-p2 .thumb-drop-bar,
+.play-shell.lay-p2 .side-panel,
+.play-shell.lay-p2 .play-actions,
+.play-shell.lay-p2 .footer-hint,
+.overlay-backdrop.lay-p2 .kb-card {
   transform: rotate(180deg);
+}
+
+.play-shell.lay-p2 .play-header {
+  border-bottom: none;
+  border-top: 1px solid color-mix(in srgb, var(--frame) 35%, transparent);
+}
+
+.play-shell.lay-p2 .col-scores-row > div,
+.play-shell.lay-p2 .aim-cell,
+.play-shell.lay-p2 .aim-divider.replay-bar,
+body.mode-tui .play-shell.lay-p2 .tui-die {
+  transform: rotate(180deg);
+}
+
+.play-shell.lay-p2 .die-cb-mark {
+  transform: translateX(-50%) rotate(180deg);
+}
+
+@keyframes badgeFloatFlip {
+  0% { opacity: 1; transform: translate(-50%, -50%) rotate(180deg); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% + 26px)) rotate(180deg); }
+}
+
+.play-shell.lay-p2 .impact-badge {
+  animation: badgeFloatFlip 650ms ease-out forwards;
+}
+
+@keyframes layChromeFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes layChromeFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.play-shell.lay-fade-out .play-header,
+.play-shell.lay-fade-out .player-panel,
+.play-shell.lay-fade-out .thumb-drop-bar,
+.play-shell.lay-fade-out .side-panel,
+.play-shell.lay-fade-out .play-actions,
+.play-shell.lay-fade-out .footer-hint {
+  animation: layChromeFadeOut 150ms ease-in forwards;
+  pointer-events: none;
+}
+
+.play-shell.lay-fade-in .play-header,
+.play-shell.lay-fade-in .player-panel,
+.play-shell.lay-fade-in .thumb-drop-bar,
+.play-shell.lay-fade-in .side-panel,
+.play-shell.lay-fade-in .play-actions,
+.play-shell.lay-fade-in .footer-hint {
+  animation: layChromeFadeIn 180ms ease-out forwards;
 }
 
 .thumb-drop-bar {
@@ -1884,6 +2012,38 @@ body.mode-tui .tui-mark {
     gap: 4px 8px;
   }
 
+  .play-shell.lay-mode .play-arena {
+    gap: 4px;
+    row-gap: 4px;
+    column-gap: 4px;
+  }
+
+  .play-shell.lay-mode .player-panel.panel-top,
+  .play-shell.lay-mode .player-panel.panel-bottom {
+    height: max(68px, calc(var(--tray-die-size) + 22px));
+    overflow: hidden;
+  }
+
+  .play-shell.lay-mode.lay-p2 .thumb-drop-bar {
+    order: 1;
+  }
+
+  .play-shell.lay-mode.lay-p2 .player-panel.panel-top {
+    order: 2;
+  }
+
+  .play-shell.lay-mode.lay-p2 .boards-column {
+    order: 3;
+  }
+
+  .play-shell.lay-mode.lay-p2 .player-panel.panel-bottom {
+    order: 4;
+  }
+
+  .play-shell.lay-mode.lay-p2 .side-panel {
+    order: 5;
+  }
+
   .side-panel.has-mobile-info {
     justify-content: space-between;
   }
@@ -1986,6 +2146,18 @@ body.mode-tui .tui-mark {
   .play-arena {
     grid-template-columns: 185px minmax(180px, 1fr) 195px;
     gap: 10px;
+  }
+
+  .play-shell.lay-mode .play-arena {
+    row-gap: 3px;
+    column-gap: 10px;
+  }
+
+  .play-shell.lay-mode .play-header,
+  .play-shell.lay-mode .thumb-drop-bar,
+  .play-shell.lay-mode .thumb-drop-btn {
+    height: 34px;
+    min-height: 34px;
   }
 
   .left-panels {

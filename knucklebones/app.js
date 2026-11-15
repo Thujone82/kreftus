@@ -12,6 +12,8 @@
   const GRID_ROWS = 3;
   const ROLL_DURATION_MS = 450;
   const EFFECT_DURATION_MS = 650;
+  const LAY_FADE_OUT_MS = 150;
+  const LAY_FADE_IN_MS = 180;
   const AI_DELAY_MS = 950;
   const MAX_TIMEOUTS = 3;
   const DISCONNECT_GRACE_MS = 30000;
@@ -1102,6 +1104,7 @@
         turnSeconds: 30,
         joinAddr: `localhost:${DEFAULT_PORT}`,
         player2: 'Player 2',
+        localLayout: 'pass',
         sound: true,
         haptics: true,
         quickTap: false,
@@ -1126,6 +1129,7 @@
     const ja = normalizeJoinAddr(cleanText(st.joinAddr, 80));
     base.settings.joinAddr = ja || `localhost:${DEFAULT_PORT}`;
     base.settings.player2 = cleanName(st.player2, 'Player 2');
+    base.settings.localLayout = st.localLayout === 'lay' ? 'lay' : 'pass';
     base.settings.sound = st.sound !== undefined ? !!st.sound : true;
     base.settings.haptics = st.haptics !== undefined ? !!st.haptics : true;
     base.settings.quickTap = !!st.quickTap;
@@ -2554,7 +2558,11 @@
     replayActive: false,
     replayStep: 0,
     replayFrames: [],
-    flipP2: false,
+    layShownSeat: 0,
+    layTargetSeat: 0,
+    layFadePhase: 'idle',
+    layFadeTimer: 0,
+    layDeferredRender: false,
     touchArmedCol: -1,
     wasRolling: false,
     wasFx: false,
@@ -2672,6 +2680,75 @@
     emitSound('click');
   }
 
+  function desiredLaySeat(s) {
+    if (!s || s.mode !== 'local' || save.settings.localLayout !== 'lay') return 0;
+    if (app.replayActive || s.phase !== 'play') return 0;
+    return s.match.turn === 1 ? 1 : 0;
+  }
+
+  function clearLayTransition() {
+    if (app.layFadeTimer) {
+      clearTimeout(app.layFadeTimer);
+      app.layFadeTimer = 0;
+    }
+    app.layFadePhase = 'idle';
+    app.layDeferredRender = false;
+  }
+
+  function syncLayTransition(s) {
+    const target = desiredLaySeat(s);
+    if (app.layFadePhase === 'idle' && target === app.layShownSeat) {
+      app.layTargetSeat = target;
+      return;
+    }
+    if (app.layFadePhase !== 'idle' && target === app.layTargetSeat) return;
+
+    if (app.layFadeTimer) {
+      clearTimeout(app.layFadeTimer);
+      app.layFadeTimer = 0;
+    }
+    app.layTargetSeat = target;
+    app.layFadePhase = 'out';
+    if (s && s.phase === 'play' && isRolling()) {
+      app.rollAt = Date.now() + LAY_FADE_OUT_MS;
+    }
+    const nextCursorForSeat = (seat) => {
+      if (!s || s.phase !== 'play') return app.cursor;
+      const grid = s.match.grids[s.match.turn];
+      const order = seat === 1 ? [2, 1, 0] : [0, 1, 2];
+      if (openSlot(grid[app.cursor]) >= 0) return app.cursor;
+      for (const c of order) {
+        if (openSlot(grid[c]) >= 0) return c;
+      }
+      return app.cursor;
+    };
+    app.layFadeTimer = setTimeout(() => {
+      app.layShownSeat = app.layTargetSeat;
+      app.cursor = nextCursorForSeat(app.layShownSeat);
+      app.layFadePhase = 'in';
+      render();
+      app.layFadeTimer = setTimeout(() => {
+        app.layFadeTimer = 0;
+        app.layFadePhase = 'idle';
+        const shell = rootEl.querySelector('.play-shell');
+        if (shell) shell.classList.remove('lay-fade-out', 'lay-fade-in');
+        if (app.layDeferredRender) {
+          app.layDeferredRender = false;
+          render();
+        }
+      }, LAY_FADE_IN_MS);
+    }, LAY_FADE_OUT_MS);
+  }
+
+  function toggleLocalLayout() {
+    save.settings.localLayout = save.settings.localLayout === 'lay' ? 'pass' : 'lay';
+    persistSave(save);
+    emitSound('click');
+    const s = app.ctl && app.ctl.state();
+    if (s) syncLayTransition(s);
+    render();
+  }
+
   function bottomSeat() {
     if (!app.ctl) return 0;
     const seat = app.ctl.seat();
@@ -2743,6 +2820,7 @@
         }
       }
       checkRecord(s);
+      syncLayTransition(s);
       return;
     }
 
@@ -2765,6 +2843,7 @@
       if (s.match.moves === 0 && myTurn(s)) emitSound('turn');
     }
     syncAim(s);
+    syncLayTransition(s);
   }
 
   function syncAim(s) {
@@ -2884,6 +2963,7 @@
 
   function beginGame(ctl) {
     stopNetWatcher();
+    clearLayTransition();
     app.ctl = ctl;
     app.overlay = 'none';
     app.resultIndex = 0;
@@ -2901,14 +2981,16 @@
     app.soundPhaseKey = '';
     app.winCacheKey = '';
     app.hideResult = false;
-    app.flipP2 = false;
     app.touchArmedCol = -1;
     app.wasRolling = false;
     app.wasFx = false;
     app.pendingDropAnim = false;
     app.pendingShakeAnim = false;
     exitReplay();
-    app.view = ctl.state() ? 'play' : 'lobby';
+    const initS = ctl.state();
+    app.layShownSeat = desiredLaySeat(initS);
+    app.layTargetSeat = app.layShownSeat;
+    app.view = initS ? 'play' : 'lobby';
     syncSessionEvents();
     startClockLoop();
     render();
@@ -2916,6 +2998,7 @@
 
   function leaveGame() {
     stopNetWatcher();
+    clearLayTransition();
     if (app.ctl) {
       app.ctl.leave();
       app.ctl = null;
@@ -2960,8 +3043,12 @@
     app.wasRolling = rollingNow;
     app.wasFx = fxNow;
     if (rollJustEnded || fxJustEnded) {
-      render();
-      return;
+      if (app.layFadePhase !== 'idle') {
+        app.layDeferredRender = true;
+      } else {
+        render();
+        return;
+      }
     }
 
     const timerEl = document.getElementById('turn-timer-val');
@@ -3098,7 +3185,7 @@
     return `${loserName} resigned. ${winnerName} wins.`;
   }
 
-  function headerHeadline(s, now) {
+  function headerHeadline(s, now, displayTurn) {
     if (app.replayActive) return { text: 'Round replay', color: 'var(--accent)' };
     if (app.ctl && app.ctl.mode === 'online') {
       const disc = app.ctl.disconnectLeft(now);
@@ -3117,8 +3204,9 @@
       const c = app.ctl && app.ctl.seat() >= 0 && s.mode !== 'local' ? 'var(--lose)' : 'var(--accent)';
       return { text: `${s.names[w]} wins!`, color: c };
     }
-    if (isRolling()) return { text: `${whoName(s, s.match.turn)} ${isYou(s, s.match.turn) ? 'roll' : 'rolls'}...`, color: 'var(--dim)' };
-    return { text: isYou(s, s.match.turn) ? 'Your turn' : `${s.names[s.match.turn]}'s turn`, color: 'var(--accent)' };
+    const activeTurn = displayTurn !== undefined ? displayTurn : s.match.turn;
+    if (isRolling()) return { text: `${whoName(s, activeTurn)} ${isYou(s, activeTurn) ? 'roll' : 'rolls'}...`, color: 'var(--dim)' };
+    return { text: isYou(s, activeTurn) ? 'Your turn' : `${s.names[activeTurn]}'s turn`, color: 'var(--accent)' };
   }
 
   function resultHeadline(s) {
@@ -3203,9 +3291,9 @@
 
   function settingRowsForMode() {
     if (app.setupMode === 'ai') return ['difficulty', 'rounds', 'destroy', 'dice', 'end', 'start'];
-    if (app.setupMode === 'local') return ['player2', 'rounds', 'destroy', 'dice', 'end', 'start'];
+    if (app.setupMode === 'local') return ['player2', 'localLayout', 'rounds', 'destroy', 'dice', 'end', 'start'];
     if (app.setupMode === 'onlineHost') return ['rounds', 'turnTimer', 'roomCode', 'destroy', 'dice', 'end', 'start'];
-    return ['theme', 'display', 'sound', 'haptics', 'quickTap', 'colorblind', 'winMeter', 'done'];
+    return ['theme', 'display', 'sound', 'haptics', 'quickTap', 'localLayout', 'colorblind', 'winMeter', 'done'];
   }
 
   function settingDisplay(row) {
@@ -3213,6 +3301,7 @@
     switch (row) {
       case 'difficulty': return ['AI difficulty', `${DIFF_LABEL[st.difficulty]} · ${AI_NAME[st.difficulty]}`];
       case 'player2': return ['Player 2 name', st.player2];
+      case 'localLayout': return ['2-player layout', st.localLayout === 'lay' ? 'Lay' : 'Pass'];
       case 'rounds': return ['Number of rounds', roundsLabel(st.bestOf)];
       case 'turnTimer': return ['Turn time limit', st.turnSeconds > 0 ? `${st.turnSeconds}s` : 'No limit'];
       case 'roomCode': return ['Room code', app.hostRoomCode || '(optional)'];
@@ -3623,6 +3712,9 @@
     }
 
     const mover = m.turn;
+    const isLayMode = s.mode === 'local' && save.settings.localLayout === 'lay';
+    const layP2 = isLayMode && app.layShownSeat === 1;
+    const chromeMover = (isLayMode && app.layFadePhase === 'out') ? app.layShownSeat : mover;
     const rolling = !app.replayActive && isRolling();
     const aimingLocal = !app.replayActive && s.phase === 'play' && !rolling && app.overlay === 'none' && myTurn(s);
     const aimingRemote = !app.replayActive && s.phase === 'play' && !rolling && app.overlay === 'none' && !myTurn(s) && s.mode === 'online' && s.aiming;
@@ -3637,7 +3729,7 @@
       previewPl = res.pl;
     }
 
-    const head = headerHeadline(s, now);
+    const head = headerHeadline(s, now, chromeMover);
     const fxProg = !app.replayActive && effectActive() ? (now - app.effectAt) / EFFECT_DURATION_MS : -1;
     const playDrop = app.pendingDropAnim;
     const playShake = app.pendingShakeAnim;
@@ -3687,10 +3779,11 @@
             cellsHtml += renderDieHTML(v, variant, mark, isLast, isJustPlaced);
           }
         }
+        const badgeDelay = fxProg >= 0 ? ` style="animation-delay:${-Math.max(0, Math.round(now - app.effectAt))}ms"` : '';
         const badge = fxGain
-          ? `<div class="impact-badge">+${app.effectLast.gain}</div>`
+          ? `<div class="impact-badge"${badgeDelay}>+${app.effectLast.gain}</div>`
           : fxLoss
-            ? `<div class="impact-badge loss">−${app.effectLast.lost}</div>`
+            ? `<div class="impact-badge loss"${badgeDelay}>−${app.effectLast.lost}</div>`
             : '';
 
         const colCls = ['grid-col', colAimed ? 'aimed' : '', colAimed && isFullCol ? 'full' : '', fxLoss ? 'impact-loss' : '', fxLoss && playShake ? 'col-shake' : ''].filter(Boolean).join(' ');
@@ -3718,7 +3811,7 @@
     }
 
     function buildPlayerPanel(pi, isTop) {
-      const turn = !app.replayActive && s.phase === 'play' && mover === pi;
+      const turn = !app.replayActive && s.phase === 'play' && chromeMover === pi;
       const total = gridScore(m.grids[pi]);
       const winsStr = s.bestOf !== 1 || s.freePlay ? `Rounds won: ${s.wins[pi]}` : '';
       const toStr = (s.turnSeconds > 0 || s.turnLimit > 0) && s.timeouts[pi] > 0 ? `<div class="player-timeouts">Timeouts: ${s.timeouts[pi]} / ${MAX_TIMEOUTS}</div>` : '';
@@ -3773,11 +3866,14 @@
     if (replayNote) {
       dividerHtml = `<div class="aim-divider replay-bar">${escHtml(replayNote)}</div>`;
     } else if (aiming && mv) {
-      const arrow = mover === topP ? '▲' : '▼';
+      const arrow = layP2
+        ? (mover === topP ? '▼' : '▲')
+        : (mover === topP ? '▲' : '▼');
       const cells = [0, 1, 2].map((c) => {
         if (c !== mv.col) return '<div></div>';
         const full = openSlot(m.grids[mover][c]) < 0;
-        return `<div class="aim-cell ${full ? 'full' : ''}">${arrow} ${c + 1} ${arrow}</div>`;
+        const dispCol = layP2 ? (GRID_COLS - c) : (c + 1);
+        return `<div class="aim-cell ${full ? 'full' : ''}">${arrow} ${dispCol} ${arrow}</div>`;
       }).join('');
       dividerHtml = `<div class="aim-divider">${cells}</div>`;
     } else {
@@ -3815,11 +3911,13 @@
     }
 
     const showThumbRow = !app.replayActive && s.phase === 'play';
+    const thumbCols = layP2 ? [2, 1, 0] : [0, 1, 2];
     const thumbBarHtml = showThumbRow
-      ? `<div class="thumb-drop-bar ${myTurn(s) ? '' : 'hidden-turn'}">${[0, 1, 2].map((c) => {
+      ? `<div class="thumb-drop-bar ${myTurn(s) ? '' : 'hidden-turn'}">${thumbCols.map((c, idx) => {
+          const dispNum = idx + 1;
           const full = openSlot(m.grids[mover][c]) < 0;
           const armed = !save.settings.quickTap && app.touchArmedCol === c && !full;
-          const lbl = full ? `Col ${c + 1} Full` : armed ? `Drop ${c + 1} ✓` : `Col ${c + 1}`;
+          const lbl = full ? `Col ${dispNum} Full` : armed ? `Drop ${dispNum} ✓` : `Col ${dispNum}`;
           return renderActionButton(`kb-btn sm thumb-drop-btn ${armed ? 'armed' : ''}`, `data-drop-col="${c}"`, lbl, { disabled: full || !myTurn(s) });
         }).join('')}</div>`
       : '';
@@ -3828,7 +3926,7 @@
     const hasMobileSideInfo = !!(hasSeries || fairTxt || probData);
 
     const flipBtnHtml = s.mode === 'local'
-      ? renderActionButton(`kb-btn sm pill ${app.flipP2 ? 'on' : ''}`, 'data-action="toggle-flip-p2"', 'Flip P2')
+      ? renderActionButton(`kb-btn sm pill ${isLayMode ? 'on' : ''}`, 'data-action="toggle-flip-p2"', `Flip: ${isLayMode ? 'Lay' : 'Pass'} [F]`)
       : '';
 
     const updateBtn = app.swPendingUpdate
@@ -3843,16 +3941,25 @@
           ? (m.rules.twoDice ? 'Tap col to place · Tap die to switch' : 'Tap any column to place')
           : (m.rules.twoDice ? 'Tap col to preview · Tap again to drop · Tap die to switch' : 'Tap col to preview · Tap again to drop');
 
+    const flipHint = s.mode === 'local' ? ' · F flip' : '';
     const desktopHint = app.replayActive
       ? '←→ step · Home/End jump · Esc done'
       : s.phase !== 'play'
         ? 'Enter select · V board · X replay · L log · H history · Esc leave'
-        : m.rules.twoDice
+        : (m.rules.twoDice
           ? 'Click col or ←→ · 1–3/Enter place · click die or Tab/W · C marks · P prob · S sound · L · H · R · Esc'
-          : 'Click col or ←→ · 1–3/Enter place · C marks · P prob · S sound · L log · H history · R resign · Esc leave';
+          : 'Click col or ←→ · 1–3/Enter place · C marks · P prob · S sound · L log · H history · R resign · Esc leave') + flipHint;
+
+    const shellCls = [
+      'play-shell',
+      isLayMode ? 'lay-mode' : '',
+      layP2 ? 'lay-p2' : '',
+      app.layFadePhase === 'out' ? 'lay-fade-out' : '',
+      app.layFadePhase === 'in' ? 'lay-fade-in' : ''
+    ].filter(Boolean).join(' ');
 
     rootEl.innerHTML = `
-      <div class="play-shell ${app.flipP2 && s.mode === 'local' ? 'flip-p2' : ''}">
+      <div class="${shellCls}">
         <header class="play-header">
           <div class="header-brand">
             <img src="./die.png" alt="">
@@ -3984,6 +4091,12 @@
       }
       availBoardsH = availArenaH - otherArenaH - Math.max(0, arenaCount - 1) * arenaGap;
       availBoardsW = arenaEl.clientWidth;
+    } else {
+      const thumbEl = arenaEl.querySelector('.thumb-drop-bar');
+      if (thumbEl && getComputedStyle(thumbEl).display !== 'none') {
+        const arenaGap = parseFloat(arenaStyle.rowGap) || 0;
+        availBoardsH -= boxHeight(thumbEl) + arenaGap;
+      }
     }
 
     const boardsStyle = getComputedStyle(boardsColEl);
@@ -4027,6 +4140,7 @@
   }
 
   function renderOverlayHTML(s) {
+    const overlayFlipCls = s && s.mode === 'local' && save.settings.localLayout === 'lay' && app.layShownSeat === 1 ? ' lay-p2' : '';
     if (app.overlay === 'log') {
       const lines = s.log.length === 0
         ? '<p class="note-hint">Nothing yet.</p>'
@@ -4035,7 +4149,7 @@
             return `<div style="color:${col}">${escHtml(logText(s, e))}</div>`;
           }).join('');
       return `
-        <div class="overlay-backdrop" data-close-overlay="1">
+        <div class="overlay-backdrop${overlayFlipCls}" data-close-overlay="1">
           <div class="kb-card overlay-card">
             <h2 class="kb-card-title">Logs</h2>
             <div class="overlay-scroll">${lines}</div>
@@ -4051,7 +4165,7 @@
             return `<div>Round ${h.round}: ${escHtml(s.names[0])} ${h.scores[0]} – ${h.scores[1]} ${escHtml(s.names[1])} (${escHtml(wText)})</div>`;
           }).join('');
       return `
-        <div class="overlay-backdrop" data-close-overlay="1">
+        <div class="overlay-backdrop${overlayFlipCls}" data-close-overlay="1">
           <div class="kb-card overlay-card">
             <h2 class="kb-card-title">History</h2>
             <div class="overlay-scroll">${lines}</div>
@@ -4068,7 +4182,7 @@
       const noLabel = isRes ? 'Cancel' : 'Stay';
       const yesLabel = isRes ? 'Confirm resignation' : 'Leave';
       return `
-        <div class="overlay-backdrop">
+        <div class="overlay-backdrop${overlayFlipCls}">
           <div class="kb-card" style="max-width:520px;">
             <h2 class="kb-card-title">${escHtml(title)}</h2>
             <p style="text-align:center;font-size:1.02rem;">${escHtml(warn)}</p>
@@ -4165,6 +4279,7 @@
         st.quickTap = !st.quickTap;
         app.touchArmedCol = -1;
         break;
+      case 'localLayout': st.localLayout = st.localLayout === 'lay' ? 'pass' : 'lay'; break;
       case 'colorblind': st.colorblind = !st.colorblind; break;
       case 'winMeter': st.winMeter = !st.winMeter; break;
       default: return;
@@ -4634,9 +4749,7 @@
         if (save.settings.sound) emitSound('click');
         render();
       } else if (act === 'toggle-flip-p2') {
-        app.flipP2 = !app.flipP2;
-        emitSound('click');
-        render();
+        toggleLocalLayout();
       } else if (act === 'save-name') {
         save.name = cleanName(app.nameDraft, 'Lamb');
         persistSave(save);
@@ -4946,6 +5059,7 @@
       }
       if (low === 't') { stepTheme(1); render(); return; }
       if (low === 'm') { toggleDisplayMode(); render(); return; }
+      if (low === 'f' && s.mode === 'local') { toggleLocalLayout(); return; }
 
       if (s.phase !== 'play') {
         const choices = [];
@@ -4967,14 +5081,16 @@
       if (low === 'r') { app.overlay = 'resign'; app.confirmIndex = 0; emitSound('click'); render(); return; }
       if (!myTurn(s) || isRolling()) return;
 
+      const layP2Input = s.mode === 'local' && save.settings.localLayout === 'lay' && app.layShownSeat === 1;
+      const moveDir = layP2Input ? -1 : 1;
       if (e.key === 'ArrowLeft' || low === 'a') {
         e.preventDefault();
-        app.cursor = (app.cursor + GRID_COLS - 1) % GRID_COLS;
+        app.cursor = (app.cursor + GRID_COLS - moveDir) % GRID_COLS;
         syncAim(s);
         render();
       } else if (e.key === 'ArrowRight' || low === 'd') {
         e.preventDefault();
-        app.cursor = (app.cursor + 1) % GRID_COLS;
+        app.cursor = (app.cursor + GRID_COLS + moveDir) % GRID_COLS;
         syncAim(s);
         render();
       } else if ((e.key === 'Tab' || low === 'w' || low === 'q' || low === 'e' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && s.match.dice[1] !== 0) {
@@ -4984,7 +5100,8 @@
         syncAim(s);
         render();
       } else if (e.key === '1' || e.key === '2' || e.key === '3') {
-        placeAtColumn(Number(e.key) - 1);
+        const physicalCol = layP2Input ? (3 - Number(e.key)) : (Number(e.key) - 1);
+        placeAtColumn(physicalCol);
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         placeAtColumn(app.cursor);
