@@ -3776,8 +3776,12 @@ var ONE_TIMER_MILESTONES = [
 
     var missingMods = delta.missingMods || [];
     var hasRingModSwap = b.r && (!hasRing() || missingMods.length > 0);
+    var reqLimbs = Math.max(b.l || 0, Object.keys(b.i || {}).length);
+    var curLimbSlots = maxSlots();
+    var limbGap = Math.max(0, reqLimbs - curLimbSlots);
+    var hasLimbGap = limbGap > 0;
     var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0 || (delta.toSwap && delta.toSwap.length > 0));
-    var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap;
+    var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap || hasLimbGap;
 
     if (!hasAnySwap) {
       var alignedExtraHtml = "";
@@ -3798,6 +3802,17 @@ var ONE_TIMER_MILESTONES = [
 
     var isCollapsed = !isModal && !!state.swapGuideCollapsed;
     var dRows = [];
+    if (hasLimbGap) {
+      var curExtra = extraLimbs();
+      var tgtExtra = curExtra + limbGap;
+      var limbCost = extraLimbCost(curExtra, tgtExtra);
+      var limbTitle = "Purchase Extra Limbs " + curExtra + " → " + tgtExtra + " (" + curLimbSlots + " → " + reqLimbs + " slots · Cost: " + prettify(limbCost) + " dust)";
+      var limbTxt = (limbGap === 1 ? "Unlock Limb" : ("Unlock " + limbGap + " Limbs")) + " (" + curLimbSlots + " → " + reqLimbs + ")";
+      dRows.push(
+        "<div class='delta-row'><span class='delta-lbl'>Limbs:</span>" +
+        "<span class='pill sm warn-pill' title='" + esc(limbTitle) + "'>" + ICONS.limb + " " + esc(limbTxt) + "</span></div>"
+      );
+    }
     if (b.r) {
       if (hasRingModSwap || ringLvGap) {
         var rFrom = (hasRing() ? ("Lv " + curRingLv) : "Locked") + " (" + curMods + ")";
