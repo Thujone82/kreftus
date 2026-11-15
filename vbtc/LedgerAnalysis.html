@@ -1456,6 +1456,9 @@
       this.scaleMode = opts.scaleMode || 'linear';
       this.shadeWindow = opts.shadeWindow || null;
       this.refLine = opts.refLine || null;
+      this.yMin = opts.yMin != null && fin(opts.yMin) ? opts.yMin : null;
+      this.yMax = opts.yMax != null && fin(opts.yMax) ? opts.yMax : null;
+      this.yTicks = Array.isArray(opts.yTicks) ? opts.yTicks : null;
       let mn = Infinity, mx = -Infinity;
       for (const s of this.series) { if (s.pts.length) { mn = Math.min(mn, s.pts[0].x); mx = Math.max(mx, s.pts[s.pts.length - 1].x); } }
       if (opts.xMin != null && opts.xMax != null && fin(opts.xMin) && fin(opts.xMax) && opts.xMax > opts.xMin) {
@@ -1521,8 +1524,14 @@
       let y2px, ticks, zeroY = null;
 
       if (!isLog) {
-        const padY = (ymax - ymin) * 0.06 || Math.abs(ymax) * 0.02 || 1;
-        const yt = niceTicks(this.includeZero && ymin === 0 ? 0 : ymin - padY, this.includeZero && ymax === 0 ? 0 : ymax + padY, Math.max(3, Math.floor(Hh / 56)));
+        let yt;
+        if (this.yMin != null && this.yMax != null && this.yMax > this.yMin) {
+          const tks = this.yTicks || niceTicks(this.yMin, this.yMax, Math.max(3, Math.floor(Hh / 56))).ticks.filter(t => t >= this.yMin - 1e-9 && t <= this.yMax + 1e-9);
+          yt = { min: this.yMin, max: this.yMax, ticks: tks };
+        } else {
+          const padY = (ymax - ymin) * 0.06 || Math.abs(ymax) * 0.02 || 1;
+          yt = niceTicks(this.includeZero && ymin === 0 ? 0 : ymin - padY, this.includeZero && ymax === 0 ? 0 : ymax + padY, Math.max(3, Math.floor(Hh / 56)));
+        }
         ticks = yt.ticks;
         ctx.font = '11px ' + MONO;
         let lw = 0;
@@ -1989,6 +1998,8 @@
       mn = Math.min(mn, splitVal);
       mx = Math.max(mx, splitVal);
     }
+    if (opts.yMin != null && fin(opts.yMin)) mn = opts.yMin;
+    if (opts.yMax != null && fin(opts.yMax)) mx = opts.yMax;
     if (mx === mn) { mx += 1; mn = opts.includeZero ? 0 : mn - 1; }
 
     const X = x => (x - x0) / span * w;
@@ -3736,7 +3747,7 @@
         note: S.wins + 'W · ' + S.losses + 'L · PF ' + pfTxt(S.profitFactor),
         spark: getRollingWinRatePts(S),
         sparkColor: 'buy',
-        sparkOpts: { xMin: S.first, xMax: S.last, signed: true, splitVal: 49.9, neg: PAL.sell },
+        sparkOpts: { xMin: S.first, xMax: S.last, yMin: 0, yMax: 100, signed: true, splitVal: 49.9, neg: PAL.sell },
         title: 'Closed sell win rate in range · Sparkline: Rolling ' + (Math.max(2, parseInt(prefs.rollWin, 10) || 20)) + '-sell win rate'
       },
       {
@@ -3980,6 +3991,9 @@
 
     if (metric === 'winrate') {
       chartOpts.yFmt = v => Math.round(v) + '%';
+      chartOpts.yMin = 0;
+      chartOpts.yMax = 100;
+      chartOpts.yTicks = [0, 25, 50, 75, 100];
       chartOpts.refLine = { y: 50, color: PAL.borderStrong };
       charts.roll.setData(
         [{ pts, color: PAL.buy, neg: PAL.sell, signed: true, splitVal: 50, fill: true, label: 'Rolling win rate (' + W + ')', fmt: v => v.toFixed(1) + '%' }],
