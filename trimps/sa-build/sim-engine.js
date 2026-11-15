@@ -3276,8 +3276,8 @@ function createRawAutoBattle(game, u2Mutations) {
       var totalFights = 0;
 
       while (ab.sessionEnemiesKilled < maxKills && totalFights < maxFights && ticks < maxTicks) {
-        ab.fight();
         ab.battleTime += ab.frameTime;
+        ab.fight();
         ticks++;
         totalFights = ab.sessionEnemiesKilled + ab.sessionTrimpsKilled;
       }

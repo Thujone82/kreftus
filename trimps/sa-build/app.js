@@ -857,7 +857,7 @@ var ONE_TIMER_MILESTONES = [
     // 3. Run and cache a combat simulation on target level l using current loadout
     if (typeof SASimEngine !== "undefined" && state.save && getCurrentEquippedCombatBuild(l)) {
       try {
-        var res = SASimEngine.runBatch({ save: state.save, level: l }, { kills: 300, maxFights: 600, ticks: 150000 });
+        var res = SASimEngine.runBatch({ save: state.save, level: l }, { kills: 9001, maxKills: 9001, maxFights: 9001, fights: 9001, ticks: 150000 });
         if (res) {
           var wr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 0;
           var rawK = (res.kills > 0 && res.secPerKill > 0) ? res.secPerKill : Infinity;
@@ -1753,7 +1753,7 @@ var ONE_TIMER_MILESTONES = [
     state.simulatedDustWinRate = 0;
     state.simulatedLevel = fightLevel;
     try {
-      var simRes = SASimEngine.runBatch({ save: state.save, level: fightLevel }, { kills: 300, maxFights: 600, ticks: 150000 });
+      var simRes = SASimEngine.runBatch({ save: state.save, level: fightLevel }, { kills: 9001, maxKills: 9001, maxFights: 9001, fights: 9001, ticks: 150000 });
       if (simRes && simRes.dustPs > 0) {
         state.simulatedDustPs = simRes.dustPs;
         state.simulatedDustTimePerKill = simRes.timePerKill || simRes.secPerKill;
