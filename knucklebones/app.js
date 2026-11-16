@@ -2626,6 +2626,10 @@
       input.tabIndex = -1;
       input.setAttribute('aria-hidden', 'true');
       input.style.cssText = 'position:fixed;left:0;top:0;z-index:-1;opacity:0.001;margin:0;';
+      // Never let WebKit leave keyboard focus on the hidden haptic switch.
+      input.addEventListener('focus', () => {
+        if (typeof input.blur === 'function') input.blur();
+      });
       document.body.appendChild(input);
     }
     let label = document.getElementById(IOS_HAPTIC_FALLBACK_LABEL_ID);
@@ -2644,7 +2648,13 @@
   function pulseIosHaptic(force = false) {
     if (!force && (Date.now() - lastRealIosHapticAt) < 80) return;
     const label = ensureIosHapticSwitch();
-    if (label) label.click();
+    if (label) {
+      label.click();
+      const sw = document.getElementById(IOS_HAPTIC_SWITCH_ID);
+      if (sw && document.activeElement === sw && typeof sw.blur === 'function') {
+        sw.blur();
+      }
+    }
   }
 
   function triggerHaptic(kind) {
@@ -4852,9 +4862,21 @@
     }
   });
 
+  function isTextInputElement(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    const type = (el.type || 'text').toLowerCase();
+    return type === 'text' || type === 'search' || type === 'url' || type === 'tel' || type === 'email' || type === 'password' || type === 'number';
+  }
+
   document.addEventListener('keydown', (e) => {
-    const activeTag = document.activeElement && document.activeElement.tagName;
-    const typing = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.id === IOS_HAPTIC_SWITCH_ID && typeof activeEl.blur === 'function') {
+      activeEl.blur();
+    }
+    const typing = isTextInputElement(activeEl);
 
     if (e.key === 'Escape') {
       e.preventDefault();
