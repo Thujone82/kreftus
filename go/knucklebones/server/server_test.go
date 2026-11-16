@@ -536,3 +536,142 @@ func TestChallengeRejectsLambAndStartsWithValidName(t *testing.T) {
 		t.Fatalf("unexpected challenge initial state: %+v", st)
 	}
 }
+
+func TestChallengeStatsRollMoveRoundCompletionAndMigration(t *testing.T) {
+	h, addr, pool := startTestServer(t, true)
+	tlsCfg := &tls.Config{RootCAs: pool, ServerName: "127.0.0.1"}
+
+	conn, br := dialWSClient(t, addr, tlsCfg)
+	defer conn.Close()
+	if err := writeEnvelope(conn, envelope{Type: rMsgChallenge, Name: "Kaleb", Token: "t-chal-stats"}, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	_ = readEnv(t, br, conn)
+	_, _ = readJSONLine(br, conn, 2*time.Second, maxWireMsgBytes) // challenge
+	helloBytes, _ := json.Marshal(challengeNetMsg{
+		Type:    "hello",
+		Version: 2,
+		Name:    "Kaleb",
+		Token:   "t-chal-stats",
+		Seed:    challengeRandomHex(32),
+	})
+	_ = writeRawLine(conn, helloBytes, time.Second)
+
+	// Wait until it's the player's turn (Shrumy may go first and place 1 die).
+	var st *wireSession
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		raw, err := readJSONLine(br, conn, 2*time.Second, maxWireMsgBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var msg challengeNetMsg
+		if json.Unmarshal(raw, &msg) == nil && msg.Type == "state" && msg.State != nil {
+			st = msg.State
+			if st.Phase == phasePlay && st.Match.Turn == 1 {
+				break
+			}
+		}
+	}
+	if st == nil || st.Match.Turn != 1 {
+		t.Fatalf("expected player turn, got %+v", st)
+	}
+
+	// Player places 1 die in col 0.
+	moveBytes, _ := json.Marshal(challengeNetMsg{Type: "move", Col: 0, Die: 0})
+	if err := writeRawLine(conn, moveBytes, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	// Read post-move state.
+	rawAfter, err := readJSONLine(br, conn, 2*time.Second, maxWireMsgBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var afterMsg challengeNetMsg
+	if err := json.Unmarshal(rawAfter, &afterMsg); err != nil || afterMsg.State == nil {
+		t.Fatalf("expected state after move, got %q (%v)", string(rawAfter), err)
+	}
+	expectedMoves := uint64(afterMsg.State.Match.Moves)
+
+	snap := h.stats.SnapshotWithChallenges(0, 0, 0, 1)
+	if snap.TotalDicePlayed != expectedMoves {
+		t.Fatalf("expected global TotalDicePlayed=%d to include challenge moves, got %d", expectedMoves, snap.TotalDicePlayed)
+	}
+	if snap.Challenge == nil || snap.Challenge.TotalDicePlayed != expectedMoves {
+		t.Fatalf("expected Challenge.TotalDicePlayed=%d, got %+v", expectedMoves, snap.Challenge)
+	}
+	if snap.TotalDiceRolled < expectedMoves || snap.Challenge.TotalDiceRolled < expectedMoves {
+		t.Fatalf("expected rolled dice >= %d, got global=%d challenge=%d", expectedMoves, snap.TotalDiceRolled, snap.Challenge.TotalDiceRolled)
+	}
+	var histSum uint64
+	for _, c := range snap.DiceHistogram {
+		histSum += c
+	}
+	if histSum != expectedMoves {
+		t.Fatalf("expected DiceHistogram sum=%d, got %d (%v)", expectedMoves, histSum, snap.DiceHistogram)
+	}
+
+	// Resign to verify forfeit metrics are counted globally and under challenge.
+	resignBytes, _ := json.Marshal(challengeNetMsg{Type: "resign"})
+	_ = writeRawLine(conn, resignBytes, time.Second)
+	_, _ = readJSONLine(br, conn, 2*time.Second, maxWireMsgBytes)
+
+	snap2 := h.stats.SnapshotWithChallenges(0, 0, 0, 0)
+	if snap2.Forfeits["resignation"] != 1 || snap2.Challenge.ForfeitsByReason["resignation"] != 1 {
+		t.Fatalf("expected resignation forfeit counts, got global=%v challenge=%v", snap2.Forfeits, snap2.Challenge.ForfeitsByReason)
+	}
+	if snap2.CompletedMatches != 1 {
+		t.Fatalf("expected forfeited challenge with moves to count CompletedMatches=1, got %d", snap2.CompletedMatches)
+	}
+
+	// Test v1 -> v2 backfill migration from disk.
+	v1Path := filepath.Join(t.TempDir(), "v1_stats.json")
+	v1JSON := `{
+  "version": 1,
+  "completedMatches": 3,
+  "completedRounds": 3,
+  "roundDraws": 0,
+  "totalDicePlayed": 72,
+  "totalDiceDestroyed": 23,
+  "totalPointsScored": 232,
+  "totalPointsDestroyed": 89,
+  "diceHistogram": [14, 13, 11, 9, 12, 13],
+  "forfeits": {"timeout": 1},
+  "bestOfCounts": {"1": 3, "3": 1},
+  "standardMatches": 4,
+  "challenge": {
+    "attempts": 6,
+    "completions": 2,
+    "playerWins": 1,
+    "aiWins": 1,
+    "ties": 0,
+    "forfeits": 3,
+    "totalDicePlayed": 200,
+    "bestDelta": 78,
+    "hasBestDelta": true,
+    "bestTimeMs": 118699,
+    "top10": [],
+    "recent": [
+      {"name": "P1", "delta": 78, "durationMs": 118699, "roundDeltas": [-5, 43, 40], "playerTotal": 207, "aiTotal": 129, "wins": 2, "losses": 1, "ties": 0, "recordedAt": "2026-11-16T16:18:09Z"},
+      {"name": "P2", "delta": -41, "durationMs": 233954, "roundDeltas": [-33, 0, -8], "playerTotal": 77, "aiTotal": 118, "wins": 0, "losses": 2, "ties": 1, "recordedAt": "2026-11-16T16:10:18Z"}
+    ]
+  }
+}`
+	if err := os.WriteFile(v1Path, []byte(v1JSON), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	migrated := newStatsStore(v1Path)
+	ms := migrated.SnapshotWithChallenges(0, 0, 0, 0)
+	if ms.TotalDicePlayed != 272 || ms.OnlineMatches != 3 || ms.CompletedMatches != 5 || ms.CompletedRounds != 9 || ms.RoundDraws != 1 {
+		t.Fatalf("unexpected migrated global stats: %+v", ms)
+	}
+	if ms.Challenge.PlayerRoundWins != 2 || ms.Challenge.AIRoundWins != 3 || ms.Challenge.RoundTies != 1 || ms.Challenge.FastestWinMs != 118699 {
+		t.Fatalf("unexpected migrated challenge stats: %+v", ms.Challenge)
+	}
+	// Reloading again must be idempotent (version is already 2).
+	reloaded := newStatsStore(v1Path)
+	rs := reloaded.SnapshotWithChallenges(0, 0, 0, 0)
+	if rs.TotalDicePlayed != 272 || rs.CompletedMatches != 5 {
+		t.Fatalf("migration was not idempotent: %+v", rs)
+	}
+}

@@ -368,6 +368,7 @@ func (e *challengeEngine) rollDie() {
 	if len(e.roundRolls) < 500 {
 		e.roundRolls = append(e.roundRolls, e.match.Dice)
 	}
+	e.hub.stats.RecordChallengeRoll(e.match.Dice[0])
 }
 
 func (e *challengeEngine) computeCompletedDelta() int {
@@ -392,7 +393,7 @@ func (e *challengeEngine) place(p, col int) bool {
 		e.firstDieAt = now
 	}
 	e.lastDieAt = now
-	e.hub.stats.RecordChallengeDie()
+	e.hub.stats.RecordChallengeMove(pl)
 
 	if len(e.roundMoves) < challengeMaxReplay {
 		e.roundMoves = append(e.roundMoves, wireReplayMove{
@@ -417,6 +418,7 @@ func (e *challengeEngine) place(p, col int) bool {
 	} else {
 		e.rollDie()
 		e.turnStartedAt = now
+		e.hub.broadcastLobby(false)
 	}
 	return true
 }
@@ -435,6 +437,7 @@ func (e *challengeEngine) finishRound() {
 		lead = 1
 	}
 	scores := e.match.Scores()
+	e.hub.stats.RecordChallengeRound(e.playerName, scores, e.roundFirst, w)
 	e.history = append(e.history, wireHistoryEntry{
 		Round:  e.round,
 		Scores: scores,
@@ -489,6 +492,7 @@ func (e *challengeEngine) finishRound() {
 		e.hub.broadcastLobby(true)
 	} else {
 		e.phase = phaseRoundOver
+		e.hub.broadcastLobby(true)
 	}
 }
 
@@ -496,6 +500,7 @@ func (e *challengeEngine) forfeitBy(loser int, reason string) {
 	if e.forfeit != nil || e.phase == phaseGameOver {
 		return
 	}
+	hadMoves := !e.firstDieAt.IsZero() || len(e.history) > 0
 	e.forfeit = &wireForfeit{Reason: reason, Loser: loser}
 	e.match.Over = true
 	e.match.Dice = [2]int{}
@@ -507,7 +512,8 @@ func (e *challengeEngine) forfeitBy(loser int, reason string) {
 		e.nextHostSeed = challengeRandomHex(32)
 	}
 	e.nextHostComm = challengeCommitSeed(e.nextHostSeed)
-	e.hub.stats.RecordChallengeForfeit()
+	e.hub.stats.RecordChallengeForfeit(e.playerName, reason, loser, e.wins, e.ties, hadMoves)
+	e.hub.broadcastLobby(true)
 }
 
 func (e *challengeEngine) elapsedMs(now time.Time) int64 {
@@ -630,7 +636,9 @@ func (h *hub) runChallenge(conn net.Conn, br *bufio.Reader, req envelope) {
 		return
 	}
 	h.activeChallenges++
+	activeChal := h.activeChallenges
 	h.mu.Unlock()
+	h.stats.ObserveChallengePeak(activeChal)
 
 	defer func() {
 		h.mu.Lock()
@@ -843,6 +851,7 @@ func (h *hub) runChallenge(conn net.Conn, br *bufio.Reader, req envelope) {
 				if now.Sub(eng.turnStartedAt) >= time.Duration(challengeTurnSeconds)*time.Second {
 					turn := eng.match.Turn
 					eng.timeouts[turn]++
+					eng.hub.stats.RecordChallengeTimeout(turn)
 					eng.addLog(wireLogEntry{Kind: "timeout", Player: turn, Count: eng.timeouts[turn]})
 					if eng.timeouts[turn] >= challengeMaxTimeouts {
 						stopAI()

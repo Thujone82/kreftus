@@ -60,10 +60,12 @@ type hub struct {
 }
 
 func newHub(statsPath string) *hub {
+	st := newStatsStore(statsPath)
+	st.MarkServerStart(time.Now().UTC().UnixMilli())
 	return &hub{
 		rooms:    make(map[string]*room),
 		watchers: make(map[uint64]*watcher),
-		stats:    newStatsStore(statsPath),
+		stats:    st,
 	}
 }
 
@@ -195,6 +197,12 @@ func (h *hub) addWatcher(conn net.Conn) *watcher {
 	h.nextWatchID++
 	w := &watcher{id: h.nextWatchID, conn: conn}
 	h.watchers[w.id] = w
+	wCount := len(h.watchers)
+	h.mu.Unlock()
+
+	h.stats.RecordWatcherConnected(wCount)
+
+	h.mu.Lock()
 	rooms, sv := h.snapshotLocked()
 	h.mu.Unlock()
 
@@ -237,6 +245,11 @@ func (h *hub) createRoom(conn net.Conn, req envelope) (*room, error) {
 		},
 	}
 	h.rooms[id] = r
+	h.mu.Unlock()
+
+	h.stats.RecordRoomCreated()
+
+	h.mu.Lock()
 	_, sv := h.snapshotLocked()
 	h.mu.Unlock()
 
@@ -488,13 +501,20 @@ func (h *hub) runHost(conn net.Conn, br *bufio.Reader, req envelope) {
 			var inner wireGameEnvelope
 			if json.Unmarshal([]byte(env.Data), &inner) == nil && inner.Type == "state" && inner.State != nil {
 				becameLive := false
+				liveCount := 0
 				h.mu.Lock()
 				if !r.live {
 					r.live = true
 					becameLive = true
 				}
 				changed, completedNow, _ := h.stats.ObserveState(&r.progress, inner.State)
+				if becameLive {
+					liveCount, _ = h.countsLocked()
+				}
 				h.mu.Unlock()
+				if becameLive {
+					h.stats.ObserveLivePeak(liveCount)
+				}
 				if becameLive || completedNow {
 					h.broadcastLobby(true)
 				} else if changed {
