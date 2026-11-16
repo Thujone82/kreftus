@@ -1378,6 +1378,14 @@ body.mode-gui .die-pip {
   line-height: 1.45;
 }
 
+.overlay-card .settings-list {
+  max-width: none;
+}
+
+.overlay-card .setting-row {
+  background: var(--empty-bg);
+}
+
 /* ---- Guide & Stats ---- */
 .guide-card {
   width: 100%;

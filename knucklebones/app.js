@@ -2671,6 +2671,7 @@
     view: 'menu',
     menuIndex: 0,
     setupMode: 'ai',
+    optionsReturnView: 'menu',
     setIndex: 0,
     joinAddr: save.settings.joinAddr || `localhost:${DEFAULT_PORT}`,
     joinCode: '',
@@ -2691,6 +2692,7 @@
     challengeSyncKey: '',
     ctl: null,
     overlay: 'none',
+    overlayOptIndex: 0,
     confirmIndex: 0,
     resultIndex: 0,
     hideResult: false,
@@ -3548,13 +3550,21 @@
     if (app.setupMode === 'ai') return ['difficulty', 'rounds', 'destroy', 'dice', 'end', 'start'];
     if (app.setupMode === 'local') return ['player2', 'localLayout', 'rounds', 'destroy', 'dice', 'end', 'start'];
     if (app.setupMode === 'onlineHost') return ['rounds', 'turnTimer', 'roomCode', 'destroy', 'dice', 'end', 'start'];
-    return ['theme', 'display', 'sound', 'haptics', 'quickTap', 'localLayout', 'colorblind', 'winMeter', 'done'];
+    return ['theme', 'display', 'sound', 'haptics', 'quickTap', 'localLayout', 'colorblind', 'winMeter', 'playerName', 'player2', 'done'];
+  }
+
+  function overlayOptionRows(s) {
+    const rows = ['theme', 'display', 'sound', 'haptics', 'quickTap'];
+    if (s && s.mode === 'local') rows.push('localLayout');
+    rows.push('colorblind', 'winMeter');
+    return rows;
   }
 
   function settingDisplay(row) {
     const st = save.settings;
     switch (row) {
       case 'difficulty': return ['AI difficulty', `${DIFF_LABEL[st.difficulty]} · ${AI_NAME[st.difficulty]}`];
+      case 'playerName': return ['Your name', save.name];
       case 'player2': return ['Player 2 name', st.player2];
       case 'localLayout': return ['2-player layout', st.localLayout === 'lay' ? 'Lay' : 'Pass'];
       case 'rounds': return ['Number of rounds', roundsLabel(st.bestOf)];
@@ -3575,10 +3585,54 @@
     }
   }
 
+  function renderSettingRowHTML(row, idx, sel, attrs = { idxAttr: 'data-set-idx', stepAttr: 'data-set-step' }) {
+    const [label, val] = settingDisplay(row);
+    const { idxAttr, stepAttr } = attrs;
+    const hapticOnRow = isIosDevice() && (save.settings.haptics || row === 'haptics');
+    if (hapticOnRow) ensureIosHapticSwitch();
+    if (row === 'playerName') {
+      return `
+        <div class="setting-row ${sel ? 'selected' : ''}" ${idxAttr}="${idx}">
+          <span class="setting-label">${escHtml(label)}</span>
+          <input id="input-options-name" class="kb-input" type="text" maxlength="16" value="${escHtml(app.nameDraft)}" placeholder="Lamb">
+        </div>`;
+    }
+    if (row === 'player2') {
+      return `
+        <div class="setting-row ${sel ? 'selected' : ''}" ${idxAttr}="${idx}">
+          <span class="setting-label">${escHtml(label)}</span>
+          <input id="input-player2" class="kb-input" type="text" maxlength="16" value="${escHtml(save.settings.player2)}" placeholder="Player 2">
+        </div>`;
+    }
+    if (row === 'roomCode') {
+      return `
+        <div class="setting-row ${sel ? 'selected' : ''}" ${idxAttr}="${idx}">
+          <span class="setting-label">${escHtml(label)}</span>
+          <input id="input-host-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.hostRoomCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
+        </div>`;
+    }
+    const prevBtn = hapticOnRow
+      ? `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="arrow-btn" ${stepAttr}="-1" ${idxAttr}="${idx}" aria-label="Previous">◀</label>`
+      : `<button type="button" class="arrow-btn" ${stepAttr}="-1" ${idxAttr}="${idx}" aria-label="Previous">◀</button>`;
+    const nextBtn = hapticOnRow
+      ? `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="arrow-btn" ${stepAttr}="1" ${idxAttr}="${idx}" aria-label="Next">▶</button>`
+      : `<button type="button" class="arrow-btn" ${stepAttr}="1" ${idxAttr}="${idx}" aria-label="Next">▶</button>`;
+    return `
+      <div class="setting-row ${sel ? 'selected' : ''}" ${idxAttr}="${idx}">
+        ${iosHapticHitMarkup(hapticOnRow)}
+        <span class="setting-label">${escHtml(label)}</span>
+        <div class="setting-ctrl">
+          ${prevBtn}
+          <span class="setting-val">${escHtml(val)}</span>
+          ${nextBtn}
+        </div>
+      </div>`;
+  }
+
   function renderSettings() {
     const titles = { ai: 'Play vs AI', local: '2 Players (Same Device)', onlineHost: 'Host Online Match', options: 'Options' };
     const subtitle = app.setupMode === 'options'
-      ? 'Appearance & audio'
+      ? 'Preferences & appearance'
       : app.setupMode === 'onlineHost'
         ? `Hosted via ${getRendezvousAddr()}`
         : 'Game settings';
@@ -3586,7 +3640,9 @@
     if (app.setIndex >= rows.length) app.setIndex = rows.length - 1;
 
     const hint = app.setupMode === 'ai' ? DIFF_HINT[save.settings.difficulty] : '';
-    const backAction = app.setupMode === 'onlineHost' ? 'back-network' : 'back-menu';
+    const backAction = app.setupMode === 'onlineHost' || (app.setupMode === 'options' && app.optionsReturnView === 'network')
+      ? 'back-network'
+      : 'back-menu';
 
     const showInstallBtn = app.setupMode === 'options' && !isPwaStandalone() && !!app.installPromptEvent;
     const showIosHint = app.setupMode === 'options' && !isPwaStandalone() && !app.installPromptEvent && isIosDevice();
@@ -3596,55 +3652,25 @@
         ? `<p class="ios-install-hint" aria-live="polite">To install on iPhone/iPad: open in Safari, tap Share, then Add to Home Screen.</p>`
         : '';
 
+    const actionRow = rows[rows.length - 1];
+    const actionSel = app.setIndex === rows.length - 1;
+    const [actionLabel] = settingDisplay(actionRow);
+
     rootEl.innerHTML = `
       <div class="screen screen-top">
         <p class="small-title">K N U C K L E B O N E S</p>
         <h2 class="section-heading">${escHtml(titles[app.setupMode])}</h2>
         <p class="subtitle">${escHtml(subtitle)}</p>
         <div class="settings-list">
-          ${rows.map((row, idx) => {
-            const sel = idx === app.setIndex;
-            const [label, val] = settingDisplay(row);
-            if (row === 'start' || row === 'done') {
-              return `${app.setupMode === 'options' ? pwaInstallHtml : ''}<div class="btn-row">${renderActionButton(`kb-btn ${sel ? 'selected' : 'primary'}`, `data-set-action="${row}"`, escHtml(label))}</div>`;
-            }
-            const hapticOnRow = isIosDevice() && (save.settings.haptics || row === 'haptics');
-            if (hapticOnRow) ensureIosHapticSwitch();
-            if (row === 'player2') {
-              return `
-                <div class="setting-row ${sel ? 'selected' : ''}" data-set-idx="${idx}">
-                  <span class="setting-label">${escHtml(label)}</span>
-                  <input id="input-player2" class="kb-input" type="text" maxlength="16" value="${escHtml(save.settings.player2)}" placeholder="Player 2">
-                </div>`;
-            }
-            if (row === 'roomCode') {
-              return `
-                <div class="setting-row ${sel ? 'selected' : ''}" data-set-idx="${idx}">
-                  <span class="setting-label">${escHtml(label)}</span>
-                  <input id="input-host-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.hostRoomCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
-                </div>`;
-            }
-            const prevBtn = hapticOnRow
-              ? `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="arrow-btn" data-set-step="-1" data-set-idx="${idx}" aria-label="Previous">◀</label>`
-              : `<button type="button" class="arrow-btn" data-set-step="-1" data-set-idx="${idx}" aria-label="Previous">◀</button>`;
-            const nextBtn = hapticOnRow
-              ? `<label for="${IOS_HAPTIC_SWITCH_ID}" role="button" tabindex="0" class="arrow-btn" data-set-step="1" data-set-idx="${idx}" aria-label="Next">▶</label>`
-              : `<button type="button" class="arrow-btn" data-set-step="1" data-set-idx="${idx}" aria-label="Next">▶</button>`;
-            return `
-              <div class="setting-row ${sel ? 'selected' : ''}" data-set-idx="${idx}">
-                ${iosHapticHitMarkup(hapticOnRow)}
-                <span class="setting-label">${escHtml(label)}</span>
-                <div class="setting-ctrl">
-                  ${prevBtn}
-                  <span class="setting-val">${escHtml(val)}</span>
-                  ${nextBtn}
-                </div>
-              </div>`;
-          }).join('')}
+          ${rows.slice(0, -1).map((row, idx) => renderSettingRowHTML(row, idx, idx === app.setIndex)).join('')}
         </div>
         ${hint ? `<p class="note-hint">${escHtml(hint)}</p>` : ''}
         ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-        <div class="btn-row">${renderActionButton('kb-btn', `data-action="${backAction}"`, 'Back')}</div>
+        ${app.setupMode === 'options' ? pwaInstallHtml : ''}
+        <div class="btn-row">
+          ${renderActionButton('kb-btn', `data-action="${backAction}"`, 'Back')}
+          ${renderActionButton(`kb-btn ${actionSel ? 'selected' : 'primary'}`, `data-set-action="${actionRow}"`, escHtml(actionLabel))}
+        </div>
         ${app.setupMode === 'options' ? renderOptionsCacheFooter() : ''}
       </div>
       <div class="footer-hint">Click a setting or ↑↓ select · ←→ change · Enter · Esc back</div>
@@ -3836,6 +3862,7 @@
           <p class="note-hint" style="margin-top:6px;">Ranked by combined 3-match net delta · Tie-breaker: completion time</p>
           <div class="btn-row">
             ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn', 'data-action="open-options-network"', 'Options')}
             ${renderActionButton('kb-btn', 'data-action="edit-challenge-name"', 'Change Name')}
             ${renderActionButton('kb-btn selected', 'data-action="start-challenge"', 'Start Challenge')}
           </div>
@@ -3859,6 +3886,7 @@
           <p class="note-hint" style="margin-top:4px;">Server: ${escHtml(getRendezvousAddr())}</p>
           <div class="btn-row">
             ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn', 'data-action="open-options-network"', 'Options')}
             ${renderActionButton('kb-btn', 'data-action="open-online-host"', 'Host Match')}
             ${renderActionButton('kb-btn selected', 'data-action="submit-online-join"', 'Join Match', { disabled: rooms.length === 0 })}
           </div>
@@ -3876,6 +3904,7 @@
           <p class="note-hint" style="margin-top:8px;">Games can be hosted with the PC/Linux version</p>
           <div class="btn-row">
             ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn', 'data-action="open-options-network"', 'Options')}
             ${renderActionButton('kb-btn selected', 'data-action="submit-join"', 'Join')}
           </div>
         `);
@@ -4249,12 +4278,14 @@
       actions.push(
         { id: 'open-log', label: 'Log [L]' },
         { id: 'open-history', label: 'History [H]' },
+        { id: 'open-options', label: 'Options [O]' },
         { id: 'open-leave', label: 'Leave [Esc]' }
       );
     } else {
       actions.push(
         { id: 'open-log', label: 'Log [L]' },
         { id: 'open-history', label: 'History [H]' },
+        { id: 'open-options', label: 'Options [O]' },
         { id: 'open-resign', label: 'Resign [R]' },
         { id: 'open-leave', label: 'Leave [Esc]' }
       );
@@ -4295,10 +4326,10 @@
     const desktopHint = app.replayActive
       ? '←→ step · Home/End jump · Esc done'
       : s.phase !== 'play'
-        ? 'Enter select · V board · X replay · L log · H history · Esc leave'
+        ? 'Enter select · V board · X replay · L log · H history · O options · Esc leave'
         : (m.rules.twoDice
-          ? 'Click col or ←→ · 1–3/Enter place · click die or Tab/W · C marks · P prob · S sound · L · H · R · Esc'
-          : 'Click col or ←→ · 1–3/Enter place · C marks · P prob · S sound · L log · H history · R resign · Esc leave') + flipHint;
+          ? 'Click col or ←→ · 1–3/Enter place · click die or Tab/W · C marks · P prob · S sound · L · H · O · R · Esc'
+          : 'Click col or ←→ · 1–3/Enter place · C marks · P prob · S sound · L log · H history · O options · R resign · Esc leave') + flipHint;
 
     const shellCls = [
       'play-shell',
@@ -4525,6 +4556,23 @@
           </div>
         </div>`;
     }
+    if (app.overlay === 'options') {
+      const rows = overlayOptionRows(s);
+      if (app.overlayOptIndex >= rows.length) app.overlayOptIndex = rows.length - 1;
+      if (app.overlayOptIndex < 0) app.overlayOptIndex = 0;
+      return `
+        <div class="overlay-backdrop${overlayFlipCls}" data-close-overlay="1">
+          <div class="kb-card overlay-card">
+            <h2 class="kb-card-title">Options</h2>
+            <div class="overlay-scroll">
+              <div class="settings-list">
+                ${rows.map((row, idx) => renderSettingRowHTML(row, idx, idx === app.overlayOptIndex, { idxAttr: 'data-opt-idx', stepAttr: 'data-opt-step' })).join('')}
+              </div>
+            </div>
+            <div class="btn-row">${renderActionButton('kb-btn sm selected', 'data-action="close-overlay"', 'Done')}</div>
+          </div>
+        </div>`;
+    }
     if (app.overlay === 'resign' || app.overlay === 'leave') {
       const isRes = app.overlay === 'resign';
       const title = isRes ? 'Resign this match?' : 'Leave this game?';
@@ -4603,8 +4651,10 @@
   // =========================================================================
   // 11. EVENT HANDLERS (Click / Touch / Keyboard)
   // =========================================================================
-  function openSettings(mode) {
+  function openSettings(mode, returnView = 'menu') {
     app.setupMode = mode;
+    app.optionsReturnView = mode === 'options' ? returnView : 'menu';
+    if (mode === 'options') app.nameDraft = save.name;
     const rows = settingRowsForMode();
     app.setIndex = mode === 'options' ? 0 : rows.length - 1;
     app.note = '';
@@ -4612,6 +4662,37 @@
     emitSound('click');
     if (mode === 'options') refreshCacheVersion();
     render();
+  }
+
+  function commitOptionsInputs(requireValidName = false) {
+    save.settings.player2 = cleanName(save.settings.player2, 'Player 2');
+    const candidate = cleanName(app.nameDraft, 'Lamb');
+    if (isBadName(candidate)) {
+      if (requireValidName) {
+        app.note = 'That name contains disallowed words.';
+        render();
+        document.getElementById('input-options-name')?.focus();
+        return false;
+      }
+      persistSave(save);
+      return true;
+    }
+    save.name = candidate;
+    app.nameDraft = candidate;
+    persistSave(save);
+    return true;
+  }
+
+  function closeOptionsView(requireValidName = false) {
+    if (app.setupMode === 'options' && !commitOptionsInputs(requireValidName)) return false;
+    app.note = '';
+    if ((app.setupMode === 'options' && app.optionsReturnView === 'network') || app.setupMode === 'onlineHost') {
+      openNetworkView(true);
+    } else {
+      app.view = 'menu';
+      render();
+    }
+    return true;
   }
 
   function changeSetting(row, step) {
@@ -4644,7 +4725,13 @@
         st.quickTap = !st.quickTap;
         app.touchArmedCol = -1;
         break;
-      case 'localLayout': st.localLayout = st.localLayout === 'lay' ? 'pass' : 'lay'; break;
+      case 'localLayout':
+        st.localLayout = st.localLayout === 'lay' ? 'pass' : 'lay';
+        if (app.view === 'play' && app.ctl) {
+          const s = app.ctl.state();
+          if (s) syncLayTransition(s);
+        }
+        break;
       case 'colorblind': st.colorblind = !st.colorblind; break;
       case 'winMeter': st.winMeter = !st.winMeter; break;
       default: return;
@@ -4882,6 +4969,7 @@
   rootEl.addEventListener('input', (e) => {
     const id = e.target.id;
     if (id === 'input-player2') save.settings.player2 = e.target.value;
+    else if (id === 'input-options-name') app.nameDraft = e.target.value;
     else if (id === 'input-host-code') app.hostRoomCode = e.target.value;
     else if (id === 'input-player-name') app.nameDraft = e.target.value;
     else if (id === 'input-challenge-name') app.netNameDraft = e.target.value;
@@ -4933,12 +5021,35 @@
       const idx = Number(rowEl.dataset.setIdx);
       app.setIndex = idx;
       const row = settingRowsForMode()[idx];
-      if (row === 'player2' || row === 'roomCode') {
+      if (row === 'playerName' || row === 'player2' || row === 'roomCode') {
         render();
-        const inp = rowEl.querySelector('input');
-        if (inp) inp.focus();
+        document.querySelector('.setting-row.selected input')?.focus();
       } else {
         changeSetting(row, 1);
+      }
+      return;
+    }
+
+    const optStepBtn = e.target.closest('[data-opt-step]');
+    if (optStepBtn && app.view === 'play' && app.ctl) {
+      e.stopPropagation();
+      const idx = Number(optStepBtn.dataset.optIdx);
+      const step = Number(optStepBtn.dataset.optStep);
+      const rows = overlayOptionRows(app.ctl.state());
+      if (idx >= 0 && idx < rows.length) {
+        app.overlayOptIndex = idx;
+        changeSetting(rows[idx], step);
+      }
+      return;
+    }
+
+    const optRowEl = e.target.closest('[data-opt-idx]');
+    if (optRowEl && app.view === 'play' && app.ctl) {
+      const idx = Number(optRowEl.dataset.optIdx);
+      const rows = overlayOptionRows(app.ctl.state());
+      if (idx >= 0 && idx < rows.length) {
+        app.overlayOptIndex = idx;
+        changeSetting(rows[idx], 1);
       }
       return;
     }
@@ -4988,8 +5099,7 @@
       triggerHaptic('aim');
       if (setAct.dataset.setAction === 'done') {
         emitSound('click');
-        app.view = 'menu';
-        render();
+        closeOptionsView(true);
       } else {
         startFromSettings();
       }
@@ -5057,6 +5167,12 @@
           emitSound('click');
           render();
           break;
+        case 'open-options':
+          app.overlay = app.overlay === 'options' ? 'none' : 'options';
+          app.overlayOptIndex = 0;
+          emitSound('click');
+          render();
+          break;
         case 'open-resign':
           app.overlay = 'resign';
           app.confirmIndex = 0;
@@ -5102,13 +5218,17 @@
       const act = actEl.dataset.action;
       if (act === 'back-menu') {
         emitSound('click');
+        if (app.view === 'settings' && app.setupMode === 'options') commitOptionsInputs(false);
         stopNetWatcher();
         app.note = '';
         app.view = 'menu';
         render();
       } else if (act === 'back-network') {
         emitSound('click');
+        if (app.view === 'settings' && app.setupMode === 'options') commitOptionsInputs(false);
         openNetworkView(true);
+      } else if (act === 'open-options-network') {
+        openSettings('options', 'network');
       } else if (act === 'open-online-host') {
         openSettings('onlineHost');
       } else if (act === 'share-online-match') {
@@ -5288,12 +5408,12 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       if (app.view === 'menu') return;
-      if (app.view === 'settings' && app.setupMode === 'onlineHost') {
+      if (app.view === 'settings') {
         emitSound('click');
-        openNetworkView(true);
+        closeOptionsView(false);
         return;
       }
-      if (app.view === 'settings' || app.view === 'name' || app.view === 'network' || app.view === 'guide' || app.view === 'stats') {
+      if (app.view === 'name' || app.view === 'network' || app.view === 'guide' || app.view === 'stats') {
         if (app.view === 'network' && app.netChallenge && app.netEditingName && validateChallengeName(save.name).err === '') {
           app.netEditingName = false;
           app.note = '';
@@ -5357,6 +5477,10 @@
           else if (app.netOnline) submitOnlineJoin();
           else submitJoin();
         } else if (app.view === 'settings') {
+          if (activeEl && activeEl.id === 'input-options-name') {
+            if (!commitOptionsInputs(true)) return;
+            app.note = '';
+          }
           const rows = settingRowsForMode();
           app.setIndex = (app.setIndex + 1) % rows.length;
           document.activeElement.blur();
@@ -5452,8 +5576,8 @@
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         if (row === 'start') startFromSettings();
-        else if (row === 'done') { app.view = 'menu'; emitSound('click'); render(); }
-        else if (row === 'player2' || row === 'roomCode') {
+        else if (row === 'done') { emitSound('click'); closeOptionsView(true); }
+        else if (row === 'playerName' || row === 'player2' || row === 'roomCode') {
           render();
           document.querySelector('.setting-row.selected input')?.focus();
         } else changeSetting(row, 1);
@@ -5467,6 +5591,30 @@
 
       if (app.overlay === 'log' && low === 'l') { app.overlay = 'none'; render(); return; }
       if (app.overlay === 'history' && low === 'h') { app.overlay = 'none'; render(); return; }
+      if (app.overlay === 'options') {
+        const rows = overlayOptionRows(s);
+        if (low === 'o' || e.key === 'Enter') {
+          e.preventDefault();
+          app.overlay = 'none';
+          emitSound('click');
+          render();
+        } else if (e.key === 'ArrowUp' || low === 'w') {
+          e.preventDefault();
+          app.overlayOptIndex = (app.overlayOptIndex + rows.length - 1) % rows.length;
+          render();
+        } else if (e.key === 'ArrowDown' || low === 's') {
+          e.preventDefault();
+          app.overlayOptIndex = (app.overlayOptIndex + 1) % rows.length;
+          render();
+        } else if (e.key === 'ArrowLeft' || low === 'a') {
+          e.preventDefault();
+          changeSetting(rows[app.overlayOptIndex], -1);
+        } else if (e.key === 'ArrowRight' || low === 'd' || e.key === ' ') {
+          e.preventDefault();
+          changeSetting(rows[app.overlayOptIndex], 1);
+        }
+        return;
+      }
       if (app.overlay === 'resign' || app.overlay === 'leave') {
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || low === 'a' || low === 'd') {
           app.confirmIndex = 1 - app.confirmIndex;
@@ -5495,6 +5643,7 @@
 
       if (low === 'l') { app.overlay = 'log'; emitSound('click'); render(); return; }
       if (low === 'h') { app.overlay = 'history'; emitSound('click'); render(); return; }
+      if (low === 'o') { app.overlay = 'options'; app.overlayOptIndex = 0; emitSound('click'); render(); return; }
       if (low === 's') {
         save.settings.sound = !save.settings.sound;
         persistSave(save);
