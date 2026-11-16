@@ -143,7 +143,7 @@ func readLoop(id int, conn net.Conn, out chan<- netEvent, done <-chan struct{}) 
 
 func safeErrorCode(code string) string {
 	switch code {
-	case errRoomFull, errOldProtocol, errBadAuth, errBadState, errRejected:
+	case errRoomFull, errOldProtocol, errBadAuth, errBadState, errRejected, errLambName, errBadName:
 		return code
 	}
 	return errRejected

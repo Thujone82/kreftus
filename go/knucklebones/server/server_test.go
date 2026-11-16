@@ -436,3 +436,103 @@ func TestServerBadRoomCodeAndReconnect(t *testing.T) {
 		t.Fatalf("reconnect join failed: p3=%+v j3=%+v", p3, j3)
 	}
 }
+
+func TestChallengeNameValidationAndLeaderboard(t *testing.T) {
+	cases := []struct {
+		name string
+		want string
+	}{
+		{"Lamb", errLambName},
+		{"lamb", errLambName},
+		{"  LAMB  ", errLambName},
+		{"Kaleb", ""},
+		{"Lambchop", ""},
+		{"Classic", ""},
+		{"Assassin", ""},
+		{"fuck", errBadName},
+		{"Sh1tHead", errBadName},
+		{"F4ck", errBadName},
+	}
+	for _, tc := range cases {
+		_, got := ValidateChallengeName(tc.name)
+		if got != tc.want {
+			t.Errorf("ValidateChallengeName(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+
+	st := newStatsStore("")
+	// Ties in Delta must be ordered by fastest DurationMs ascending.
+	st.RecordChallengeCompletion(ChallengeEntry{Name: "SlowPlayer", Delta: 20, DurationMs: 90000, RecordedAt: "2026-11-16T01:00:00Z"})
+	st.RecordChallengeCompletion(ChallengeEntry{Name: "FastPlayer", Delta: 20, DurationMs: 45000, RecordedAt: "2026-11-16T01:01:00Z"})
+	st.RecordChallengeCompletion(ChallengeEntry{Name: "TopPlayer", Delta: 35, DurationMs: 80000, RecordedAt: "2026-11-16T01:02:00Z"})
+	st.RecordChallengeCompletion(ChallengeEntry{Name: "Lamb", Delta: 99, DurationMs: 1000, RecordedAt: "2026-11-16T01:03:00Z"})
+
+	snap := st.SnapshotWithChallenges(0, 0, 0, 1)
+	if snap.Challenge == nil || len(snap.Challenge.Top10) != 3 {
+		t.Fatalf("expected 3 eligible top10 entries (Lamb excluded), got %+v", snap.Challenge)
+	}
+	top := snap.Challenge.Top10
+	if top[0].Name != "TopPlayer" || top[1].Name != "FastPlayer" || top[2].Name != "SlowPlayer" {
+		t.Fatalf("unexpected leaderboard order: %+v", top)
+	}
+}
+
+func TestChallengeRejectsLambAndStartsWithValidName(t *testing.T) {
+	_, addr, pool := startTestServer(t, true)
+	tlsCfg := &tls.Config{RootCAs: pool, ServerName: "127.0.0.1"}
+
+	// Lamb is rejected with errLambName.
+	lambConn, lambBR := dialWSClient(t, addr, tlsCfg)
+	defer lambConn.Close()
+	if err := writeEnvelope(lambConn, envelope{Type: rMsgChallenge, Name: "Lamb", Token: "t1"}, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	errEnv := readEnv(t, lambBR, lambConn)
+	if errEnv.Type != rMsgError || errEnv.Code != errLambName {
+		t.Fatalf("expected lamb-name error, got %+v", errEnv)
+	}
+
+	// Valid name pairs, receives challenge + hello + initial state against Shrumy.
+	conn, br := dialWSClient(t, addr, tlsCfg)
+	defer conn.Close()
+	if err := writeEnvelope(conn, envelope{Type: rMsgChallenge, Name: "Kaleb", Token: "t2"}, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	paired := readEnv(t, br, conn)
+	if paired.Type != rMsgPaired || paired.RoomID == "" {
+		t.Fatalf("expected r_paired, got %+v", paired)
+	}
+
+	rawChal, err := readJSONLine(br, conn, 2*time.Second, maxWireMsgBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var chal challengeNetMsg
+	if json.Unmarshal(rawChal, &chal) != nil || chal.Type != "challenge" || len(chal.Commit) != 64 {
+		t.Fatalf("unexpected challenge msg: %s", string(rawChal))
+	}
+
+	helloBytes, _ := json.Marshal(challengeNetMsg{
+		Type:    "hello",
+		Version: 2,
+		Name:    "Kaleb",
+		Token:   "t2",
+		Seed:    challengeRandomHex(32),
+	})
+	if err := writeRawLine(conn, helloBytes, time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	rawState, err := readJSONLine(br, conn, 2*time.Second, maxWireMsgBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stMsg challengeNetMsg
+	if json.Unmarshal(rawState, &stMsg) != nil || stMsg.Type != "state" || stMsg.State == nil {
+		t.Fatalf("unexpected initial state msg: %s", string(rawState))
+	}
+	st := stMsg.State
+	if !st.Challenge || st.BestOf != 3 || st.Names[0] != "Shrumy" || st.Names[1] != "Kaleb" || st.Round != 1 {
+		t.Fatalf("unexpected challenge initial state: %+v", st)
+	}
+}

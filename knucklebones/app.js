@@ -4,7 +4,7 @@
   // =========================================================================
   // 1. CONSTANTS & THEMES (Exact parity with go/knucklebones/theme.go & rules.go)
   // =========================================================================
-  const APP_VERSION = '1.1';
+  const APP_VERSION = '1.2';
   const SAVE_STORAGE_KEY = 'knucklebones.save.v1';
   const DEFAULT_PORT = 8647;
   const DEFAULT_RENDEZVOUS_ADDR = 'kb.kreft.us:8647';
@@ -104,8 +104,8 @@
     { kind: 'p', text: '• Ratau (Easy) drops dice in any open column.' },
     { kind: 'p', text: '• Flinky (Medium) takes the biggest immediate swing.' },
     { kind: 'p', text: '• Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it.' },
-    { kind: 'h', text: 'Online & Network Play & Fair Play' },
-    { kind: 'p', text: 'Open Network Play to browse live matches hosted through kb.kreft.us or host your own Online match from the PWA. Switch to Direct to join a PC/Linux host by IP address and port (default 8647). Optional room codes authenticate the handshake with HMAC-SHA256. Host dice are verified via SHA-256 commit-reveal at round end. Turns can be timed (three timeouts forfeit the match), and dropped players have 30 seconds to reconnect.' },
+    { kind: 'h', text: 'Online, Challenge Mode & Fair Play' },
+    { kind: 'p', text: 'Open Online to play Challenge Mode or 2-Player via kb.kreft.us (or Direct connect). Challenge Mode is a 3-match battle (all 3 played, 1 die choice) against Hard AI (Shrumy) on the kb.kreft.us server, ranked on the Top 10 Leaderboard by combined net delta with total completion time from first die to last die as tie-breaker. Custom non-Lamb names are required for Challenge. Optional 2-Player room codes authenticate with HMAC-SHA256, host dice verify via SHA-256 commit-reveal, turns are timed, and dropped players have 30s to reconnect.' },
     { kind: 'h', text: 'Credits' },
     { kind: 'p', text: 'The original Knucklebones game in Cult of the Lamb was created by Massive Monster. This is a fan-made web PWA edition with full parity to the desktop Go/Ebitengine and Terminal editions.' }
   ];
@@ -1082,6 +1082,137 @@
     return cleaned || fallback;
   }
 
+  const OFFENSIVE_EXACT_WORDS = new Set([
+    'anal', 'anus', 'arse', 'arsehole', 'ass', 'asshole', 'bastard', 'bitch', 'blowjob',
+    'boner', 'boob', 'boobs', 'bullshit', 'clit', 'cock', 'cocksucker', 'coon', 'cunt',
+    'dick', 'dickhead', 'dildo', 'dipshit', 'dumbass', 'dyke', 'fag', 'faggot', 'fack',
+    'fck', 'fckr', 'feltch', 'fuck', 'fucker', 'fucking', 'fuk', 'fuker', 'phuck', 'phuk',
+    'gangbang', 'goddamn', 'handjob', 'hentai', 'hoe', 'homo', 'horny', 'incest', 'jackass',
+    'jizz', 'kike', 'kkk', 'kys', 'labia', 'masturbate', 'milf', 'motherfucker', 'mofo',
+    'nazi', 'nigga', 'nigger', 'nude', 'nudes', 'orgasm', 'penis', 'porn', 'porno', 'prick',
+    'pussy', 'rape', 'rapist', 'retard', 'retarded', 'rimjob', 'scrotum', 'semen', 'sex',
+    'shit', 'shithead', 'shitty', 'slut', 'spic', 'suckmydick', 'tit', 'tits', 'titty',
+    'tranny', 'twat', 'vagina', 'wank', 'wanker', 'wetback', 'whore'
+  ]);
+
+  const OFFENSIVE_STRONG_ROOTS = [
+    'asshole', 'blowjob', 'bullshit', 'cocksuck', 'dickhead', 'dipshit', 'dumbass',
+    'faggot', 'fuck', 'gangbang', 'handjob', 'jackass', 'masturbat', 'motherfuck',
+    'nigga', 'nigger', 'pussy', 'rapist', 'retard', 'shithead', 'wetback'
+  ];
+
+  function isLambName(name) {
+    return String(name || '').trim().toLowerCase() === 'lamb';
+  }
+
+  function deLeetChar(ch) {
+    switch (ch) {
+      case '0': return 'o';
+      case '1': case '!': return 'i';
+      case '3': return 'e';
+      case '4': case '@': return 'a';
+      case '5': case '$': return 's';
+      case '7': return 't';
+      default: return ch.toLowerCase();
+    }
+  }
+
+  function splitNameTokens(s) {
+    const tokens = [];
+    let cur = '';
+    let prev = '';
+    for (const ch of String(s || '')) {
+      const isAlphaNum = /[a-zA-Z0-9@$!]/.test(ch);
+      if (!isAlphaNum) {
+        if (cur) { tokens.push(cur); cur = ''; }
+        prev = '';
+        continue;
+      }
+      if (cur && /[A-Z]/.test(ch) && /[a-z]/.test(prev)) {
+        tokens.push(cur);
+        cur = '';
+      }
+      cur += deLeetChar(ch);
+      prev = ch;
+    }
+    if (cur) tokens.push(cur);
+    return tokens;
+  }
+
+  function collapseRepeatedChars(s) {
+    let out = '';
+    let last = '';
+    let run = 0;
+    for (const ch of s) {
+      if (ch === last) {
+        run++;
+        if (run <= 2) out += ch;
+      } else {
+        last = ch;
+        run = 1;
+        out += ch;
+      }
+    }
+    return out;
+  }
+
+  function isBadName(name) {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return false;
+    const tokens = splitNameTokens(trimmed);
+    let joined = '';
+    for (const tok of tokens) {
+      joined += tok;
+      if (OFFENSIVE_EXACT_WORDS.has(tok) || OFFENSIVE_EXACT_WORDS.has(collapseRepeatedChars(tok))) {
+        return true;
+      }
+    }
+    const joinedCol = collapseRepeatedChars(joined);
+    return OFFENSIVE_STRONG_ROOTS.some((r) => joined.includes(r) || joinedCol.includes(r));
+  }
+
+  function validateChallengeName(raw) {
+    const name = cleanName(raw, 'Lamb');
+    if (isLambName(name)) return { name, err: 'lamb-name' };
+    if (isBadName(name)) return { name, err: 'bad-name' };
+    return { name, err: '' };
+  }
+
+  function formatChallengeTime(ms) {
+    const v = Math.max(0, Number(ms) || 0);
+    const tenths = Math.floor((v + 50) / 100);
+    const secs = Math.floor(tenths / 10);
+    const remT = tenths % 10;
+    const mins = Math.floor(secs / 60);
+    const remS = secs % 60;
+    return `${mins}:${String(remS).padStart(2, '0')}.${remT}`;
+  }
+
+  function formatSignedDelta(d) {
+    const n = Math.round(Number(d) || 0);
+    return n > 0 ? `+${n}` : String(n);
+  }
+
+  function challengeCombinedDelta(s, seat = 1) {
+    if (!s || !Array.isArray(s.history)) return 0;
+    let sum = 0;
+    for (const h of s.history) {
+      const sc = h.scores || [0, 0];
+      sum += (sc[seat] || 0) - (sc[1 - seat] || 0);
+    }
+    return sum;
+  }
+
+  function challengeLiveElapsedMs(s, now = Date.now()) {
+    if (!s || !s.challenge) return 0;
+    if (s.phase === 'game') return Number(s.challengeElapsedMs) || 0;
+    if ((s.match && s.match.moves === 0) && (!s.history || s.history.length === 0)) {
+      return Number(s.challengeElapsedMs) || 0;
+    }
+    if (!app.challengeSyncAt) return Number(s.challengeElapsedMs) || 0;
+    return (Number(app.challengeBaseMs) || 0) + Math.max(0, now - app.challengeSyncAt);
+  }
+
   function cleanRoomCode(raw) {
     return String(raw || '').replace(/\s+/g, '').replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 12);
   }
@@ -1452,7 +1583,7 @@
     if (s.phase === 'game') {
       if (s.forfeit && s.forfeit.reason === 'disconnect') return [];
       const opts = ['rematch'];
-      if (!s.forfeit && s.bestOf > 0 && !s.freePlay) opts.push('free');
+      if (!s.forfeit && s.bestOf > 0 && !s.freePlay && !s.challenge) opts.push('free');
       return opts;
     }
     return [];
@@ -1518,15 +1649,19 @@
   // 8. ONLINE MULTIPLAYER TRANSPORT (WebSocket over TCP · Protocol v2)
   // =========================================================================
   function createWsGuestController(cfg, onUpdate) {
-    const isRelay = !!cfg.roomId;
+    const isChallenge = !!cfg.challenge;
+    const isRelay = isChallenge || !!cfg.roomId;
     const rawAddr = String(isRelay ? (cfg.rendezvousAddr || getRendezvousAddr()) : (cfg.addr || '')).trim();
-    const displayAddr = isRelay
-      ? (cfg.hostName ? `${cfg.hostName} · Online Match` : 'Online Match')
-      : normalizeJoinAddr(rawAddr);
+    const displayAddr = isChallenge
+      ? `Challenge Mode · ${rawAddr}`
+      : isRelay
+        ? (cfg.hostName ? `${cfg.hostName} · Online Match` : 'Online Match')
+        : normalizeJoinAddr(rawAddr);
     const wsUrl = buildWsUrl(rawAddr);
     const guestToken = newRandomHex(8); // 16 hex chars, matches net.go newToken()
     const roomKey = deriveRoomKey(cfg.roomCode || '');
     const waitingAt = Date.now();
+    let pairedOnce = false;
 
     let ws = null;
     let sess = null;
@@ -1691,7 +1826,7 @@
 
     function onWireMsg(msg) {
       if (closed || !msg || typeof msg !== 'object') return;
-      if (msg.type === 'r_paired') return;
+      if (msg.type === 'r_paired') { pairedOnce = true; return; }
       if (msg.type === 'r_error') {
         lobbyErr = msg.code || msg.text || 'room-not-found';
         fatal = true;
@@ -1804,6 +1939,12 @@
 
     function connectAttempt() {
       if (closed) return;
+      if (isChallenge && pairedOnce) {
+        lobbyErr = 'challenge-disconnected';
+        fatal = true;
+        onUpdate();
+        return;
+      }
       closeSocket();
       lobbyErr = '';
       fatal = false;
@@ -1824,7 +1965,13 @@
       sock.onopen = () => {
         if (closed || ws !== sock) return;
         openedThisAttempt = true;
-        if (isRelay) {
+        if (isChallenge) {
+          sendRaw({
+            type: 'r_challenge',
+            token: guestToken,
+            name: cfg.guestName
+          });
+        } else if (isRelay) {
           sendRaw({
             type: 'r_join',
             roomId: cfg.roomId,
@@ -1884,9 +2031,9 @@
       roomId: () => cfg.roomId || '',
       roomCode: () => cfg.roomCode || '',
       isHost: () => false,
-      lobbyMode: () => (isRelay ? 'online-guest' : 'direct-guest'),
+      lobbyMode: () => (isChallenge ? 'online-challenge' : (isRelay ? 'online-guest' : 'direct-guest')),
       lobbyError: () => lobbyErr,
-      canRetry: () => lobbyErr !== '' && lobbyErr !== 'bad-room-code' && lobbyErr !== 'unsupported-protocol' && lobbyErr !== 'room-not-found',
+      canRetry: () => !fatal && lobbyErr !== '' && lobbyErr !== 'bad-room-code' && lobbyErr !== 'unsupported-protocol' && lobbyErr !== 'room-not-found' && lobbyErr !== 'lamb-name' && lobbyErr !== 'bad-name' && lobbyErr !== 'challenge-disconnected',
       retryConnect: () => connectAttempt(),
       fairness: () => fairState,
       opponentGone: () => hostGone,
@@ -2529,6 +2676,9 @@
     joinCode: '',
     joinField: 0,
     netOnline: true,
+    netChallenge: true,
+    netEditingName: false,
+    netNameDraft: save.name,
     netRoomIdx: 0,
     watcher: null,
     hostRoomCode: '',
@@ -2536,6 +2686,9 @@
     shareTimer: null,
     nameDraft: save.name,
     note: '',
+    challengeSyncAt: 0,
+    challengeBaseMs: 0,
+    challengeSyncKey: '',
     ctl: null,
     overlay: 'none',
     confirmIndex: 0,
@@ -2803,6 +2956,14 @@
       app.view = 'play';
       app.overlay = 'none';
     }
+    if (s.challenge) {
+      const cKey = `${s.series}:${s.round}:${s.match.moves}`;
+      if (cKey !== app.challengeSyncKey || (Number(s.challengeElapsedMs) || 0) !== app.challengeBaseMs || s.phase !== 'play') {
+        app.challengeSyncKey = cKey;
+        app.challengeBaseMs = Number(s.challengeElapsedMs) || 0;
+        app.challengeSyncAt = Date.now();
+      }
+    }
     const key = `${s.series}:${s.round}:${s.match.moves + 1}`;
     if (s.last && s.match.moves > 0 && key !== app.effectKey) {
       app.effectKey = key;
@@ -2905,11 +3066,19 @@
           else rec.wins++;
         }
       }
-      if (s.mode !== 'local' && s.bestOf >= 3 && !s.freePlay) {
+      if (s.mode !== 'local' && (s.bestOf >= 3 || s.challenge) && !s.freePlay) {
         const rec = getRecord(save, recordKey(s.mode, s.difficulty));
-        const w = seriesWinner(s);
-        if (w === app.ctl.seat()) rec.seriesWins++;
-        else if (w >= 0) rec.seriesLosses++;
+        if (s.challenge) {
+          if (!s.forfeit) {
+            const d = challengeCombinedDelta(s, app.ctl.seat());
+            if (d > 0) rec.seriesWins++;
+            else if (d < 0) rec.seriesLosses++;
+          }
+        } else {
+          const w = seriesWinner(s);
+          if (w === app.ctl.seat()) rec.seriesWins++;
+          else if (w >= 0) rec.seriesLosses++;
+        }
       }
       persistSave(save);
     }
@@ -2962,13 +3131,70 @@
   }
 
   function openNetworkView(keepMode = false) {
-    if (!keepMode) app.netOnline = true;
+    if (!keepMode) {
+      app.netChallenge = true;
+      app.netOnline = true;
+    }
+    app.netEditingName = app.netChallenge && validateChallengeName(save.name).err !== '';
+    app.netNameDraft = isLambName(save.name) ? '' : save.name;
     app.joinAddr = save.settings.joinAddr || `localhost:${DEFAULT_PORT}`;
     app.view = 'network';
     app.joinField = 0;
     app.note = '';
     ensureNetWatcher();
     render();
+  }
+
+  function saveChallengeName() {
+    const inp = document.getElementById('input-challenge-name');
+    if (inp) app.netNameDraft = inp.value;
+    const res = validateChallengeName(app.netNameDraft);
+    if (res.err === 'lamb-name') {
+      app.note = "Choose a custom name — 'Lamb' cannot enter the leaderboard.";
+      render();
+      document.getElementById('input-challenge-name')?.focus();
+      return false;
+    }
+    if (res.err === 'bad-name') {
+      app.note = 'That name contains disallowed words.';
+      render();
+      document.getElementById('input-challenge-name')?.focus();
+      return false;
+    }
+    save.name = res.name;
+    persistSave(save);
+    app.netNameDraft = res.name;
+    app.netEditingName = false;
+    app.note = '';
+    emitSound('click');
+    render();
+    return true;
+  }
+
+  function startChallenge() {
+    const res = validateChallengeName(save.name);
+    if (res.err) {
+      app.netEditingName = true;
+      app.netNameDraft = isLambName(save.name) ? '' : save.name;
+      app.note = res.err === 'lamb-name'
+        ? "Choose a custom name — 'Lamb' cannot enter the leaderboard."
+        : 'That name contains disallowed words.';
+      render();
+      return;
+    }
+    app.note = '';
+    let g = null;
+    g = createWsGuestController({
+      challenge: true,
+      rendezvousAddr: getRendezvousAddr(),
+      guestName: res.name
+    }, () => {
+      if (app.ctl && app.ctl === g) {
+        syncSessionEvents();
+        render();
+      }
+    });
+    beginGame(g);
   }
 
   function beginGame(ctl) {
@@ -3031,12 +3257,13 @@
       const fxNow = effectActive();
       const s = app.ctl.state();
       const hasTimer = s && s.phase === 'play' && (s.turnDeadline > 0 || s.turnLeftMs > 0);
+      const hasChalTimer = s && s.challenge && s.phase !== 'game' && (s.match.moves > 0 || (s.history && s.history.length > 0));
       const inLobby = app.view === 'lobby';
       const thinking = s && s.phase === 'play' && !myTurn(s) && !rollingNow;
       if (changed) {
         syncSessionEvents();
         render();
-      } else if (rollingNow || fxNow || app.wasRolling || app.wasFx || hasTimer || inLobby || thinking) {
+      } else if (rollingNow || fxNow || app.wasRolling || app.wasFx || hasTimer || hasChalTimer || inLobby || thinking) {
         if (app.view === 'lobby') updateLobbyClockOnly();
         else if (app.view === 'play') updatePlayClockInPlace(now);
       }
@@ -3059,6 +3286,11 @@
         render();
         return;
       }
+    }
+
+    const chalClockEl = document.getElementById('challenge-clock');
+    if (chalClockEl && s.challenge) {
+      chalClockEl.textContent = formatChallengeTime(challengeLiveElapsedMs(s, now));
     }
 
     const timerEl = document.getElementById('turn-timer-val');
@@ -3225,6 +3457,19 @@
       return { text: forfeitText(s, s.forfeit.loser, s.forfeit.reason), color: c };
     }
     const sc = matchScores(s.match);
+    if (s.challenge) {
+      const me = bottomSeat();
+      if (s.phase === 'game') {
+        const d = challengeCombinedDelta(s, me);
+        if (d > 0) return { text: `Challenge Won! Net Delta: +${d}`, color: 'var(--win)' };
+        if (d < 0) return { text: `Challenge Complete · Net Delta: ${d}`, color: 'var(--lose)' };
+        return { text: 'Challenge Complete · Tied at 0!', color: 'var(--accent)' };
+      }
+      const rd = sc[me] - sc[1 - me];
+      if (rd > 0) return { text: `Match ${s.round}/3 won by +${rd} (${sc[me]}–${sc[1 - me]})`, color: 'var(--win)' };
+      if (rd < 0) return { text: `Match ${s.round}/3 lost by ${rd} (${sc[me]}–${sc[1 - me]})`, color: 'var(--lose)' };
+      return { text: `Match ${s.round}/3 tied (${sc[me]}–${sc[1 - me]})`, color: 'var(--accent)' };
+    }
     const scope = s.phase === 'game' ? 'game' : 'round';
     const w = s.phase === 'game' ? seriesWinner(s) : matchWinner(s.match);
     if (w < 0) {
@@ -3264,7 +3509,7 @@
     const items = [
       { id: 'ai', label: 'Play vs AI' },
       { id: 'local', label: '2 Players (Same Device)' },
-      { id: 'network', label: 'Network Play' },
+      { id: 'network', label: 'Online' },
       { id: 'guide', label: 'How to Play' },
       { id: 'stats', label: 'Stats & High Scores' },
       { id: 'name', label: `Change Name (${save.name})` },
@@ -3489,8 +3734,49 @@
     `;
   }
 
+  function renderChallengeLeaderboardInner() {
+    const w = app.watcher;
+    const conn = w ? w.connected() : false;
+    const err = w ? w.error() : '';
+    const st = w ? w.stats() : {};
+    const cs = st.challenge || null;
+
+    const statusLine = conn
+      ? (cs
+        ? `<span class="net-status-dot on"></span> <span>Completed: <strong>${cs.completions || 0}</strong>/${cs.attempts || 0} · Player Wins: <strong>${cs.playerWins || 0}</strong> · AI Wins: <strong>${cs.aiWins || 0}</strong> · Active: <strong>${cs.activeMatches || 0}</strong></span>`
+        : `<span class="net-status-dot on"></span> <span>Connected to ${escHtml(getRendezvousAddr())}</span>`)
+      : `<span class="net-status-dot"></span> <span>${escHtml(err || `Connecting to ${getRendezvousAddr()}…`)}</span>`;
+
+    const top = cs && Array.isArray(cs.top10) ? cs.top10 : [];
+    const rowsHtml = top.length === 0
+      ? `<div class="net-empty">${conn ? 'No Challenge finishes yet — be the first on the board!' : 'Fetching Top 10 Leaderboard…'}</div>`
+      : `<table class="challenge-board-table">
+           <thead><tr><th>#</th><th>Player</th><th class="num">Delta</th><th class="num">Time</th><th class="num">W-L-T</th></tr></thead>
+           <tbody>${top.slice(0, 10).map((e, i) => `
+             <tr class="${i === 0 ? 'top1' : ''}">
+               <td>${i + 1}</td>
+               <td>${escHtml(e.name)}</td>
+               <td class="num">${escHtml(formatSignedDelta(e.delta))}</td>
+               <td class="num">${escHtml(formatChallengeTime(e.durationMs))}</td>
+               <td class="num">${e.wins || 0}-${e.losses || 0}-${e.ties || 0}</td>
+             </tr>`).join('')}
+           </tbody>
+         </table>`;
+
+    return `
+      <div class="net-stats-bar">${statusLine}</div>
+      <div class="challenge-board-wrap">${rowsHtml}</div>
+    `;
+  }
+
   function updateNetLobbyInPlace() {
-    if (app.view !== 'network' || !app.netOnline) return;
+    if (app.view !== 'network') return;
+    if (app.netChallenge) {
+      const cbox = document.getElementById('challenge-lobby-live');
+      if (cbox) cbox.innerHTML = renderChallengeLeaderboardInner();
+      return;
+    }
+    if (!app.netOnline) return;
     const box = document.getElementById('net-lobby-live');
     if (!box) {
       render();
@@ -3519,55 +3805,105 @@
     else if (app.netRoomIdx >= rooms.length) app.netRoomIdx = rooms.length - 1;
     const selRoom = rooms[app.netRoomIdx];
 
-    const bodyHtml = app.netOnline
-      ? `
-        <div id="net-lobby-live">${renderNetLobbyInner()}</div>
-        <div class="form-field" style="margin-top:10px;">
-          <label id="label-online-code" for="input-join-code">${selRoom && selRoom.locked ? 'Room code (required for selected match)' : 'Room code (optional, only for locked matches)'}</label>
-          <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
-        </div>
-        ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-        <p class="note-hint" style="margin-top:4px;">Server: ${escHtml(getRendezvousAddr())}</p>
-        <div class="btn-row">
-          ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
-          ${renderActionButton('kb-btn', 'data-action="open-online-host"', 'Host Match')}
-          ${renderActionButton('kb-btn selected', 'data-action="submit-online-join"', 'Join Match', { disabled: rooms.length === 0 })}
-        </div>
-      `
-      : `
-        <div class="form-field ${app.joinField === 0 ? 'active' : ''}">
-          <label for="input-join-addr">Host address (host:port)</label>
-          <input id="input-join-addr" class="kb-input" type="text" maxlength="80" value="${escHtml(app.joinAddr)}" placeholder="localhost:8647" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="form-field ${app.joinField === 1 ? 'active' : ''}">
-          <label for="input-join-code">Room code (optional, leave blank if open)</label>
-          <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
-        </div>
-        ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-        <p class="note-hint" style="margin-top:8px;">Games can be hosted with the PC/Linux version</p>
-        <div class="btn-row">
-          ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
-          ${renderActionButton('kb-btn selected', 'data-action="submit-join"', 'Join')}
+    let bodyHtml = '';
+    if (app.netChallenge) {
+      const needName = validateChallengeName(save.name).err !== '';
+      const editing = app.netEditingName || needName;
+      if (editing) {
+        const headingText = isLambName(save.name)
+          ? "Update your name before entering Challenge Mode ('Lamb' is not allowed on the Top 10 Leaderboard)."
+          : 'Enter a custom name for the Challenge Top 10 Leaderboard.';
+        bodyHtml = `
+          <div class="challenge-rules-banner">3 Matches · 1 Die · Hard AI (Shrumy) · Ranked by Net Delta, Tie-break: Time</div>
+          <p class="note-hint" style="margin:8px 0 12px;">${escHtml(headingText)}</p>
+          <div class="form-field active">
+            <label for="input-challenge-name">Challenger name (Lamb & offensive words disallowed)</label>
+            <input id="input-challenge-name" class="kb-input" type="text" maxlength="16" value="${escHtml(app.netNameDraft)}" placeholder="Enter custom name" autocomplete="off">
+          </div>
+          ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
+          <div class="btn-row">
+            ${needName
+              ? renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')
+              : renderActionButton('kb-btn', 'data-action="cancel-challenge-name"', 'Cancel')}
+            ${renderActionButton('kb-btn selected', 'data-action="save-challenge-name"', 'Save Name')}
+          </div>
+        `;
+      } else {
+        bodyHtml = `
+          <div class="challenge-rules-banner">Challenger: <strong>${escHtml(save.name)}</strong> · 3 Matches · 1 Die · Hard AI (Shrumy)</div>
+          <div id="challenge-lobby-live">${renderChallengeLeaderboardInner()}</div>
+          ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
+          <p class="note-hint" style="margin-top:6px;">Ranked by combined 3-match net delta · Tie-breaker: completion time</p>
+          <div class="btn-row">
+            ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn', 'data-action="edit-challenge-name"', 'Change Name')}
+            ${renderActionButton('kb-btn selected', 'data-action="start-challenge"', 'Start Challenge')}
+          </div>
+        `;
+      }
+    } else {
+      const subToggle = `
+        <div class="net-toggle net-subtoggle" role="tablist" aria-label="2-Player connection mode">
+          <button type="button" role="tab" aria-selected="${app.netOnline}" class="kb-btn xs ${app.netOnline ? 'selected' : ''}" data-net-tab="online">Lobby (kb.kreft.us)</button>
+          <button type="button" role="tab" aria-selected="${!app.netOnline}" class="kb-btn xs ${!app.netOnline ? 'selected' : ''}" data-net-tab="direct">Direct</button>
         </div>
       `;
+      bodyHtml = subToggle + (app.netOnline
+        ? `
+          <div id="net-lobby-live">${renderNetLobbyInner()}</div>
+          <div class="form-field" style="margin-top:10px;">
+            <label id="label-online-code" for="input-join-code">${selRoom && selRoom.locked ? 'Room code (required for selected match)' : 'Room code (optional, only for locked matches)'}</label>
+            <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
+          </div>
+          ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
+          <p class="note-hint" style="margin-top:4px;">Server: ${escHtml(getRendezvousAddr())}</p>
+          <div class="btn-row">
+            ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn', 'data-action="open-online-host"', 'Host Match')}
+            ${renderActionButton('kb-btn selected', 'data-action="submit-online-join"', 'Join Match', { disabled: rooms.length === 0 })}
+          </div>
+        `
+        : `
+          <div class="form-field ${app.joinField === 0 ? 'active' : ''}">
+            <label for="input-join-addr">Host address (host:port)</label>
+            <input id="input-join-addr" class="kb-input" type="text" maxlength="80" value="${escHtml(app.joinAddr)}" placeholder="localhost:8647" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="form-field ${app.joinField === 1 ? 'active' : ''}">
+            <label for="input-join-code">Room code (optional, leave blank if open)</label>
+            <input id="input-join-code" class="kb-input" type="text" maxlength="12" value="${escHtml(app.joinCode)}" placeholder="(optional)" autocomplete="off" spellcheck="false">
+          </div>
+          ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
+          <p class="note-hint" style="margin-top:8px;">Games can be hosted with the PC/Linux version</p>
+          <div class="btn-row">
+            ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
+            ${renderActionButton('kb-btn selected', 'data-action="submit-join"', 'Join')}
+          </div>
+        `);
+    }
 
     rootEl.innerHTML = `
       <div class="screen screen-top">
         <img src="./die.png" alt="" class="die-emblem">
         <p class="small-title">K N U C K L E B O N E S</p>
         <div class="kb-card net-card">
-          <h2 class="kb-card-title">Network Play</h2>
-          <div class="net-toggle" role="tablist" aria-label="Network mode">
-            <button type="button" role="tab" aria-selected="${app.netOnline}" class="kb-btn sm ${app.netOnline ? 'selected' : ''}" data-net-tab="online">Online</button>
-            <button type="button" role="tab" aria-selected="${!app.netOnline}" class="kb-btn sm ${!app.netOnline ? 'selected' : ''}" data-net-tab="direct">Direct</button>
+          <h2 class="kb-card-title">Online</h2>
+          <div class="net-toggle" role="tablist" aria-label="Online mode">
+            <button type="button" role="tab" aria-selected="${app.netChallenge}" class="kb-btn sm ${app.netChallenge ? 'selected' : ''}" data-online-cat="challenge">Challenge (vs AI)</button>
+            <button type="button" role="tab" aria-selected="${!app.netChallenge}" class="kb-btn sm ${!app.netChallenge ? 'selected' : ''}" data-online-cat="2p">2-Player</button>
           </div>
           ${bodyHtml}
         </div>
       </div>
-      <div class="footer-hint">${app.netOnline ? '↑↓ select match · Enter join · Esc back' : 'Tab / ↑↓ switch field · Enter join · Esc back'}</div>
+      <div class="footer-hint">${app.netChallenge ? 'Challenge Leaderboard · Enter start · Esc back' : (app.netOnline ? '↑↓ select match · Enter join · Esc back' : 'Tab / ↑↓ switch field · Enter join · Esc back')}</div>
     `;
 
-    if (!app.netOnline) {
+    if (app.netChallenge && (app.netEditingName || validateChallengeName(save.name).err !== '')) {
+      const inp = document.getElementById('input-challenge-name');
+      if (inp) {
+        inp.focus();
+        try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch {}
+      }
+    } else if (!app.netChallenge && !app.netOnline) {
       const targetId = app.joinField === 1 ? 'input-join-code' : 'input-join-addr';
       const inp = document.getElementById(targetId);
       if (inp) {
@@ -3583,7 +3919,8 @@
     const wait = formatWait(Date.now() - ctl.waitingSince());
     const err = ctl.lobbyError();
     const isHost = ctl.isHost && ctl.isHost();
-    const heading = isHost ? 'Online Match' : (ctl.lobbyMode && ctl.lobbyMode() === 'online-guest' ? 'Online Match' : 'Join Game');
+    const lMode = ctl.lobbyMode && ctl.lobbyMode();
+    const heading = isHost ? 'Online Match' : (lMode === 'online-challenge' ? 'Challenge Mode' : (lMode === 'online-guest' ? 'Online Match' : 'Join Game'));
     if (err) {
       const errMap = {
         'room-full': 'That game already has two players.',
@@ -3592,7 +3929,10 @@
         'bad-room-code': 'Incorrect room code.',
         'invalid-state': 'The host sent invalid game data.',
         'connection-rejected': 'The host rejected the connection.',
-        'rendezvous-full': 'The online lobby server is currently full.'
+        'rendezvous-full': 'The online lobby server is currently full.',
+        'lamb-name': "Choose a custom name instead of 'Lamb' for Challenge Mode.",
+        'bad-name': 'That name is not allowed on the Challenge leaderboard.',
+        'challenge-disconnected': 'Challenge connection was lost.'
       };
       const errText = errMap[err] || `Could not connect: ${err}`;
       const canRetry = ctl.canRetry();
@@ -3977,7 +4317,9 @@
           </div>
           <div class="header-status" style="color:${head.color}">${escHtml(head.text)}</div>
           <div class="header-meta">
-            <span>Round ${s.round} · ${escHtml(roundsLabel(s.bestOf))}</span>
+            ${s.challenge
+              ? `<span>Match ${s.round}/3 · Δ ${escHtml(formatSignedDelta(challengeCombinedDelta(s, bottomSeat())))} · <span id="challenge-clock">${escHtml(formatChallengeTime(challengeLiveElapsedMs(s)))}</span></span>`
+              : `<span>Round ${s.round} · ${escHtml(roundsLabel(s.bestOf))}</span>`}
             ${updateBtn}
           </div>
         </header>
@@ -4220,11 +4562,24 @@
       const myVote = s.votes[me];
       const oppVote = s.mode === 'online' ? s.votes[1 - me] : '';
       let voteStatus = app.recordNote || '';
-      if (s.mode === 'online') {
+      if (s.challenge) {
+        const elapsed = formatChallengeTime(challengeLiveElapsedMs(s));
+        if (s.phase === 'game' && !s.forfeit) {
+          voteStatus = s.challengeRank > 0
+            ? `Time: ${elapsed} · 🏆 Top 10 Rank #${s.challengeRank}!`
+            : `Completion Time: ${elapsed}`;
+        } else if (s.phase === 'round') {
+          voteStatus = `Running Delta: ${formatSignedDelta(challengeCombinedDelta(s, me))} · Time: ${elapsed}`;
+        }
+      } else if (s.mode === 'online') {
         if (oppVote === 'menu') voteStatus = `${s.names[1 - me]} chose Menu`;
         else if (myVote && myVote !== oppVote) voteStatus = `Waiting for ${s.names[1 - me]}...`;
         else if (oppVote) voteStatus = `${s.names[1 - me]} chose ${labels[oppVote] || oppVote}`;
       }
+
+      const chalRoundsHtml = s.challenge && Array.isArray(s.history) && s.history.length > 0
+        ? `<p class="note-hint">Match ${s.round}/3 · ${escHtml(s.history.map((h) => `M${h.round}: ${formatSignedDelta((h.scores[me] || 0) - (h.scores[1 - me] || 0))}`).join(' · '))}</p>`
+        : (s.bestOf !== 1 || s.freePlay ? `<p class="note-hint">Rounds won ${s.wins[0]} – ${s.wins[1]} · ${escHtml(roundsLabel(s.bestOf))}</p>` : '');
 
       return `
         <div class="overlay-backdrop">
@@ -4232,8 +4587,8 @@
             <h2 class="kb-card-title">${s.phase === 'game' ? 'Game over' : 'Round over'}</h2>
             <p style="text-align:center;font-size:1.2rem;font-weight:800;color:${res.color};margin:6px 0;">${escHtml(res.text)}</p>
             <p style="text-align:center;font-size:1.05rem;margin:4px 0;">${escHtml(s.names[0])} ${sc[0]}  –  ${sc[1]} ${escHtml(s.names[1])}</p>
-            ${s.bestOf !== 1 || s.freePlay ? `<p class="note-hint">Rounds won ${s.wins[0]} – ${s.wins[1]} · ${escHtml(roundsLabel(s.bestOf))}</p>` : ''}
-            ${voteStatus ? `<p class="note-hint" style="color:var(--accent);font-weight:700;">${escHtml(voteStatus)}</p>` : ''}
+            ${chalRoundsHtml}
+            ${voteStatus ? `<p class="note-hint" style="color:${s.challenge && s.challengeRank > 0 ? 'var(--win)' : 'var(--accent)'};font-weight:700;">${escHtml(voteStatus)}</p>` : ''}
             <div class="btn-row">
               ${choices.map((ch, idx) => renderActionButton(`kb-btn ${idx === app.resultIndex ? 'selected' : ''}`, `data-result-choice="${ch}"`, escHtml(labels[ch]))).join('')}
               ${s.roundMoves && s.roundMoves.length > 0 ? renderActionButton('kb-btn', 'data-play-act="enter-replay"', 'Replay') : ''}
@@ -4529,6 +4884,7 @@
     if (id === 'input-player2') save.settings.player2 = e.target.value;
     else if (id === 'input-host-code') app.hostRoomCode = e.target.value;
     else if (id === 'input-player-name') app.nameDraft = e.target.value;
+    else if (id === 'input-challenge-name') app.netNameDraft = e.target.value;
     else if (id === 'input-join-addr') app.joinAddr = e.target.value;
     else if (id === 'input-join-code') app.joinCode = e.target.value;
   });
@@ -4587,10 +4943,28 @@
       return;
     }
 
+    const catTab = e.target.closest('[data-online-cat]');
+    if (catTab) {
+      triggerHaptic('aim');
+      emitSound('click');
+      app.netChallenge = catTab.dataset.onlineCat === 'challenge';
+      if (app.netChallenge) {
+        app.netEditingName = validateChallengeName(save.name).err !== '';
+        app.netNameDraft = isLambName(save.name) ? '' : save.name;
+      } else {
+        app.netEditingName = false;
+      }
+      app.note = '';
+      ensureNetWatcher();
+      render();
+      return;
+    }
+
     const netTab = e.target.closest('[data-net-tab]');
     if (netTab) {
       triggerHaptic('aim');
       emitSound('click');
+      app.netChallenge = false;
       app.netOnline = netTab.dataset.netTab === 'online';
       app.note = '';
       app.joinField = 0;
@@ -4761,20 +5135,46 @@
       } else if (act === 'toggle-flip-p2') {
         toggleLocalLayout();
       } else if (act === 'save-name') {
-        save.name = cleanName(app.nameDraft, 'Lamb');
+        const candidate = cleanName(app.nameDraft, 'Lamb');
+        if (isBadName(candidate)) {
+          app.note = 'That name contains disallowed words.';
+          render();
+          document.getElementById('input-player-name')?.focus();
+          return;
+        }
+        save.name = candidate;
         persistSave(save);
+        app.note = '';
         emitSound('click');
         app.view = 'menu';
         render();
+      } else if (act === 'save-challenge-name') {
+        saveChallengeName();
+      } else if (act === 'cancel-challenge-name') {
+        app.netEditingName = false;
+        app.note = '';
+        emitSound('click');
+        render();
+      } else if (act === 'edit-challenge-name') {
+        app.netEditingName = true;
+        app.netNameDraft = isLambName(save.name) ? '' : save.name;
+        app.note = '';
+        emitSound('click');
+        render();
+      } else if (act === 'start-challenge') {
+        startChallenge();
       } else if (act === 'submit-join') {
         submitJoin();
       } else if (act === 'leave-game') {
         emitSound('click');
         leaveGame();
       } else if (act === 'back-join') {
-        const wasBadAuth = app.ctl && app.ctl.lobbyError && app.ctl.lobbyError() === 'bad-room-code';
+        const lErr = app.ctl && app.ctl.lobbyError ? app.ctl.lobbyError() : '';
+        const wasBadAuth = lErr === 'bad-room-code';
         const wasHost = !!(app.ctl && app.ctl.isHost && app.ctl.isHost());
-        const wasOnline = !!(app.ctl && app.ctl.lobbyMode && app.ctl.lobbyMode().startsWith('online'));
+        const lMode = app.ctl && app.ctl.lobbyMode ? app.ctl.lobbyMode() : '';
+        const wasChallenge = lMode === 'online-challenge';
+        const wasOnline = lMode.startsWith('online');
         if (app.ctl) { app.ctl.leave(); app.ctl = null; }
         stopClockLoop();
         app.note = '';
@@ -4782,10 +5182,17 @@
         if (wasHost) {
           openSettings('onlineHost');
         } else {
+          app.netChallenge = wasChallenge;
           app.netOnline = wasOnline;
           app.joinField = wasBadAuth ? 1 : 0;
           openNetworkView(true);
-          if (wasBadAuth) {
+          if (wasChallenge && (lErr === 'lamb-name' || lErr === 'bad-name')) {
+            app.netEditingName = true;
+            app.note = lErr === 'lamb-name'
+              ? "Choose a custom name — 'Lamb' cannot enter the leaderboard."
+              : 'That name is not allowed on the Challenge leaderboard.';
+            render();
+          } else if (wasBadAuth) {
             document.getElementById('input-join-code')?.focus();
           }
         }
@@ -4887,6 +5294,13 @@
         return;
       }
       if (app.view === 'settings' || app.view === 'name' || app.view === 'network' || app.view === 'guide' || app.view === 'stats') {
+        if (app.view === 'network' && app.netChallenge && app.netEditingName && validateChallengeName(save.name).err === '') {
+          app.netEditingName = false;
+          app.note = '';
+          emitSound('click');
+          render();
+          return;
+        }
         stopNetWatcher();
         app.note = '';
         app.view = 'menu';
@@ -4926,12 +5340,21 @@
       if (e.key === 'Enter') {
         e.preventDefault();
         if (app.view === 'name') {
-          save.name = cleanName(app.nameDraft, 'Lamb');
+          const candidate = cleanName(app.nameDraft, 'Lamb');
+          if (isBadName(candidate)) {
+            app.note = 'That name contains disallowed words.';
+            render();
+            document.getElementById('input-player-name')?.focus();
+            return;
+          }
+          save.name = candidate;
           persistSave(save);
+          app.note = '';
           app.view = 'menu';
           render();
         } else if (app.view === 'network') {
-          if (app.netOnline) submitOnlineJoin();
+          if (app.netChallenge) saveChallengeName();
+          else if (app.netOnline) submitOnlineJoin();
           else submitJoin();
         } else if (app.view === 'settings') {
           const rows = settingRowsForMode();
@@ -4939,7 +5362,7 @@
           document.activeElement.blur();
           render();
         }
-      } else if ((e.key === 'Tab' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && app.view === 'network' && !app.netOnline) {
+      } else if ((e.key === 'Tab' || e.key === 'ArrowUp' || e.key === 'ArrowDown') && app.view === 'network' && !app.netChallenge && !app.netOnline) {
         e.preventDefault();
         app.joinField = 1 - app.joinField;
         render();
@@ -4955,6 +5378,20 @@
         ae.click();
         return;
       }
+    }
+    if (app.view === 'network' && app.netChallenge) {
+      if (e.key === 'Enter' && document.activeElement === document.body) {
+        e.preventDefault();
+        if (app.netEditingName || validateChallengeName(save.name).err !== '') saveChallengeName();
+        else startChallenge();
+      } else if (low === 'n') {
+        e.preventDefault();
+        app.netEditingName = true;
+        app.netNameDraft = isLambName(save.name) ? '' : save.name;
+        app.note = '';
+        render();
+      }
+      return;
     }
     if (app.view === 'network' && app.netOnline) {
       const rooms = app.watcher ? app.watcher.rooms() : [];

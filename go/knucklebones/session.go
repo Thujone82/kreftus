@@ -77,6 +77,7 @@ type session struct {
 	Mode       string         `json:"mode"`
 	Names      [2]string      `json:"names"`
 	Difficulty string         `json:"difficulty,omitempty"`
+	Challenge  bool           `json:"challenge,omitempty"`
 	BestOf     int            `json:"bestOf"` // 0 = free play
 	FreePlay   bool           `json:"freePlay,omitempty"`
 	Rules      Rules          `json:"rules"`
@@ -111,6 +112,10 @@ type session struct {
 	RoundFirst     int          `json:"roundFirst,omitempty"`
 	RoundRolls     [][2]int     `json:"roundRolls,omitempty"`
 	RoundMoves     []replayMove `json:"roundMoves,omitempty"`
+
+	ChallengeElapsedMs int64 `json:"challengeElapsedMs,omitempty"`
+	ChallengeDelta     int   `json:"challengeDelta,omitempty"`
+	ChallengeRank      int   `json:"challengeRank,omitempty"`
 
 	hostSeed      string
 	nextHostSeed  string
@@ -304,11 +309,25 @@ func (s *session) leader() int {
 func (s *session) freePlay() bool { return s.BestOf <= 0 || s.FreePlay }
 
 func (s *session) seriesDone() bool {
+	if s.Challenge {
+		return s.Round >= 3
+	}
 	if s.freePlay() {
 		return false
 	}
 	need := s.BestOf/2 + 1
 	return s.Wins[0] >= need || s.Wins[1] >= need
+}
+
+func (s *session) challengeCombinedDelta(seat int) int {
+	if s == nil {
+		return 0
+	}
+	d := 0
+	for _, h := range s.History {
+		d += h.Scores[seat] - h.Scores[1-seat]
+	}
+	return d
 }
 
 // seriesWinner is the winner of a finished series (or forfeit), -1 for none.
@@ -346,7 +365,7 @@ func (s *session) options() []string {
 			return nil
 		}
 		opts := []string{voteRematch}
-		if s.Forfeit == nil && !s.freePlay() {
+		if s.Forfeit == nil && !s.freePlay() && !s.Challenge {
 			opts = append(opts, voteFree)
 		}
 		return opts

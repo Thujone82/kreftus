@@ -32,7 +32,7 @@ func (g *game) menuLabels() [menuCount]string {
 	return [menuCount]string{
 		menuAI:      "Play against an AI",
 		menuLocal:   "Play against someone (same keyboard)",
-		menuNetwork: "Network Play",
+		menuNetwork: "Online",
 		menuGuide:   "How to play",
 		menuStats:   "Stats",
 		menuName:    "Name: " + g.save.Name,
@@ -74,6 +74,9 @@ func (g *game) panelName(s *session, p int) string {
 }
 
 func (g *game) winsText(s *session, p int) string {
+	if s.Challenge {
+		return fmt.Sprintf("Wins %d/3", s.Wins[p])
+	}
 	if !s.freePlay() && s.BestOf > 1 {
 		need := s.BestOf/2 + 1
 		return "Wins " + strings.Repeat("●", s.Wins[p]) + strings.Repeat("○", max(0, need-s.Wins[p]))
@@ -82,6 +85,37 @@ func (g *game) winsText(s *session, p int) string {
 		return fmt.Sprintf("Wins %d", s.Wins[p])
 	}
 	return ""
+}
+
+func (g *game) challengeLiveElapsedMs(s *session, now time.Time) int64 {
+	if s == nil || !s.Challenge {
+		return 0
+	}
+	if s.Phase == phaseGameOver {
+		return s.ChallengeElapsedMs
+	}
+	if s.Match.Moves == 0 && len(s.History) == 0 {
+		return s.ChallengeElapsedMs
+	}
+	if g.challengeSyncAt.IsZero() {
+		return s.ChallengeElapsedMs
+	}
+	extra := now.Sub(g.challengeSyncAt).Milliseconds()
+	if extra < 0 {
+		extra = 0
+	}
+	return g.challengeBaseMs + extra
+}
+
+func (g *game) headerRightLabel(s *session, now time.Time) string {
+	if s.Challenge {
+		seat := g.bottomSeat()
+		return fmt.Sprintf("Match %d/3 · Δ %s · %s",
+			s.Round,
+			formatSignedDelta(s.challengeCombinedDelta(seat)),
+			formatChallengeTime(g.challengeLiveElapsedMs(s, now)))
+	}
+	return fmt.Sprintf("Round %d · %s", s.Round, s.roundsLabel())
 }
 
 func gainText(pl Placement) string {
@@ -95,6 +129,20 @@ func gainText(pl Placement) string {
 // resultStatus is the line under the score on the result panel.
 func (g *game) resultStatus(s *session) (string, tcell.Color) {
 	status, c := g.recordNote, g.pal.accent
+	if s.Challenge {
+		elapsed := formatChallengeTime(g.challengeLiveElapsedMs(s, time.Now()))
+		if s.Phase == phaseGameOver && s.Forfeit == nil {
+			if s.ChallengeRank > 0 {
+				return fmt.Sprintf("Time: %s · 🏆 Top 10 Leaderboard #%d!", elapsed, s.ChallengeRank), g.pal.win
+			}
+			return fmt.Sprintf("Completion Time: %s", elapsed), g.pal.accent
+		}
+		if s.Phase == phaseRoundOver {
+			delta := s.challengeCombinedDelta(g.ctl.seat())
+			return fmt.Sprintf("Running Delta: %s · Time: %s", formatSignedDelta(delta), elapsed), g.pal.accent
+		}
+		return status, c
+	}
 	if s.Mode != modeOnline {
 		return status, c
 	}

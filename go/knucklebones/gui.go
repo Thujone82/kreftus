@@ -245,6 +245,40 @@ func (a *guiApp) hoverTag(x, y float64) int {
 			return 2
 		}
 	case viewNetwork:
+		catCh, cat2P := netCategoryButtons()
+		if catCh.has(x, y) {
+			return 12
+		}
+		if cat2P.has(x, y) {
+			return 13
+		}
+		if g.netChallenge {
+			if g.challengeNameEditing() {
+				canCancel := g.netEditingName && !g.challengeNameNeeded()
+				back, saveBtn := netChallengeEditButtons(canCancel)
+				if back.has(x, y) {
+					return 41
+				}
+				if saveBtn.has(x, y) {
+					return 42
+				}
+				if netChallengeNameRect().has(x, y) {
+					return 40
+				}
+			} else {
+				back, ren, start := netChallengeButtons()
+				if back.has(x, y) {
+					return 43
+				}
+				if ren.has(x, y) {
+					return 44
+				}
+				if start.has(x, y) {
+					return 45
+				}
+			}
+			return 0
+		}
 		onBtn, dirBtn := netModeButtons()
 		if onBtn.has(x, y) {
 			return 10
@@ -660,6 +694,51 @@ func (a *guiApp) mouse() bool {
 			}
 		}
 		if !click {
+			return false
+		}
+		catCh, cat2P := netCategoryButtons()
+		if catCh.has(x, y) {
+			if !g.netChallenge {
+				g.openOnlineChallenge()
+			}
+			return false
+		}
+		if cat2P.has(x, y) {
+			if g.netChallenge {
+				g.openNetwork(true)
+			}
+			return false
+		}
+		if g.netChallenge {
+			if g.challengeNameEditing() {
+				nf := netChallengeNameRect()
+				if nf.has(x, y) {
+					g.focusNetworkField(netFocusChallengeName)
+					g.netNamePos = caretIndexAt(g.netNameDraft, x, nf.X+12, 18, fontRegular)
+					return false
+				}
+				canCancel := g.netEditingName && !g.challengeNameNeeded()
+				back, saveBtn := netChallengeEditButtons(canCancel)
+				if back.has(x, y) {
+					return send(keyEv(tcell.KeyEscape))
+				}
+				if saveBtn.has(x, y) {
+					g.saveChallengeName()
+					return false
+				}
+			} else {
+				back, ren, start := netChallengeButtons()
+				switch {
+				case back.has(x, y):
+					return send(keyEv(tcell.KeyEscape))
+				case ren.has(x, y):
+					g.openChallengeNameEdit()
+					return false
+				case start.has(x, y):
+					g.startChallenge()
+					return false
+				}
+			}
 			return false
 		}
 		onBtn, dirBtn := netModeButtons()

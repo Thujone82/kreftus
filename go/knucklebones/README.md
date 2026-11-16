@@ -1,14 +1,18 @@
 # Knucklebones — Terminal Dice Duel
 
-**Version:** 1.1 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-13
+**Version:** 1.2 · **Author:** Kreft & Opus 5.5 · **Date:** 2026-11-16
 
 ## Description
 
 `Knucklebones` is a cross-platform terminal version of the dice game from *Cult of the Lamb*, written in Go with tcell. The terminal UI is the main mode; a matching graphical window (built with [Ebitengine](https://ebitengine.org/)) opens when you double-click the program or pass `-gui`. Two players face each other across 3×3 grids. Each turn you roll one die and drop it into one of your three columns. Matching dice in a column multiply, and placing a die destroys every die of the same value in your opponent's facing column. The game ends the moment either grid is full, and the higher total wins.
 
+### What's New in v1.2
+
+- **Online Challenge Mode & Top 10 Leaderboard**: Renamed **Network Play** to **Online** with a **Challenge (vs AI)** / **2-Player** toggle. Challenge Mode pits you against server-side **Shrumy (Hard AI)** on `kb.kreft.us:8647` across a full **3-match** single-die battle (all 3 matches played). Scores are ranked on the live **Top 10 Leaderboard** by combined net point delta (`M1 + M2 + M3`), tie-broken by total completion time from first die to last die placed. Includes custom non-Lamb name enforcement and offensive-word filtering across all editions.
+
 ### What's New in v1.1
 
-- **Online Play (Cross-Platform Lobby)**: Unified **Network Play** modal with **Online** mode (default) connecting to the TLS/WSS rendezvous server at `kb.kreft.us:8647`, enabling Web, PWA, CLI/TUI, and GUI players to host and join open matches without port forwarding, complete with padlock room-code indicators, live lobby/match/dice telemetry, and direct PWA **Share** invite links (`?room=`).
+- **Online Play (Cross-Platform Lobby)**: Shared TLS/WSS rendezvous server at `kb.kreft.us:8647`, enabling Web, PWA, CLI/TUI, and GUI players to host and join open matches without port forwarding, complete with padlock room-code indicators, live lobby/match/dice telemetry, and direct PWA **Share** invite links (`?room=`).
 
 Play against three AI opponents, against someone on the same keyboard, or against a friend over the network. It follows the features of [knucklebones.io](https://knucklebones.io/) and the rules in the [dice.now Knucklebones guide](https://dice.now/knucklebones#guide).
 
@@ -31,7 +35,7 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 
 ## Features
 
-- **Start menu**: Play against an AI, Play against someone (same keyboard), Network Play, How to play, Stats, Name, Options, and Quit
+- **Start menu**: Play against an AI, Play against someone (same keyboard), Online, How to play, Stats, Name, Options, and Quit
 - **AI opponents**: Ratau (Easy) places in a random open column. Flinky (Medium) takes the biggest immediate swing. Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it
 - **Game settings**: AI difficulty, number of rounds (Best of 1, 3, 5, or Free play), and house rules. Hosting adds turn timer, port, bind interface (LAN / localhost / specific IP), and an optional ephemeral room code. Your last choices are remembered (room codes are never written to disk)
 - **House rules** (from the dice.now guide): turn destruction off, roll two dice and place one, or play until both boards are full
@@ -47,7 +51,8 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 - **Log**: the side panel shows the latest moves. **L** opens the full log of rolls, placements, destruction, timeouts, and results
 - **History**: **H** lists each round's score and winner, plus who took the lead
 - **Resign**: **R** with a confirmation. Vs AI and online it counts as a loss
-- **Online & Direct play (Protocol v2)**: open **Network Play** to switch between **Online** (default) and **Direct** modes across the Web, PWA, CLI/TUI, and Desktop GUI:
+- **Online Challenge & 2-Player play (Protocol v2)**: open **Online** to switch between **Challenge (vs AI)** and **2-Player** (`Lobby (kb.kreft.us)` or `Direct`) across Web, PWA, CLI/TUI, and Desktop GUI:
+  - **Challenge Mode (`kb.kreft.us:8647`)**: 3-match battle (all 3 played, 1 die choice) against server-hosted Hard AI (`Shrumy`). Ranked on the Ready Room **Top 10 Leaderboard** by combined net delta with first-die-to-last-die completion time as tie-breaker (custom non-Lamb & filtered names required)
   - **Online Cross-Platform Lobby (`kb.kreft.us:8647`)**: both desktop (CLI/TUI and GUI) and browser (Web/PWA) players can **host** and **join** matches in a shared TLS/WSS rendezvous lobby, browse open waiting matches (marked with a padlock when a room code is required), and view live telemetry (**In lobby**, **Live matches**, **Completed**, and **Dice played**)
   - **Direct (`host:port`)**: desktop binaries host on a dual-protocol TCP + WebSocket port (default `8647`) with an optional bind interface and optional room code; desktop clients and the [Knucklebones Web App (PWA)](../../knucklebones/) join directly by address (last host remembered)
   - When a host sets a room code, both peers authenticate with challenge-response and protect wire messages with HKDF-SHA256 / HMAC-SHA256 and monotonic sequence numbers. Leaving the room code blank keeps the room open (unexpected codes are rejected)
@@ -56,7 +61,7 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
   - Optional turn timer (15, 30, or 60 seconds). A timed-out turn places the die in a random open column; three timeouts lose the match
   - A player who drops has 30 seconds to reconnect before forfeiting. Leaving mid-game counts as resigning
   - After a game, both players must pick the same option (play again, continue, free play). The result panel shows "Waiting for…" and "… wants to rematch!"
-- **Web App (PWA) companion**: play offline in any modern browser or install via **Options** (including iOS Share → Add to Home Screen instructions) with matching GUI & TUI views (**M** or Options), 4 themes (**T** or Options), colorblind marks (**C** or Options), Web Audio sound synthesis (**S**), Monte Carlo win odds (**P**), round replay (**X**), and **Network Play** (host or join on the shared `kb.kreft.us:8647` **Online** lobby alongside CLI/TUI and GUI players, or **Direct** WebSocket join to desktop Go hosts)
+- **Web App (PWA) companion**: play offline in any modern browser or install via **Options** (including iOS Share → Add to Home Screen instructions) with matching GUI & TUI views (**M** or Options), 4 themes (**T** or Options), colorblind marks (**C** or Options), Web Audio sound synthesis (**S**), Monte Carlo win odds (**P**), round replay (**X**), **Pass/Lay** 2P tabletop mode (**F**), and **Online** (**Challenge Mode** + **2-Player** on `kb.kreft.us:8647` or **Direct** WebSocket join)
 - **Stats**: games, wins, losses, draws, and best score for each AI, online, and same-keyboard play, plus best-of series won and lost. A Top 10 of final scores; making it is announced on the result panel
 - **Themes & Options**: four built-in themes (**Dark**, **Light**, **High Contrast**, **Parchment** — press **T** on the menu or `←`/`→` on **Options**) plus **Options** for **Theme**, **Sound effects**, **Colorblind marks**, and **Win probability**
 - **Sound effects**: enabled by default and toggled in **Options → Sound effects** or in game by pressing **S** / clicking `Sound [S]` in the GUI side panel (persisted in `knucklebones.json`). Both the graphical window and local desktop TUI play synthesized PCM sound effects via `ebiten/v2/audio` (`click`, `place`, `destroy`, `turn`, `win`, `lose`). PCM audio is bypassed in headless/SSH sessions (or when `KNUCKLEBONES_HEADLESS=1` is set) and in `CGO_ENABLED=0` builds, where the TUI falls back to throttled terminal bells (`Beep()`) on captures and round outcomes
@@ -75,14 +80,14 @@ The graphical window uses `die.png` for its icon and logo. It resizes freely and
 | Settings / Options | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit Player 2 name, Port, or Room code |
 | Settings / Options | Enter on Start game / Done | Start game, or return to menu |
 | Settings / Options | Esc | Save and return to the menu |
-| Name / Network Play | ↑↓←→ or Tab | Navigate Online/Direct toggle, open matches list, inputs, and action buttons |
-| Network Play (Online) | H / M / R | Host Online Match (`H`), toggle Online/Direct (`M`), or refresh/reconnect (`R`) |
-| Name / Network Play | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit player name, host address, or room code (including literal `w`/`a`/`s`/`d`) |
-| Name / Network Play | Enter | Confirm / Join selected match / Connect |
-| Name / Network Play | Esc | Cancel and return to menu |
+| Name / Online | ↑↓←→ or Tab | Navigate Challenge/2-Player & Lobby/Direct toggles, open matches, inputs, and buttons |
+| Online | C / N / H / M / R | Toggle Challenge/2-Player (`C`), change name (`N`), Host (`H`), toggle Lobby/Direct (`M`), or refresh (`R`) |
+| Name / Online | Typing, ←→, Home/End, click (GUI), Backspace/Delete, Ctrl+U | Edit player name, host address, or room code (including literal `w`/`a`/`s`/`d`) |
+| Name / Online | Enter | Confirm / Start Challenge / Join selected match / Connect |
+| Name / Online | Esc | Cancel and return to menu |
 | Lobby | ←→, A/D, or Tab | Switch between `Back` and `Retry` on retryable errors |
 | Lobby | Enter or Space | Confirm `Back` or `Retry` |
-| Lobby | Esc | Return to Network Play (client) or cancel hosting (host) |
+| Lobby | Esc | Return to Online screen (client) or cancel hosting (host) |
 | Your turn | ←→ or A/D | Choose a column |
 | Your turn | 1–3 | Place in that column |
 | Your turn | Enter or Space | Place in the chosen column |
@@ -116,8 +121,8 @@ On the same keyboard, both players use the same keys on their own turn. Player 1
 | Menu | Hover, click | Select, choose |
 | Settings / Options | Click ◀ ▶ or the row | Change the setting (click Player 2, Port, or Room code, then type) |
 | Settings / Options | Click Start game, Done, or Back | Start, or back to the menu |
-| Network Play | Click mode, row, or field | Switch Online/Direct, select an open match, or focus host/room code box |
-| Name / Network Play / Lobby | Click the buttons | Host, join, retry, cancel, or go back |
+| Online | Click mode, row, or field | Switch Challenge/2-Player or Lobby/Direct, select an open match, or focus name/host/code box |
+| Name / Online / Lobby | Click the buttons | Start Challenge, save name, host, join, retry, cancel, or go back |
 | Your turn | Hover a column | Preview the placement |
 | Your turn | Click a column (either board) | Place the die there |
 | Your turn (two dice) | Click a tray die | Choose which die to place |
@@ -151,16 +156,22 @@ The best column is 54, so the best board is 162. The game stops as soon as any b
 
 ## Online play
 
-### Online Lobby (`kb.kreft.us:8647` — default)
+### Challenge Mode (`kb.kreft.us:8647` — default)
 
-1. Choose **Network Play** from the Start menu in any edition (**Web**, **PWA**, **CLI/TUI**, or **Desktop GUI**). **Online** mode connects automatically to the TLS/WSS rendezvous server at `kb.kreft.us:8647` and displays live stats (**In lobby**, **Live matches**, **Completed**, **Dice played**) alongside the **Open Matches** list.
+1. Choose **Online** from the Start menu in any edition (**Web**, **PWA**, **CLI/TUI**, or **Desktop GUI**). If your name is still `Lamb` (or contains filtered words), update it to enter the **Challenge Ready Room**.
+2. Review your record, live server Challenge stats, and the **Top 10 Challenge Leaderboard**, then press **Start Challenge** to begin a 3-match 1-die battle against Hard AI (*Shrumy*).
+3. All 3 matches are always played; combined net delta (`Sum(You - AI)`) determines your score, with total time from first die to last die placed breaking ties.
+
+### 2-Player Online Lobby (`kb.kreft.us:8647`)
+
+1. Toggle **Online** to **2-Player → Lobby (`kb.kreft.us`)** to view live stats (**In lobby**, **Live matches**, **Completed**, **Dice played**) alongside the **Open Matches** list.
 2. **Hosting Online**: select **Host Online Match** (or **Host Match** in GUI/PWA), configure rounds, turn timer, optional room code, and house rules, then start. Your room appears in the shared lobby (with a padlock icon if a room code is set) so any Web, PWA, CLI, or GUI player can join without port forwarding.
 3. **Joining Online**: highlight an open match in the list, enter a room code if locked, and choose **Join Selected** (or **Join Match**).
 
 ### Direct (`host:port`)
 
-1. Toggle **Network Play** to **Direct** and choose **Host Match** in a desktop Knucklebones executable (TUI or GUI), set rounds, turn timer, port, bind interface, an optional room code, and house rules, then **Start game**. The lobby lists the bound address(es) (`host:port` and `localhost:8647` on the host machine) and active room code indicator (if set).
-2. The other player toggles **Network Play** to **Direct** in either the desktop app or the [Knucklebones PWA](../../knucklebones/) (the PWA is join-only in Direct mode: *"Games can be hosted with the PC/Linux version"*), enters the host address (for example `192.168.1.20:8647` or `localhost:8647`; a bare host name uses port `8647`), and optionally enters the matching room code. Both desktop and browser PWA remember the last host address used (room codes are never saved).
+1. Toggle **Online** to **2-Player → Direct** and choose **Host Direct Game** in a desktop Knucklebones executable (TUI or GUI), set rounds, turn timer, port, bind interface, an optional room code, and house rules, then **Start game**. The lobby lists the bound address(es) (`host:port` and `localhost:8647` on the host machine) and active room code indicator (if set).
+2. The other player toggles **Online** to **2-Player → Direct** in either the desktop app or the [Knucklebones PWA](../../knucklebones/) (the PWA is join-only in Direct mode: *"Games can be hosted with the PC/Linux version"*), enters the host address (for example `192.168.1.20:8647` or `localhost:8647`; a bare host name uses port `8647`), and optionally enters the matching room code. Both desktop and browser PWA remember the last host address used (room codes are never saved).
 3. The game starts as soon as the guest completes the Protocol v2 handshake (`unsupported-protocol` rejects incompatible v1 peers). On the host listener (`net.go` / `ws.go`), native TCP and browser RFC 6455 WebSocket upgrades share the same port seamlessly, while the host commits to its dice seed for fair-play verification at round end.
 
 Direct games are played peer-to-peer between host and guest, so both must reach each other (same network, VPN, or a forwarded port; from HTTPS browser origins, same-machine connections use `localhost:8647` / `127.0.0.1:8647`, while remote LAN IPs require a `wss://` TLS reverse proxy or running from a local origin). Windows may ask to allow Knucklebones through the firewall the first time you host. A room holds two players; a third connection is turned away.

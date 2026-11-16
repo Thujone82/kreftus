@@ -23,6 +23,7 @@ const (
 	rMsgHost        = "r_host"
 	rMsgHosted      = "r_hosted"
 	rMsgJoin        = "r_join"
+	rMsgChallenge   = "r_challenge"
 	rMsgPaired      = "r_paired"
 	rMsgGuestJoined = "r_guest_joined"
 	rMsgGuestDrop   = "r_guest_drop"
@@ -121,24 +122,69 @@ type wireMatch struct {
 	Rules Rules       `json:"rules"`
 	Grids [2]wireGrid `json:"grids"`
 	Turn  int         `json:"turn"`
+	Dice  [2]int      `json:"dice"`
+	Over  bool        `json:"over"`
 	Moves int         `json:"moves"`
 }
 
+type wireLogEntry struct {
+	Round     int    `json:"round"`
+	Kind      string `json:"kind"`
+	Player    int    `json:"player"`
+	Die       int    `json:"die,omitempty"`
+	Col       int    `json:"col,omitempty"`
+	Destroyed int    `json:"destroyed,omitempty"`
+	Gain      int    `json:"gain,omitempty"`
+	Lost      int    `json:"lost,omitempty"`
+	Count     int    `json:"count,omitempty"`
+	Scores    [2]int `json:"scores"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type wireReplayMove struct {
+	Player int    `json:"p"`
+	Col    int    `json:"c"`
+	Die    int    `json:"d"`
+	Dice   [2]int `json:"dice"`
+}
+
 type wireSession struct {
-	Mode      string             `json:"mode"`
-	Names     [2]string          `json:"names"`
-	BestOf    int                `json:"bestOf"`
-	FreePlay  bool               `json:"freePlay"`
-	Rules     Rules              `json:"rules"`
-	Match     wireMatch          `json:"match"`
-	Series    int                `json:"series"`
-	Round     int                `json:"round"`
-	Wins      [2]int             `json:"wins"`
-	Ties      int                `json:"ties"`
-	Phase     string             `json:"phase"`
-	History   []wireHistoryEntry `json:"history"`
-	Forfeit   *wireForfeit       `json:"forfeit,omitempty"`
-	Last      *wirePlacement     `json:"last,omitempty"`
+	Mode               string             `json:"mode"`
+	Names              [2]string          `json:"names"`
+	Difficulty         string             `json:"difficulty,omitempty"`
+	Challenge          bool               `json:"challenge,omitempty"`
+	BestOf             int                `json:"bestOf"`
+	FreePlay           bool               `json:"freePlay,omitempty"`
+	Rules              Rules              `json:"rules"`
+	Match              wireMatch          `json:"match"`
+	Series             int                `json:"series"`
+	Round              int                `json:"round"`
+	Wins               [2]int             `json:"wins"`
+	Ties               int                `json:"ties"`
+	Phase              string             `json:"phase"`
+	Log                []wireLogEntry     `json:"log"`
+	History            []wireHistoryEntry `json:"history"`
+	Timeouts           [2]int             `json:"timeouts"`
+	Votes              [2]string          `json:"votes"`
+	Forfeit            *wireForfeit       `json:"forfeit,omitempty"`
+	Last               *wirePlacement     `json:"last,omitempty"`
+	Connected          [2]bool            `json:"connected"`
+	TurnLimit          int                `json:"turnLimit,omitempty"`
+	TurnLeftMs         int64              `json:"turnLeftMs,omitempty"`
+	WaitLeftMs         int64              `json:"waitLeftMs,omitempty"`
+	Aiming             bool               `json:"aiming,omitempty"`
+	AimCol             int                `json:"aimCol,omitempty"`
+	AimDie             int                `json:"aimDie,omitempty"`
+	HostCommit         string             `json:"hostCommit,omitempty"`
+	GuestSeed          string             `json:"guestSeed,omitempty"`
+	HostReveal         string             `json:"hostReveal,omitempty"`
+	NextHostCommit     string             `json:"nextHostCommit,omitempty"`
+	RoundFirst         int                `json:"roundFirst,omitempty"`
+	RoundRolls         [][2]int           `json:"roundRolls,omitempty"`
+	RoundMoves         []wireReplayMove   `json:"roundMoves,omitempty"`
+	ChallengeElapsedMs int64              `json:"challengeElapsedMs,omitempty"`
+	ChallengeDelta     int                `json:"challengeDelta,omitempty"`
+	ChallengeRank      int                `json:"challengeRank,omitempty"`
 }
 
 func readJSONLine(r *bufio.Reader, conn net.Conn, timeout time.Duration, limit int) ([]byte, error) {

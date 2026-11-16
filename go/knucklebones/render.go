@@ -278,6 +278,32 @@ func (g *game) resultText(s *session) (string, tcell.Color) {
 	}
 	sc := s.Match.Scores()
 	w := s.Match.Winner()
+	if s.Challenge {
+		me := g.ctl.seat()
+		if me < 0 {
+			me = 1
+		}
+		if s.Phase == phaseGameOver {
+			d := s.challengeCombinedDelta(me)
+			switch {
+			case d > 0:
+				return fmt.Sprintf("Challenge Won! Net Delta: +%d", d), g.pal.win
+			case d < 0:
+				return fmt.Sprintf("Challenge Complete · Net Delta: %d", d), g.pal.lose
+			default:
+				return "Challenge Complete · Tied at 0!", g.pal.accent
+			}
+		}
+		rd := sc[me] - sc[1-me]
+		switch {
+		case rd > 0:
+			return fmt.Sprintf("Match %d/3 won by +%d (%d–%d)", s.Round, rd, sc[me], sc[1-me]), g.pal.win
+		case rd < 0:
+			return fmt.Sprintf("Match %d/3 lost by %d (%d–%d)", s.Round, rd, sc[me], sc[1-me]), g.pal.lose
+		default:
+			return fmt.Sprintf("Match %d/3 tied (%d–%d)", s.Round, sc[me], sc[1-me]), g.pal.accent
+		}
+	}
 	scope := "round"
 	if s.Phase == phaseGameOver {
 		scope = "game"
@@ -494,51 +520,189 @@ func (g *game) drawNetwork() {
 	w, h := g.width, g.height
 	g.drawTitle(1)
 
-	bw := 68
+	bw := 70
 	if bw > w-2 {
 		bw = w - 2
 	}
 	bh := h - 6
-	if bh < 14 {
-		bh = 14
+	if bh < 16 {
+		bh = 16
 	}
-	if bh > 20 {
-		bh = 20
+	if bh > 22 {
+		bh = 22
 	}
 	bx, by := w/2-bw/2, 3
 	if by+bh >= h-1 {
 		by = 2
 	}
-	g.drawBox(bx, by, bw, bh, "Network Play")
+	g.drawBox(bx, by, bw, bh, "Online")
 
-	// Mode toggle row: [ Online ]  [ Direct ]
-	onLbl := "  Online (kb.kreft.us)  "
+	// Primary Online toggle row: [ Challenge ]  [ 2-Player ]
+	chLbl := "  Challenge (vs AI)  "
+	tpLbl := "  2-Player  "
+	chSt, tpSt := g.st(g.pal.dim), g.st(g.pal.dim)
+	if g.netChallenge {
+		chLbl = "▶ Challenge (vs AI) ◀"
+		if g.netFocus == netFocusCategory {
+			chSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+		} else {
+			chSt = g.st(g.pal.accent).Bold(true)
+		}
+	} else {
+		tpLbl = "▶ 2-Player ◀"
+		if g.netFocus == netFocusCategory {
+			tpSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+		} else {
+			tpSt = g.st(g.pal.accent).Bold(true)
+		}
+	}
+	catW := textWidth(chLbl) + 2 + textWidth(tpLbl)
+	cx := w/2 - catW/2
+	cx = drawText(g.screen, cx, by+1, chLbl, chSt) + 2
+	drawText(g.screen, cx, by+1, tpLbl, tpSt)
+
+	field := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
+	dimField := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.dim)
+	accentBtn := tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+	idleBtn := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
+
+	if g.netChallenge {
+		snap := g.networkSnapshot()
+		if g.challengeNameEditing() {
+			promptTitle := "Update Your Name for Challenge Leaderboard"
+			if isLambName(g.save.Name) {
+				promptTitle = "Replace 'Lamb' Before Entering Challenge Mode"
+			}
+			drawCentered(g.screen, w/2, by+4, truncate(promptTitle, bw-4), g.st(g.pal.fg).Bold(true))
+			drawCentered(g.screen, w/2, by+5, truncate("3 Matches · 1 Die · Hard AI (Shrumy) · Lamb & offensive names disallowed", bw-4), g.st(g.pal.dim))
+
+			lblSt := g.st(g.pal.dim)
+			if g.netFocus == netFocusChallengeName {
+				lblSt = g.st(g.pal.accent).Bold(true)
+			}
+			drawText(g.screen, bx+6, by+7, "Challenger name:", lblSt)
+			drawFieldSlice(g.screen, bx+6, by+8, bw-12, g.netNameDraft, g.netNamePos, g.netFocus == netFocusChallengeName, field, dimField, "Enter custom name")
+
+			if g.note != "" {
+				drawCentered(g.screen, w/2, by+10, truncate(g.note, bw-6), g.st(g.pal.lose))
+			}
+
+			saveLbl := "  Save Name  "
+			saveSt := accentBtn
+			if g.netFocus != netFocusChallengeSave && g.netFocus == netFocusChallengeName {
+				saveLbl = "▶ Save Name (Enter) ◀"
+			} else if g.netFocus == netFocusChallengeSave {
+				saveLbl = "▶ Save Name ◀"
+			} else {
+				saveSt = idleBtn
+			}
+			drawCentered(g.screen, w/2, by+12, saveLbl, saveSt)
+			drawCentered(g.screen, w/2, h-1, truncate("Type name · Enter save · C 2-Player · Esc back", w-2), g.st(g.pal.dim))
+			return
+		}
+
+		// Challenge Ready Room: rules + stats + Top 10 Leaderboard.
+		chInfo := fmt.Sprintf("Challenger: %s · 3 Matches · 1 Die · Hard AI (Shrumy)", g.save.Name)
+		drawCentered(g.screen, w/2, by+3, truncate(chInfo, bw-4), g.st(g.pal.fg))
+
+		var statsLine string
+		if !snap.Connected {
+			if snap.Err != "" {
+				statsLine = "Leaderboard offline (" + truncate(snap.Err, bw-26) + ")"
+			} else {
+				statsLine = "Connecting to " + g.rendezvousAddr() + "..."
+			}
+		} else if snap.Stats.Challenge != nil {
+			cs := snap.Stats.Challenge
+			statsLine = fmt.Sprintf("Completed: %s/%s · Player Wins: %s · AI Wins: %s · Active: %d",
+				formatCompactUint(cs.Completions), formatCompactUint(cs.Attempts),
+				formatCompactUint(cs.PlayerWins), formatCompactUint(cs.AIWins), cs.ActiveMatches)
+		} else {
+			statsLine = "Connected to " + g.rendezvousAddr()
+		}
+		drawCentered(g.screen, w/2, by+4, truncate(statsLine, bw-4), g.st(g.pal.dim))
+
+		lbTop := by + 6
+		drawText(g.screen, bx+3, lbTop, "Top 10 Challenge Leaderboard (Delta, Tie-break: Time)", g.st(g.pal.accent).Bold(true))
+		drawText(g.screen, bx+3, lbTop+1, fmt.Sprintf("%-3s %-17s %8s %9s %7s", "#", "Player", "Delta", "Time", "W-L-T"), g.st(g.pal.dim))
+
+		var top []challengeEntry
+		if snap.Stats.Challenge != nil {
+			top = snap.Stats.Challenge.Top10
+		}
+		maxRows := bh - 11
+		if maxRows < 3 {
+			maxRows = 3
+		}
+		if maxRows > 10 {
+			maxRows = 10
+		}
+		if len(top) == 0 {
+			msg := "No Challenge finishes yet — set the first record!"
+			if !snap.Connected && snap.Err != "" {
+				msg = "Press R to retry fetching the leaderboard."
+			}
+			drawCentered(g.screen, w/2, lbTop+3, truncate(msg, bw-6), g.st(g.pal.dim))
+		} else {
+			for i := 0; i < len(top) && i < maxRows; i++ {
+				e := top[i]
+				rowSt := g.st(g.pal.fg)
+				if i == 0 {
+					rowSt = g.st(g.pal.win).Bold(true)
+				}
+				wlt := fmt.Sprintf("%d-%d-%d", e.Wins, e.Losses, e.Ties)
+				line := fmt.Sprintf("%-3d %-17s %8s %9s %7s",
+					i+1, truncate(e.Name, 17), formatSignedDelta(e.Delta), formatChallengeTime(e.DurationMs), wlt)
+				drawText(g.screen, bx+3, lbTop+2+i, truncate(line, bw-6), rowSt)
+			}
+		}
+
+		btnY := by + bh - 2
+		renLbl := "  Change Name [N]  "
+		startLbl := "  Start Challenge  "
+		renSt, startSt := idleBtn, idleBtn
+		if g.netFocus == netFocusChallengeRename {
+			renLbl = "▶ Change Name [N] ◀"
+			renSt = accentBtn
+		} else {
+			startLbl = "▶ Start Challenge ◀"
+			startSt = accentBtn
+		}
+		btot := textWidth(renLbl) + 3 + textWidth(startLbl)
+		rx := w/2 - btot/2
+		rx = drawText(g.screen, rx, btnY, renLbl, renSt) + 3
+		drawText(g.screen, rx, btnY, startLbl, startSt)
+
+		if g.note != "" && by+bh < h-1 {
+			drawCentered(g.screen, w/2, by+bh, truncate(g.note, w-4), g.st(g.pal.lose))
+		}
+		drawCentered(g.screen, w/2, h-1, truncate("Tab/↑↓ focus · Enter start · N name · C 2-Player · R refresh · Esc back", w-2), g.st(g.pal.dim))
+		return
+	}
+
+	// 2-Player Sub-mode toggle row: [ Lobby (kb.kreft.us) ]  [ Direct ]
+	onLbl := "  Lobby (kb.kreft.us)  "
 	dirLbl := "  Direct  "
 	onSt, dirSt := g.st(g.pal.dim), g.st(g.pal.dim)
 	if g.netOnline {
-		onLbl = "▶ Online (kb.kreft.us) ◀"
+		onLbl = "▶ Lobby (kb.kreft.us) ◀"
 		if g.netFocus == netFocusMode {
-			onSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+			onSt = accentBtn
 		} else {
 			onSt = g.st(g.pal.accent).Bold(true)
 		}
 	} else {
 		dirLbl = "▶ Direct ◀"
 		if g.netFocus == netFocusMode {
-			dirSt = tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
+			dirSt = accentBtn
 		} else {
 			dirSt = g.st(g.pal.accent).Bold(true)
 		}
 	}
 	toggleW := textWidth(onLbl) + 2 + textWidth(dirLbl)
 	tx := w/2 - toggleW/2
-	tx = drawText(g.screen, tx, by+1, onLbl, onSt) + 2
-	drawText(g.screen, tx, by+1, dirLbl, dirSt)
-
-	field := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
-	dimField := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.dim)
-	accentBtn := tcell.StyleDefault.Background(g.pal.accent).Foreground(g.pal.bg).Bold(true)
-	idleBtn := tcell.StyleDefault.Background(g.pal.emptyBg).Foreground(g.pal.fg)
+	tx = drawText(g.screen, tx, by+2, onLbl, onSt) + 2
+	drawText(g.screen, tx, by+2, dirLbl, dirSt)
 
 	if g.netOnline {
 		snap := g.networkSnapshot()
@@ -551,10 +715,10 @@ func (g *game) drawNetwork() {
 				statsLine = "Connecting to " + g.rendezvousAddr() + "..."
 			}
 		}
-		drawCentered(g.screen, w/2, by+3, truncate(statsLine, bw-4), g.st(g.pal.dim))
+		drawCentered(g.screen, w/2, by+4, truncate(statsLine, bw-4), g.st(g.pal.dim))
 
-		listTop := by + 5
-		listH := bh - 11
+		listTop := by + 6
+		listH := bh - 12
 		if listH < 3 {
 			listH = 3
 		}
@@ -635,7 +799,7 @@ func (g *game) drawNetwork() {
 		if g.note != "" && by+bh < h-1 {
 			drawCentered(g.screen, w/2, by+bh, truncate(g.note, w-4), g.st(g.pal.lose))
 		}
-		drawCentered(g.screen, w/2, h-1, truncate("↑↓←→ navigate · Tab · H host · M mode · Enter confirm · Esc back", w-2), g.st(g.pal.dim))
+		drawCentered(g.screen, w/2, h-1, truncate("↑↓←→ navigate · Tab · H host · C Challenge · M mode · Enter confirm · Esc back", w-2), g.st(g.pal.dim))
 		return
 	}
 
@@ -646,8 +810,8 @@ func (g *game) drawNetwork() {
 		hostLbl = "▶ Host Direct Game ◀"
 		hostSt = accentBtn
 	}
-	drawCentered(g.screen, w/2, by+3, hostLbl, hostSt)
-	drawCentered(g.screen, w/2, by+4, "Open a port directly or enter a host address to join:", g.st(g.pal.dim))
+	drawCentered(g.screen, w/2, by+4, hostLbl, hostSt)
+	drawCentered(g.screen, w/2, by+5, "Open a port directly or enter a host address to join:", g.st(g.pal.dim))
 
 	lblAddr, lblCode := g.st(g.pal.dim), g.st(g.pal.dim)
 	if g.netFocus == netFocusAddr {
@@ -655,10 +819,10 @@ func (g *game) drawNetwork() {
 	} else if g.netFocus == netFocusCode {
 		lblCode = g.st(g.pal.accent).Bold(true)
 	}
-	drawText(g.screen, bx+3, by+6, "Host address (host:port)", lblAddr)
-	drawFieldSlice(g.screen, bx+3, by+7, bw-6, g.input, g.inputPos, g.netFocus == netFocusAddr, field, dimField, "")
-	drawText(g.screen, bx+3, by+9, "Room code (optional)", lblCode)
-	drawFieldSlice(g.screen, bx+3, by+10, bw-6, g.joinCode, g.inputPos, g.netFocus == netFocusCode, field, dimField, "(optional)")
+	drawText(g.screen, bx+3, by+7, "Host address (host:port)", lblAddr)
+	drawFieldSlice(g.screen, bx+3, by+8, bw-6, g.input, g.inputPos, g.netFocus == netFocusAddr, field, dimField, "")
+	drawText(g.screen, bx+3, by+10, "Room code (optional)", lblCode)
+	drawFieldSlice(g.screen, bx+3, by+11, bw-6, g.joinCode, g.inputPos, g.netFocus == netFocusCode, field, dimField, "(optional)")
 
 	joinLbl := "  Join Direct  "
 	joinSt := idleBtn
@@ -666,11 +830,11 @@ func (g *game) drawNetwork() {
 		joinLbl = "▶ Join Direct ◀"
 		joinSt = accentBtn
 	}
-	drawCentered(g.screen, w/2, by+12, joinLbl, joinSt)
+	drawCentered(g.screen, w/2, by+13, joinLbl, joinSt)
 	if g.note != "" && by+bh < h-1 {
 		drawCentered(g.screen, w/2, by+bh, truncate(g.note, w-4), g.st(g.pal.lose))
 	}
-	drawCentered(g.screen, w/2, h-1, truncate("↑↓←→ navigate · Tab · M mode · Enter join · Esc back", w-2), g.st(g.pal.dim))
+	drawCentered(g.screen, w/2, h-1, truncate("↑↓←→ navigate · Tab · C Challenge · M mode · Enter join · Esc back", w-2), g.st(g.pal.dim))
 }
 
 func (g *game) drawPrompt(title, label, value string) {
@@ -784,7 +948,7 @@ func (g *game) drawLobby() {
 			bh = h - by - 1
 			btnY = by + bh - 3
 		}
-		g.drawBox(bx, by, bw, bh, "Network Play")
+		g.drawBox(bx, by, bw, bh, "Online")
 		for i, line := range lines {
 			drawCentered(g.screen, w/2, by+2+i, line, g.st(g.pal.lose))
 		}
@@ -816,7 +980,7 @@ func (g *game) drawLobby() {
 		drawCentered(g.screen, w/2, h-1, "←→ select · Enter confirm · Esc back", g.st(g.pal.dim))
 		return
 	}
-	g.drawBox(bx, by, bw, 9, "Network Play")
+	g.drawBox(bx, by, bw, 9, "Online")
 	dots := strings.Repeat(".", int(time.Now().UnixMilli()/400%4))
 	drawCentered(g.screen, w/2, by+2, "Waiting for game to start"+dots, g.st(g.pal.fg))
 	drawCentered(g.screen, w/2, by+4, targetAddr, g.st(g.pal.accent))
@@ -1097,7 +1261,7 @@ func (g *game) drawHeader(s *session, l playLayout, now time.Time) {
 	}
 	drawText(g.screen, 1, y, "KNUCKLEBONES", g.st(g.pal.title).Bold(true))
 	drawCentered(g.screen, w/2, y, text, g.st(c).Bold(true))
-	label := fmt.Sprintf("Round %d · %s", s.Round, s.roundsLabel())
+	label := g.headerRightLabel(s, now)
 	drawText(g.screen, w-1-textWidth(label), y, label, g.st(g.pal.dim))
 }
 
@@ -1305,7 +1469,18 @@ func (g *game) drawResult(s *session, l playLayout) {
 	sc := s.Match.Scores()
 	drawCentered(g.screen, w/2, y, fmt.Sprintf("%s %d  –  %d %s", s.Names[0], sc[0], sc[1], s.Names[1]), g.st(g.pal.fg))
 	y++
-	if s.BestOf != 1 || s.FreePlay {
+	if s.Challenge {
+		me := g.ctl.seat()
+		if me < 0 {
+			me = 1
+		}
+		var parts []string
+		for _, h := range s.History {
+			parts = append(parts, fmt.Sprintf("M%d: %s", h.Round, formatSignedDelta(h.Scores[me]-h.Scores[1-me])))
+		}
+		summary := fmt.Sprintf("Match %d/3 · %s", s.Round, strings.Join(parts, " · "))
+		drawCentered(g.screen, w/2, y, truncate(summary, bw-4), g.st(g.pal.dim))
+	} else if s.BestOf != 1 || s.FreePlay {
 		drawCentered(g.screen, w/2, y, fmt.Sprintf("Rounds won %d – %d · %s", s.Wins[0], s.Wins[1], s.roundsLabel()), g.st(g.pal.dim))
 	}
 	y++
@@ -1469,8 +1644,8 @@ var guideText = []guideLine{
 	{"• Ratau (Easy) drops dice in any open column.", 0},
 	{"• Flinky (Medium) takes the biggest immediate swing.", 0},
 	{"• Shrumy (Hard) averages your best reply over every roll, looks one step further, and knows when ending the game wins or loses it.", 0},
-	{"Network play", 1},
-	{"Open Network Play to host or join via Online Lobby (kb.kreft.us) or Direct connect. Locked rooms (🔒) require the host's room code. The host rolls the dice; turns can be timed and three timeouts lose the match. A dropped player has 30 seconds to reconnect.", 0},
+	{"Online & Challenge mode", 1},
+	{"Open Online to play Challenge Mode or 2-Player online via kb.kreft.us (or Direct connect). Challenge is a 3-match battle (all 3 played, 1 die choice) against Hard AI (Shrumy) ranked on the Top 10 Leaderboard by combined net point delta, with completion time from first die to last die as tie-breaker. Custom non-Lamb names are required for Challenge. In 2-Player, locked rooms (🔒) require the host's room code, turns can be timed (3 timeouts lose), and dropped players have 30s to reconnect.", 0},
 	{"Credits", 1},
 	{"The original Knucklebones game in Cult of the Lamb was created by Massive Monster. This is a fan-made game and not an official implementation. Rules and strategy notes follow the dice.now Knucklebones guide.", 0},
 }

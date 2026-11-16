@@ -99,37 +99,77 @@ const netVisibleRooms = 5
 
 func networkCard() rect { return centered(baseW/2, 134, 720, 566) }
 
+func netCategoryButtons() (challenge, twoPlayer rect) {
+	c := networkCard()
+	w, h, gap := 220.0, 28.0, 14.0
+	x := c.cx() - (w*2+gap)/2
+	y := c.Y + 46
+	return rect{x, y, w, h}, rect{x + w + gap, y, w, h}
+}
+
+func netChallengeStatsRect() rect {
+	c := networkCard()
+	return rect{c.X + 30, c.Y + 114, c.W - 60, 28}
+}
+
+func netChallengeBoardRect() rect {
+	c := networkCard()
+	return rect{c.X + 30, c.Y + 150, c.W - 60, 342}
+}
+
+func netChallengeNameRect() rect {
+	c := networkCard()
+	return rect{c.X + 70, c.Y + 236, c.W - 140, 44}
+}
+
+func netChallengeEditButtons(canCancel bool) (back, save rect) {
+	c := networkCard()
+	y := c.Y + 324
+	if !canCancel {
+		return centered(c.cx()-95, y, 160, 42), centered(c.cx()+95, y, 180, 42)
+	}
+	return rect{c.cx() - 190, y, 170, 42}, rect{c.cx() + 20, y, 170, 42}
+}
+
+func netChallengeButtons() (back, rename, start rect) {
+	c := networkCard()
+	y, h := c.Y+c.H-58, 42.0
+	bw, rw, sw, gap := 140.0, 180.0, 220.0, 16.0
+	x := c.cx() - (bw+rw+sw+gap*2)/2
+	return rect{x, y, bw, h}, rect{x + bw + gap, y, rw, h}, rect{x + bw + rw + gap*2, y, sw, h}
+}
+
 func netModeButtons() (online, direct rect) {
 	c := networkCard()
-	w, h, gap := 210.0, 34.0, 14.0
+	w, h, gap := 210.0, 28.0, 14.0
 	x := c.cx() - (w*2+gap)/2
-	y := c.Y + 54
+	y := c.Y + 82
 	return rect{x, y, w, h}, rect{x + w + gap, y, w, h}
 }
 
 func netStatsRect() rect {
 	c := networkCard()
-	return rect{c.X + 30, c.Y + 98, c.W - 60, 32}
+	return rect{c.X + 30, c.Y + 116, c.W - 60, 28}
 }
 
 func netRoomsRect() rect {
 	c := networkCard()
-	return rect{c.X + 30, c.Y + 140, c.W - 60, 240}
+	return rect{c.X + 30, c.Y + 150, c.W - 60, 238}
 }
 
 func netRoomRowRect(i int) rect {
 	r := netRoomsRect()
-	return rect{r.X + 6, r.Y + 6 + float64(i)*46, r.W - 12, 42}
+	return rect{r.X + 6, r.Y + 6 + float64(i)*45, r.W - 12, 41}
 }
 
 func netOnlineCodeRect() rect {
 	c := networkCard()
-	return rect{c.X + 30, c.Y + 414, c.W - 60, 42}
+	return rect{c.X + 30, c.Y + 412, c.W - 60, 40}
 }
 
 func netOnlineButtons() (back, join, host rect) {
 	c := networkCard()
-	y, h := c.Y+c.H-64, 42.0
+	y, h := c.Y+c.H-58, 42.0
 	bw, jw, hw, gap := 150.0, 190.0, 220.0, 16.0
 	x := c.cx() - (bw+jw+hw+gap*2)/2
 	return rect{x, y, bw, h}, rect{x + bw + gap, y, jw, h}, rect{x + bw + jw + gap*2, y, hw, h}
@@ -137,20 +177,20 @@ func netOnlineButtons() (back, join, host rect) {
 
 func netDirectHostButton() rect {
 	c := networkCard()
-	return centered(c.cx(), c.Y+124, 300, 44)
+	return centered(c.cx(), c.Y+132, 300, 44)
 }
 
 func netDirectFieldRect(i int) rect {
 	c := networkCard()
 	if i == 1 {
-		return rect{c.X + 30, c.Y + 334, c.W - 60, 44}
+		return rect{c.X + 30, c.Y + 342, c.W - 60, 44}
 	}
-	return rect{c.X + 30, c.Y + 244, c.W - 60, 44}
+	return rect{c.X + 30, c.Y + 252, c.W - 60, 44}
 }
 
 func netDirectButtons() (back, ok rect) {
 	c := networkCard()
-	y := c.Y + c.H - 64
+	y := c.Y + c.H - 58
 	return rect{c.cx() - 190, y, 180, 42}, rect{c.cx() + 10, y, 180, 42}
 }
 

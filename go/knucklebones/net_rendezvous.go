@@ -34,16 +34,45 @@ func (e *fatalDialError) Error() string {
 	return e.code
 }
 
+type challengeEntry struct {
+	Name        string `json:"name"`
+	Delta       int    `json:"delta"`
+	DurationMs  int64  `json:"durationMs"`
+	RoundDeltas [3]int `json:"roundDeltas"`
+	PlayerTotal int    `json:"playerTotal"`
+	AITotal     int    `json:"aiTotal"`
+	Wins        int    `json:"wins"`
+	Losses      int    `json:"losses"`
+	Ties        int    `json:"ties"`
+	RecordedAt  string `json:"recordedAt"`
+}
+
+type challengeStatsView struct {
+	Attempts        uint64           `json:"attempts"`
+	Completions     uint64           `json:"completions"`
+	PlayerWins      uint64           `json:"playerWins"`
+	AIWins          uint64           `json:"aiWins"`
+	Ties            uint64           `json:"ties"`
+	Forfeits        uint64           `json:"forfeits"`
+	ActiveMatches   int              `json:"activeMatches,omitempty"`
+	TotalDicePlayed uint64           `json:"totalDicePlayed"`
+	BestDelta       int              `json:"bestDelta"`
+	HasBestDelta    bool             `json:"hasBestDelta,omitempty"`
+	BestTimeMs      int64            `json:"bestTimeMs,omitempty"`
+	Top10           []challengeEntry `json:"top10"`
+}
+
 type lobbyStatsView struct {
-	LobbyWatchers      int    `json:"lobbyWatchers"`
-	LiveMatches        int    `json:"liveMatches"`
-	WaitingRooms       int    `json:"waitingRooms"`
-	CompletedMatches   uint64 `json:"completedMatches"`
-	CompletedRounds    uint64 `json:"completedRounds"`
-	TotalDicePlayed    uint64 `json:"totalDicePlayed"`
-	TotalDiceDestroyed uint64 `json:"totalDiceDestroyed"`
-	TotalPointsScored  uint64 `json:"totalPointsScored"`
-	UpdatedAt          int64  `json:"updatedAt"`
+	LobbyWatchers      int                 `json:"lobbyWatchers"`
+	LiveMatches        int                 `json:"liveMatches"`
+	WaitingRooms       int                 `json:"waitingRooms"`
+	CompletedMatches   uint64              `json:"completedMatches"`
+	CompletedRounds    uint64              `json:"completedRounds"`
+	TotalDicePlayed    uint64              `json:"totalDicePlayed"`
+	TotalDiceDestroyed uint64              `json:"totalDiceDestroyed"`
+	TotalPointsScored  uint64              `json:"totalPointsScored"`
+	Challenge          *challengeStatsView `json:"challenge,omitempty"`
+	UpdatedAt          int64               `json:"updatedAt"`
 }
 
 type lobbyRoomInfo struct {
@@ -720,4 +749,75 @@ func startOnlineClient(name, addr, roomID, roomCode string, tlsCfg *tls.Config, 
 		return &bufferedConn{Conn: conn, br: br}, nil
 	})
 	return c
+}
+
+func startChallengeClient(name, addr string, tlsCfg *tls.Config, plainTCP bool) *netClient {
+	if addr == "" {
+		addr = defaultRendezvousAddr
+	}
+	playerName := cleanName(name, "Lamb")
+	tok := newToken()
+	pairedOnce := false
+	c := startClientWithDialer(playerName, addr, "", func(target string) (net.Conn, error) {
+		if pairedOnce {
+			return nil, &fatalDialError{code: "challenge-disconnected"}
+		}
+		conn, err := dialRendezvousConn(target, tlsCfg, plainTCP)
+		if err != nil {
+			return nil, err
+		}
+		if err := writeRendezvousEnv(conn, rendezvousEnvelope{
+			Type:  "r_challenge",
+			Token: tok,
+			Name:  playerName,
+		}); err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+		br := bufio.NewReaderSize(conn, 8192)
+		line, err := readRendezvousLine(br, conn, dialTimeout)
+		if err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+		var env rendezvousEnvelope
+		if err := json.Unmarshal(line, &env); err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+		if env.Type == "r_error" {
+			_ = conn.Close()
+			code := env.Code
+			if code == "" {
+				code = env.Text
+			}
+			return nil, &fatalDialError{code: code}
+		}
+		if env.Type != "r_paired" {
+			_ = conn.Close()
+			return nil, errors.New("unexpected rendezvous response")
+		}
+		pairedOnce = true
+		return &bufferedConn{Conn: conn, br: br}, nil
+	})
+	return c
+}
+
+func formatChallengeTime(ms int64) string {
+	if ms < 0 {
+		ms = 0
+	}
+	tenths := (ms + 50) / 100
+	secs := tenths / 10
+	remT := tenths % 10
+	mins := secs / 60
+	remS := secs % 60
+	return fmt.Sprintf("%d:%02d.%d", mins, remS, remT)
+}
+
+func formatSignedDelta(d int) string {
+	if d > 0 {
+		return fmt.Sprintf("+%d", d)
+	}
+	return fmt.Sprint(d)
 }

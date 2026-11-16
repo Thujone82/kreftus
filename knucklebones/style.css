@@ -598,6 +598,66 @@ body.mode-tui {
   margin: 4px 0 12px;
 }
 
+.net-subtoggle {
+  margin: 0 0 10px;
+}
+
+.challenge-rules-banner {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--dim);
+  margin: 2px 0 8px;
+}
+
+.challenge-rules-banner strong {
+  color: var(--fg);
+}
+
+.challenge-board-wrap {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1.5px solid var(--frame);
+  border-radius: 10px;
+  background: var(--empty-bg);
+  padding: 6px 8px;
+}
+
+.challenge-board-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.challenge-board-table th {
+  text-align: left;
+  color: var(--dim);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--frame);
+}
+
+.challenge-board-table td {
+  padding: 5px 6px;
+  color: var(--fg);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.14);
+}
+
+.challenge-board-table tr:last-child td {
+  border-bottom: none;
+}
+
+.challenge-board-table tr.top1 td {
+  color: var(--win);
+  font-weight: 700;
+}
+
+.challenge-board-table th.num,
+.challenge-board-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .net-stats-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1444,6 +1504,7 @@ body.mode-tui .kb-btn,
 body.mode-tui .net-stats-bar,
 body.mode-tui .net-rooms-list,
 body.mode-tui .net-room-item,
+body.mode-tui .challenge-board-wrap,
 body.mode-tui .player-panel,
 body.mode-tui .side-panel,
 body.mode-tui .board-box {

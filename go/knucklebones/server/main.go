@@ -53,9 +53,10 @@ type hub struct {
 	rooms        map[string]*room
 	watchers     map[uint64]*watcher
 	nextWatchID  uint64
-	stats        *statsStore
-	lastStatPush time.Time
-	activeConns  int
+	stats            *statsStore
+	lastStatPush     time.Time
+	activeConns      int
+	activeChallenges int
 }
 
 func newHub(statsPath string) *hub {
@@ -141,7 +142,7 @@ func (h *hub) liveMatchesLocked() []LiveMatchInfo {
 
 func (h *hub) snapshotLocked() ([]RoomInfo, StatsView) {
 	live, waiting := h.countsLocked()
-	sv := h.stats.Snapshot(live, len(waiting), len(h.watchers))
+	sv := h.stats.SnapshotWithChallenges(live, len(waiting), len(h.watchers), h.activeChallenges)
 	return waiting, sv
 }
 
@@ -381,6 +382,8 @@ func (h *hub) serveConn(raw net.Conn, getTLS func() *tls.Config) {
 		h.runHost(ac.Conn, br, first)
 	case rMsgJoin:
 		h.runGuest(ac.Conn, br, first)
+	case rMsgChallenge:
+		h.runChallenge(ac.Conn, br, first)
 	default:
 		_ = writeEnvelope(ac.Conn, envelope{Type: rMsgError, Code: errBadRequest, Text: "unknown command"}, writeTimeout)
 	}
@@ -390,9 +393,10 @@ func (h *hub) handleHTTPGet(ac *acceptedConn) {
 	h.mu.Lock()
 	live, waiting := h.countsLocked()
 	watchers := len(h.watchers)
-	sv := h.stats.Snapshot(live, len(waiting), watchers)
+	activeChal := h.activeChallenges
+	sv := h.stats.SnapshotWithChallenges(live, len(waiting), watchers, activeChal)
 	matches := h.liveMatchesLocked()
-	full := h.stats.FullDump(live, len(waiting), watchers, waiting, matches)
+	full := h.stats.FullDumpWithChallenges(live, len(waiting), watchers, activeChal, waiting, matches)
 	h.mu.Unlock()
 
 	var body []byte

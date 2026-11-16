@@ -937,3 +937,48 @@ func TestNetworkModalArrowNavigation(t *testing.T) {
 	}
 }
 
+func TestOnlineChallengeModeAndNameFilter(t *testing.T) {
+	if knucklebonesVersion != "1.2" {
+		t.Fatalf("knucklebonesVersion = %q, want 1.2", knucklebonesVersion)
+	}
+	g := newTestGame(t, 80, 24)
+	g.save.Name = "Lamb"
+	if labels := g.menuLabels(); labels[menuNetwork] != "Online" {
+		t.Fatalf("menuNetwork label = %q, want Online", labels[menuNetwork])
+	}
+	g.menuIndex = menuNetwork
+	g.handleKey(key(tcell.KeyEnter))
+	if !g.netChallenge || !g.netOnline || !g.challengeNameEditing() {
+		t.Fatalf("expected Challenge mode prompt for default Lamb name, got ch=%v online=%v edit=%v", g.netChallenge, g.netOnline, g.challengeNameEditing())
+	}
+
+	// Disallowed offensive name and Lamb are rejected.
+	g.netNameDraft = "lamb"
+	if g.saveChallengeName() {
+		t.Fatalf("expected Lamb to be rejected")
+	}
+	g.netNameDraft = "F4ck"
+	if g.saveChallengeName() {
+		t.Fatalf("expected offensive name F4ck to be rejected")
+	}
+
+	// Clean name (including harmless substrings like Classic) succeeds.
+	g.netNameDraft = "Classic"
+	if !g.saveChallengeName() {
+		t.Fatalf("expected clean name Classic to succeed, got note=%q", g.note)
+	}
+	if g.challengeNameEditing() || g.save.Name != "Classic" {
+		t.Fatalf("expected saved name Classic and ready room active, got name=%q edit=%v", g.save.Name, g.challengeNameEditing())
+	}
+
+	// Toggle to 2-Player and back to Challenge.
+	g.handleKey(runeKey('c'))
+	if g.netChallenge || !g.netOnline {
+		t.Fatalf("expected toggle to 2-Player online, got ch=%v online=%v", g.netChallenge, g.netOnline)
+	}
+	g.handleKey(runeKey('c'))
+	if !g.netChallenge || !g.netOnline {
+		t.Fatalf("expected toggle back to Challenge, got ch=%v online=%v", g.netChallenge, g.netOnline)
+	}
+}
+

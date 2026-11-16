@@ -44,6 +44,35 @@ type MatchRecord struct {
 	FinishedAt string    `json:"finishedAt"`
 }
 
+type ChallengeEntry struct {
+	Name        string `json:"name"`
+	Delta       int    `json:"delta"`
+	DurationMs  int64  `json:"durationMs"`
+	RoundDeltas [3]int `json:"roundDeltas"`
+	PlayerTotal int    `json:"playerTotal"`
+	AITotal     int    `json:"aiTotal"`
+	Wins        int    `json:"wins"`
+	Losses      int    `json:"losses"`
+	Ties        int    `json:"ties"`
+	RecordedAt  string `json:"recordedAt"`
+}
+
+type ChallengeStats struct {
+	Attempts        uint64           `json:"attempts"`
+	Completions     uint64           `json:"completions"`
+	PlayerWins      uint64           `json:"playerWins"`
+	AIWins          uint64           `json:"aiWins"`
+	Ties            uint64           `json:"ties"`
+	Forfeits        uint64           `json:"forfeits"`
+	ActiveMatches   int              `json:"activeMatches,omitempty"`
+	TotalDicePlayed uint64           `json:"totalDicePlayed"`
+	BestDelta       int              `json:"bestDelta"`
+	HasBestDelta    bool             `json:"hasBestDelta,omitempty"`
+	BestTimeMs      int64            `json:"bestTimeMs,omitempty"`
+	Top10           []ChallengeEntry `json:"top10"`
+	Recent          []ChallengeEntry `json:"recent"`
+}
+
 // StatsView is sent to clients in r_lobby / r_hosted and HTTP /stats.
 type StatsView struct {
 	LobbyWatchers      int               `json:"lobbyWatchers"`
@@ -57,6 +86,7 @@ type StatsView struct {
 	DiceHistogram      [6]uint64         `json:"diceHistogram"`
 	Forfeits           map[string]uint64 `json:"forfeits,omitempty"`
 	HighestRound       *ScoreRecord      `json:"highestRound,omitempty"`
+	Challenge          *ChallengeStats   `json:"challenge,omitempty"`
 	UpdatedAt          int64             `json:"updatedAt"`
 }
 
@@ -81,6 +111,7 @@ type PersistentStats struct {
 	MostDestroyedInMove  int               `json:"mostDestroyedInMove"`
 	TopScores            []ScoreRecord     `json:"topScores"`
 	RecentMatches        []MatchRecord     `json:"recentMatches"`
+	Challenge            ChallengeStats    `json:"challenge"`
 	UpdatedAt            int64             `json:"updatedAt"`
 }
 
@@ -145,6 +176,19 @@ func (s *statsStore) load() {
 	if loaded.BestOfCounts == nil {
 		loaded.BestOfCounts = map[string]uint64{}
 	}
+	if len(loaded.Challenge.Top10) > 0 {
+		cleanTop := loaded.Challenge.Top10[:0]
+		for _, e := range loaded.Challenge.Top10 {
+			if _, bad := ValidateChallengeName(e.Name); bad == "" {
+				cleanTop = append(cleanTop, e)
+			}
+		}
+		loaded.Challenge.Top10 = cleanTop
+		sortChallengeEntries(loaded.Challenge.Top10)
+		if len(loaded.Challenge.Top10) > maxTopScores {
+			loaded.Challenge.Top10 = loaded.Challenge.Top10[:maxTopScores]
+		}
+	}
 	loaded.Version = 1
 	s.data = loaded
 }
@@ -192,6 +236,10 @@ func (s *statsStore) Flush() {
 }
 
 func (s *statsStore) Snapshot(live, waiting, lobbyWatchers int) StatsView {
+	return s.SnapshotWithChallenges(live, waiting, lobbyWatchers, 0)
+}
+
+func (s *statsStore) SnapshotWithChallenges(live, waiting, lobbyWatchers, activeChallenges int) StatsView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	forfeits := make(map[string]uint64, len(s.data.Forfeits))
@@ -203,6 +251,14 @@ func (s *statsStore) Snapshot(live, waiting, lobbyWatchers int) StatsView {
 		cp := *s.data.HighestRound
 		highCopy = &cp
 	}
+	chCopy := s.data.Challenge
+	chCopy.ActiveMatches = activeChallenges
+	if len(s.data.Challenge.Top10) > 0 {
+		chCopy.Top10 = append([]ChallengeEntry(nil), s.data.Challenge.Top10...)
+	} else {
+		chCopy.Top10 = []ChallengeEntry{}
+	}
+	chCopy.Recent = nil
 	return StatsView{
 		LobbyWatchers:      lobbyWatchers,
 		LiveMatches:        live,
@@ -215,6 +271,7 @@ func (s *statsStore) Snapshot(live, waiting, lobbyWatchers int) StatsView {
 		DiceHistogram:      s.data.DiceHistogram,
 		Forfeits:           forfeits,
 		HighestRound:       highCopy,
+		Challenge:          &chCopy,
 		UpdatedAt:          s.data.UpdatedAt,
 	}
 }
@@ -452,4 +509,135 @@ func (s *statsStore) insertTopScoreLocked(rec ScoreRecord) {
 	if len(s.data.TopScores) > maxTopScores {
 		s.data.TopScores = s.data.TopScores[:maxTopScores]
 	}
+}
+
+func sortChallengeEntries(list []ChallengeEntry) {
+	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].Delta != list[j].Delta {
+			return list[i].Delta > list[j].Delta
+		}
+		if list[i].DurationMs != list[j].DurationMs {
+			return list[i].DurationMs < list[j].DurationMs
+		}
+		return list[i].RecordedAt < list[j].RecordedAt
+	})
+}
+
+func (s *statsStore) FullDumpWithChallenges(live, waitingCount, lobbyWatchers, activeChallenges int, waiting []RoomInfo, matches []LiveMatchInfo) map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if waiting == nil {
+		waiting = []RoomInfo{}
+	}
+	if matches == nil {
+		matches = []LiveMatchInfo{}
+	}
+	dataCopy := s.data
+	dataCopy.Challenge.ActiveMatches = activeChallenges
+	return map[string]any{
+		"lobbyWatchers": lobbyWatchers,
+		"liveMatches":   live,
+		"waitingRooms":  waitingCount,
+		"rooms":         waiting,
+		"matches":       matches,
+		"stats":         dataCopy,
+	}
+}
+
+func (s *statsStore) RecordChallengeAttempt() {
+	now := time.Now().UTC()
+	s.mu.Lock()
+	s.data.Challenge.Attempts++
+	s.data.UpdatedAt = now.UnixMilli()
+	s.dirty = true
+	if time.Since(s.lastSave) >= 5*time.Second {
+		s.flushLocked()
+	}
+	s.mu.Unlock()
+}
+
+func (s *statsStore) RecordChallengeDie() {
+	now := time.Now().UTC()
+	s.mu.Lock()
+	s.data.Challenge.TotalDicePlayed++
+	s.data.UpdatedAt = now.UnixMilli()
+	s.dirty = true
+	if time.Since(s.lastSave) >= 5*time.Second {
+		s.flushLocked()
+	}
+	s.mu.Unlock()
+}
+
+func (s *statsStore) RecordChallengeForfeit() {
+	now := time.Now().UTC()
+	s.mu.Lock()
+	s.data.Challenge.Forfeits++
+	s.data.UpdatedAt = now.UnixMilli()
+	s.dirty = true
+	s.flushLocked()
+	s.mu.Unlock()
+}
+
+// RecordChallengeCompletion records a finished 3-match Challenge run, inserts
+// eligible entries (non-Lamb, non-offensive) into the Top 10 ranked by delta DESC
+// then durationMs ASC, and returns the 1-based leaderboard rank (or 0 if outside Top 10).
+func (s *statsStore) RecordChallengeCompletion(entry ChallengeEntry) int {
+	now := time.Now().UTC()
+	if entry.RecordedAt == "" {
+		entry.RecordedAt = now.Format(time.RFC3339)
+	}
+	if entry.DurationMs < 1 {
+		entry.DurationMs = 1
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.data.Challenge.Completions++
+	switch {
+	case entry.Delta > 0:
+		s.data.Challenge.PlayerWins++
+	case entry.Delta < 0:
+		s.data.Challenge.AIWins++
+	default:
+		s.data.Challenge.Ties++
+	}
+	if !s.data.Challenge.HasBestDelta ||
+		entry.Delta > s.data.Challenge.BestDelta ||
+		(entry.Delta == s.data.Challenge.BestDelta && (s.data.Challenge.BestTimeMs == 0 || entry.DurationMs < s.data.Challenge.BestTimeMs)) {
+		s.data.Challenge.HasBestDelta = true
+		s.data.Challenge.BestDelta = entry.Delta
+		s.data.Challenge.BestTimeMs = entry.DurationMs
+	}
+
+	rank := 0
+	if clean, bad := ValidateChallengeName(entry.Name); bad == "" {
+		entry.Name = clean
+		s.data.Challenge.Recent = append([]ChallengeEntry{entry}, s.data.Challenge.Recent...)
+		if len(s.data.Challenge.Recent) > maxRecentMatches {
+			s.data.Challenge.Recent = s.data.Challenge.Recent[:maxRecentMatches]
+		}
+		s.data.Challenge.Top10 = append(s.data.Challenge.Top10, entry)
+		sortChallengeEntries(s.data.Challenge.Top10)
+		for i := range s.data.Challenge.Top10 {
+			if i >= maxTopScores {
+				break
+			}
+			if s.data.Challenge.Top10[i].Name == entry.Name &&
+				s.data.Challenge.Top10[i].Delta == entry.Delta &&
+				s.data.Challenge.Top10[i].DurationMs == entry.DurationMs &&
+				s.data.Challenge.Top10[i].RecordedAt == entry.RecordedAt {
+				rank = i + 1
+				break
+			}
+		}
+		if len(s.data.Challenge.Top10) > maxTopScores {
+			s.data.Challenge.Top10 = s.data.Challenge.Top10[:maxTopScores]
+		}
+	}
+
+	s.data.UpdatedAt = now.UnixMilli()
+	s.dirty = true
+	s.flushLocked()
+	return rank
 }

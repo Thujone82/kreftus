@@ -1,8 +1,8 @@
 {
   "name": "Knucklebones",
   "short_name": "Knucklebones",
-  "description": "Fast-paced dice duel from Cult of the Lamb with 3 AI opponents, local 2-player, cross-platform Online lobby & Direct play (Web, PWA, CLI, GUI), synthesized audio, round replay, and 4 themes.",
-  "version": "1.1.0",
+  "description": "Fast-paced dice duel from Cult of the Lamb with Online Challenge Mode (3-match Hard AI & Top 10 leaderboard), 2-Player Online lobby & Direct play (Web, PWA, CLI, GUI), 3 AI opponents, local 2-player, synthesized audio, round replay, and 4 themes.",
+  "version": "1.2.0",
   "start_url": "/knucklebones/",
   "scope": "/knucklebones/",
   "display": "standalone",

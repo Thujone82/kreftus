@@ -680,7 +680,7 @@ func (a *guiApp) drawLobby(dst *ebiten.Image) {
 	if targetAddr == "" {
 		targetAddr = g.save.Settings.JoinAddr
 	}
-	a.card(dst, c, "Network Play")
+	a.card(dst, c, "Online")
 	if e := l.lobbyError(); e != "" {
 		y := c.Y + 100
 		for _, line := range wrapPx(lobbyErrorText(e), 18, fontRegular, c.W-80) {
@@ -719,10 +719,127 @@ func (a *guiApp) drawNetwork(dst *ebiten.Image) {
 	a.image(dst, a.logo, centered(baseW/2, 14, 76, 76))
 	a.smallTitle(dst, 108)
 	c := networkCard()
-	a.card(dst, c, "Network Play")
+	a.card(dst, c, "Online")
+
+	catCh, cat2P := netCategoryButtons()
+	a.button(dst, catCh, "Challenge (vs AI)", g.netChallenge, p.accent)
+	a.button(dst, cat2P, "2-Player", !g.netChallenge, p.accent)
+
+	if g.netChallenge {
+		snap := g.networkSnapshot()
+		if g.challengeNameEditing() {
+			title := "Update Name for Challenge Leaderboard"
+			if isLambName(g.save.Name) {
+				title = "Choose Your Name for Challenge Mode"
+			}
+			a.center(dst, title, c.Y+124, 21, fontBold, a.c(p.fg))
+			a.center(dst, "3 Matches · 1 Die · Hard AI (Shrumy) · 'Lamb' and offensive names disallowed", c.Y+156, 14, fontRegular, a.c(p.dim))
+
+			nf := netChallengeNameRect()
+			a.text(dst, "Challenger Name (shown on Top 10):", nf.X, nf.Y-16, 15, fontRegular, a.c(p.accent), text.AlignStart)
+			a.fill(dst, nf, a.c(p.emptyBg), 8)
+			if g.netFocus == netFocusChallengeName {
+				a.stroke(dst, nf, a.c(p.accent), 8, 2)
+				shown, cpos := visibleWithCaret(g.netNameDraft, g.netNamePos, nf.W-24, 18, fontRegular)
+				a.drawCaretText(dst, shown, cpos, nf.X+12, nf.cy(), 18, a.c(p.fg))
+			} else if g.netNameDraft == "" {
+				a.text(dst, "Enter custom name", nf.X+12, nf.cy(), 18, fontRegular, a.c(p.dim), text.AlignStart)
+			} else {
+				a.text(dst, truncPx(g.netNameDraft, 18, fontRegular, nf.W-24), nf.X+12, nf.cy(), 18, fontRegular, a.c(p.fg), text.AlignStart)
+			}
+
+			if g.note != "" {
+				a.center(dst, truncPx(g.note, 15, fontRegular, c.W-80), nf.Y+nf.H+22, 15, fontRegular, a.c(p.lose))
+			}
+			canCancel := g.netEditingName && !g.challengeNameNeeded()
+			back, saveBtn := netChallengeEditButtons(canCancel)
+			backLabel := "Back"
+			if canCancel {
+				backLabel = "Cancel"
+			}
+			a.button(dst, back, backLabel, false, p.accent)
+			a.button(dst, saveBtn, "Save Name", true, p.accent)
+			a.footer(dst, "Type custom name · Enter save · Esc back")
+			return
+		}
+
+		// Challenge Ready Room
+		a.center(dst, fmt.Sprintf("Challenger: %s  ·  3 Matches · 1 Die · Hard AI (Shrumy)", g.save.Name), c.Y+94, 15, fontBold, a.c(p.fg))
+
+		sb := netChallengeStatsRect()
+		a.fill(dst, sb, a.c(p.emptyBg), 8)
+		statsTxt := "Connecting to " + g.rendezvousAddr() + "..."
+		stCol := a.c(p.dim)
+		if !snap.Connected {
+			if snap.Err != "" {
+				statsTxt = "Leaderboard offline: " + snap.Err
+				stCol = a.c(p.lose)
+			}
+		} else if snap.Stats.Challenge != nil {
+			cs := snap.Stats.Challenge
+			statsTxt = fmt.Sprintf("Completed: %s/%s  ·  Wins: %s  ·  AI Wins: %s  ·  Ties: %s  ·  Active: %d",
+				formatCompactUint(cs.Completions), formatCompactUint(cs.Attempts),
+				formatCompactUint(cs.PlayerWins), formatCompactUint(cs.AIWins), formatCompactUint(cs.Ties), cs.ActiveMatches)
+			stCol = a.c(p.fg)
+		} else {
+			statsTxt = "Connected to " + g.rendezvousAddr()
+			stCol = a.c(p.fg)
+		}
+		a.text(dst, truncPx(statsTxt, 13.5, fontRegular, sb.W-20), sb.cx(), sb.cy(), 13.5, fontRegular, stCol, text.AlignCenter)
+
+		lb := netChallengeBoardRect()
+		a.fill(dst, lb, a.c(p.emptyBg), 10)
+		a.text(dst, "Top 10 Challenge Leaderboard  (Net Delta, Tie-break: Time)", lb.X+14, lb.Y+18, 14, fontBold, a.c(p.accent), text.AlignStart)
+
+		colRank := lb.X + 18
+		colName := lb.X + 58
+		colDelta := lb.X + 350
+		colTime := lb.X + 465
+		colWLT := lb.X + lb.W - 20
+		a.text(dst, "#", colRank, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignStart)
+		a.text(dst, "Challenger", colName, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignStart)
+		a.text(dst, "Delta", colDelta, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignEnd)
+		a.text(dst, "Time", colTime, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignEnd)
+		a.text(dst, "W-L-T", colWLT, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignEnd)
+
+		var top []challengeEntry
+		if snap.Stats.Challenge != nil {
+			top = snap.Stats.Challenge.Top10
+		}
+		if len(top) == 0 {
+			msg := "No Challenge runs recorded yet — be the first!"
+			if !snap.Connected && snap.Err != "" {
+				msg = "Could not load leaderboard (press R to retry)."
+			}
+			a.text(dst, msg, lb.cx(), lb.cy()+16, 15, fontRegular, a.c(p.dim), text.AlignCenter)
+		} else {
+			for i := 0; i < len(top) && i < 10; i++ {
+				e := top[i]
+				ry := lb.Y + 66 + float64(i)*27
+				col := a.c(p.fg)
+				fnt := fontRegular
+				if i == 0 {
+					col = a.c(p.win)
+					fnt = fontBold
+				}
+				a.text(dst, fmt.Sprintf("%d", i+1), colRank, ry, 14, fnt, col, text.AlignStart)
+				a.text(dst, truncPx(e.Name, 14, fnt, 210), colName, ry, 14, fnt, col, text.AlignStart)
+				a.text(dst, formatSignedDelta(e.Delta), colDelta, ry, 14, fnt, col, text.AlignEnd)
+				a.text(dst, formatChallengeTime(e.DurationMs), colTime, ry, 14, fnt, col, text.AlignEnd)
+				a.text(dst, fmt.Sprintf("%d-%d-%d", e.Wins, e.Losses, e.Ties), colWLT, ry, 14, fontRegular, a.c(p.dim), text.AlignEnd)
+			}
+		}
+
+		back, ren, start := netChallengeButtons()
+		a.button(dst, back, "Back", false, p.accent)
+		a.button(dst, ren, "Change Name", g.netFocus == netFocusChallengeRename, p.accent)
+		a.button(dst, start, "Start Challenge", g.netFocus != netFocusChallengeRename, p.accent)
+		a.footer(dst, "Enter start challenge · N change name · R refresh · Esc back")
+		return
+	}
 
 	onBtn, dirBtn := netModeButtons()
-	a.button(dst, onBtn, "Online ("+g.rendezvousAddr()+")", g.netOnline, p.accent)
+	a.button(dst, onBtn, "Lobby ("+g.rendezvousAddr()+")", g.netOnline, p.accent)
 	a.button(dst, dirBtn, "Direct", !g.netOnline, p.accent)
 
 	if g.netOnline {
@@ -1102,7 +1219,7 @@ func (a *guiApp) drawHeader(dst *ebiten.Image, s *session, now time.Time) {
 	a.text(dst, "KNUCKLEBONES", 66, 30, 20, fontBold, a.c(p.title), text.AlignStart)
 	t, c := a.g.headerText(s, now)
 	a.center(dst, t, 30, 22, fontBold, a.c(c))
-	a.text(dst, fmt.Sprintf("Round %d · %s", s.Round, s.roundsLabel()), baseW-24, 30, 16, fontRegular, a.c(p.dim), text.AlignEnd)
+	a.text(dst, a.g.headerRightLabel(s, time.Now()), baseW-24, 30, 16, fontRegular, a.c(p.dim), text.AlignEnd)
 }
 
 func (a *guiApp) drawPlayerPanel(dst *ebiten.Image, s *session, m *Match, pi int, isTop bool, pl Placement, hasPreview bool, now time.Time) {
@@ -1271,7 +1388,18 @@ func (a *guiApp) drawResult(dst *ebiten.Image, s *session) {
 	sc := s.Match.Scores()
 	a.center(dst, fmt.Sprintf("%s %d  –  %d %s", s.Names[0], sc[0], sc[1], s.Names[1]), y+4, 18, fontRegular, a.c(p.fg))
 	y += 30
-	if s.BestOf != 1 || s.FreePlay {
+	if s.Challenge {
+		me := g.ctl.seat()
+		if me < 0 {
+			me = 1
+		}
+		var parts []string
+		for _, h := range s.History {
+			parts = append(parts, fmt.Sprintf("M%d: %s", h.Round, formatSignedDelta(h.Scores[me]-h.Scores[1-me])))
+		}
+		a.center(dst, fmt.Sprintf("Match %d/3 · %s", s.Round, strings.Join(parts, " · ")), y, 15.5, fontRegular, a.c(p.dim))
+		y += 26
+	} else if s.BestOf != 1 || s.FreePlay {
 		a.center(dst, fmt.Sprintf("Rounds won %d – %d · %s", s.Wins[0], s.Wins[1], s.roundsLabel()), y, 16, fontRegular, a.c(p.dim))
 		y += 26
 	}

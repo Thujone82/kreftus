@@ -135,6 +135,12 @@ func lobbyErrorText(e string) string {
 		return "The host sent invalid game data."
 	case errRejected:
 		return "The host rejected the connection."
+	case errLambName:
+		return "Choose a custom name instead of Lamb for Challenge mode."
+	case errBadName:
+		return "That name is not allowed on the Challenge leaderboard."
+	case "challenge-disconnected":
+		return "Challenge connection was lost."
 	}
 	clean := cleanText(e, 120)
 	if clean == "" {
@@ -146,7 +152,7 @@ func lobbyErrorText(e string) string {
 // lobbyCanRetry reports whether retrying a failed connection with the same
 // address and room code could succeed.
 func lobbyCanRetry(errCode string) bool {
-	return errCode != "" && errCode != errBadAuth && errCode != errOldProtocol && errCode != errRoomNotFound
+	return errCode != "" && errCode != errBadAuth && errCode != errOldProtocol && errCode != errRoomNotFound && errCode != errLambName && errCode != errBadName && errCode != "challenge-disconnected"
 }
 
 func lobbyHostAddresses(bindIP string, port int) []string {

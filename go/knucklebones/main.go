@@ -55,6 +55,11 @@ const (
 	netFocusJoin
 	netFocusHost
 	netFocusAddr
+	netFocusCategory
+	netFocusChallengeName
+	netFocusChallengeSave
+	netFocusChallengeStart
+	netFocusChallengeRename
 )
 
 const (
@@ -250,14 +255,21 @@ type game struct {
 	joinField      int    // 0 = address, 1 = room code
 	lobbyBackFocus bool   // on retryable join errors, whether Back is focused instead of Retry
 
-	netOnline     bool
-	netFocus      int
-	netRoomIdx    int
-	netRoomScroll int
-	watcher       *rWatcher
-	netAddr       string
-	netTLSConfig  *tls.Config
-	netPlainTCP   bool
+	netOnline        bool
+	netChallenge     bool
+	netEditingName   bool
+	netNameDraft     string
+	netNamePos       int
+	netFocus         int
+	netRoomIdx       int
+	netRoomScroll    int
+	watcher          *rWatcher
+	netAddr          string
+	netTLSConfig     *tls.Config
+	netPlainTCP      bool
+	challengeSyncAt  time.Time
+	challengeBaseMs  int64
+	challengeSyncKey [3]int
 
 	ctl           controller
 	overlay       int
@@ -399,6 +411,14 @@ func (g *game) syncView() {
 	if g.view == viewLobby {
 		g.view = viewPlay
 		g.overlay = overlayNone
+	}
+	if s.Challenge {
+		ckey := [3]int{s.Series, s.Round, s.Match.Moves}
+		if ckey != g.challengeSyncKey || s.ChallengeElapsedMs != g.challengeBaseMs || s.Phase != phasePlay {
+			g.challengeSyncKey = ckey
+			g.challengeBaseMs = s.ChallengeElapsedMs
+			g.challengeSyncAt = time.Now()
+		}
 	}
 	key := [2]int{s.Series*1000 + s.Round, s.Match.Moves + 1}
 	if s.Last != nil && s.Match.Moves > 0 && key != g.effectKey {
@@ -549,14 +569,22 @@ func (g *game) backFromLobby() {
 	focus := g.netFocus
 	savedInput := g.input
 	savedCode := g.joinCode
+	wasChallenge := g.netChallenge
+	errCode := ""
 	if l, ok := g.ctl.(lobby); ok {
+		errCode = l.lobbyError()
+		if errCode == errLambName || errCode == errBadName || errCode == "challenge-disconnected" {
+			wasChallenge = true
+		}
 		if l.hostPort() > 0 {
 			online = false
+			wasChallenge = false
 			focus = netFocusHost
 		} else if l.hostRoomID() != "" {
 			online = true
+			wasChallenge = false
 			focus = netFocusHost
-		} else if l.lobbyError() == errBadAuth {
+		} else if errCode == errBadAuth {
 			focus = netFocusCode
 		} else if online {
 			focus = netFocusRooms
@@ -565,6 +593,15 @@ func (g *game) backFromLobby() {
 		}
 	}
 	g.leaveGame()
+	if wasChallenge {
+		g.openOnlineChallenge()
+		if errCode == errLambName || errCode == errBadName {
+			g.netEditingName = true
+			g.note = lobbyErrorText(errCode)
+			g.focusNetworkField(netFocusChallengeName)
+		}
+		return
+	}
 	g.openNetwork(online)
 	g.input = savedInput
 	g.joinCode = savedCode
@@ -648,6 +685,19 @@ func (g *game) recordForfeit(s *session) {
 
 func (g *game) recordSeries(s *session) {
 	if s.Mode == modeLocal || s.BestOf < 3 || s.FreePlay {
+		return
+	}
+	if s.Challenge {
+		if s.Forfeit == nil {
+			r := g.save.recordFor(recordKey(s.Mode, s.Difficulty))
+			switch d := s.challengeCombinedDelta(g.ctl.seat()); {
+			case d > 0:
+				r.SeriesWins++
+			case d < 0:
+				r.SeriesLosses++
+			}
+			g.persist()
+		}
 		return
 	}
 	r := g.save.recordFor(recordKey(s.Mode, s.Difficulty))
@@ -762,7 +812,7 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 		case menuLocal:
 			g.openSettings(modeLocal)
 		case menuNetwork:
-			g.openNetwork(true)
+			g.openOnlineChallenge()
 		case menuGuide:
 			g.guideScroll = 0
 			g.view = viewGuide
@@ -1119,12 +1169,20 @@ func normalizeJoinAddr(addr string) string {
 func (g *game) keyName(e *tcell.EventKey) {
 	switch {
 	case e.Key() == tcell.KeyEscape:
+		g.note = ""
 		g.view = viewMenu
 	case isEnter(e):
-		g.save.Name = cleanName(g.input, g.save.Name)
+		candidate := cleanName(g.input, g.save.Name)
+		if isBadName(candidate) {
+			g.note = "That name contains disallowed words."
+			return
+		}
+		g.note = ""
+		g.save.Name = candidate
 		g.persist()
 		g.view = viewMenu
 	default:
+		g.note = ""
 		g.input, g.inputPos, _ = editLine(e, g.input, g.inputPos, maxNameLen, unicode.IsPrint)
 	}
 }
@@ -1157,7 +1215,88 @@ func (g *game) networkSnapshot() lobbySnapshot {
 	return g.watcher.Snapshot()
 }
 
+func (g *game) challengeNameNeeded() bool {
+	_, bad := validateChallengeName(g.save.Name)
+	return bad != ""
+}
+
+func (g *game) challengeNameEditing() bool {
+	return g.netEditingName || g.challengeNameNeeded()
+}
+
+func (g *game) openOnlineChallenge() {
+	g.netChallenge = true
+	g.netOnline = true
+	g.note = ""
+	if isLambName(g.save.Name) {
+		g.netNameDraft = ""
+	} else {
+		g.netNameDraft = g.save.Name
+	}
+	g.netNamePos = runeLen(g.netNameDraft)
+	g.netEditingName = g.challengeNameNeeded()
+	g.ensureWatcher()
+	if g.netEditingName {
+		g.focusNetworkField(netFocusChallengeName)
+	} else {
+		g.focusNetworkField(netFocusChallengeStart)
+	}
+	g.view = viewNetwork
+}
+
+func (g *game) openChallengeNameEdit() {
+	g.netEditingName = true
+	if isLambName(g.save.Name) {
+		g.netNameDraft = ""
+	} else {
+		g.netNameDraft = g.save.Name
+	}
+	g.netNamePos = runeLen(g.netNameDraft)
+	g.note = ""
+	g.focusNetworkField(netFocusChallengeName)
+}
+
+func (g *game) saveChallengeName() bool {
+	candidate := cleanName(g.netNameDraft, "Lamb")
+	clean, errCode := validateChallengeName(candidate)
+	if errCode == errLambName {
+		g.note = "Choose a custom name — Lamb cannot enter the Top 10."
+		g.focusNetworkField(netFocusChallengeName)
+		return false
+	}
+	if errCode == errBadName {
+		g.note = "That name contains disallowed words."
+		g.focusNetworkField(netFocusChallengeName)
+		return false
+	}
+	g.save.Name = clean
+	g.persist()
+	g.netNameDraft = clean
+	g.netNamePos = runeLen(clean)
+	g.netEditingName = false
+	g.note = ""
+	g.focusNetworkField(netFocusChallengeStart)
+	return true
+}
+
+func (g *game) startChallenge() {
+	clean, errCode := validateChallengeName(g.save.Name)
+	if errCode != "" {
+		g.openChallengeNameEdit()
+		if errCode == errLambName {
+			g.note = "Choose a custom name — Lamb cannot enter the Top 10."
+		} else {
+			g.note = "That name contains disallowed words."
+		}
+		return
+	}
+	g.note = ""
+	g.beginGame(startChallengeClient(clean, g.rendezvousAddr(), g.netTLSConfig, g.netPlainTCP))
+}
+
 func (g *game) openNetwork(online bool) {
+	g.netChallenge = false
+	g.netEditingName = false
 	g.netOnline = online
 	g.note = ""
 	g.input = g.save.Settings.JoinAddr
@@ -1183,10 +1322,18 @@ func (g *game) focusNetworkField(focus int) {
 	case netFocusCode:
 		g.joinField = 1
 		g.inputPos = runeLen(g.joinCode)
+	case netFocusChallengeName:
+		g.netNamePos = runeLen(g.netNameDraft)
 	}
 }
 
 func (g *game) networkFocusOrder() []int {
+	if g.netChallenge {
+		if g.challengeNameEditing() {
+			return []int{netFocusCategory, netFocusChallengeName, netFocusChallengeSave}
+		}
+		return []int{netFocusCategory, netFocusChallengeRename, netFocusChallengeStart}
+	}
 	if g.netOnline {
 		return []int{netFocusMode, netFocusRooms, netFocusCode, netFocusJoin, netFocusHost}
 	}
@@ -1261,6 +1408,12 @@ func (g *game) joinDirect() {
 
 func (g *game) keyNetwork(e *tcell.EventKey) {
 	if e.Key() == tcell.KeyEscape {
+		if g.netChallenge && g.netEditingName && !g.challengeNameNeeded() {
+			g.netEditingName = false
+			g.note = ""
+			g.focusNetworkField(netFocusChallengeStart)
+			return
+		}
 		g.stopWatcher()
 		g.view = viewMenu
 		return
@@ -1271,6 +1424,49 @@ func (g *game) keyNetwork(e *tcell.EventKey) {
 	}
 	if e.Key() == tcell.KeyBacktab {
 		g.cycleNetworkFocus(-1)
+		return
+	}
+	if g.netChallenge {
+		editing := g.challengeNameEditing()
+		if g.netFocus == netFocusChallengeName {
+			if next, pos, ok := editLine(e, g.netNameDraft, g.netNamePos, maxNameLen, unicode.IsPrint); ok {
+				g.netNameDraft = next
+				g.netNamePos = pos
+				g.note = ""
+				return
+			}
+		}
+		switch {
+		case g.netFocus == netFocusCategory && (isLeft(e) || isRight(e) || isEnter(e) || isRune(e, ' ')):
+			g.openNetwork(true)
+			g.focusNetworkField(netFocusCategory)
+		case isRune(e, 'c') && g.netFocus != netFocusChallengeName:
+			g.openNetwork(true)
+		case !editing && (g.netFocus == netFocusChallengeRename || g.netFocus == netFocusChallengeStart) && (isLeft(e) || isRight(e)):
+			if g.netFocus == netFocusChallengeRename {
+				g.focusNetworkField(netFocusChallengeStart)
+			} else {
+				g.focusNetworkField(netFocusChallengeRename)
+			}
+		case isUp(e):
+			g.cycleNetworkFocus(-1)
+		case isDown(e):
+			g.cycleNetworkFocus(1)
+		case isRune(e, 'n') && g.netFocus != netFocusChallengeName:
+			g.openChallengeNameEdit()
+		case isRune(e, 'r') && g.netFocus != netFocusChallengeName:
+			if g.watcher != nil {
+				g.watcher.Reconnect()
+			}
+		case isEnter(e) || (isRune(e, ' ') && g.netFocus != netFocusChallengeName):
+			if editing {
+				g.saveChallengeName()
+			} else if g.netFocus == netFocusChallengeRename {
+				g.openChallengeNameEdit()
+			} else {
+				g.startChallenge()
+			}
+		}
 		return
 	}
 	if g.netFocus == netFocusAddr {
@@ -1290,9 +1486,14 @@ func (g *game) keyNetwork(e *tcell.EventKey) {
 
 	snap := g.networkSnapshot()
 	switch {
+	case g.netFocus == netFocusCategory && (isLeft(e) || isRight(e) || isEnter(e) || isRune(e, ' ')):
+		g.openOnlineChallenge()
+		g.focusNetworkField(netFocusCategory)
 	case g.netFocus == netFocusMode && (isLeft(e) || isRight(e) || isEnter(e) || isRune(e, ' ')):
 		g.openNetwork(!g.netOnline)
 		g.focusNetworkField(netFocusMode)
+	case isRune(e, 'c') && g.netFocus != netFocusAddr && g.netFocus != netFocusCode:
+		g.openOnlineChallenge()
 	case g.netOnline && (g.netFocus == netFocusJoin || g.netFocus == netFocusHost) && (isLeft(e) || isRight(e)):
 		if g.netFocus == netFocusJoin {
 			g.focusNetworkField(netFocusHost)

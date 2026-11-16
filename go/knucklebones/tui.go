@@ -162,12 +162,17 @@ type tuiSig struct {
 	lobbyErr       string
 	lobbyBackFocus bool
 	netOnline      bool
+	netChallenge   bool
+	netEditing     bool
+	netNameLen     int
+	netNamePos     int
+	netNote        string
 	netFocus       int
 	netRoomIdx     int
 	netUpdatedNs   int64
 	netRooms       int
 	netStatsKey    uint64
-	turnClock     int64
+	turnClock      int64
 	sessPhase     string
 	sessMoves     int
 	sessTurn      int
@@ -200,6 +205,11 @@ func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
 	switch g.view {
 	case viewNetwork:
 		sig.netOnline = g.netOnline
+		sig.netChallenge = g.netChallenge
+		sig.netEditing = g.challengeNameEditing()
+		sig.netNameLen = len(g.netNameDraft)
+		sig.netNamePos = g.netNamePos
+		sig.netNote = g.note
 		sig.netFocus = g.netFocus
 		sig.netRoomIdx = g.netRoomIdx
 		if g.netOnline {
@@ -207,6 +217,9 @@ func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
 			sig.netUpdatedNs = snap.UpdatedAt.UnixNano()
 			sig.netRooms = len(snap.Rooms)
 			sig.netStatsKey = uint64(snap.Stats.LiveMatches)*1000003 + snap.Stats.CompletedMatches*1009 + snap.Stats.TotalDicePlayed
+			if snap.Stats.Challenge != nil {
+				sig.netStatsKey ^= snap.Stats.Challenge.Attempts*97 + snap.Stats.Challenge.Completions*193 + uint64(len(snap.Stats.Challenge.Top10))*31
+			}
 			if snap.Err != "" {
 				sig.lobbyErr = snap.Err
 			}
@@ -248,6 +261,8 @@ func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
 				}
 				if s.Phase == phasePlay && !g.myTurn(s) && !g.rolling() && !g.replayActive {
 					sig.turnClock = now.UnixMilli() / 350
+				} else if s.Challenge && s.Phase != phaseGameOver && (s.Match.Moves > 0 || len(s.History) > 0) {
+					sig.turnClock = now.UnixMilli() / 100
 				}
 			}
 			if g.rolling() || effectProgress(g.effectAt, now) >= 0 {
