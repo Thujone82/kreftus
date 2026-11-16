@@ -3709,8 +3709,8 @@
     else if (app.netRoomIdx >= rooms.length) app.netRoomIdx = rooms.length - 1;
 
     const statusLine = conn
-      ? `<span class="net-status-dot on"></span> <span>In lobby: <strong>${st.lobbyWatchers || 0}</strong> · Live: <strong>${st.liveMatches || 0}</strong> · <strong>${rooms.length}</strong> open</span><span class="net-stats-sep">·</span><span>All-time: <strong>${st.completedMatches || 0}</strong> matches · <strong>${st.totalDicePlayed || 0}</strong> dice</span>`
-      : `<span class="net-status-dot"></span> <span>${escHtml(err || `Connecting to ${getRendezvousAddr()}…`)}</span>`;
+      ? `<span class="net-stat-lead"><span class="net-status-dot on"></span><span>In lobby: <strong>${st.lobbyWatchers || 0}</strong></span></span><span class="net-stats-sep">·</span><span>Live: <strong>${st.liveMatches || 0}</strong></span><span class="net-stats-sep">·</span><span><strong>${rooms.length}</strong> open</span><span class="net-stats-sep">·</span><span>All-time: <strong>${st.completedMatches || 0}</strong>m · <strong>${st.totalDicePlayed || 0}</strong>d</span>`
+      : `<span class="net-stat-lead"><span class="net-status-dot"></span><span>${escHtml(err || `Connecting to ${getRendezvousAddr()}…`)}</span></span>`;
 
     const listHtml = rooms.length === 0
       ? `<div class="net-empty">${conn ? 'No open matches waiting right now. Host one below!' : 'Fetching open matches…'}</div>`
@@ -3743,9 +3743,9 @@
 
     const statusLine = conn
       ? (cs
-        ? `<span class="net-status-dot on"></span> <span>Completed: <strong>${cs.completions || 0}</strong>/${cs.attempts || 0} · Player Wins: <strong>${cs.playerWins || 0}</strong> · AI Wins: <strong>${cs.aiWins || 0}</strong> · Active: <strong>${cs.activeMatches || 0}</strong></span>`
-        : `<span class="net-status-dot on"></span> <span>Connected to ${escHtml(getRendezvousAddr())}</span>`)
-      : `<span class="net-status-dot"></span> <span>${escHtml(err || `Connecting to ${getRendezvousAddr()}…`)}</span>`;
+        ? `<span class="net-stat-lead"><span class="net-status-dot on"></span><span>Completed: <strong>${cs.completions || 0}</strong>/${cs.attempts || 0}</span></span><span class="net-stats-sep">·</span><span><strong>${cs.playerWins || 0}</strong>W-<strong>${cs.aiWins || 0}</strong>L-<strong>${cs.ties || 0}</strong>T</span><span class="net-stats-sep">·</span><span>Active: <strong>${cs.activeMatches || 0}</strong></span>`
+        : `<span class="net-stat-lead"><span class="net-status-dot on"></span><span>Connected to ${escHtml(getRendezvousAddr())}</span></span>`)
+      : `<span class="net-stat-lead"><span class="net-status-dot"></span><span>${escHtml(err || `Connecting to ${getRendezvousAddr()}…`)}</span></span>`;
 
     const top = cs && Array.isArray(cs.top10) ? cs.top10 : [];
     const rowsHtml = top.length === 0

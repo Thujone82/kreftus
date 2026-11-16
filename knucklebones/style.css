@@ -677,6 +677,12 @@ body.mode-tui {
   color: var(--fg);
 }
 
+.net-stat-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .net-stats-sep {
   opacity: 0.55;
 }
