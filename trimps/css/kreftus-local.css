@@ -1847,6 +1847,9 @@ li.tabNotEnabled:hover {
   border: 1px solid var(--border-strong) !important;
   border-radius: var(--radius-sm) !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+  padding: 3px 4px !important;
+  gap: 4px !important;
+  overflow: hidden !important;
 }
 
 #boneBtnMain:hover {
@@ -1855,10 +1858,17 @@ li.tabNotEnabled:hover {
   color: #fff !important;
 }
 
+#boneBtnMain .icomoon {
+  font-size: clamp(7.5px, 0.92vw, 13px) !important;
+  flex-shrink: 0 !important;
+}
+
 #boneBtnText {
-  font-size: 13px !important;
+  font-size: clamp(7.5px, 0.92vw, 13px) !important;
   font-weight: 600 !important;
   color: inherit !important;
+  line-height: 1.15 !important;
+  white-space: normal !important;
 }
 
 /* Combat Stat Rows (#goodGuyStatsRow, #damageDiv, #blockDiv, #badGuyRow) */
@@ -1876,11 +1886,12 @@ li.tabNotEnabled:hover {
 
 #goodGuyStatsRow {
   display: flex !important;
-  flex-wrap: wrap !important;
+  flex-wrap: nowrap !important;
   align-items: center !important;
-  column-gap: 8px !important;
+  column-gap: 6px !important;
   row-gap: 2px !important;
   min-height: 22px !important;
+  font-size: clamp(9.5px, 0.88vw, 13px) !important;
 }
 
 #damageDiv {
@@ -1899,12 +1910,16 @@ li.tabNotEnabled:hover {
 #critSpan {
   display: inline-flex !important;
   align-items: center !important;
+  justify-content: flex-start !important;
   margin-left: 2px !important;
   white-space: nowrap !important;
   font-size: 0.9em !important;
   line-height: 1.2 !important;
+  width: 5.8em !important;
+  min-width: 5.8em !important;
   height: 1.25em !important;
   vertical-align: middle !important;
+  flex-shrink: 0 !important;
 }
 
 #critSpan [class^="critTier"],
