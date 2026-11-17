@@ -180,13 +180,15 @@ html, body {
 #helium.playerGather    { border-left: 3px solid #38bdf8 !important; }
 #trimps.playerGather    { border-left: 3px solid var(--accent) !important; }
 
-/* Bone Shrine Badge in Top-Left of Food Card */
+/* Bone Shrine Badge in Top-Right of Food Card */
 #boneShrineBtn {
+  left: auto !important;
+  right: 0 !important;
   background: var(--surface-3) !important;
   color: var(--warn) !important;
-  border-right: 1px solid rgba(251, 191, 36, 0.4);
+  border-left: 1px solid rgba(251, 191, 36, 0.4);
   border-bottom: 1px solid rgba(251, 191, 36, 0.4);
-  border-radius: 7px 0 7px 0;
+  border-radius: 0 7px 0 7px;
   padding: 2px 5px;
   font-weight: 700;
   font-size: clamp(9px, 0.72vw, 12px) !important;
