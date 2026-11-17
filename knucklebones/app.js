@@ -3871,7 +3871,7 @@
           <div class="challenge-rules-banner">Challenger: <strong>${escHtml(save.name)}</strong> · 3 Matches · 1 Die · Hard AI (Shrumy)</div>
           <div id="challenge-lobby-live">${renderChallengeLeaderboardInner()}</div>
           ${app.note ? `<p class="error-text">${escHtml(app.note)}</p>` : ''}
-          <p class="note-hint" style="margin-top:6px;">Ranked by combined 3-match net delta · Tie-breaker: completion time</p>
+          <p class="note-hint" style="margin-top:6px;">Ranked by combined 3-match net delta</p>
           <div class="btn-row">
             ${renderActionButton('kb-btn', 'data-action="back-menu"', 'Back')}
             ${renderActionButton('kb-btn', 'data-action="open-options-network"', 'Options')}
