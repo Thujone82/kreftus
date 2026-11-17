@@ -1444,6 +1444,51 @@ li.tabNotEnabled:hover {
   margin-left: 4px !important;
 }
 
+/* Upgrades Header Row: Match smaller tab font size so all 3 buttons fit cleanly */
+#upgradesTitleDiv .row {
+  gap: 4px !important;
+  padding: 0 2px !important;
+}
+
+#upgradesTitleSpan {
+  font-size: clamp(12px, 1.05vw, 15px) !important;
+}
+
+#upgradesTitleDiv .autoUpgradeBtn,
+#autoPrestigeBtn,
+#autoUpgradeBtn {
+  font-size: clamp(9px, 0.78vw, 11.5px) !important;
+  min-height: 28px !important;
+  line-height: 26px !important;
+  padding: 0 7px !important;
+  white-space: nowrap !important;
+}
+
+#upgradesTitleDiv .toggleConfigBtn,
+#autoGoldenBtn {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+}
+
+#upgradesTitleDiv .toggleConfigBtn div:first-child,
+#autoGoldenBtn #autoGoldenText {
+  font-size: clamp(9px, 0.78vw, 11.5px) !important;
+  padding: 0 7px !important;
+  line-height: 1 !important;
+}
+
+#upgradesTitleDiv .toggleConfigBtn div:nth-child(2) {
+  flex: 0 0 24px !important;
+  width: 24px !important;
+  min-width: 24px !important;
+}
+
+#upgradesTitleDiv .toggleConfigBtn div:nth-child(2) span.glyphicon,
+#upgradesTitleDiv .toggleConfigBtn div span.glyphicon-cog {
+  font-size: 11px !important;
+}
+
 
 /* Fire Button & Map Increment Buttons */
 #fireBtn {
@@ -6140,6 +6185,33 @@ span.heirloomRare12 {
     font-size: 14px !important;
     min-height: 36px !important;
     line-height: 34px !important;
+  }
+
+  #upgradesTitleDiv .autoUpgradeBtn,
+  #upgradesTitleDiv #autoPrestigeBtn,
+  #upgradesTitleDiv #autoUpgradeBtn {
+    font-size: clamp(9.5px, 2.3vw, 12px) !important;
+    min-height: 30px !important;
+    line-height: 28px !important;
+    padding: 0 5px !important;
+  }
+
+  #upgradesTitleDiv #autoGoldenBtn {
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+  }
+
+  #upgradesTitleDiv #autoGoldenBtn #autoGoldenText {
+    font-size: clamp(9.5px, 2.3vw, 12px) !important;
+    padding: 0 5px !important;
+    line-height: 1 !important;
+  }
+
+  #upgradesTitleDiv #autoGoldenBtn div:nth-child(2) {
+    flex: 0 0 24px !important;
+    width: 24px !important;
+    min-width: 24px !important;
   }
 
   #equipmentTitleDiv .row > div:last-child {
