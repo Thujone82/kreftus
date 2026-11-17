@@ -1444,19 +1444,30 @@ li.tabNotEnabled:hover {
   margin-left: 4px !important;
 }
 
-/* Upgrades Header Row: Match smaller tab font size so all 3 buttons fit cleanly */
-#upgradesTitleDiv .row {
+/* Section Header Rows (Buildings, Jobs, Upgrades, Equipment): Match smaller tab font size so all buttons fit cleanly */
+#buildingsTitleDiv .row,
+#jobsTitleDiv .row,
+#upgradesTitleDiv .row,
+#equipmentTitleDiv .row {
   gap: 4px !important;
   padding: 0 2px !important;
 }
 
-#upgradesTitleSpan {
+#buildingsTitleSpan,
+#jobsTitleSpan,
+#upgradesTitleSpan,
+#equipmentTitleSpan {
   font-size: clamp(12px, 1.05vw, 15px) !important;
 }
 
+#buildingsTitleDiv .autoUpgradeBtn,
+#jobsTitleDiv .autoUpgradeBtn,
 #upgradesTitleDiv .autoUpgradeBtn,
+#equipmentTitleDiv .autoUpgradeBtn,
+#autoStorageBtn,
 #autoPrestigeBtn,
-#autoUpgradeBtn {
+#autoUpgradeBtn,
+#jobsTitleDiv #fireBtn {
   font-size: clamp(9px, 0.78vw, 11.5px) !important;
   min-height: 28px !important;
   line-height: 26px !important;
@@ -1464,28 +1475,53 @@ li.tabNotEnabled:hover {
   white-space: nowrap !important;
 }
 
+#jobsTitleDiv #fireBtn {
+  height: 28px !important;
+}
+
+#buildingsTitleDiv .toggleConfigBtn,
+#jobsTitleDiv .toggleConfigBtn,
 #upgradesTitleDiv .toggleConfigBtn,
-#autoGoldenBtn {
+#equipmentTitleDiv .toggleConfigBtn,
+#autoStructureBtn,
+#autoJobsBtn,
+#autoGoldenBtn,
+#autoEquipBtn {
   height: 28px !important;
   min-height: 28px !important;
   padding: 0 !important;
 }
 
+#buildingsTitleDiv .toggleConfigBtn div:first-child,
+#jobsTitleDiv .toggleConfigBtn div:first-child,
 #upgradesTitleDiv .toggleConfigBtn div:first-child,
-#autoGoldenBtn #autoGoldenText {
+#equipmentTitleDiv .toggleConfigBtn div:first-child,
+#autoStructureBtn #autoStructureText,
+#autoJobsBtn #autoJobsText,
+#autoGoldenBtn #autoGoldenText,
+#autoEquipBtn #autoEquipText {
   font-size: clamp(9px, 0.78vw, 11.5px) !important;
   padding: 0 7px !important;
   line-height: 1 !important;
 }
 
-#upgradesTitleDiv .toggleConfigBtn div:nth-child(2) {
+#buildingsTitleDiv .toggleConfigBtn div:nth-child(2),
+#jobsTitleDiv .toggleConfigBtn div:nth-child(2),
+#upgradesTitleDiv .toggleConfigBtn div:nth-child(2),
+#equipmentTitleDiv .toggleConfigBtn div:nth-child(2) {
   flex: 0 0 24px !important;
   width: 24px !important;
   min-width: 24px !important;
 }
 
+#buildingsTitleDiv .toggleConfigBtn div:nth-child(2) span.glyphicon,
+#buildingsTitleDiv .toggleConfigBtn div span.glyphicon-cog,
+#jobsTitleDiv .toggleConfigBtn div:nth-child(2) span.glyphicon,
+#jobsTitleDiv .toggleConfigBtn div span.glyphicon-cog,
 #upgradesTitleDiv .toggleConfigBtn div:nth-child(2) span.glyphicon,
-#upgradesTitleDiv .toggleConfigBtn div span.glyphicon-cog {
+#upgradesTitleDiv .toggleConfigBtn div span.glyphicon-cog,
+#equipmentTitleDiv .toggleConfigBtn div:nth-child(2) span.glyphicon,
+#equipmentTitleDiv .toggleConfigBtn div span.glyphicon-cog {
   font-size: 11px !important;
 }
 
@@ -6187,28 +6223,46 @@ span.heirloomRare12 {
     line-height: 34px !important;
   }
 
+  #buildingsTitleDiv .autoUpgradeBtn,
+  #jobsTitleDiv .autoUpgradeBtn,
   #upgradesTitleDiv .autoUpgradeBtn,
+  #equipmentTitleDiv .autoUpgradeBtn,
+  #buildingsTitleDiv #autoStorageBtn,
   #upgradesTitleDiv #autoPrestigeBtn,
-  #upgradesTitleDiv #autoUpgradeBtn {
+  #upgradesTitleDiv #autoUpgradeBtn,
+  #jobsTitleDiv #fireBtn {
     font-size: clamp(9.5px, 2.3vw, 12px) !important;
     min-height: 30px !important;
     line-height: 28px !important;
     padding: 0 5px !important;
   }
 
-  #upgradesTitleDiv #autoGoldenBtn {
+  #jobsTitleDiv #fireBtn {
+    height: 30px !important;
+  }
+
+  #buildingsTitleDiv .toggleConfigBtn,
+  #jobsTitleDiv .toggleConfigBtn,
+  #upgradesTitleDiv .toggleConfigBtn,
+  #equipmentTitleDiv .toggleConfigBtn {
     height: 30px !important;
     min-height: 30px !important;
     padding: 0 !important;
   }
 
-  #upgradesTitleDiv #autoGoldenBtn #autoGoldenText {
+  #buildingsTitleDiv .toggleConfigBtn div:first-child,
+  #jobsTitleDiv .toggleConfigBtn div:first-child,
+  #upgradesTitleDiv .toggleConfigBtn div:first-child,
+  #equipmentTitleDiv .toggleConfigBtn div:first-child {
     font-size: clamp(9.5px, 2.3vw, 12px) !important;
     padding: 0 5px !important;
     line-height: 1 !important;
   }
 
-  #upgradesTitleDiv #autoGoldenBtn div:nth-child(2) {
+  #buildingsTitleDiv .toggleConfigBtn div:nth-child(2),
+  #jobsTitleDiv .toggleConfigBtn div:nth-child(2),
+  #upgradesTitleDiv .toggleConfigBtn div:nth-child(2),
+  #equipmentTitleDiv .toggleConfigBtn div:nth-child(2) {
     flex: 0 0 24px !important;
     width: 24px !important;
     min-width: 24px !important;
