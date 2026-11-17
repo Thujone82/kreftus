@@ -2319,7 +2319,9 @@
     #simDlg {
       width: min(1060px, calc(100vw - 32px));
       height: min(960px, calc(100vh - 36px));
+      height: min(960px, calc(100dvh - 36px));
       max-height: calc(100vh - 24px);
+      max-height: calc(100dvh - 24px);
       margin: auto;
     }
     #simDlg[open] {
@@ -2334,17 +2336,20 @@
       min-height: 0;
       max-height: none;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       padding: 14px 20px 20px;
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
+    #simDlgBody > * { flex-shrink: 0; }
     .sim-ext-panel { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
     .sim-tabs {
       display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 12px;
-      overflow-x: auto;
+      overflow-x: auto; overflow-y: hidden; flex: 0 0 auto; -webkit-overflow-scrolling: touch;
     }
     .sim-tab-btn {
+      flex: 0 0 auto; white-space: nowrap;
       padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; background: var(--surface-2);
       border: 1px solid var(--border); color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 6px;
     }
