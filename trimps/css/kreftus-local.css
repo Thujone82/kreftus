@@ -1880,6 +1880,7 @@ li.tabNotEnabled:hover {
   align-items: center !important;
   column-gap: 8px !important;
   row-gap: 2px !important;
+  min-height: 22px !important;
 }
 
 #damageDiv {
@@ -1891,12 +1892,43 @@ li.tabNotEnabled:hover {
   align-items: center !important;
   gap: 4px !important;
   white-space: nowrap !important;
+  line-height: 1.25 !important;
+  min-height: 20px !important;
 }
 
 #critSpan {
-  display: inline-block !important;
+  display: inline-flex !important;
+  align-items: center !important;
   margin-left: 2px !important;
   white-space: nowrap !important;
+  font-size: 0.9em !important;
+  line-height: 1.2 !important;
+  height: 1.25em !important;
+  vertical-align: middle !important;
+}
+
+#critSpan [class^="critTier"],
+.critSpan [class^="critTier"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  font-size: 1em !important;
+  line-height: 1.2 !important;
+  vertical-align: middle !important;
+}
+
+#critSpan [class^="critTier"] .icomoon,
+.critSpan [class^="critTier"] .icomoon {
+  position: static !important;
+  top: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1em !important;
+  line-height: 1 !important;
+  width: 1em !important;
+  height: 1em !important;
+  vertical-align: middle !important;
 }
 
 #blockDiv {
