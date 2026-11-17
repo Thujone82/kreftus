@@ -624,7 +624,7 @@ func (g *game) drawNetwork() {
 
 		lbTop := by + 6
 		drawText(g.screen, bx+3, lbTop, "Top 10 Challenge Leaderboard (Delta, Tie-break: Time)", g.st(g.pal.accent).Bold(true))
-		drawText(g.screen, bx+3, lbTop+1, fmt.Sprintf("%-3s %-17s %8s %9s %7s", "#", "Player", "Delta", "Time", "W-L-T"), g.st(g.pal.dim))
+		drawText(g.screen, bx+3, lbTop+1, fmt.Sprintf("%-3s %-18s %7s %8s %6s %9s", "#", "Player", "Delta", "Time", "W-L-T", "Date"), g.st(g.pal.dim))
 
 		var top []challengeEntry
 		if snap.Stats.Challenge != nil {
@@ -651,8 +651,8 @@ func (g *game) drawNetwork() {
 					rowSt = g.st(g.pal.win).Bold(true)
 				}
 				wlt := fmt.Sprintf("%d-%d-%d", e.Wins, e.Losses, e.Ties)
-				line := fmt.Sprintf("%-3d %-17s %8s %9s %7s",
-					i+1, truncate(e.Name, 17), formatSignedDelta(e.Delta), formatChallengeTime(e.DurationMs), wlt)
+				line := fmt.Sprintf("%-3d %-18s %7s %8s %6s %9s",
+					i+1, truncate(e.Name, 18), formatSignedDelta(e.Delta), formatChallengeTime(e.DurationMs), wlt, formatChallengeDate(e.RecordedAt))
 				drawText(g.screen, bx+3, lbTop+2+i, truncate(line, bw-6), rowSt)
 			}
 		}

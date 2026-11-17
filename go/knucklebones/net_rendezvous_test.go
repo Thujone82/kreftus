@@ -316,3 +316,18 @@ func TestGoClientOnlineRendezvousLockedMatchFlow(t *testing.T) {
 		t.Fatalf("unexpected names: %v", goodGuest.state().Names)
 	}
 }
+
+func TestFormatChallengeDate(t *testing.T) {
+	if got := formatChallengeDate(""); got != "--" {
+		t.Fatalf("empty recordedAt = %q, want --", got)
+	}
+	if got := formatChallengeDate("not-a-date"); got != "--" {
+		t.Fatalf("invalid recordedAt = %q, want --", got)
+	}
+	if got := formatChallengeDate("2026-11-17T20:00:00Z"); got != "11/17/26" {
+		t.Fatalf("2026-11-17T20:00:00Z = %q, want 11/17/26", got)
+	}
+	if got := formatChallengeDate("2026-11-16T20:00:00Z"); got != "11/16/26" {
+		t.Fatalf("2026-11-16T20:00:00Z = %q, want 11/16/26", got)
+	}
+}

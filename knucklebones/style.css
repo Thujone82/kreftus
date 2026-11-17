@@ -656,6 +656,11 @@ body.mode-tui {
 .challenge-board-table td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.challenge-board-table td.dim {
+  color: var(--dim);
 }
 
 .net-stats-bar {
@@ -2325,6 +2330,15 @@ body.mode-tui .play-shell.lay-p2 .tui-die {
 
   .net-stats-sep {
     display: none;
+  }
+
+  .challenge-board-table {
+    font-size: 0.78rem;
+  }
+
+  .challenge-board-table th,
+  .challenge-board-table td {
+    padding: 4px 3px;
   }
 }
 

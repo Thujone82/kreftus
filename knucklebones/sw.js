@@ -1,4 +1,4 @@
-const CACHE_NAME = 'knucklebones-v1.2-111626@0831'; // MMDDYY@HHmm from system clock — bump when shipping app updates
+const CACHE_NAME = 'knucklebones-v1.2-111726@0623'; // MMDDYY@HHmm from system clock — bump when shipping app updates
 
 const PRECACHE_URLS = [
   './',

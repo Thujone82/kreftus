@@ -1193,6 +1193,17 @@
     return n > 0 ? `+${n}` : String(n);
   }
 
+  function formatShortDate(raw) {
+    const src = String(raw || '').trim();
+    if (!src) return '--';
+    const d = new Date(src);
+    if (!Number.isFinite(d.getTime())) return '--';
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yy = String(d.getFullYear() % 100).padStart(2, '0');
+    return `${mm}/${dd}/${yy}`;
+  }
+
   function challengeCombinedDelta(s, seat = 1) {
     if (!s || !Array.isArray(s.history)) return 0;
     let sum = 0;
@@ -3777,7 +3788,7 @@
     const rowsHtml = top.length === 0
       ? `<div class="net-empty">${conn ? 'No Challenge finishes yet — be the first on the board!' : 'Fetching Top 10 Leaderboard…'}</div>`
       : `<table class="challenge-board-table">
-           <thead><tr><th>#</th><th>Player</th><th class="num">Delta</th><th class="num">Time</th><th class="num">W-L-T</th></tr></thead>
+           <thead><tr><th>#</th><th>Player</th><th class="num">Delta</th><th class="num">Time</th><th class="num">W-L-T</th><th class="num">Date</th></tr></thead>
            <tbody>${top.slice(0, 10).map((e, i) => `
              <tr class="${i === 0 ? 'top1' : ''}">
                <td>${i + 1}</td>
@@ -3785,6 +3796,7 @@
                <td class="num">${escHtml(formatSignedDelta(e.delta))}</td>
                <td class="num">${escHtml(formatChallengeTime(e.durationMs))}</td>
                <td class="num">${e.wins || 0}-${e.losses || 0}-${e.ties || 0}</td>
+               <td class="num dim">${escHtml(formatShortDate(e.recordedAt))}</td>
              </tr>`).join('')}
            </tbody>
          </table>`;

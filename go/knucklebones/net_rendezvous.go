@@ -821,3 +821,19 @@ func formatSignedDelta(d int) string {
 	}
 	return fmt.Sprint(d)
 }
+
+func formatChallengeDate(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "--"
+	}
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			if layout != "2006-01-02" {
+				t = t.Local()
+			}
+			return fmt.Sprintf("%02d/%02d/%02d", int(t.Month()), t.Day(), t.Year()%100)
+		}
+	}
+	return "--"
+}

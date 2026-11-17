@@ -791,16 +791,18 @@ func (a *guiApp) drawNetwork(dst *ebiten.Image) {
 		a.fill(dst, lb, a.c(p.emptyBg), 10)
 		a.text(dst, "Top 10 Challenge Leaderboard  (Net Delta, Tie-break: Time)", lb.X+14, lb.Y+18, 14, fontBold, a.c(p.accent), text.AlignStart)
 
-		colRank := lb.X + 18
-		colName := lb.X + 58
-		colDelta := lb.X + 350
-		colTime := lb.X + 465
-		colWLT := lb.X + lb.W - 20
+		colRank := lb.X + 16
+		colName := lb.X + 52
+		colDelta := lb.X + 325
+		colTime := lb.X + 425
+		colWLT := lb.X + 515
+		colDate := lb.X + lb.W - 18
 		a.text(dst, "#", colRank, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignStart)
 		a.text(dst, "Challenger", colName, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignStart)
 		a.text(dst, "Delta", colDelta, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignEnd)
 		a.text(dst, "Time", colTime, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignEnd)
 		a.text(dst, "W-L-T", colWLT, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignEnd)
+		a.text(dst, "Date", colDate, lb.Y+42, 13, fontBold, a.c(p.dim), text.AlignEnd)
 
 		var top []challengeEntry
 		if snap.Stats.Challenge != nil {
@@ -823,10 +825,11 @@ func (a *guiApp) drawNetwork(dst *ebiten.Image) {
 					fnt = fontBold
 				}
 				a.text(dst, fmt.Sprintf("%d", i+1), colRank, ry, 14, fnt, col, text.AlignStart)
-				a.text(dst, truncPx(e.Name, 14, fnt, 210), colName, ry, 14, fnt, col, text.AlignStart)
+				a.text(dst, truncPx(e.Name, 14, fnt, 195), colName, ry, 14, fnt, col, text.AlignStart)
 				a.text(dst, formatSignedDelta(e.Delta), colDelta, ry, 14, fnt, col, text.AlignEnd)
 				a.text(dst, formatChallengeTime(e.DurationMs), colTime, ry, 14, fnt, col, text.AlignEnd)
 				a.text(dst, fmt.Sprintf("%d-%d-%d", e.Wins, e.Losses, e.Ties), colWLT, ry, 14, fontRegular, a.c(p.dim), text.AlignEnd)
+				a.text(dst, formatChallengeDate(e.RecordedAt), colDate, ry, 14, fontRegular, a.c(p.dim), text.AlignEnd)
 			}
 		}
 
