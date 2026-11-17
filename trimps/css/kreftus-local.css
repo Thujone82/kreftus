@@ -1847,9 +1847,11 @@ li.tabNotEnabled:hover {
   border: 1px solid var(--border-strong) !important;
   border-radius: var(--radius-sm) !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+  font-size: clamp(6.5px, 0.78vw, 12px) !important;
   padding: 3px 4px !important;
-  gap: 4px !important;
+  gap: 3px !important;
   overflow: hidden !important;
+  white-space: nowrap !important;
 }
 
 #boneBtnMain:hover {
@@ -1859,16 +1861,19 @@ li.tabNotEnabled:hover {
 }
 
 #boneBtnMain .icomoon {
-  font-size: clamp(7.5px, 0.92vw, 13px) !important;
+  font-size: 1em !important;
   flex-shrink: 0 !important;
 }
 
 #boneBtnText {
-  font-size: clamp(7.5px, 0.92vw, 13px) !important;
+  font-size: 1em !important;
   font-weight: 600 !important;
   color: inherit !important;
   line-height: 1.15 !important;
-  white-space: normal !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 0 !important;
 }
 
 /* Combat Stat Rows (#goodGuyStatsRow, #damageDiv, #blockDiv, #badGuyRow) */
@@ -1889,9 +1894,12 @@ li.tabNotEnabled:hover {
   flex-wrap: nowrap !important;
   align-items: center !important;
   column-gap: 6px !important;
-  row-gap: 2px !important;
-  min-height: 22px !important;
-  font-size: clamp(9.5px, 0.88vw, 13px) !important;
+  row-gap: 0 !important;
+  height: 1.65em !important;
+  min-height: 1.65em !important;
+  max-height: 1.65em !important;
+  overflow: hidden !important;
+  font-size: clamp(8.5px, 0.82vw, 12.5px) !important;
 }
 
 #damageDiv {
@@ -1901,10 +1909,12 @@ li.tabNotEnabled:hover {
   flex: 0 1 auto !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 4px !important;
+  gap: 3px !important;
   white-space: nowrap !important;
-  line-height: 1.25 !important;
-  min-height: 20px !important;
+  line-height: 1.2 !important;
+  height: 1.45em !important;
+  min-height: 1.45em !important;
+  max-height: 1.45em !important;
 }
 
 #critSpan {
@@ -1917,7 +1927,10 @@ li.tabNotEnabled:hover {
   line-height: 1.2 !important;
   width: 5.8em !important;
   min-width: 5.8em !important;
-  height: 1.25em !important;
+  height: 1.35em !important;
+  min-height: 1.35em !important;
+  max-height: 1.35em !important;
+  overflow: hidden !important;
   vertical-align: middle !important;
   flex-shrink: 0 !important;
 }
@@ -1929,6 +1942,7 @@ li.tabNotEnabled:hover {
   gap: 3px !important;
   font-size: 1em !important;
   line-height: 1.2 !important;
+  height: 1.25em !important;
   vertical-align: middle !important;
 }
 
@@ -1939,10 +1953,12 @@ li.tabNotEnabled:hover {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 1em !important;
+  font-size: 0.95em !important;
   line-height: 1 !important;
   width: 1em !important;
   height: 1em !important;
+  max-height: 1em !important;
+  overflow: hidden !important;
   vertical-align: middle !important;
 }
 
@@ -6184,9 +6200,7 @@ span.heirloomRare12 {
   }
 
   .battleStatsTitle,
-  #goodGuyAttack,
   #badGuyAttack,
-  #goodGuyBlock,
   #badGuyName {
     font-size: 16px !important;
   }
@@ -6210,34 +6224,43 @@ span.heirloomRare12 {
     line-height: 1 !important;
   }
 
-  /* Combat stats row: send shield to next row so crits have full room */
+  /* Combat stats row: keep single line with locked crit slot */
   #goodGuyStatsRow {
     display: flex !important;
-    flex-wrap: wrap !important;
+    flex-wrap: nowrap !important;
     align-items: center !important;
-    row-gap: 2px !important;
+    column-gap: 6px !important;
+    row-gap: 0 !important;
+    height: 1.65em !important;
+    min-height: 1.65em !important;
+    max-height: 1.65em !important;
+    overflow: hidden !important;
+    font-size: clamp(8.5px, 1.15vw, 13px) !important;
   }
 
   #damageDiv {
     width: auto !important;
-    max-width: calc(100% - 32px) !important;
+    max-width: 100% !important;
     float: none !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 4px !important;
+    gap: 3px !important;
     white-space: nowrap !important;
+    height: 1.45em !important;
+    min-height: 1.45em !important;
+    max-height: 1.45em !important;
   }
 
   #blockDiv {
-    flex: 0 0 100% !important;
-    width: 100% !important;
+    flex: 0 1 auto !important;
+    width: auto !important;
     float: none !important;
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
     white-space: nowrap !important;
-    margin-top: 2px !important;
-    padding-left: 15px !important;
+    margin-top: 0 !important;
+    padding-left: 0 !important;
   }
 
   #blockDiv #goodGuyBlockName {
@@ -6357,8 +6380,8 @@ span.heirloomRare12 {
     padding: 0 !important;
   }
 
-  #boneBtnText {
-    font-size: 13px !important;
+  #boneBtnMain {
+    font-size: clamp(8.5px, 1.4vw, 13px) !important;
   }
 
   #gridContainer {
@@ -6954,5 +6977,25 @@ span.heirloomRare12 {
 
   #challengesHere {
     grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)) !important;
+  }
+
+  #goodGuyStatsRow {
+    flex-wrap: wrap !important;
+    height: auto !important;
+    min-height: 40px !important;
+    max-height: none !important;
+    row-gap: 2px !important;
+    font-size: 14px !important;
+  }
+
+  #blockDiv {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    margin-top: 2px !important;
+    padding-left: 15px !important;
+  }
+
+  #boneBtnMain {
+    font-size: 13px !important;
   }
 }
