@@ -261,7 +261,7 @@ func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
 				}
 				if s.Phase == phasePlay && !g.myTurn(s) && !g.rolling() && !g.replayActive {
 					sig.turnClock = now.UnixMilli() / 350
-				} else if s.Challenge && s.Phase != phaseGameOver && (s.Match.Moves > 0 || len(s.History) > 0) {
+				} else if s.Challenge && s.Phase == phasePlay && (s.Match.Moves > 0 || len(s.History) > 0) {
 					sig.turnClock = now.UnixMilli() / 100
 				}
 			}

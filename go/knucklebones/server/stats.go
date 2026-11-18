@@ -109,6 +109,7 @@ type ChallengeStats struct {
 	ForfeitsByReason      map[string]uint64 `json:"forfeitsByReason,omitempty"`
 	Top10                 []ChallengeEntry  `json:"top10"`
 	Recent                []ChallengeEntry  `json:"recent"`
+	Leaderboard           []ChallengeEntry  `json:"leaderboard,omitempty"`
 }
 
 // StatsView is sent to clients in r_lobby / r_hosted and HTTP /stats.
@@ -255,20 +256,13 @@ func (s *statsStore) load() {
 	if loaded.Challenge.ForfeitsByReason == nil {
 		loaded.Challenge.ForfeitsByReason = map[string]uint64{}
 	}
-	if len(loaded.Challenge.Top10) > 0 {
-		cleanTop := loaded.Challenge.Top10[:0]
-		for _, e := range loaded.Challenge.Top10 {
-			if _, bad := ValidateChallengeName(e.Name); bad == "" {
-				cleanTop = append(cleanTop, e)
-			}
-		}
-		loaded.Challenge.Top10 = cleanTop
-		sortChallengeEntries(loaded.Challenge.Top10)
-		if len(loaded.Challenge.Top10) > maxTopScores {
-			loaded.Challenge.Top10 = loaded.Challenge.Top10[:maxTopScores]
-		}
-	}
-	migrated := false
+	hadSeed := len(loaded.Challenge.Leaderboard) == 0 && (len(loaded.Challenge.Top10) > 0 || len(loaded.Challenge.Recent) > 0)
+	loaded.Challenge.Leaderboard, loaded.Challenge.Top10 = mergeChallengeLeaderboard(
+		loaded.Challenge.Leaderboard,
+		loaded.Challenge.Top10,
+		loaded.Challenge.Recent,
+	)
+	migrated := hadSeed
 	if loaded.Version < statsVersion {
 		migrated = true
 		loaded.OnlineMatches = loaded.CompletedMatches
@@ -397,6 +391,7 @@ func (s *statsStore) SnapshotWithChallenges(live, waiting, lobbyWatchers, active
 		chCopy.Top10 = []ChallengeEntry{}
 	}
 	chCopy.Recent = nil
+	chCopy.Leaderboard = nil
 	return StatsView{
 		LobbyWatchers:         lobbyWatchers,
 		LiveMatches:           live,
@@ -733,6 +728,46 @@ func sortChallengeEntries(list []ChallengeEntry) {
 	})
 }
 
+func mergeChallengeLeaderboard(lists ...[]ChallengeEntry) ([]ChallengeEntry, []ChallengeEntry) {
+	type dedupKey struct {
+		name       string
+		delta      int
+		durationMs int64
+		recordedAt string
+		rounds     [3]int
+	}
+	seen := make(map[dedupKey]struct{})
+	var all []ChallengeEntry
+	for _, list := range lists {
+		for _, e := range list {
+			clean, bad := ValidateChallengeName(e.Name)
+			if bad != "" {
+				continue
+			}
+			e.Name = clean
+			k := dedupKey{
+				name:       e.Name,
+				delta:      e.Delta,
+				durationMs: e.DurationMs,
+				recordedAt: e.RecordedAt,
+				rounds:     e.RoundDeltas,
+			}
+			if _, ok := seen[k]; ok {
+				continue
+			}
+			seen[k] = struct{}{}
+			all = append(all, e)
+		}
+	}
+	sortChallengeEntries(all)
+	topN := len(all)
+	if topN > maxTopScores {
+		topN = maxTopScores
+	}
+	top10 := append([]ChallengeEntry(nil), all[:topN]...)
+	return all, top10
+}
+
 func (s *statsStore) FullDumpWithChallenges(live, waitingCount, lobbyWatchers, activeChallenges int, waiting []RoomInfo, matches []LiveMatchInfo) map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -751,6 +786,7 @@ func (s *statsStore) FullDumpWithChallenges(live, waitingCount, lobbyWatchers, a
 	dataCopy.Challenge.ForfeitsByReason = copyUint64Map(s.data.Challenge.ForfeitsByReason)
 	dataCopy.Challenge.Top10 = append([]ChallengeEntry(nil), s.data.Challenge.Top10...)
 	dataCopy.Challenge.Recent = append([]ChallengeEntry(nil), s.data.Challenge.Recent...)
+	dataCopy.Challenge.Leaderboard = append([]ChallengeEntry(nil), s.data.Challenge.Leaderboard...)
 	return map[string]any{
 		"lobbyWatchers":    lobbyWatchers,
 		"liveMatches":      live,
@@ -957,8 +993,9 @@ func (s *statsStore) RecordChallengeForfeit(playerName, reason string, loser int
 }
 
 // RecordChallengeCompletion records a finished 3-match Challenge run, inserts
-// eligible entries (non-Lamb, non-offensive) into the Top 10 ranked by delta DESC
-// then durationMs ASC, and returns the 1-based leaderboard rank (or 0 if outside Top 10).
+// eligible entries (non-Lamb, non-offensive) into the full Leaderboard and Top 10
+// ranked by delta DESC then durationMs ASC, and returns the 1-based overall rank
+// (or 0 if the name is ineligible).
 func (s *statsStore) RecordChallengeCompletion(entry ChallengeEntry) int {
 	now := time.Now().UTC()
 	if entry.RecordedAt == "" {
@@ -1019,23 +1056,31 @@ func (s *statsStore) RecordChallengeCompletion(entry ChallengeEntry) int {
 		if len(s.data.Challenge.Recent) > maxRecentMatches {
 			s.data.Challenge.Recent = s.data.Challenge.Recent[:maxRecentMatches]
 		}
-		s.data.Challenge.Top10 = append(s.data.Challenge.Top10, entry)
-		sortChallengeEntries(s.data.Challenge.Top10)
-		for i := range s.data.Challenge.Top10 {
-			if i >= maxTopScores {
-				break
-			}
-			if s.data.Challenge.Top10[i].Name == entry.Name &&
-				s.data.Challenge.Top10[i].Delta == entry.Delta &&
-				s.data.Challenge.Top10[i].DurationMs == entry.DurationMs &&
-				s.data.Challenge.Top10[i].RecordedAt == entry.RecordedAt {
+		if len(s.data.Challenge.Leaderboard) < len(s.data.Challenge.Top10) {
+			s.data.Challenge.Leaderboard, _ = mergeChallengeLeaderboard(
+				s.data.Challenge.Leaderboard,
+				s.data.Challenge.Top10,
+				s.data.Challenge.Recent,
+			)
+		}
+		s.data.Challenge.Leaderboard = append(s.data.Challenge.Leaderboard, entry)
+		sortChallengeEntries(s.data.Challenge.Leaderboard)
+		for i := range s.data.Challenge.Leaderboard {
+			e := s.data.Challenge.Leaderboard[i]
+			if e.Name == entry.Name &&
+				e.Delta == entry.Delta &&
+				e.DurationMs == entry.DurationMs &&
+				e.RecordedAt == entry.RecordedAt &&
+				e.RoundDeltas == entry.RoundDeltas {
 				rank = i + 1
 				break
 			}
 		}
-		if len(s.data.Challenge.Top10) > maxTopScores {
-			s.data.Challenge.Top10 = s.data.Challenge.Top10[:maxTopScores]
+		topN := len(s.data.Challenge.Leaderboard)
+		if topN > maxTopScores {
+			topN = maxTopScores
 		}
+		s.data.Challenge.Top10 = append([]ChallengeEntry(nil), s.data.Challenge.Leaderboard[:topN]...)
 	}
 
 	s.prependRecentMatchLocked(MatchRecord{

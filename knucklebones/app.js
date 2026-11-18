@@ -1223,7 +1223,7 @@
 
   function challengeLiveElapsedMs(s, now = Date.now()) {
     if (!s || !s.challenge) return 0;
-    if (s.phase === 'game') return Number(s.challengeElapsedMs) || 0;
+    if (s.phase !== 'play') return Number(s.challengeElapsedMs) || 0;
     if ((s.match && s.match.moves === 0) && (!s.history || s.history.length === 0)) {
       return Number(s.challengeElapsedMs) || 0;
     }
@@ -2981,7 +2981,7 @@
   const CHALLENGE_CELEB_MS = 2800;
 
   function isChallengeCelebrating(s) {
-    return !!(s && s.challenge && s.phase === 'game' && !s.forfeit && s.challengeRank > 0 && app.challengeCelebUntil > Date.now());
+    return !!(s && s.challenge && s.phase === 'game' && !s.forfeit && s.challengeRank > 0 && s.challengeRank <= 10 && app.challengeCelebUntil > Date.now());
   }
 
   function clearChallengeCelebration() {
@@ -3010,11 +3010,11 @@
       app.overlay = 'none';
     }
     if (s.challenge) {
-      const cKey = `${s.series}:${s.round}:${s.match.moves}`;
+      const cKey = `${s.series}:${s.round}:${s.phase}:${s.match.moves}`;
       if (cKey !== app.challengeSyncKey || (Number(s.challengeElapsedMs) || 0) !== app.challengeBaseMs || s.phase !== 'play') {
         app.challengeSyncKey = cKey;
         app.challengeBaseMs = Number(s.challengeElapsedMs) || 0;
-        app.challengeSyncAt = Date.now();
+        app.challengeSyncAt = s.phase === 'play' ? Date.now() : 0;
       }
     }
     const key = `${s.series}:${s.round}:${s.match.moves + 1}`;
@@ -3029,7 +3029,7 @@
     }
     if (s.phase !== 'play') {
       if (app.overlay === 'resign' && s.phase === 'game') app.overlay = 'none';
-      const isTop10Win = !!(s.challenge && s.phase === 'game' && !s.forfeit && s.challengeRank > 0);
+      const isTop10Win = !!(s.challenge && s.phase === 'game' && !s.forfeit && s.challengeRank > 0 && s.challengeRank <= 10);
       if (isTop10Win) {
         const celebKey = `${s.series}:${s.round}:${s.challengeRank}`;
         if (celebKey !== app.challengeCelebKey) {
@@ -3340,7 +3340,7 @@
       const fxNow = effectActive();
       const s = app.ctl.state();
       const hasTimer = s && s.phase === 'play' && (s.turnDeadline > 0 || s.turnLeftMs > 0);
-      const hasChalTimer = s && s.challenge && s.phase !== 'game' && (s.match.moves > 0 || (s.history && s.history.length > 0));
+      const hasChalTimer = s && s.challenge && s.phase === 'play' && (s.match.moves > 0 || (s.history && s.history.length > 0));
       const inLobby = app.view === 'lobby';
       const thinking = s && s.phase === 'play' && !myTurn(s) && !rollingNow;
       if (changed) {
@@ -4646,6 +4646,7 @@
     }
 
     const rank = Number(s.challengeRank) || 0;
+    const isTop10 = rank > 0 && rank <= 10;
     let icon = '';
     let tierClass = '';
     let badge = '';
@@ -4661,10 +4662,14 @@
       icon = '🥉';
       tierClass = 'rank-bronze';
       badge = '3RD PLACE · #3';
-    } else if (rank > 0) {
+    } else if (isTop10) {
       icon = '🏆';
       tierClass = 'rank-top10';
       badge = `TOP 10 · #${rank}`;
+    } else if (rank > 10) {
+      icon = '🎯';
+      tierClass = 'rank-outside';
+      badge = `RANK #${rank}`;
     }
 
     return {
@@ -4683,6 +4688,7 @@
       netDelta: challengeCombinedDelta(s, me),
       elapsed: formatChallengeTime(challengeLiveElapsedMs(s)),
       rank,
+      isTop10,
       icon,
       tierClass,
       badge
@@ -4738,7 +4744,7 @@
     const deltaColor = summary.netDelta > 0 ? 'var(--win)' : summary.netDelta < 0 ? 'var(--lose)' : 'var(--accent)';
     const recStr = `${summary.wins}W – ${summary.losses}L${summary.ties ? ` – ${summary.ties}T` : ''}`;
 
-    const congratsHtml = isFinal && !s.forfeit && summary.rank > 0
+    const congratsHtml = isFinal && !s.forfeit && summary.isTop10
       ? `
         <div class="challenge-congrats-banner ${summary.tierClass}">
           <div class="challenge-congrats-icon" aria-hidden="true">${summary.icon || '🏆'}</div>
@@ -4747,7 +4753,16 @@
             <div class="challenge-congrats-sub">Ranked ${escHtml(summary.badge)} with ${escHtml(formatSignedDelta(summary.netDelta))} net delta in ${escHtml(summary.elapsed)}.</div>
           </div>
         </div>`
-      : '';
+      : (isFinal && !s.forfeit && summary.rank > 10
+        ? `
+          <div class="challenge-congrats-banner rank-outside">
+            <div class="challenge-congrats-icon" aria-hidden="true">${summary.icon || '🎯'}</div>
+            <div class="challenge-congrats-body">
+              <div class="challenge-congrats-title">Challenge Rank #${summary.rank}</div>
+              <div class="challenge-congrats-sub">Finished #${summary.rank} overall (${escHtml(formatSignedDelta(summary.netDelta))} net delta in ${escHtml(summary.elapsed)}) · Beat Rank #10 to enter the Top 10 Leaderboard.</div>
+            </div>
+          </div>`
+        : '');
 
     const rowsHtml = summary.rounds.map((r) => {
       if (r.pending) {
@@ -4772,6 +4787,9 @@
     }).join('');
 
     const wltShort = `${summary.wins}-${summary.losses}-${summary.ties}`;
+    const recordSub = summary.rank > 0 && isFinal && !s.forfeit
+      ? (summary.isTop10 ? `Top 10 · Rank #${summary.rank}` : `Overall Rank #${summary.rank}`)
+      : `${summary.completedCount}/3 completed`;
     return `
       ${congratsHtml}
       <div class="challenge-kpi-grid">
@@ -4788,7 +4806,7 @@
         <div class="challenge-kpi-box">
           <div class="challenge-kpi-label">Match Record</div>
           <div class="challenge-kpi-val">${escHtml(recStr)}</div>
-          <div class="challenge-kpi-sub">${summary.completedCount}/3 completed</div>
+          <div class="challenge-kpi-sub">${escHtml(recordSub)}</div>
         </div>
         <div class="challenge-kpi-box">
           <div class="challenge-kpi-label">Total Points</div>

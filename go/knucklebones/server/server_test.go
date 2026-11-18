@@ -475,6 +475,30 @@ func TestChallengeNameValidationAndLeaderboard(t *testing.T) {
 	if top[0].Name != "TopPlayer" || top[1].Name != "FastPlayer" || top[2].Name != "SlowPlayer" {
 		t.Fatalf("unexpected leaderboard order: %+v", top)
 	}
+
+	// Add 7 more entries to fill Top 10, then verify ranks 11 and 12 are returned
+	// accurately while Top10 stays capped at 10 entries.
+	for i := 0; i < 7; i++ {
+		st.RecordChallengeCompletion(ChallengeEntry{
+			Name:       fmt.Sprintf("Mid%d", i),
+			Delta:      15 - i,
+			DurationMs: 50000,
+			RecordedAt: fmt.Sprintf("2026-11-16T02:0%d:00Z", i),
+		})
+	}
+	if r11 := st.RecordChallengeCompletion(ChallengeEntry{Name: "Rank11", Delta: -5, DurationMs: 60000, RecordedAt: "2026-11-16T03:00:00Z"}); r11 != 11 {
+		t.Fatalf("expected rank 11 outside Top 10, got %d", r11)
+	}
+	if r12 := st.RecordChallengeCompletion(ChallengeEntry{Name: "Rank12", Delta: -10, DurationMs: 60000, RecordedAt: "2026-11-16T03:01:00Z"}); r12 != 12 {
+		t.Fatalf("expected rank 12 outside Top 10, got %d", r12)
+	}
+	snap2 := st.SnapshotWithChallenges(0, 0, 0, 0)
+	if len(snap2.Challenge.Top10) != 10 {
+		t.Fatalf("expected Top10 capped at 10 entries, got %d", len(snap2.Challenge.Top10))
+	}
+	if len(snap2.Challenge.Leaderboard) != 0 {
+		t.Fatalf("expected lobby SnapshotWithChallenges to omit full Leaderboard slice, got %d entries", len(snap2.Challenge.Leaderboard))
+	}
 }
 
 func TestChallengeRejectsLambAndStartsWithValidName(t *testing.T) {
@@ -673,5 +697,52 @@ func TestChallengeStatsRollMoveRoundCompletionAndMigration(t *testing.T) {
 	rs := reloaded.SnapshotWithChallenges(0, 0, 0, 0)
 	if rs.TotalDicePlayed != 272 || rs.CompletedMatches != 5 {
 		t.Fatalf("migration was not idempotent: %+v", rs)
+	}
+}
+
+func TestChallengeTimerExcludesPostMatchScreen(t *testing.T) {
+	h := newHub(filepath.Join(t.TempDir(), "stats.json"))
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+
+	eng := newChallengeEngine(h, c1, "Tester", challengeRandomHex(32), challengeRandomHex(32))
+
+	// Before first die placement in round 1, timer is at 0 even as time passes.
+	t0 := time.Now()
+	if got := eng.elapsedMs(t0.Add(2 * time.Second)); got != 0 {
+		t.Fatalf("expected 0ms before first die in round 1, got %dms", got)
+	}
+
+	// Simulate active round 1 play starting 400ms ago, then finishing now.
+	eng.roundActiveAt = t0.Add(-400 * time.Millisecond)
+	if got := eng.elapsedMs(t0); got != 400 {
+		t.Fatalf("expected 400ms during active round 1 play, got %dms", got)
+	}
+
+	eng.finishRound(t0)
+	if eng.phase != phaseRoundOver {
+		t.Fatalf("expected phaseRoundOver after round 1, got %q", eng.phase)
+	}
+	if eng.accumPlayMs != 400 {
+		t.Fatalf("expected accumPlayMs=400 after round 1, got %d", eng.accumPlayMs)
+	}
+
+	// Sitting on post-match screen for 5 seconds must not increase elapsedMs.
+	if got := eng.elapsedMs(t0.Add(5 * time.Second)); got != 400 {
+		t.Fatalf("expected elapsedMs to remain frozen at 400ms on post-match screen, got %dms", got)
+	}
+
+	// Continuing to round 2 resumes gameplay timing from accumPlayMs without the pause gap.
+	eng.startRound()
+	if eng.phase != phasePlay {
+		t.Fatalf("expected phasePlay after startRound, got %q", eng.phase)
+	}
+	if eng.roundActiveAt.IsZero() {
+		t.Fatal("expected roundActiveAt to start immediately on round 2")
+	}
+	r2End := eng.roundActiveAt.Add(300 * time.Millisecond)
+	if got := eng.elapsedMs(r2End); got != 700 {
+		t.Fatalf("expected 700ms after 300ms in round 2, got %dms", got)
 	}
 }

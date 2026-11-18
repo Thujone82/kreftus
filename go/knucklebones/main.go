@@ -269,7 +269,7 @@ type game struct {
 	netPlainTCP      bool
 	challengeSyncAt  time.Time
 	challengeBaseMs  int64
-	challengeSyncKey [3]int
+	challengeSyncKey string
 
 	ctl           controller
 	overlay       int
@@ -413,11 +413,15 @@ func (g *game) syncView() {
 		g.overlay = overlayNone
 	}
 	if s.Challenge {
-		ckey := [3]int{s.Series, s.Round, s.Match.Moves}
+		ckey := fmt.Sprintf("%d:%d:%s:%d", s.Series, s.Round, s.Phase, s.Match.Moves)
 		if ckey != g.challengeSyncKey || s.ChallengeElapsedMs != g.challengeBaseMs || s.Phase != phasePlay {
 			g.challengeSyncKey = ckey
 			g.challengeBaseMs = s.ChallengeElapsedMs
-			g.challengeSyncAt = time.Now()
+			if s.Phase == phasePlay {
+				g.challengeSyncAt = time.Now()
+			} else {
+				g.challengeSyncAt = time.Time{}
+			}
 		}
 	}
 	key := [2]int{s.Series*1000 + s.Round, s.Match.Moves + 1}

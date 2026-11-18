@@ -2575,6 +2575,12 @@ body.mode-tui .play-shell.lay-p2 .tui-die {
   background: rgba(245, 158, 11, 0.12);
 }
 
+.challenge-congrats-banner.rank-outside {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--empty-bg));
+  animation: none;
+}
+
 .challenge-congrats-icon {
   font-size: 1.8rem;
   line-height: 1;
@@ -2593,6 +2599,10 @@ body.mode-tui .play-shell.lay-p2 .tui-die {
 
 .challenge-congrats-banner.rank-gold .challenge-congrats-title {
   color: #fde047;
+}
+
+.challenge-congrats-banner.rank-outside .challenge-congrats-title {
+  color: var(--accent);
 }
 
 .challenge-congrats-sub {

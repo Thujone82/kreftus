@@ -286,8 +286,8 @@ type challengeEngine struct {
 	nextGuestSeed string
 
 	turnStartedAt time.Time
-	firstDieAt    time.Time
-	lastDieAt     time.Time
+	roundActiveAt time.Time
+	accumPlayMs   int64
 	delta         int
 	rank          int
 	attempted     bool
@@ -323,8 +323,8 @@ func (e *challengeEngine) startSeries() {
 	e.history = nil
 	e.timeouts = [2]int{}
 	e.forfeit = nil
-	e.firstDieAt = time.Time{}
-	e.lastDieAt = time.Time{}
+	e.roundActiveAt = time.Time{}
+	e.accumPlayMs = 0
 	e.delta = 0
 	e.rank = 0
 	if !e.attempted {
@@ -359,7 +359,13 @@ func (e *challengeEngine) startRound() {
 	e.phase = phasePlay
 	e.votes = [2]string{}
 	e.last = nil
-	e.turnStartedAt = time.Now()
+	now := time.Now()
+	e.turnStartedAt = now
+	if e.round > 1 {
+		e.roundActiveAt = now
+	} else {
+		e.roundActiveAt = time.Time{}
+	}
 	e.addLog(wireLogEntry{Kind: "first", Player: first})
 }
 
@@ -389,10 +395,9 @@ func (e *challengeEngine) place(p, col int) bool {
 		return false
 	}
 	now := time.Now()
-	if e.firstDieAt.IsZero() {
-		e.firstDieAt = now
+	if e.roundActiveAt.IsZero() {
+		e.roundActiveAt = now
 	}
-	e.lastDieAt = now
 	e.hub.stats.RecordChallengeMove(pl)
 
 	if len(e.roundMoves) < challengeMaxReplay {
@@ -414,7 +419,7 @@ func (e *challengeEngine) place(p, col int) bool {
 		Lost:      pl.Lost,
 	})
 	if e.match.Over {
-		e.finishRound()
+		e.finishRound(now)
 	} else {
 		e.rollDie()
 		e.turnStartedAt = now
@@ -423,7 +428,13 @@ func (e *challengeEngine) place(p, col int) bool {
 	return true
 }
 
-func (e *challengeEngine) finishRound() {
+func (e *challengeEngine) finishRound(now time.Time) {
+	if !e.roundActiveAt.IsZero() {
+		if d := now.Sub(e.roundActiveAt).Milliseconds(); d > 0 {
+			e.accumPlayMs += d
+		}
+		e.roundActiveAt = time.Time{}
+	}
 	w := e.match.Winner()
 	if w >= 0 {
 		e.wins[w]++
@@ -455,11 +466,9 @@ func (e *challengeEngine) finishRound() {
 	// All 3 Challenge matches are always played regardless of early lead.
 	if e.round >= 3 {
 		e.phase = phaseGameOver
-		durMs := int64(1)
-		if !e.firstDieAt.IsZero() && !e.lastDieAt.IsZero() {
-			if d := e.lastDieAt.Sub(e.firstDieAt).Milliseconds(); d > 1 {
-				durMs = d
-			}
+		durMs := e.accumPlayMs
+		if durMs < 1 {
+			durMs = 1
 		}
 		var roundDeltas [3]int
 		pTot, aiTot, pWins, aiWins, ties := 0, 0, 0, 0, 0
@@ -500,7 +509,13 @@ func (e *challengeEngine) forfeitBy(loser int, reason string) {
 	if e.forfeit != nil || e.phase == phaseGameOver {
 		return
 	}
-	hadMoves := !e.firstDieAt.IsZero() || len(e.history) > 0
+	hadMoves := e.accumPlayMs > 0 || !e.roundActiveAt.IsZero() || len(e.history) > 0
+	if !e.roundActiveAt.IsZero() {
+		if d := time.Now().Sub(e.roundActiveAt).Milliseconds(); d > 0 {
+			e.accumPlayMs += d
+		}
+		e.roundActiveAt = time.Time{}
+	}
 	e.forfeit = &wireForfeit{Reason: reason, Loser: loser}
 	e.match.Over = true
 	e.match.Dice = [2]int{}
@@ -517,19 +532,16 @@ func (e *challengeEngine) forfeitBy(loser int, reason string) {
 }
 
 func (e *challengeEngine) elapsedMs(now time.Time) int64 {
-	if e.firstDieAt.IsZero() {
-		return 0
-	}
-	if e.phase == phaseGameOver && !e.lastDieAt.IsZero() {
-		if d := e.lastDieAt.Sub(e.firstDieAt).Milliseconds(); d > 0 {
-			return d
+	total := e.accumPlayMs
+	if e.phase == phasePlay && !e.roundActiveAt.IsZero() {
+		if d := now.Sub(e.roundActiveAt).Milliseconds(); d > 0 {
+			total += d
 		}
+	}
+	if e.phase == phaseGameOver && e.forfeit == nil && total < 1 && len(e.history) > 0 {
 		return 1
 	}
-	if d := now.Sub(e.firstDieAt).Milliseconds(); d > 0 {
-		return d
-	}
-	return 0
+	return total
 }
 
 func (e *challengeEngine) wireState(now time.Time) *wireSession {

@@ -91,7 +91,7 @@ func (g *game) challengeLiveElapsedMs(s *session, now time.Time) int64 {
 	if s == nil || !s.Challenge {
 		return 0
 	}
-	if s.Phase == phaseGameOver {
+	if s.Phase != phasePlay {
 		return s.ChallengeElapsedMs
 	}
 	if s.Match.Moves == 0 && len(s.History) == 0 {
@@ -132,8 +132,11 @@ func (g *game) resultStatus(s *session) (string, tcell.Color) {
 	if s.Challenge {
 		elapsed := formatChallengeTime(g.challengeLiveElapsedMs(s, time.Now()))
 		if s.Phase == phaseGameOver && s.Forfeit == nil {
-			if s.ChallengeRank > 0 {
+			if s.ChallengeRank > 0 && s.ChallengeRank <= 10 {
 				return fmt.Sprintf("Time: %s · 🏆 Top 10 Leaderboard #%d!", elapsed, s.ChallengeRank), g.pal.win
+			}
+			if s.ChallengeRank > 10 {
+				return fmt.Sprintf("Time: %s · Challenge Rank #%d", elapsed, s.ChallengeRank), g.pal.accent
 			}
 			return fmt.Sprintf("Completion Time: %s", elapsed), g.pal.accent
 		}
