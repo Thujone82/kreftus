@@ -434,7 +434,8 @@ html, body {
   display: flex !important;
   flex-direction: column !important;
   justify-content: flex-start !important;
-  padding: 6px 8px !important;
+  padding: 4px 6px !important;
+  overflow: hidden !important;
 }
 
 #trimps.playerGather > br {
@@ -469,7 +470,7 @@ html, body {
 }
 
 #trimps #trimpTitle.title {
-  font-size: clamp(15px, 9.5cqw, 1.75vw) !important;
+  font-size: clamp(12px, 8cqw, 1.6vw) !important;
   font-weight: 800 !important;
 }
 
@@ -588,45 +589,46 @@ html, body {
 
 #trimps > .ownedArea {
   display: inline-block !important;
-  margin: 2px auto !important;
+  margin: 1px auto !important;
   white-space: nowrap !important;
 }
 
 #trimps > .ownedArea,
 #trimps > .ownedArea span {
-  font-size: clamp(16px, 9cqw, 1.85vw) !important;
+  font-size: clamp(11.5px, 7.5cqw, 1.65vw) !important;
   font-weight: 700 !important;
+  line-height: 1.2 !important;
 }
 
 #trimps > .resProgress {
   width: 100% !important;
-  height: 14px !important;
-  min-height: 14px !important;
-  max-height: 14px !important;
-  margin: 3px 0 !important;
+  height: 12px !important;
+  min-height: 12px !important;
+  max-height: 12px !important;
+  margin: 2px 0 !important;
   flex-shrink: 0;
 }
 
 #trimps #trimpsTimeToFill {
   font-size: 10px !important;
-  line-height: 14px !important;
+  line-height: 12px !important;
   font-weight: 700 !important;
 }
 
 #trimps #unempHide {
   margin-top: auto !important;
-  margin-bottom: 3px !important;
+  margin-bottom: 1px !important;
 }
 
 #trimps #empHide {
-  margin-top: 3px !important;
+  margin-top: 1px !important;
   margin-bottom: auto !important;
 }
 
 #trimps #unempHide,
 #trimps #empHide {
-  font-size: clamp(16px, 1.15vw, 19.5px) !important;
-  line-height: 1.55 !important;
+  font-size: clamp(9.5px, min(0.95vw, 1.55vh), 16px) !important;
+  line-height: 1.2 !important;
   font-weight: 600 !important;
 }
 
@@ -637,28 +639,29 @@ html, body {
 }
 
 #trimps #trimpsPs {
-  font-size: clamp(17px, 1.25vw, 21px) !important;
+  font-size: clamp(11px, min(1.1vw, 1.85vh), 19px) !important;
+  line-height: 1.2 !important;
   font-weight: 800 !important;
   color: var(--buy, #22c55e) !important;
   display: inline-block !important;
-  margin: 2px 0 !important;
+  margin: 1px 0 !important;
 }
 
 #trapArea {
   border: 1px solid var(--border-strong) !important;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.22);
-  padding: 4px 6px !important;
+  padding: 3px 5px !important;
   width: 92% !important;
-  margin: 0 auto 2px auto !important;
+  margin: 2px auto 0 auto !important;
   flex-shrink: 0;
 }
 
 #trapArea #trimpsCollectBtn,
 #trapArea #trimpsCollecting {
-  padding: 3px 6px !important;
-  font-size: clamp(11px, 0.78vw, 12.5px) !important;
-  line-height: 1.25 !important;
+  padding: 2px 6px !important;
+  font-size: clamp(10px, min(0.78vw, 1.4vh), 12.5px) !important;
+  line-height: 1.2 !important;
   margin: 0 !important;
 }
 
