@@ -705,6 +705,13 @@
             this.tone(ctx, now + 0.000, 'triangle', 329.63, 311.13, 0.140, 0.20);
             this.tone(ctx, now + 0.120, 'triangle', 246.94, 220.00, 0.230, 0.20);
             break;
+          case 'celebrate':
+            this.tone(ctx, now + 0.000, 'triangle', 523.25, 523.25, 0.110, 0.20);
+            this.tone(ctx, now + 0.090, 'triangle', 659.25, 659.25, 0.110, 0.20);
+            this.tone(ctx, now + 0.180, 'triangle', 783.99, 783.99, 0.120, 0.22);
+            this.tone(ctx, now + 0.280, 'sine', 1046.50, 1046.50, 0.360, 0.24);
+            this.tone(ctx, now + 0.280, 'triangle', 783.99, 783.99, 0.340, 0.14);
+            break;
         }
       } catch {}
     },
@@ -2701,6 +2708,10 @@
     challengeSyncAt: 0,
     challengeBaseMs: 0,
     challengeSyncKey: '',
+    challengeCelebKey: '',
+    challengeCelebAt: 0,
+    challengeCelebUntil: 0,
+    challengeCelebTimer: 0,
     ctl: null,
     overlay: 'none',
     overlayOptIndex: 0,
@@ -2967,6 +2978,29 @@
     return app.effectAt > 0 && Date.now() - app.effectAt < EFFECT_DURATION_MS;
   }
 
+  const CHALLENGE_CELEB_MS = 2800;
+
+  function isChallengeCelebrating(s) {
+    return !!(s && s.challenge && s.phase === 'game' && !s.forfeit && s.challengeRank > 0 && app.challengeCelebUntil > Date.now());
+  }
+
+  function clearChallengeCelebration() {
+    if (app.challengeCelebTimer) {
+      clearTimeout(app.challengeCelebTimer);
+      app.challengeCelebTimer = 0;
+    }
+    app.challengeCelebUntil = 0;
+  }
+
+  function dismissChallengeCelebration() {
+    if (app.challengeCelebUntil <= Date.now()) return false;
+    if (Date.now() - app.challengeCelebAt < 350) return true;
+    clearChallengeCelebration();
+    emitSound('click');
+    render();
+    return true;
+  }
+
   function syncSessionEvents() {
     if (!app.ctl) return;
     const s = app.ctl.state();
@@ -2995,10 +3029,28 @@
     }
     if (s.phase !== 'play') {
       if (app.overlay === 'resign' && s.phase === 'game') app.overlay = 'none';
+      const isTop10Win = !!(s.challenge && s.phase === 'game' && !s.forfeit && s.challengeRank > 0);
+      if (isTop10Win) {
+        const celebKey = `${s.series}:${s.round}:${s.challengeRank}`;
+        if (celebKey !== app.challengeCelebKey) {
+          app.challengeCelebKey = celebKey;
+          clearChallengeCelebration();
+          app.challengeCelebAt = Date.now();
+          app.challengeCelebUntil = app.challengeCelebAt + CHALLENGE_CELEB_MS;
+          app.challengeCelebTimer = setTimeout(() => {
+            app.challengeCelebTimer = 0;
+            app.challengeCelebUntil = 0;
+            render();
+          }, CHALLENGE_CELEB_MS);
+        }
+      }
       const pKey = `${s.series}:${s.round}`;
       if (pKey !== app.soundPhaseKey) {
         app.soundPhaseKey = pKey;
-        if (s.mode !== 'local') {
+        if (isTop10Win) {
+          emitSound('celebrate');
+          triggerHaptic('win');
+        } else if (s.mode !== 'local') {
           let w = matchWinner(s.match);
           if (s.forfeit) w = 1 - s.forfeit.loser;
           if (w === app.ctl.seat()) {
@@ -3014,6 +3066,7 @@
       return;
     }
 
+    if (app.challengeCelebUntil > 0) clearChallengeCelebration();
     if (app.replayActive) exitReplay();
     app.hideResult = false;
     if (key !== app.rollKey) {
@@ -3219,6 +3272,8 @@
   function beginGame(ctl) {
     stopNetWatcher();
     clearLayTransition();
+    clearChallengeCelebration();
+    app.challengeCelebKey = '';
     app.ctl = ctl;
     app.overlay = 'none';
     app.resultIndex = 0;
@@ -3252,8 +3307,12 @@
   }
 
   function leaveGame() {
+    const s = app.ctl && app.ctl.state ? app.ctl.state() : null;
+    const lMode = app.ctl && app.ctl.lobbyMode ? app.ctl.lobbyMode() : '';
+    const wasChallenge = !!(s && s.challenge) || lMode === 'online-challenge';
     stopNetWatcher();
     clearLayTransition();
+    clearChallengeCelebration();
     if (app.ctl) {
       app.ctl.leave();
       app.ctl = null;
@@ -3261,8 +3320,13 @@
     app.overlay = 'none';
     exitReplay();
     stopClockLoop();
-    app.view = 'menu';
     if (app.swPendingUpdate) applyPendingUpdateNow();
+    if (wasChallenge) {
+      app.netChallenge = true;
+      openNetworkView(true);
+      return;
+    }
+    app.view = 'menu';
     render();
   }
 
@@ -3299,6 +3363,9 @@
     app.wasRolling = rollingNow;
     app.wasFx = fxNow;
     if (rollJustEnded || fxJustEnded) {
+      if (isChallengeCelebrating(s)) {
+        return;
+      }
       if (app.layFadePhase !== 'idle') {
         app.layDeferredRender = true;
       } else {
@@ -4540,6 +4607,221 @@
     playShell.style.setProperty('--grid-gap', `${gridGap}px`);
   }
 
+  function buildChallengeSummary(s, me) {
+    const ai = 1 - me;
+    const myName = s.names[me] || 'You';
+    const aiName = s.names[ai] || 'Shrumy';
+    const history = Array.isArray(s.history) ? s.history : [];
+    const rounds = [];
+    let myTotal = 0;
+    let aiTotal = 0;
+    let wins = 0;
+    let losses = 0;
+    let ties = 0;
+    let bestScore = 0;
+    let bestDelta = -Infinity;
+    let completedCount = 0;
+
+    for (let r = 1; r <= 3; r++) {
+      const h = history.find((item) => item && item.round === r) || history[r - 1];
+      if (h && Array.isArray(h.scores)) {
+        const myScore = Number(h.scores[me]) || 0;
+        const aiScore = Number(h.scores[ai]) || 0;
+        const delta = myScore - aiScore;
+        const outcome = delta > 0 ? 'win' : delta < 0 ? 'loss' : 'tie';
+        const label = delta > 0 ? 'Win' : delta < 0 ? 'Loss' : 'Tie';
+        myTotal += myScore;
+        aiTotal += aiScore;
+        completedCount++;
+        if (delta > 0) wins++;
+        else if (delta < 0) losses++;
+        else ties++;
+        if (myScore > bestScore) bestScore = myScore;
+        if (delta > bestDelta) bestDelta = delta;
+        rounds.push({ round: r, pending: false, myScore, aiScore, delta, outcome, label });
+      } else {
+        const label = s.forfeit ? '—' : (s.phase === 'round' && r === s.round + 1 ? 'Up next' : 'Pending');
+        rounds.push({ round: r, pending: true, myScore: 0, aiScore: 0, delta: 0, outcome: 'pending', label });
+      }
+    }
+
+    const rank = Number(s.challengeRank) || 0;
+    let icon = '';
+    let tierClass = '';
+    let badge = '';
+    if (rank === 1) {
+      icon = '🥇';
+      tierClass = 'rank-gold';
+      badge = 'CHAMPION · #1';
+    } else if (rank === 2) {
+      icon = '🥈';
+      tierClass = 'rank-silver';
+      badge = '2ND PLACE · #2';
+    } else if (rank === 3) {
+      icon = '🥉';
+      tierClass = 'rank-bronze';
+      badge = '3RD PLACE · #3';
+    } else if (rank > 0) {
+      icon = '🏆';
+      tierClass = 'rank-top10';
+      badge = `TOP 10 · #${rank}`;
+    }
+
+    return {
+      myName,
+      aiName,
+      rounds,
+      completedCount,
+      myTotal,
+      aiTotal,
+      wins,
+      losses,
+      ties,
+      avgScore: completedCount > 0 ? Math.round(myTotal / completedCount) : 0,
+      bestScore,
+      bestDelta: completedCount > 0 ? bestDelta : 0,
+      netDelta: challengeCombinedDelta(s, me),
+      elapsed: formatChallengeTime(challengeLiveElapsedMs(s)),
+      rank,
+      icon,
+      tierClass,
+      badge
+    };
+  }
+
+  function renderChallengeCelebrationHTML(s, summary) {
+    const shapes = ['✦', '★', '◆', '●', '▲', '❖'];
+    const colors = ['#facc15', '#34d399', '#60a5fa', '#fb7185', '#f59e0b', '#c084fc'];
+    const particles = Array.from({ length: 24 }, (_, i) => {
+      const left = ((i * 37 + 11) % 94) + 3;
+      const delay = ((i * 7) % 12) * 0.09;
+      const dur = 1.65 + ((i * 5) % 9) * 0.14;
+      const rot = (i % 2 === 0 ? 1 : -1) * (160 + (i * 43) % 240);
+      const shape = shapes[i % shapes.length];
+      const color = colors[i % colors.length];
+      return `<span class="celeb-particle" style="--p-x:${left}%;--p-delay:${delay.toFixed(2)}s;--p-dur:${dur.toFixed(2)}s;--p-rot:${rot}deg;color:${color};">${shape}</span>`;
+    }).join('');
+
+    const recStr = `${summary.wins}W–${summary.losses}L${summary.ties ? `–${summary.ties}T` : ''}`;
+    return `
+      <div class="overlay-backdrop celeb-backdrop" data-action="skip-celebration">
+        <div class="celeb-confetti-layer" aria-hidden="true">${particles}</div>
+        <div class="kb-card celeb-card ${summary.tierClass}" role="dialog" aria-live="assertive" aria-label="Top 10 Leaderboard Celebration">
+          <div class="celeb-trophy-wrap">
+            <div class="celeb-burst" aria-hidden="true"></div>
+            <div class="celeb-trophy" aria-hidden="true">${summary.icon || '🏆'}</div>
+          </div>
+          <div class="celeb-rank-pill">TOP 10 LEADERBOARD · RANK #${summary.rank}</div>
+          <h2 class="celeb-title">Congratulations, ${escHtml(summary.myName)}!</h2>
+          <p class="celeb-sub">Your Challenge run placed <strong>#${summary.rank}</strong> on the global Top 10!</p>
+          <div class="celeb-metrics">
+            <div class="celeb-metric-pill">
+              <span class="celeb-metric-label">Net Delta</span>
+              <span class="celeb-metric-val">${escHtml(formatSignedDelta(summary.netDelta))}</span>
+            </div>
+            <div class="celeb-metric-pill">
+              <span class="celeb-metric-label">Time</span>
+              <span class="celeb-metric-val">${escHtml(summary.elapsed)}</span>
+            </div>
+            <div class="celeb-metric-pill">
+              <span class="celeb-metric-label">Record</span>
+              <span class="celeb-metric-val">${escHtml(recStr)}</span>
+            </div>
+          </div>
+          <p class="celeb-skip-hint">Tap anywhere or press Enter for full breakdown</p>
+        </div>
+      </div>`;
+  }
+
+  function renderChallengeDetailsHTML(s, summary) {
+    const isFinal = s.phase === 'game';
+    const deltaColor = summary.netDelta > 0 ? 'var(--win)' : summary.netDelta < 0 ? 'var(--lose)' : 'var(--accent)';
+    const recStr = `${summary.wins}W – ${summary.losses}L${summary.ties ? ` – ${summary.ties}T` : ''}`;
+
+    const congratsHtml = isFinal && !s.forfeit && summary.rank > 0
+      ? `
+        <div class="challenge-congrats-banner ${summary.tierClass}">
+          <div class="challenge-congrats-icon" aria-hidden="true">${summary.icon || '🏆'}</div>
+          <div class="challenge-congrats-body">
+            <div class="challenge-congrats-title">Congratulations, ${escHtml(summary.myName)}! Top 10 Rank #${summary.rank}!</div>
+            <div class="challenge-congrats-sub">Ranked ${escHtml(summary.badge)} with ${escHtml(formatSignedDelta(summary.netDelta))} net delta in ${escHtml(summary.elapsed)}.</div>
+          </div>
+        </div>`
+      : '';
+
+    const rowsHtml = summary.rounds.map((r) => {
+      if (r.pending) {
+        return `
+          <tr class="pending">
+            <td>Match ${r.round}</td>
+            <td class="num dim">—</td>
+            <td class="num dim">—</td>
+            <td class="num dim">—</td>
+            <td class="num"><span class="challenge-outcome-pill pending">${escHtml(r.label)}</span></td>
+          </tr>`;
+      }
+      const dColor = r.delta > 0 ? 'var(--win)' : r.delta < 0 ? 'var(--lose)' : 'var(--accent)';
+      return `
+        <tr>
+          <td>Match ${r.round}</td>
+          <td class="num">${r.myScore}</td>
+          <td class="num">${r.aiScore}</td>
+          <td class="num" style="color:${dColor};font-weight:700;">${escHtml(formatSignedDelta(r.delta))}</td>
+          <td class="num"><span class="challenge-outcome-pill ${r.outcome}">${escHtml(r.label)}</span></td>
+        </tr>`;
+    }).join('');
+
+    const wltShort = `${summary.wins}-${summary.losses}-${summary.ties}`;
+    return `
+      ${congratsHtml}
+      <div class="challenge-kpi-grid">
+        <div class="challenge-kpi-box">
+          <div class="challenge-kpi-label">${isFinal ? 'Net Delta' : 'Running Delta'}</div>
+          <div class="challenge-kpi-val" style="color:${deltaColor}">${escHtml(formatSignedDelta(summary.netDelta))}</div>
+          <div class="challenge-kpi-sub">${summary.completedCount > 0 ? `Best match: ${escHtml(formatSignedDelta(summary.bestDelta))}` : 'No matches yet'}</div>
+        </div>
+        <div class="challenge-kpi-box">
+          <div class="challenge-kpi-label">${isFinal ? 'Total Time' : 'Elapsed Time'}</div>
+          <div class="challenge-kpi-val">${escHtml(summary.elapsed)}</div>
+          <div class="challenge-kpi-sub">${isFinal ? 'First to last die' : `Match ${s.round}/3`}</div>
+        </div>
+        <div class="challenge-kpi-box">
+          <div class="challenge-kpi-label">Match Record</div>
+          <div class="challenge-kpi-val">${escHtml(recStr)}</div>
+          <div class="challenge-kpi-sub">${summary.completedCount}/3 completed</div>
+        </div>
+        <div class="challenge-kpi-box">
+          <div class="challenge-kpi-label">Total Points</div>
+          <div class="challenge-kpi-val">${summary.myTotal} – ${summary.aiTotal}</div>
+          <div class="challenge-kpi-sub">Avg ${summary.avgScore}/m · Best ${summary.bestScore}</div>
+        </div>
+      </div>
+      <div class="challenge-breakdown-wrap">
+        <table class="challenge-breakdown-table">
+          <thead>
+            <tr>
+              <th>Match</th>
+              <th class="num">${escHtml(summary.myName)}</th>
+              <th class="num">${escHtml(summary.aiName)}</th>
+              <th class="num">Delta</th>
+              <th class="num">Result</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot>
+            <tr>
+              <td>Combined</td>
+              <td class="num">${summary.myTotal}</td>
+              <td class="num">${summary.aiTotal}</td>
+              <td class="num" style="color:${deltaColor}">${escHtml(formatSignedDelta(summary.netDelta))}</td>
+              <td class="num">${escHtml(wltShort)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+  }
+
   function renderOverlayHTML(s) {
     const overlayFlipCls = s && s.mode === 'local' && save.settings.localLayout === 'lay' && app.layShownSeat === 1 ? ' lay-p2' : '';
     if (app.overlay === 'log') {
@@ -4596,7 +4878,7 @@
       const title = isRes ? 'Resign this match?' : 'Leave this game?';
       const warn = isRes
         ? (s.mode === 'local' ? `${s.names[s.match.turn]} will forfeit the current match.` : 'Resigning forfeits the current match and counts as a loss.')
-        : (s.phase === 'play' ? 'Leaving ends the current match.' : 'Return to the main menu.');
+        : (s.phase === 'play' ? 'Leaving ends the current match.' : (s.challenge ? 'Return to Challenge Mode.' : 'Return to the main menu.'));
       const noLabel = isRes ? 'Cancel' : 'Stay';
       const yesLabel = isRes ? 'Confirm resignation' : 'Leave';
       return `
@@ -4612,6 +4894,11 @@
         </div>`;
     }
     if (s.phase !== 'play' && !app.hideResult && !app.replayActive) {
+      const me = bottomSeat();
+      if (isChallengeCelebrating(s)) {
+        return renderChallengeCelebrationHTML(s, buildChallengeSummary(s, me));
+      }
+
       const res = resultHeadline(s);
       const sc = matchScores(s.match);
       const choices = [];
@@ -4624,28 +4911,47 @@
         menu: 'Menu'
       };
 
-      const me = bottomSeat();
       const myVote = s.votes[me];
       const oppVote = s.mode === 'online' ? s.votes[1 - me] : '';
       let voteStatus = app.recordNote || '';
-      if (s.challenge) {
-        const elapsed = formatChallengeTime(challengeLiveElapsedMs(s));
-        if (s.phase === 'game' && !s.forfeit) {
-          voteStatus = s.challengeRank > 0
-            ? `Time: ${elapsed} · 🏆 Top 10 Rank #${s.challengeRank}!`
-            : `Completion Time: ${elapsed}`;
-        } else if (s.phase === 'round') {
-          voteStatus = `Running Delta: ${formatSignedDelta(challengeCombinedDelta(s, me))} · Time: ${elapsed}`;
-        }
-      } else if (s.mode === 'online') {
+      if (!s.challenge && s.mode === 'online') {
         if (oppVote === 'menu') voteStatus = `${s.names[1 - me]} chose Menu`;
         else if (myVote && myVote !== oppVote) voteStatus = `Waiting for ${s.names[1 - me]}...`;
         else if (oppVote) voteStatus = `${s.names[1 - me]} chose ${labels[oppVote] || oppVote}`;
       }
 
-      const chalRoundsHtml = s.challenge && Array.isArray(s.history) && s.history.length > 0
-        ? `<p class="note-hint">Match ${s.round}/3 · ${escHtml(s.history.map((h) => `M${h.round}: ${formatSignedDelta((h.scores[me] || 0) - (h.scores[1 - me] || 0))}`).join(' · '))}</p>`
-        : (s.bestOf !== 1 || s.freePlay ? `<p class="note-hint">Rounds won ${s.wins[0]} – ${s.wins[1]} · ${escHtml(roundsLabel(s.bestOf))}</p>` : '');
+      if (s.challenge) {
+        const summary = buildChallengeSummary(s, me);
+        const chalTitle = s.phase === 'game'
+          ? (s.forfeit ? 'Challenge Forfeited' : 'Challenge Complete')
+          : `Match ${s.round}/3 Complete`;
+        const missNote = s.phase === 'game' && !s.forfeit && summary.rank === 0
+          ? `<p class="note-hint" style="margin-top:4px;">Finished outside the Top 10 · Beat #10's net delta (or time on ties) to place.</p>`
+          : '';
+        const localRecNote = app.recordNote
+          ? `<p class="note-hint" style="color:var(--accent);font-weight:700;margin-top:4px;">${escHtml(app.recordNote)}</p>`
+          : '';
+        return `
+          <div class="overlay-backdrop">
+            <div class="kb-card challenge-result-card" style="max-width:680px;">
+              <h2 class="kb-card-title">${escHtml(chalTitle)}</h2>
+              <p style="text-align:center;font-size:1.14rem;font-weight:800;color:${res.color};margin:4px 0 2px;">${escHtml(res.text)}</p>
+              <p class="note-hint" style="margin:2px 0 8px;">Match ${s.round} score: ${escHtml(s.names[0])} ${sc[0]} – ${sc[1]} ${escHtml(s.names[1])}</p>
+              ${renderChallengeDetailsHTML(s, summary)}
+              ${missNote}
+              ${localRecNote}
+              <div class="btn-row">
+                ${choices.map((ch, idx) => renderActionButton(`kb-btn ${idx === app.resultIndex ? 'selected' : ''}`, `data-result-choice="${ch}"`, escHtml(labels[ch]))).join('')}
+                ${s.roundMoves && s.roundMoves.length > 0 ? renderActionButton('kb-btn', 'data-play-act="enter-replay"', 'Replay') : ''}
+                ${renderActionButton('kb-btn', 'data-play-act="toggle-result"', 'Board')}
+              </div>
+            </div>
+          </div>`;
+      }
+
+      const roundsHint = s.bestOf !== 1 || s.freePlay
+        ? `<p class="note-hint">Rounds won ${s.wins[0]} – ${s.wins[1]} · ${escHtml(roundsLabel(s.bestOf))}</p>`
+        : '';
 
       return `
         <div class="overlay-backdrop">
@@ -4653,8 +4959,8 @@
             <h2 class="kb-card-title">${s.phase === 'game' ? 'Game over' : 'Round over'}</h2>
             <p style="text-align:center;font-size:1.2rem;font-weight:800;color:${res.color};margin:6px 0;">${escHtml(res.text)}</p>
             <p style="text-align:center;font-size:1.05rem;margin:4px 0;">${escHtml(s.names[0])} ${sc[0]}  –  ${sc[1]} ${escHtml(s.names[1])}</p>
-            ${chalRoundsHtml}
-            ${voteStatus ? `<p class="note-hint" style="color:${s.challenge && s.challengeRank > 0 ? 'var(--win)' : 'var(--accent)'};font-weight:700;">${escHtml(voteStatus)}</p>` : ''}
+            ${roundsHint}
+            ${voteStatus ? `<p class="note-hint" style="color:var(--accent);font-weight:700;">${escHtml(voteStatus)}</p>` : ''}
             <div class="btn-row">
               ${choices.map((ch, idx) => renderActionButton(`kb-btn ${idx === app.resultIndex ? 'selected' : ''}`, `data-result-choice="${ch}"`, escHtml(labels[ch]))).join('')}
               ${s.roundMoves && s.roundMoves.length > 0 ? renderActionButton('kb-btn', 'data-play-act="enter-replay"', 'Replay') : ''}
@@ -5303,6 +5609,8 @@
         startChallenge();
       } else if (act === 'submit-join') {
         submitJoin();
+      } else if (act === 'skip-celebration') {
+        dismissChallengeCelebration();
       } else if (act === 'leave-game') {
         emitSound('click');
         leaveGame();
@@ -5455,6 +5763,11 @@
         return;
       }
       if (app.view === 'play') {
+        const s = app.ctl && app.ctl.state();
+        if (isChallengeCelebrating(s)) {
+          dismissChallengeCelebration();
+          return;
+        }
         if (app.overlay !== 'none') {
           app.overlay = 'none';
           render();
@@ -5462,7 +5775,6 @@
           exitReplay();
           render();
         } else {
-          const s = app.ctl && app.ctl.state();
           if (s && s.phase === 'game') leaveGame();
           else {
             app.overlay = 'leave';
@@ -5688,6 +6000,13 @@
       if (low === 'f' && s.mode === 'local') { toggleLocalLayout(); return; }
 
       if (s.phase !== 'play') {
+        if (isChallengeCelebrating(s)) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            dismissChallengeCelebration();
+          }
+          return;
+        }
         const choices = [];
         if (!app.ctl.opponentGone()) choices.push(...sessionOptions(s));
         choices.push('menu');
