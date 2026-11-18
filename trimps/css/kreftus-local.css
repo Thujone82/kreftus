@@ -2812,6 +2812,42 @@ table,
   margin-top: 0 !important;
 }
 
+/* Scale Equality Scaling Modal (#tooltipDiv.tooltipExtraEquality) */
+#tooltipDiv.tooltipExtraEquality:not([style*="display: none"]) {
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: calc(100vh - 64px) !important;
+  max-height: calc(100dvh - 64px) !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+#tooltipDiv.tooltipExtraEquality #tipTitle {
+  flex: 0 0 auto !important;
+}
+
+#tooltipDiv.tooltipExtraEquality > hr {
+  flex: 0 0 auto !important;
+  margin: 8px 0 !important;
+}
+
+#tooltipDiv.tooltipExtraEquality #tipText {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+
+#tooltipDiv.tooltipExtraEquality #tipCost {
+  flex: 0 0 auto !important;
+  margin-top: 0 !important;
+  padding-top: 2px !important;
+}
+
+#tooltipDiv.tooltipExtraEquality #equalityScaling2 {
+  margin: 0 auto !important;
+}
+
 #mazContainer {
   width: 100% !important;
   display: block !important;
@@ -6589,6 +6625,12 @@ span.heirloomRare12 {
     overflow-y: auto !important;
     font-size: 15px !important;
     padding: 12px !important;
+  }
+
+  #tooltipDiv.tooltipExtraEquality:not([style*="display: none"]) {
+    max-height: calc(92vh - 68px) !important;
+    max-height: calc(92dvh - 68px) !important;
+    overflow: hidden !important;
   }
 
   .autoBattleBarHolder {

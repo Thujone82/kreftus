@@ -163,18 +163,24 @@
     if (!isThemeEnabled()) return;
 
     var tip = document.getElementById('tooltipDiv');
-    if (!tip || tip.style.display === 'none') return;
-
-    /* Clamp regular tooltips onto screen on narrow viewports */
-    if (window.innerWidth <= 1100 && !tip.classList.contains('tooltipExtraBiggest')) {
-      tip.style.left = Math.max(8, Math.min(tip.offsetLeft || 12, window.innerWidth - tip.offsetWidth - 8)) + 'px';
-      var maxTop = Math.max(8, window.innerHeight - tip.offsetHeight - 68);
-      if (tip.offsetTop > maxTop) {
-        tip.style.top = Math.max(8, maxTop) + 'px';
-      }
+    if (!tip) return;
+    if (tip.style.display === 'none') {
+      if (tip.style.maxHeight) tip.style.maxHeight = '';
+      return;
     }
 
-    if (!tip.classList.contains('tooltipExtraBiggest')) return;
+    if (!tip.classList.contains('tooltipExtraBiggest')) {
+      if (tip.style.maxHeight) tip.style.maxHeight = '';
+      /* Clamp regular tooltips onto screen on narrow viewports */
+      if (window.innerWidth <= 1100 && !tip.classList.contains('tooltipExtraGigantic')) {
+        tip.style.left = Math.max(8, Math.min(tip.offsetLeft || 12, window.innerWidth - tip.offsetWidth - 8)) + 'px';
+        var maxTop = Math.max(8, window.innerHeight - tip.offsetHeight - 68);
+        if (tip.offsetTop > maxTop) {
+          tip.style.top = Math.max(8, maxTop) + 'px';
+        }
+      }
+      return;
+    }
 
     var atkBar = document.getElementById('autoBattleTrimpAttackBar');
     if (atkBar && atkBar.parentElement) atkBar.parentElement.classList.add('autoBattleAttackHolder');

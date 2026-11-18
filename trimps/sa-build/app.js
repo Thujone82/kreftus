@@ -3815,11 +3815,19 @@ var ONE_TIMER_MILESTONES = [
     }
     if (b.r) {
       if (hasRingModSwap || ringLvGap) {
-        var rFrom = (hasRing() ? ("Lv " + curRingLv) : "Locked") + " (" + curMods + ")";
-        var rTo = "Lv " + reqRingLv + " (" + reqMods + ")";
+        var ringTxt;
+        if (!hasRing()) {
+          ringTxt = "Locked → Lv " + reqRingLv + " (" + reqMods + ")";
+        } else if (ringLvGap && hasRingModSwap) {
+          ringTxt = "Lv " + curRingLv + " (" + curMods + ") → Lv " + reqRingLv + " (" + reqMods + ")";
+        } else if (ringLvGap) {
+          ringTxt = "Lv " + curRingLv + " → Lv " + reqRingLv + " (" + reqMods + ")";
+        } else {
+          ringTxt = curMods + " → " + reqMods;
+        }
         dRows.push(
           "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
-          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'>" + ICONS.ring + " " + esc(rFrom + " → " + rTo) + "</span></div>"
+          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'>" + ICONS.ring + " " + esc(ringTxt) + "</span></div>"
         );
       }
     }
@@ -5728,16 +5736,24 @@ var ONE_TIMER_MILESTONES = [
     var dRows = [];
     if (b.r) {
       if (hasRingModSwap || ringLvGap) {
-        var rFrom = (hasRing() ? ("Lv " + curRingLv) : "Locked") + " (" + curModTxt + ")";
-        var rTo = "Lv " + reqRingLv + " (" + reqModTxt + ")";
+        var popRingTxt;
+        if (!hasRing()) {
+          popRingTxt = "Locked → Lv " + reqRingLv + " (" + reqModTxt + ")";
+        } else if (ringLvGap && hasRingModSwap) {
+          popRingTxt = "Lv " + curRingLv + " (" + curModTxt + ") → Lv " + reqRingLv + " (" + reqModTxt + ")";
+        } else if (ringLvGap) {
+          popRingTxt = "Lv " + curRingLv + " → Lv " + reqRingLv + " (" + reqModTxt + ")";
+        } else {
+          popRingTxt = curModTxt + " → " + reqModTxt;
+        }
         dRows.push(
           "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
-          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'>" + ICONS.ring + " " + esc(rFrom + " → " + rTo) + "</span></div>"
+          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'>" + ICONS.ring + " " + esc(popRingTxt) + "</span></div>"
         );
       } else {
         dRows.push(
           "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
-          "<span class='pill sm buy'>" + ICONS.check + " Lv " + reqRingLv + " (" + esc(reqModTxt) + ") — Aligned</span></div>"
+          "<span class='pill sm buy'>" + ICONS.check + " Lv " + Math.max(curRingLv, reqRingLv) + " (" + esc(reqModTxt) + ") — Aligned</span></div>"
         );
       }
     }
