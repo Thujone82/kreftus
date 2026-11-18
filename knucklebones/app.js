@@ -2769,6 +2769,12 @@
     return enabled ? `<label class="ios-haptic-hit" for="${IOS_HAPTIC_SWITCH_ID}" aria-hidden="true"></label>` : '';
   }
 
+  function formatButtonLabel(label) {
+    const m = /^(.*?)(\s+\[[^\]]+\])$/.exec(String(label || ''));
+    if (!m) return escHtml(label);
+    return `${escHtml(m[1])}<span class="kb-key-hint">${escHtml(m[2])}</span>`;
+  }
+
   function renderActionButton(cls, attrs, labelHtml, options = {}) {
     const { disabled = false, allowHaptic = !disabled } = options;
     if (allowHaptic && iosHapticControlsActive()) {
@@ -4319,7 +4325,7 @@
     const hasMobileSideInfo = !!(hasSeries || fairTxt || probData);
 
     const flipBtnHtml = s.mode === 'local'
-      ? renderActionButton(`kb-btn sm pill ${isLayMode ? 'on' : ''}`, 'data-action="toggle-flip-p2"', `Flip: ${isLayMode ? 'Lay' : 'Pass'} [F]`)
+      ? renderActionButton(`kb-btn sm pill ${isLayMode ? 'on' : ''}`, 'data-action="toggle-flip-p2"', formatButtonLabel(`Flip: ${isLayMode ? 'Lay' : 'Pass'} [F]`))
       : '';
 
     const updateBtn = app.swPendingUpdate
@@ -4404,14 +4410,14 @@
               : ''}
             <div class="side-toggles">
               ${flipBtnHtml}
-              ${renderActionButton(`kb-btn sm pill ${save.settings.winMeter ? 'on' : ''}`, 'data-action="toggle-prob"', `Prob: ${save.settings.winMeter ? 'On' : 'Off'} [P]`)}
-              ${renderActionButton(`kb-btn sm pill ${save.settings.sound ? 'on' : ''}`, 'data-action="toggle-sound"', `Sound: ${save.settings.sound ? 'On' : 'Off'} [S]`)}
+              ${renderActionButton(`kb-btn sm pill ${save.settings.winMeter ? 'on' : ''}`, 'data-action="toggle-prob"', formatButtonLabel(`Prob: ${save.settings.winMeter ? 'On' : 'Off'} [P]`))}
+              ${renderActionButton(`kb-btn sm pill ${save.settings.sound ? 'on' : ''}`, 'data-action="toggle-sound"', formatButtonLabel(`Sound: ${save.settings.sound ? 'On' : 'Off'} [S]`))}
             </div>
           </aside>
         </div>
 
         <div class="play-actions">
-          ${actions.map((a) => renderActionButton('kb-btn sm', `data-play-act="${a.id}"`, escHtml(a.label))).join('')}
+          ${actions.map((a) => renderActionButton('kb-btn sm', `data-play-act="${a.id}"`, formatButtonLabel(a.label))).join('')}
         </div>
         <div class="footer-hint">
           <span class="footer-desktop">${desktopHint}</span>
