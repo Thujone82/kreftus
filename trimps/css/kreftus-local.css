@@ -5653,6 +5653,12 @@ span.heirloomRare12 {
   margin-bottom: 0.6vh !important;
 }
 
+#tooltipDiv.tooltipExtraBiggest #autoDust {
+  font-size: clamp(11px, 1.05vw, 15px) !important;
+  line-height: 1.3 !important;
+  margin-bottom: 4px !important;
+}
+
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv,
 #tooltipDiv.tooltipExtraBiggest #autoItemsDiv.modeLg {
   max-height: calc(92vh - 280px) !important;
