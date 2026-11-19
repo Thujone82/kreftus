@@ -4278,11 +4278,21 @@ span.heirloomRare12 {
 }
 
 #permaBoneBonuses {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  align-items: stretch !important;
   font-size: 12px !important;
   color: var(--text) !important;
 }
 
-#permaBoneBonuses .singleBonusBox {
+#permaBoneBonuses .singleBonusBox,
+#permaBoneBonuses #exoticpermaBonusBox,
+#permaBoneBonuses #multitaskingpermaBonusBox {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
   background: var(--surface-2) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-sm, 6px) !important;
@@ -4291,7 +4301,7 @@ span.heirloomRare12 {
   box-sizing: border-box !important;
   font-size: 11px !important;
   line-height: 1.35 !important;
-  margin-bottom: 6px;
+  margin-bottom: 0 !important;
   transition: border-color 0.15s ease !important;
 }
 
