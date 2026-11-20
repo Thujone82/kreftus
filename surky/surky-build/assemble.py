@@ -195,16 +195,18 @@ def main() -> int:
 
     icon_192_src = HERE / "surky-icon-192.png"
     icon_512_src = HERE / "surky-icon-512.png"
+    apple_icon_src = HERE / "apple-touch-icon.png"
     if out_path.parent == HERE.parent:
         icon_prefix = f"{HERE.name}/"
     else:
         icon_prefix = ""
-        for icon_src in (icon_192_src, icon_512_src):
+        for icon_src in (icon_192_src, icon_512_src, apple_icon_src):
             if icon_src.exists():
                 shutil.copy2(icon_src, out_path.parent / icon_src.name)
 
     icon_192_ref = f"{icon_prefix}surky-icon-192.png"
     icon_512_ref = f"{icon_prefix}surky-icon-512.png"
+    apple_icon_ref = f"{icon_prefix}apple-touch-icon.png"
 
     manifest_obj = {
         "id": pwa_id,
@@ -241,6 +243,8 @@ def main() -> int:
     html = html.replace("/*__UPSTREAM_META__*/", upstream_meta_str)
     html = html.replace("/*__SURKY_BUILD_HASH__*/", build_hash)
     html = html.replace("/*__SURKY_MANIFEST_HREF__*/", manifest_name)
+    html = html.replace("/*__SURKY_ICON_192_HREF__*/", icon_192_ref)
+    html = html.replace("/*__SURKY_APPLE_ICON_HREF__*/", apple_icon_ref)
     html = html.replace("/*__SURKY_HTML_NAME__*/", html_name)
     html = html.replace("/*__SURKY_SW_NAME__*/", sw_name)
     html = html.replace("/*__SURKY_SW_SCOPE__*/", pwa_scope)
@@ -250,7 +254,7 @@ def main() -> int:
 
     # 10. Prepare local-first Cache-First Service Worker
 
-    precache_list = [f"./{html_name}", f"./{manifest_name}", f"./{icon_192_ref}", f"./{icon_512_ref}"]
+    precache_list = [f"./{html_name}", f"./{manifest_name}", f"./{apple_icon_ref}", f"./{icon_192_ref}", f"./{icon_512_ref}"]
     if is_dir_index:
         precache_list.insert(0, "./")
     precache_json = json.dumps(precache_list, indent=2)
