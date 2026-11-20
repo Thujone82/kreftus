@@ -6140,7 +6140,15 @@ span.heirloomRare12 {
   #rightCol {
     width: 100% !important;
     height: auto !important;
+    max-height: none !important;
     padding: 0 !important;
+  }
+
+  #outerBuyContainer {
+    flex: 0 1 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
   #queueContainer {
@@ -6219,6 +6227,7 @@ span.heirloomRare12 {
   #buyContainer,
   .buyContainerSizeSm,
   .buyContainerSizeLg {
+    flex: 0 1 auto !important;
     height: auto !important;
     max-height: 580px !important;
   }
