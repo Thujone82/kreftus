@@ -86,6 +86,18 @@ When a loaded save has purchased Universe 2 Mutators (`u2MutationData`), the hea
 
 ---
 
+### 6. Local-First Progressive Web App (PWA) & On-Demand Updates
+
+Surky is installable as an independent desktop or mobile **Progressive Web App** ([`surky-manifest.json`](../surky-manifest.json), [`surky-sw.js`](../surky-sw.js), `192px`/`512px` icons in `surky-build/`) scoped exclusively to `./surky.html` so it never collides with Trimps' own service worker:
+
+- **One-Click Install (`Install App`)**: When opened over HTTPS or `localhost` in an install-capable browser, an **Install App** button appears in the top toolbar (alongside the browser's native install prompt).
+- **Local-First Cache-First Architecture**: Once installed, `surky-sw.js` boots `surky.html` instantaneously from local `CacheStorage` with **zero network wait** and never auto-reloads an active optimization session.
+- **Toolbar `Check for updates` Button (PWA Mode)**: When launched inside an installed standalone PWA window, a **Check for updates** button automatically appears in the top toolbar:
+  - Performs an explicit cache-bypassed (`no-store`) check against `surky-sw.js` and `<meta name="surky-build">`.
+  - Downloads and activates any newer build cleanly (`SKIP_WAITING` + reload), or confirms you are up to date (or running offline from your local cached build).
+
+---
+
 ## 🎨 Design System & Theme Overhaul (`theme.css`)
 
 `theme.css` is injected after the upstream stylesheet to harmonize every visual surface with our dark/light design system while leaving Surky's DOM IDs and calculation hooks untouched:
@@ -127,7 +139,7 @@ Upstream `index.html` references 6 Google Fonts `@font-face` blocks (`fonts.gsta
 
 ## 📦 Standalone Self-Hosting & Portability
 
-- **To host the calculator**: Copy [`trimps/surky.html`](../surky.html) to any static web server, GitHub Pages site, or open it directly via `file://`. It has **zero external file or network dependencies**.
+- **To host the calculator**: Open [`trimps/surky.html`](../surky.html) directly via `file://` as a single offline file, or copy `surky.html`, [`surky-manifest.json`](../surky-manifest.json), [`surky-sw.js`](../surky-sw.js), and `surky-build/` to any static HTTPS web server or GitHub Pages site to enable local-first PWA installation.
 - **To rebuild or pull upstream updates**: Copy the `surky-build/` folder anywhere. It requires only **Python 3** (standard library only; no `pip` packages) and **PowerShell** (`node` and `git` are optional enhancements for syntax checking and working-tree diff display).
 
 ---
@@ -141,7 +153,8 @@ Upstream `index.html` references 6 Google Fonts `@font-face` blocks (`fonts.gsta
 | [`head-inject.html`](./head-inject.html) | Content-Security-Policy, metadata, inline SVG data-URI icons, and pre-paint theme initializer. |
 | [`body-inject.html`](./body-inject.html) | Sticky top header bar, live status pills, animated action buttons, toast container, and help `<dialog>`. |
 | [`theme.css`](./theme.css) | Dark & light design system variables, card surfaces, semantic field highlights, and responsive grid overrides. |
-| [`overlay.js`](./overlay.js) | Non-invasive IIFE handling Trimps 5.10.1 mechanics (`Runed`, `Glass` Z400 cap, U2 mutators, Z201+ scaling), clipboard paste/copy, save validation, theme sync, status pills, and keyboard shortcuts. |
+| [`overlay.js`](./overlay.js) | Non-invasive IIFE handling Trimps 5.10.1 mechanics (`Runed`, `Glass` Z400 cap, U2 mutators, Z201+ scaling), local-first PWA install & update checks, clipboard paste/copy, save validation, theme sync, status pills, and keyboard shortcuts. |
+| [`surky-icon-192.png`](./surky-icon-192.png) & [`surky-icon-512.png`](./surky-icon-512.png) | Crisp anti-aliased PWA launcher icons bundled in `surky-build/` and precached by `surky-sw.js`. |
 | [`fetch_upstream.py`](./fetch_upstream.py) | Python downloader that pulls the latest `nsheetz/perks` commit metadata and `index.html` snapshot. |
 | [`assemble.py`](./assemble.py) | Anchor-checked Python bundler that strips CDN tags, injects overlays, verifies self-containment, and writes `surky.html` (CRLF). |
 | [`refresh.ps1`](./refresh.ps1) | PowerShell build pipeline coordinating upstream fetch, `node --check` syntax validation, diff reporting, and assembly. |
@@ -181,4 +194,4 @@ Run from PowerShell inside `trimps/surky-build/`:
 
 ## 🛡️ Upstream Protection (`updtrimps.ps1`)
 
-When hosted inside the main Trimps repository, `updtrimps.ps1` synchronizes `trimps/` with upstream `Trimps.github.io` while explicitly preserving both `trimps/surky.html` and the entire `trimps/surky-build/` directory alongside `trimps/sw.js` offline precaching.
+When hosted inside the main Trimps repository, `updtrimps.ps1` synchronizes `trimps/` with upstream `Trimps.github.io` while explicitly preserving `trimps/surky.html`, `trimps/surky-manifest.json`, `trimps/surky-sw.js`, and the entire `trimps/surky-build/` directory alongside `trimps/sw.js` offline precaching.

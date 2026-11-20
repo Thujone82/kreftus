@@ -103,6 +103,8 @@ try {
     'js/kreftus-local.js' = $true
     'sa.html' = $true
     'surky.html' = $true
+    'surky-manifest.json' = $true
+    'surky-sw.js' = $true
     'icons\192.png' = $true
     'icons/192.png' = $true
     'icons\512.png' = $true
@@ -518,7 +520,7 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v57';
+const CACHE_NAME = 'trimps-v58';
 
 const PRECACHE_URLS = [
   './',

@@ -110,6 +110,10 @@
   function setTheme(theme, persist) {
     if (theme !== "light" && theme !== "dark") theme = "dark";
     document.documentElement.setAttribute("data-theme", theme);
+    try {
+      var tcMeta = document.querySelector('meta[name="theme-color"]');
+      if (tcMeta) tcMeta.setAttribute("content", theme === "light" ? "#f3f4f7" : "#08090c");
+    } catch (e) {}
     if (persist !== false) {
       try {
         localStorage.setItem(THEME_KEY, theme);
@@ -1175,6 +1179,12 @@
     var btnTopCopy = $("btnTopCopyPerks");
     if (btnTopCopy) btnTopCopy.addEventListener("click", copyExportedPerks);
 
+    var btnTopInstallPwa = $("btnTopInstallPwa");
+    if (btnTopInstallPwa) btnTopInstallPwa.addEventListener("click", promptInstallPwa);
+
+    var btnTopCheckUpdates = $("btnTopCheckUpdates");
+    if (btnTopCheckUpdates) btnTopCheckUpdates.addEventListener("click", checkForPwaUpdates);
+
     var btnTopTheme = $("btnTopTheme");
     if (btnTopTheme) btnTopTheme.addEventListener("click", toggleTheme);
 
@@ -1273,10 +1283,306 @@
     });
   }
 
+  // ---------- Local-First PWA Manager & Update Checker ----------
+  var SURKY_HTML_TOKEN = "/*__SURKY_HTML_NAME__*/";
+  var SURKY_SW_TOKEN = "/*__SURKY_SW_NAME__*/";
+  var SURKY_HTML_FILE = SURKY_HTML_TOKEN.indexOf("/*") === 0 ? "surky.html" : SURKY_HTML_TOKEN;
+  var SURKY_SW_FILE = SURKY_SW_TOKEN.indexOf("/*") === 0 ? "surky-sw.js" : SURKY_SW_TOKEN;
+
+  var deferredInstallPrompt = null;
+  var pendingSwUpdate = false;
+  var isCheckingUpdates = false;
+  var swRegistrationRef = null;
+
+  function getBuildHash() {
+    try {
+      var m = document.querySelector('meta[name="surky-build"]');
+      var v = m ? (m.getAttribute("content") || "").trim() : "";
+      if (v && v.indexOf("/*") !== 0) return v;
+    } catch (e) {}
+    return "";
+  }
+
+  function formatShortBuild() {
+    var h = getBuildHash();
+    return h ? h.slice(0, 8) : "local";
+  }
+
+  function isInstalledPwa() {
+    try {
+      if (window.navigator && window.navigator.standalone === true) return true;
+      var modes = ["standalone", "minimal-ui", "window-controls-overlay"];
+      for (var i = 0; i < modes.length; i++) {
+        if (window.matchMedia && window.matchMedia("(display-mode: " + modes[i] + ")").matches) {
+          return true;
+        }
+      }
+      if (document.referrer && document.referrer.indexOf("android-app://") === 0) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function isIosSafari() {
+    try {
+      var ua = navigator.userAgent || "";
+      var isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      return isIos && !isInstalledPwa();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function syncPwaToolbarButtons() {
+    var pwa = isInstalledPwa();
+    var btnInstall = $("btnTopInstallPwa");
+    var btnUpdate = $("btnTopCheckUpdates");
+    var updLbl = $("surkyUpdateBtnLbl");
+
+    if (btnInstall) {
+      var canInstall = !pwa && !!(deferredInstallPrompt || isIosSafari());
+      btnInstall.classList.toggle("hidden", !canInstall);
+    }
+
+    if (btnUpdate) {
+      btnUpdate.classList.toggle("hidden", !pwa);
+      btnUpdate.classList.toggle("has-update", !!pendingSwUpdate && !isCheckingUpdates);
+      if (updLbl && !isCheckingUpdates) {
+        updLbl.textContent = pendingSwUpdate ? "Update ready" : "Check for updates";
+      }
+      if (!isCheckingUpdates) {
+        btnUpdate.title = pendingSwUpdate
+          ? "New Surky version downloaded — click to reload now"
+          : "Check for Surky updates (build " + formatShortBuild() + ")";
+      }
+    }
+  }
+
+  function getSwScopeHref() {
+    try {
+      return new URL("./" + SURKY_HTML_FILE, window.location.href).href;
+    } catch (e) {
+      return "./" + SURKY_HTML_FILE;
+    }
+  }
+
+  function activateWaitingWorkerAndReload(worker) {
+    if (!worker) {
+      window.location.reload();
+      return;
+    }
+    var reloaded = false;
+    function reloadOnce() {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    }
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener("controllerchange", function onCtrl() {
+        navigator.serviceWorker.removeEventListener("controllerchange", onCtrl);
+        reloadOnce();
+      });
+    }
+    toast("Applying Surky update — reloading...", "warn");
+    try {
+      worker.postMessage({ type: "SKIP_WAITING" });
+    } catch (e) {}
+    setTimeout(reloadOnce, 2500);
+  }
+
+  function waitForInstallingWorker(worker) {
+    return new Promise(function (resolve) {
+      if (!worker) {
+        resolve(null);
+        return;
+      }
+      var settled = false;
+      function done(result) {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      }
+      worker.addEventListener("statechange", function () {
+        if (worker.state === "installed") {
+          done(worker);
+        } else if (worker.state === "redundant") {
+          done(null);
+        }
+      });
+      setTimeout(function () { done(null); }, 8000);
+    });
+  }
+
+  function promptInstallPwa() {
+    if (deferredInstallPrompt) {
+      var promptEvt = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      window.__surkyDeferredInstallPrompt = null;
+      try {
+        promptEvt.prompt();
+        if (promptEvt.userChoice && typeof promptEvt.userChoice.then === "function") {
+          promptEvt.userChoice.then(function (choice) {
+            if (choice && choice.outcome === "accepted") {
+              toast("Installing Surky as a local-first app...");
+            }
+            syncPwaToolbarButtons();
+          }).catch(syncPwaToolbarButtons);
+          return;
+        }
+      } catch (e) {}
+      syncPwaToolbarButtons();
+      return;
+    }
+    if (isIosSafari()) {
+      toast("In Safari, tap Share → Add to Home Screen to install Surky locally.");
+    }
+  }
+
+  async function checkForPwaUpdates() {
+    if (isCheckingUpdates) return;
+    isCheckingUpdates = true;
+    var btnUpdate = $("btnTopCheckUpdates");
+    var updLbl = $("surkyUpdateBtnLbl");
+    if (btnUpdate) {
+      btnUpdate.classList.add("is-checking");
+      btnUpdate.disabled = true;
+    }
+    if (updLbl) updLbl.textContent = "Checking...";
+
+    var shortHash = formatShortBuild();
+    var localHash = getBuildHash();
+
+    try {
+      var reg = swRegistrationRef;
+      if ("serviceWorker" in navigator) {
+        if (!reg) {
+          reg = await navigator.serviceWorker.getRegistration(getSwScopeHref());
+          swRegistrationRef = reg || swRegistrationRef;
+        }
+        if (reg) {
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            activateWaitingWorkerAndReload(reg.waiting);
+            return;
+          }
+          try {
+            await reg.update();
+          } catch (e) {}
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            activateWaitingWorkerAndReload(reg.waiting);
+            return;
+          }
+          if (reg.installing) {
+            var installedWorker = await waitForInstallingWorker(reg.installing);
+            if (installedWorker && (reg.waiting || installedWorker.state === "installed") && navigator.serviceWorker.controller) {
+              activateWaitingWorkerAndReload(reg.waiting || installedWorker);
+              return;
+            }
+          }
+        }
+      }
+
+      // Direct local-first build check bypassing HTTP & SW cache
+      var checkUrl = "./" + SURKY_HTML_FILE + "?__surky_update_check=" + Date.now();
+      var resp = await fetch(checkUrl, { cache: "no-store" });
+      if (!resp || !resp.ok) {
+        throw new Error("HTTP " + (resp ? resp.status : "error"));
+      }
+      var htmlText = await resp.text();
+      var metaMatch = htmlText.match(/<meta\s+name=["']surky-build["']\s+content=["']([^"']+)["']/i);
+      var remoteHash = metaMatch ? metaMatch[1].trim() : "";
+
+      if (remoteHash && localHash && remoteHash !== localHash) {
+        if (window.caches && typeof window.caches.open === "function") {
+          try {
+            var cacheKey = "surky-pwa-" + remoteHash;
+            var cache = await caches.open(cacheKey);
+            await cache.put("./" + SURKY_HTML_FILE, new Response(htmlText, {
+              headers: { "Content-Type": "text/html; charset=utf-8" }
+            }));
+          } catch (ce) {}
+        }
+        toast("Update found (build " + remoteHash.slice(0, 8) + ") — reloading Surky...");
+        setTimeout(function () { window.location.reload(); }, 450);
+        return;
+      }
+
+      pendingSwUpdate = false;
+      toast("Surky is up to date (build " + shortHash + ").");
+    } catch (err) {
+      toast("Offline — running local cached Surky (build " + shortHash + ").", "warn");
+    } finally {
+      isCheckingUpdates = false;
+      if (btnUpdate) {
+        btnUpdate.classList.remove("is-checking");
+        btnUpdate.disabled = false;
+      }
+      syncPwaToolbarButtons();
+    }
+  }
+
+  function initPwa() {
+    if (window.__surkyDeferredInstallPrompt) {
+      deferredInstallPrompt = window.__surkyDeferredInstallPrompt;
+    }
+
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault();
+      window.__surkyDeferredInstallPrompt = e;
+      deferredInstallPrompt = e;
+      syncPwaToolbarButtons();
+    });
+
+    window.addEventListener("appinstalled", function () {
+      deferredInstallPrompt = null;
+      window.__surkyDeferredInstallPrompt = null;
+      syncPwaToolbarButtons();
+      toast("Surky installed for local-first offline use!");
+    });
+
+    try {
+      var mq = window.matchMedia("(display-mode: standalone)");
+      if (mq) {
+        if (typeof mq.addEventListener === "function") {
+          mq.addEventListener("change", syncPwaToolbarButtons);
+        } else if (typeof mq.addListener === "function") {
+          mq.addListener(syncPwaToolbarButtons);
+        }
+      }
+    } catch (e) {}
+
+    if ("serviceWorker" in navigator && window.location && /^https?:$/i.test(window.location.protocol)) {
+      navigator.serviceWorker.register("./" + SURKY_SW_FILE, {
+        scope: "./" + SURKY_HTML_FILE,
+        updateViaCache: "none"
+      }).then(function (reg) {
+        swRegistrationRef = reg;
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          pendingSwUpdate = true;
+          syncPwaToolbarButtons();
+        }
+        reg.addEventListener("updatefound", function () {
+          var newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener("statechange", function () {
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+              pendingSwUpdate = true;
+              syncPwaToolbarButtons();
+              if (isInstalledPwa()) {
+                toast("Update ready — click Check for updates in toolbar to reload.");
+              }
+            }
+          });
+        });
+      }).catch(function () {});
+    }
+
+    syncPwaToolbarButtons();
+  }
+
   // ---------- Initialize Overlay ----------
   injectSaveAndExportToolbars();
   wrapUpstreamFunctions();
   bindEvents();
+  initPwa();
   setTheme(getSavedTheme(), false);
   refreshStatusUI();
 })();
