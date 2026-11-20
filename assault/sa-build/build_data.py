@@ -13,7 +13,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
-TRIMPS = HERE.parent
+TRIMPS = HERE.parent.parent / "trimps"
 ROOT = HERE
 SHEET_ID = "17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs"
 XLSX_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=xlsx"

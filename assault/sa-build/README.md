@@ -1,8 +1,8 @@
 # Trimps Spire Assault Planner & Combat Simulator
 
-A high-performance, self-contained single-page application ([`trimps/sa.html`](../sa.html)) for optimizing **Trimps Spire Assault (AutoBattle)** progression, evaluating community builds, and executing real-time combat simulations.
+A high-performance, self-contained local-first Progressive Web App ([`assault/`](../index.html)) for optimizing **Trimps Spire Assault (AutoBattle)** progression, evaluating community builds, and executing real-time combat simulations.
 
-Included alongside the planner is our custom, installable Progressive Web App (PWA) fork of the full Trimps game ([`trimps/index.html`](../index.html)).
+Included alongside the planner is our custom, installable Progressive Web App (PWA) fork of the full Trimps game ([`trimps/index.html`](../../trimps/index.html)) and the Surky Perk Optimizer ([`surky/`](../../surky/index.html)), each isolated in its own directory scope so their PWAs install independently without collision.
 
 ---
 
@@ -125,12 +125,20 @@ Located in Tab 4 of the Simulator modal:
 
 ---
 
+## 📲 Local-First PWA & Update Checker
+
+- **Isolated Scope (`/assault/`)**: Lives in [`assault/`](../index.html) with its own [`sa-manifest.json`](../sa-manifest.json) and [`sa-sw.js`](../sa-sw.js), completely isolated from `/trimps/` (`trimps/index.html`) so both PWAs install and cache independently without scope collisions.
+- **Local-First Cache-First Service Worker**: Precaches the self-contained `index.html`, manifest, and PNG icons (`sa-build/sa-icon-192.png` & `sa-icon-512.png`) under a deterministic content hash (`sa-pwa-<hash>`). Launches instantaneously from local CacheStorage even offline.
+- **Install App & Check for Updates**: Shows **Install App** in supported browsers when not yet installed. When running in standalone PWA mode, displays a **Check for updates** button in the top toolbar to bypass cache on demand, pull new builds, and reload cleanly.
+
+---
+
 ## 🎮 Custom PWA Fork of Trimps (`trimps/index.html`)
 
-Located at [`trimps/index.html`](../index.html), this fork provides a modernized desktop and mobile experience for playing Trimps 5.10.1:
+Located at [`trimps/index.html`](../../trimps/index.html), this fork provides a modernized desktop and mobile experience for playing Trimps 5.10.1:
 
-- **SA Planner Dark Re-Theme ([`css/kreftus-local.css`](../css/kreftus-local.css) & [`js/kreftus-local.js`](../js/kreftus-local.js))**:
-  - Overhauls the entire Trimps UI to match the dark design system of [`trimps/sa.html`](../sa.html): `#08090c` ambient canvas, elevated `#14171f` surface cards, semantic resource accent borders, segmented pill tabs (with dark green/red/purple status tints on the `SA` tab), emerald-tinted affordable purchase cards, royal-blue `.efficientYes` best-equipment highlights, dark tooltips/modals, and an expanded Spire Assault popup.
+- **SA Planner Dark Re-Theme ([`css/kreftus-local.css`](../../trimps/css/kreftus-local.css) & [`js/kreftus-local.js`](../../trimps/js/kreftus-local.js))**:
+  - Overhauls the entire Trimps UI to match the dark design system of [`assault/index.html`](../index.html): `#08090c` ambient canvas, elevated `#14171f` surface cards, semantic resource accent borders, segmented pill tabs (with dark green/red/purple status tints on the `SA` tab), emerald-tinted affordable purchase cards, royal-blue `.efficientYes` best-equipment highlights, dark tooltips/modals, and an expanded Spire Assault popup.
   - **Auto-Scaling Resource Readouts**: Combines CSS container query units (`cqw`) with dynamic JavaScript width fitting so long resource counts and `+X/sec` rates never overflow their cards.
 - **Responsive Mobile & Narrow-Screen Reflow (`<= 1100px`)**:
   - Unlocks vertical scrolling, enlarges typography and touch targets for mobile legibility, stacks multi-column panels cleanly, and gives the 10×10 World/Map combat grid full screen width.
@@ -138,8 +146,8 @@ Located at [`trimps/index.html`](../index.html), this fork provides a modernized
 - **Settings Drawer Theme Toggle (`SA Theme: On / Off`)**:
   - Adds a persistent **`SA Theme: On` / `SA Theme: Off`** toggle button directly to the right of the Settings search box (`#searchSettings`).
   - Defaults to **On** and remembers your preference in `localStorage` (`kreftus.trimps.themeEnabled`). Turning it **Off** completely disables `kreftus-local.css` and restores 100% stock Trimps styling while leaving the toggle accessible.
-- **Installable Progressive Web App (PWA) & Offline Support**: Built with [`manifest.json`](../manifest.json) and [`sw.js`](../sw.js) for native standalone window launching and offline play.
-- **Upstream Synchronization**: Maintained via [`updtrimps.ps1`](../../updtrimps.ps1), which updates the base game from upstream `Trimps.github.io` while safeguarding all local overlays and planner files.
+- **Installable Progressive Web App (PWA) & Offline Support**: Built with [`manifest.json`](../../trimps/manifest.json) and [`sw.js`](../../trimps/sw.js) for native standalone window launching and offline play.
+- **Upstream Synchronization**: Maintained via [`updtrimps.ps1`](../../updtrimps.ps1), which updates the base game from upstream `Trimps.github.io` while safeguarding all local overlays.
 
 ---
 
@@ -147,12 +155,14 @@ Located at [`trimps/index.html`](../index.html), this fork provides a modernized
 
 | File | Purpose |
 |---|---|
-| [`shell.html`](./shell.html) | HTML shell, CSS custom properties, responsive layout, modal templates, and UI components. |
-| [`app.js`](./app.js) | Client application logic: save decompression, live bank accumulation, community build matcher, simulator controllers, sandbox state, and UI binding. |
+| [`shell.html`](./shell.html) | HTML shell, CSS custom properties, responsive layout, modal templates, PWA meta/toolbar hooks, and UI components. |
+| [`app.js`](./app.js) | Client application logic: save decompression, live bank accumulation, community build matcher, simulator controllers, local-first PWA manager/update checker, and UI binding. |
 | [`sim-engine.js`](./sim-engine.js) | Full-featured Trimps AutoBattle simulator engine: fighter modeling, buff/debuff management, tick loops, 9,001-fight calibration, push heatmap scanner, ring optimizer, and upgrade sensitivity. |
 | [`data.json`](./data.json) | Compiled dataset (~1.3 MB) containing 3,500+ community builds, item definitions, dust tiers, and level parameters. |
-| [`build_data.py`](./build_data.py) | Python extractor that pulls builds from the community Google Sheets workbook (`_sa.xlsx`) and item stats from `objects.js`. |
-| [`assemble.py`](./assemble.py) | Python script that bundles `shell.html`, `lz-string.js`, `sim-engine.js`, `data.json`, and `app.js` into the self-contained `trimps/sa.html` with CRLF line endings. |
+| [`lz-string.js`](./lz-string.js) | Local copy of LZ-String decompression for portable self-contained assembly. |
+| [`sa-icon-192.png`](./sa-icon-192.png) / [`sa-icon-512.png`](./sa-icon-512.png) | Maskless PWA launcher icons rendered from the Spire Assault badge emblem. |
+| [`build_data.py`](./build_data.py) | Python extractor that pulls builds from the community Google Sheets workbook (`_sa.xlsx`) and item stats from `../../trimps/objects.js`. |
+| [`assemble.py`](./assemble.py) | Python script that bundles `shell.html`, `lz-string.js`, `sim-engine.js`, `data.json`, and `app.js` into `assault/index.html` plus `sa-manifest.json` and `sa-sw.js` with CRLF line endings. |
 | [`refresh.ps1`](./refresh.ps1) | PowerShell build pipeline coordinating syntax validation (`node --check`), dataset compilation, and bundle assembly. |
 | [`README.html`](./README.html) | Interactive HTML documentation viewer with live markdown parsing, theme toggle (Dark/Light), and offline support. |
 
@@ -160,16 +170,16 @@ Located at [`trimps/index.html`](../index.html), this fork provides a modernized
 
 ## 🚀 Build Pipeline (`refresh.ps1`)
 
-Run from PowerShell inside `trimps/sa-build/`:
+Run from PowerShell inside `assault/sa-build/`:
 
 ```powershell
-# Fast build: Validates JavaScript syntax and compiles trimps/sa.html (skips workbook download)
+# Fast build: Validates JavaScript syntax and compiles assault/index.html + PWA files (skips workbook download)
 .\refresh.ps1 -AssembleOnly
 
-# Standard build: Re-parses local cached _sa.xlsx and compiles sa.html
+# Standard build: Re-parses local cached _sa.xlsx and compiles index.html + PWA files
 .\refresh.ps1
 
-# Fresh build: Downloads the latest community Google Sheets workbook, re-parses data, and compiles sa.html
+# Fresh build: Downloads the latest community Google Sheets workbook, re-parses data, and compiles index.html
 .\refresh.ps1 -Fresh
 
 # Fresh build with cache cleanup: Downloads latest workbook, builds, and removes temporary _sa.xlsx
@@ -180,7 +190,7 @@ Run from PowerShell inside `trimps/sa-build/`:
 
 | Parameter | Type | Description |
 |---|---|---|
-| `-AssembleOnly` | Switch | Skips `build_data.py` and rapidly validates & compiles `sa.html` from existing `data.json`. |
+| `-AssembleOnly` | Switch | Skips `build_data.py` and rapidly validates & compiles `assault/index.html` + PWA bundle from existing `data.json`. |
 | `-Fresh` | Switch | Forces a fresh download of the community Google Sheets workbook before rebuilding. |
 | `-CleanCache` | Switch | Removes the cached `_sa.xlsx` file after a successful build. |
 | `-VerboseSheets` | Switch | Streams detailed per-level build counts during extraction. |
@@ -190,4 +200,4 @@ Run from PowerShell inside `trimps/sa-build/`:
 
 ## 🛡️ Upstream Protection (`updtrimps.ps1`)
 
-`updtrimps.ps1` synchronizes local `trimps/` files with the upstream `Trimps.github.io` repository while preserving locally owned components. Both `sa.html` and the entire `sa-build/` directory are explicitly excluded from upstream overwrites.
+`updtrimps.ps1` synchronizes local `trimps/` files with the upstream `Trimps.github.io` repository while preserving Trimps local overlays. Because Spire Assault Planner lives in `/assault/`, upstream Trimps updates never touch it or collide with its PWA scope.

@@ -1,15 +1,15 @@
 ﻿<#
 .SYNOPSIS
-    Rebuilds the self-contained Trimps Spire Assault planner (trimps/sa.html).
+    Rebuilds the self-contained Trimps Spire Assault planner (assault/index.html) and PWA bundle.
 .DESCRIPTION
-    Authoring & build pipeline utility for trimps/sa.html. Extracts community Spire Assault
-    builds from the Google Sheets workbook (_sa.xlsx) and item definitions from objects.js
+    Authoring & build pipeline utility for assault/index.html. Extracts community Spire Assault
+    builds from the Google Sheets workbook (_sa.xlsx) and item definitions from trimps/objects.js
     into data.json, validates app.js syntax, and bundles shell.html + lz-string.js + data.json
-    + app.js into a single self-contained trimps/sa.html file with CRLF line endings.
+    + app.js into assault/index.html alongside sa-manifest.json and sa-sw.js with CRLF line endings.
 .PARAMETER Fresh
     Forces a fresh download of the community Spire Assault Google Sheet (_sa.xlsx) before rebuilding.
 .PARAMETER AssembleOnly
-    Skips running build_data.py and immediately validates app.js and assembles sa.html from existing data.json.
+    Skips running build_data.py and immediately validates app.js and assembles index.html from existing data.json.
 .PARAMETER CleanCache
     Removes the cached _sa.xlsx workbook after the build completes so the working tree stays clean.
 .PARAMETER VerboseSheets
@@ -18,16 +18,16 @@
     Displays this documentation and usage guide.
 .EXAMPLE
     .\refresh.ps1
-    Rebuilds data.json (using cached _sa.xlsx if present) and assembles trimps/sa.html.
+    Rebuilds data.json (using cached _sa.xlsx if present) and assembles assault/index.html.
 .EXAMPLE
     .\refresh.ps1 -Fresh
-    Re-downloads the community spreadsheet from Google Docs, updates data.json, and rebuilds sa.html.
+    Re-downloads the community spreadsheet from Google Docs, updates data.json, and rebuilds index.html.
 .EXAMPLE
     .\refresh.ps1 -AssembleOnly
-    Fast rebuild of sa.html after editing shell.html or app.js without re-parsing the spreadsheet.
+    Fast rebuild of index.html after editing shell.html or app.js without re-parsing the spreadsheet.
 .EXAMPLE
     .\refresh.ps1 -Fresh -CleanCache
-    Downloads fresh sheet data, rebuilds sa.html, and deletes the temporary _sa.xlsx cache file.
+    Downloads fresh sheet data, rebuilds index.html, and deletes the temporary _sa.xlsx cache file.
 .EXAMPLE
     .\refresh.ps1 -Help
     Displays this help message.
@@ -43,7 +43,7 @@ param(
 
 # ==============================================================================
 # Script Name:  refresh.ps1
-# Description:  Spire Assault Planner (trimps/sa.html) Snapshot & Build Pipeline
+# Description:  Spire Assault Planner (assault/index.html) Snapshot & Build Pipeline
 # ==============================================================================
 
 $ErrorActionPreference = 'Stop'
@@ -51,16 +51,17 @@ $ErrorActionPreference = 'Stop'
 $BoxWidth = 68
 
 $Here       = $PSScriptRoot
-$TrimpsDir  = Split-Path -Parent $Here
-$RepoRoot   = Split-Path -Parent $TrimpsDir
+$AssaultDir = Split-Path -Parent $Here
+$RepoRoot   = Split-Path -Parent $AssaultDir
+$TrimpsDir  = Join-Path $RepoRoot 'trimps'
 $CacheFile  = Join-Path $Here '_sa.xlsx'
 $DataFile   = Join-Path $Here 'data.json'
 $ShellFile  = Join-Path $Here 'shell.html'
 $SimFile    = Join-Path $Here 'sim-engine.js'
 $AppFile    = Join-Path $Here 'app.js'
-$LzFile     = Join-Path $TrimpsDir 'lz-string.js'
+$LzFile     = Join-Path $Here 'lz-string.js'
 $ObjFile    = Join-Path $TrimpsDir 'objects.js'
-$OutFile    = Join-Path $TrimpsDir 'sa.html'
+$OutFile    = Join-Path $AssaultDir 'index.html'
 $SheetId    = '17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs'
 
 # --- UI Helper Functions (kreftus.ps1 visual style) ---
@@ -402,7 +403,7 @@ try {
     }
 
     # Step 3: Self-Contained HTML Assembly
-    Write-StreamLine "[3/3] Assemble : Bundling self-contained trimps/sa.html (assemble.py)..." "Yellow"
+    Write-StreamLine "[3/3] Assemble : Bundling self-contained assault/index.html + PWA (assemble.py)..." "Yellow"
     & python (Join-Path $Here 'assemble.py') 2>&1 | ForEach-Object {
         $line = $_.ToString()
         $color = if ($line -match '^Assemble\s*:') { 'Green' } elseif ($line -match '^Inputs\s*:') { 'Gray' } else { 'White' }
@@ -481,16 +482,16 @@ try {
     if ($HtmlChanged) {
         $hBytesStr = Format-SignedDelta $HtmlSizeDelta 'B'
         $hLinesStr = Format-SignedDelta $HtmlLineDelta 'lines'
-        Write-BoxRow "sa.html  :" " Rebuilt ($hBytesStr, $hLinesStr, sha $($PreHtml.Hash) -> $($PostHtml.Hash))" "DarkGreen" "Yellow" "Green" $BoxWidth
+        Write-BoxRow "index    :" " Rebuilt ($hBytesStr, $hLinesStr, sha $($PreHtml.Hash) -> $($PostHtml.Hash))" "DarkGreen" "Yellow" "Green" $BoxWidth
     } else {
-        Write-BoxRow "sa.html  :" " Unchanged (sha $($PostHtml.Hash) matches prior build)" "DarkGreen" "Gray" "Green" $BoxWidth
+        Write-BoxRow "index    :" " Unchanged (sha $($PostHtml.Hash) matches prior build)" "DarkGreen" "Gray" "Green" $BoxWidth
     }
 
     # Section: Git Working Tree Status vs HEAD
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        $gitRows = @(& git -C $RepoRoot status --porcelain -- "trimps/sa.html" "trimps/sa-build" 2>$null)
+        $gitRows = @(& git -C $RepoRoot status --porcelain -- "assault/index.html" "assault/sa-manifest.json" "assault/sa-sw.js" "assault/sa-build" 2>$null)
         $numStat = @{}
-        & git -C $RepoRoot diff --numstat HEAD -- "trimps/sa.html" "trimps/sa-build" 2>$null | ForEach-Object {
+        & git -C $RepoRoot diff --numstat HEAD -- "assault/index.html" "assault/sa-manifest.json" "assault/sa-sw.js" "assault/sa-build" 2>$null | ForEach-Object {
             $parts = $_ -split '\s+'
             if ($parts.Count -ge 3) {
                 $numStat[$parts[2]] = "+$($parts[0])/-$($parts[1]) lines"

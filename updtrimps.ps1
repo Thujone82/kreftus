@@ -92,7 +92,7 @@ try {
   }
   # --- Copy only files that are new or changed (skip .git, .vscode); skip local-owned files when they already exist ---
   # Do not overwrite local-owned files when they already exist. Overlay CSS/JS are
-  # rewritten from here-strings below; sa.html is a self-contained planner (not a here-string).
+  # rewritten from here-strings below.
   $localOwnedFiles = @{
     'index.html' = $true
     'manifest.json' = $true
@@ -101,7 +101,6 @@ try {
     'css/kreftus-local.css' = $true
     'js\kreftus-local.js' = $true
     'js/kreftus-local.js' = $true
-    'sa.html' = $true
     'icons\192.png' = $true
     'icons/192.png' = $true
     'icons\512.png' = $true
@@ -113,9 +112,7 @@ try {
   Get-ChildItem -Path $cloneDir -Recurse -File -Force | Where-Object { $_.FullName -notmatch '\.(git|vscode)\\' } | ForEach-Object {
     $rel = $_.FullName.Substring($cloneBaseLen)
     $dest = Join-Path $trimpsPath $rel
-    $relNorm = $rel -replace '\\', '/'
-    $buildOwned = $relNorm -match '^sa-build(/|$)'
-    if (($localOwnedFiles.ContainsKey($rel) -or $buildOwned) -and (Test-Path -LiteralPath $dest)) {
+    if ($localOwnedFiles.ContainsKey($rel) -and (Test-Path -LiteralPath $dest)) {
       Write-Verbose "Skipped (local owned): $rel"
       $skipCount++
       return 
@@ -517,12 +514,11 @@ if ($needWriteManifest) {
 
 # --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
-const CACHE_NAME = 'trimps-v59';
+const CACHE_NAME = 'trimps-v60';
 
 const PRECACHE_URLS = [
   './',
   'index.html',
-  'sa.html',
   'manifest.json',
   'css/kreftus-local.css',
   'css/kreftus-local.css?72',
@@ -564,7 +560,7 @@ function isLocalOverlay(request, url) {
     request.destination === 'document' ||
     request.destination === 'style' ||
     request.destination === 'script' ||
-    /kreftus-local\.(css|js)|sa\.html/i.test(path)
+    /kreftus-local\.(css|js)/i.test(path)
   );
 }
 
