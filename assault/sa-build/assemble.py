@@ -64,29 +64,10 @@ def main() -> int:
     manifest_name = "sa-manifest.json"
     sw_name = "sa-sw.js"
 
-    # Compute deterministic 12-char build hash for local-first PWA versioning & update checks
-    build_hasher = hashlib.sha256()
-    for p in (shell_path, lz_path, sim_path, app_path, data_path, icon_192_src, icon_512_src):
-        if p.exists():
-            build_hasher.update(p.read_bytes())
-    build_hash = build_hasher.hexdigest()[:12]
-
     is_dir_index = html_name.lower() == "index.html"
     pwa_start_url = "./" if is_dir_index else f"./{html_name}"
     pwa_scope = "./" if is_dir_index else f"./{html_name}"
-
-    html = (
-        shell.replace("/*__LZ__*/", lz)
-        .replace("/*__DATA__*/", data)
-        .replace("/*__SIM__*/", sim)
-        .replace("/*__APP__*/", app)
-        .replace("/*__DB_META__*/", db_meta)
-        .replace("/*__SA_BUILD_HASH__*/", build_hash)
-        .replace("/*__SA_MANIFEST_HREF__*/", manifest_name)
-        .replace("/*__SA_HTML_NAME__*/", html_name)
-        .replace("/*__SA_SW_NAME__*/", sw_name)
-        .replace("/*__SA_SW_SCOPE__*/", pwa_scope)
-    )
+    pwa_id = f"/{out_path.parent.name}/" if is_dir_index else f"/{out_path.parent.name}/{html_name}"
 
     if out_path.parent == HERE.parent:
         icon_prefix = f"{HERE.name}/"
@@ -100,7 +81,7 @@ def main() -> int:
     icon_512_ref = f"{icon_prefix}sa-icon-512.png"
 
     manifest_obj = {
-        "id": pwa_start_url,
+        "id": pwa_id,
         "name": "Spire Assault Planner",
         "short_name": "Spire Assault",
         "description": "Local-first Spire Assault build advisor, live combat simulator, and upgrade ROI calculator for Trimps.",
@@ -125,6 +106,27 @@ def main() -> int:
         ],
     }
     manifest_text = json.dumps(manifest_obj, indent=2) + "\n"
+
+    # Compute deterministic 12-char build hash for local-first PWA versioning & update checks
+    build_hasher = hashlib.sha256()
+    for p in (shell_path, lz_path, sim_path, app_path, data_path, icon_192_src, icon_512_src):
+        if p.exists():
+            build_hasher.update(p.read_bytes())
+    build_hasher.update(manifest_text.encode("utf-8"))
+    build_hash = build_hasher.hexdigest()[:12]
+
+    html = (
+        shell.replace("/*__LZ__*/", lz)
+        .replace("/*__DATA__*/", data)
+        .replace("/*__SIM__*/", sim)
+        .replace("/*__APP__*/", app)
+        .replace("/*__DB_META__*/", db_meta)
+        .replace("/*__SA_BUILD_HASH__*/", build_hash)
+        .replace("/*__SA_MANIFEST_HREF__*/", manifest_name)
+        .replace("/*__SA_HTML_NAME__*/", html_name)
+        .replace("/*__SA_SW_NAME__*/", sw_name)
+        .replace("/*__SA_SW_SCOPE__*/", pwa_scope)
+    )
 
     precache_list = [f"./{html_name}", f"./{manifest_name}", f"./{icon_192_ref}", f"./{icon_512_ref}"]
     if is_dir_index:

@@ -187,27 +187,12 @@ def main() -> int:
     manifest_name = "surky-manifest.json"
     sw_name = "surky-sw.js"
 
-    # 8. Compute deterministic local-first build hash & populate tokens
-    build_hasher = hashlib.sha256()
-    for part in (snap_bytes, head_inject.encode("utf-8"), body_inject.encode("utf-8"), theme_css.encode("utf-8"), overlay_js.encode("utf-8")):
-        build_hasher.update(part)
-    build_hash = build_hasher.hexdigest()[:12]
-
+    # 8. Prepare PWA manifest & icons and compute deterministic local-first build hash
     is_dir_index = html_name.lower() == "index.html"
     pwa_start_url = "./" if is_dir_index else f"./{html_name}"
     pwa_scope = "./" if is_dir_index else f"./{html_name}"
+    pwa_id = f"/{out_path.parent.name}/" if is_dir_index else f"/{out_path.parent.name}/{html_name}"
 
-    html = html.replace("/*__UPSTREAM_META__*/", upstream_meta_str)
-    html = html.replace("/*__SURKY_BUILD_HASH__*/", build_hash)
-    html = html.replace("/*__SURKY_MANIFEST_HREF__*/", manifest_name)
-    html = html.replace("/*__SURKY_HTML_NAME__*/", html_name)
-    html = html.replace("/*__SURKY_SW_NAME__*/", sw_name)
-    html = html.replace("/*__SURKY_SW_SCOPE__*/", pwa_scope)
-
-    # 9. Verify self-containment before writing output
-    verify_self_contained(html)
-
-    # 10. Prepare PWA manifest & local-first Cache-First Service Worker
     icon_192_src = HERE / "surky-icon-192.png"
     icon_512_src = HERE / "surky-icon-512.png"
     if out_path.parent == HERE.parent:
@@ -222,7 +207,7 @@ def main() -> int:
     icon_512_ref = f"{icon_prefix}surky-icon-512.png"
 
     manifest_obj = {
-        "id": pwa_start_url,
+        "id": pwa_id,
         "name": "Surky Perk Optimizer",
         "short_name": "Surky",
         "description": "Local-first Universe 2 Radon perk calculator and optimizer for Trimps.",
@@ -247,6 +232,23 @@ def main() -> int:
         ]
     }
     manifest_text = json.dumps(manifest_obj, indent=2) + "\n"
+
+    build_hasher = hashlib.sha256()
+    for part in (snap_bytes, head_inject.encode("utf-8"), body_inject.encode("utf-8"), theme_css.encode("utf-8"), overlay_js.encode("utf-8"), manifest_text.encode("utf-8")):
+        build_hasher.update(part)
+    build_hash = build_hasher.hexdigest()[:12]
+
+    html = html.replace("/*__UPSTREAM_META__*/", upstream_meta_str)
+    html = html.replace("/*__SURKY_BUILD_HASH__*/", build_hash)
+    html = html.replace("/*__SURKY_MANIFEST_HREF__*/", manifest_name)
+    html = html.replace("/*__SURKY_HTML_NAME__*/", html_name)
+    html = html.replace("/*__SURKY_SW_NAME__*/", sw_name)
+    html = html.replace("/*__SURKY_SW_SCOPE__*/", pwa_scope)
+
+    # 9. Verify self-containment before writing output
+    verify_self_contained(html)
+
+    # 10. Prepare local-first Cache-First Service Worker
 
     precache_list = [f"./{html_name}", f"./{manifest_name}", f"./{icon_192_ref}", f"./{icon_512_ref}"]
     if is_dir_index:
