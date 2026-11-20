@@ -2766,6 +2766,7 @@ function createRawAutoBattle(game, u2Mutations) {
     trimpDied: function(){
         this.sessionTrimpsKilled++;
         this.lootAvg.counter += this.battleTime;
+        if (this._dustKillStats) this._dustKillStats.lossDurMs += this.battleTime;
         this.resetCombat();
         if (this.sessionEnemiesKilled < this.sessionTrimpsKilled) swapClass('abTab', 'abTabLosing', document.getElementById('autoBattleTab'));
         this.popup(true, true);
@@ -2816,6 +2817,15 @@ function createRawAutoBattle(game, u2Mutations) {
         if (this.enemyLevel >= 20 && this.trimp.shockTime <= 0 && this.trimp.bleedTime <= 0 && this.trimp.poisonTime <= 0) giveSingleAchieve("Just Smack It");
         if (this.enemyLevel >= 100) giveSingleAchieve("Heroic Huffy");
         var amt = this.getDustReward();
+        if (this._dustKillStats) {
+            this._dustKillStats.winDurMs += this.battleTime;
+            if (this.items.Lifegiving_Gem.equipped) {
+                this._dustKillStats.lgSum += (1 + this.items.Lifegiving_Gem.dustIncrease());
+            }
+            if (this.items.Box_of_Spores.equipped && !this.enemy.hadBleed && this.enemy.poison.time > 0) {
+                this._dustKillStats.sporesProcs++;
+            }
+        }
         if (this.speed == 1) {
             this.dust += amt;
             game.stats.saDust.value += amt;
@@ -2902,6 +2912,7 @@ function createRawAutoBattle(game, u2Mutations) {
         this.lootAvg.counter = 0;
         this.battleTime = 0;
         this.lastFightDurations = [];
+        this._dustKillStats = { lgSum: 0, sporesProcs: 0, winDurMs: 0, lossDurMs: 0 };
         swapClass('abTab', 'abTabNone', document.getElementById('autoBattleTab'));
     },
     getFreshRings: function(){
@@ -3254,6 +3265,116 @@ function createRawAutoBattle(game, u2Mutations) {
       ab.resetCombat(true);
     },
 
+    getBaseDust: function(lvl) {
+      var l = Math.max(1, Number(lvl) || 1);
+      var amt = (1 + ((l - 1) * 5)) * Math.pow(1.19, l - 1);
+      if (l >= 50) amt *= Math.pow(1.1, l - 49);
+      return amt;
+    },
+
+    getDustBreakdown: function(ab, actualDustPerKill) {
+      if (ab && ab._activate) ab._activate();
+      var lvl = (ab && ab.enemy && ab.enemy.level) || (ab && ab.enemyLevel) || 1;
+      var baseDust = SASimEngine.getBaseDust(lvl);
+      var ks = ab && ab._dustKillStats;
+      var kills = (ab && ab.sessionEnemiesKilled) || 0;
+      var amt = 1;
+      var sources = [];
+
+      if (ab && ab.items && ab.items.Lifegiving_Gem && ab.items.Lifegiving_Gem.equipped) {
+        var lgMult = (ks && kills > 0 && ks.lgSum > 0)
+          ? (ks.lgSum / kills)
+          : (1 + ab.items.Lifegiving_Gem.dustIncrease());
+        amt *= lgMult;
+        sources.push({
+          key: 'Lifegiving_Gem',
+          label: 'Lifegiving Gem (Lv ' + ab.items.Lifegiving_Gem.level + ')',
+          op: 'mul',
+          value: lgMult
+        });
+      }
+      if (ab && ab.items && ab.items.Gaseous_Greataxe && ab.items.Gaseous_Greataxe.equipped) {
+        var ggMult = ab.items.Gaseous_Greataxe.dustMult();
+        amt *= ggMult;
+        sources.push({
+          key: 'Gaseous_Greataxe',
+          label: 'Gaseous Greataxe (Lv ' + ab.items.Gaseous_Greataxe.level + ')',
+          op: 'mul',
+          value: ggMult,
+          penalty: ggMult < 1
+        });
+      }
+      var ringAdd = (ab && ab.trimp && ab.trimp.dustMult) || 0;
+      if (ringAdd > 0) {
+        amt += ringAdd;
+        sources.push({
+          key: 'Ring_Dust',
+          label: 'Ring Dust Mod (Lv ' + ((ab.rings && ab.rings.level) || 1) + ')',
+          op: 'add',
+          value: ringAdd
+        });
+      }
+      if (ab && ab.oneTimers && ab.oneTimers.Dusty_Tome && ab.oneTimers.Dusty_Tome.owned) {
+        var dtMult = 1 + (0.05 * (ab.maxEnemyLevel - 1));
+        amt *= dtMult;
+        sources.push({
+          key: 'Dusty_Tome',
+          label: 'Dusty Tome (Max SA ' + ab.maxEnemyLevel + ')',
+          op: 'mul',
+          value: dtMult
+        });
+      }
+      var u2m = ab && ab._u2MutationsMock && ab._u2MutationsMock.tree;
+      if (u2m && u2m.Dust && u2m.Dust.purchased) {
+        var hasD2 = !!(u2m.Dust2 && u2m.Dust2.purchased);
+        var mutMult = hasD2 ? 1.5 : 1.25;
+        amt *= mutMult;
+        sources.push({
+          key: 'Mutators',
+          label: hasD2 ? 'Mutators (Dusty + Dustier)' : 'Mutators (Dusty)',
+          op: 'mul',
+          value: mutMult
+        });
+      }
+      if (ab && ab.items && ab.items.Box_of_Spores && ab.items.Box_of_Spores.equipped) {
+        var bosMult = ab.items.Box_of_Spores.dustMult();
+        var procRate = (ks && kills > 0) ? (ks.sporesProcs / kills) : null;
+        sources.push({
+          key: 'Box_of_Spores',
+          label: 'Box of Spores (Lv ' + ab.items.Box_of_Spores.level + ')',
+          op: 'mul',
+          value: bosMult,
+          conditional: true,
+          procRate: procRate
+        });
+        if (procRate != null) amt *= (1 + procRate * (bosMult - 1));
+      }
+      if (ab && ab._gameMock && ab._gameMock.global && ab._gameMock.global.fluffyExp2 >= 1466015503701000) {
+        amt *= 5;
+        sources.push({
+          key: 'Scruffy',
+          label: 'Scruffy Lv 16+',
+          op: 'mul',
+          value: 5
+        });
+      }
+
+      var dustPerKill = (actualDustPerKill != null && actualDustPerKill > 0)
+        ? actualDustPerKill
+        : (baseDust * amt);
+      var totalMult = baseDust > 0 ? (dustPerKill / baseDust) : amt;
+      var shardsPerKill = lvl > 50 ? (dustPerKill / 1e9) : 0;
+
+      return {
+        level: lvl,
+        baseDust: baseDust,
+        totalMult: totalMult,
+        dustPerKill: dustPerKill,
+        shardsPerKill: shardsPerKill,
+        sources: sources
+      };
+    },
+
     // Fast Headless Batch Runner
     runBatch: function(sourceConfig, options) {
       options = options || {};
@@ -3286,6 +3407,20 @@ function createRawAutoBattle(game, u2Mutations) {
       var winRate = totalFights > 0 ? (ab.sessionEnemiesKilled / totalFights * 100) : 100;
       var totalSimSec = (ticks * ab.frameTime) / 1000;
       var secPerKill = ab.sessionEnemiesKilled > 0 ? (totalSimSec / ab.sessionEnemiesKilled) : 0;
+      var completedSec = (ab.lootAvg && ab.lootAvg.counter > 0) ? (ab.lootAvg.counter / 1000) : totalSimSec;
+      var effSecPerKill = ab.sessionEnemiesKilled > 0 ? (completedSec / ab.sessionEnemiesKilled) : 0;
+      var avgFightSec = totalFights > 0 ? (completedSec / totalFights) : 0;
+      var ks = ab._dustKillStats;
+      var avgWinSec = (ks && ab.sessionEnemiesKilled > 0 && ks.winDurMs > 0)
+        ? (ks.winDurMs / 1000 / ab.sessionEnemiesKilled)
+        : avgFightSec;
+      var avgLossSec = (ks && ab.sessionTrimpsKilled > 0 && ks.lossDurMs > 0)
+        ? (ks.lossDurMs / 1000 / ab.sessionTrimpsKilled)
+        : 0;
+      var actualDustPerKill = (ab.sessionEnemiesKilled > 0 && ab.lootAvg.accumulator > 0)
+        ? (ab.lootAvg.accumulator / ab.sessionEnemiesKilled)
+        : null;
+      var dustBreakdown = SASimEngine.getDustBreakdown(ab, actualDustPerKill);
 
       return {
         dustPs: dps,
@@ -3297,8 +3432,18 @@ function createRawAutoBattle(game, u2Mutations) {
         winRateStr: winRate.toFixed(1) + '%',
         ticks: ticks,
         simSec: totalSimSec,
+        completedSec: completedSec,
         secPerKill: secPerKill,
         timePerKill: secPerKill,
+        effSecPerKill: effSecPerKill,
+        avgFightSec: avgFightSec,
+        avgWinSec: avgWinSec,
+        avgLossSec: avgLossSec,
+        baseDust: dustBreakdown.baseDust,
+        dustMult: dustBreakdown.totalMult,
+        dustPerKill: dustBreakdown.dustPerKill,
+        shardsPerKill: dustBreakdown.shardsPerKill,
+        dustBreakdown: dustBreakdown,
         enemyLevel: ab.enemyLevel
       };
     },
@@ -3746,6 +3891,24 @@ function createRawAutoBattle(game, u2Mutations) {
             avgAllSec = baseline.simSec / baseline.totalFights;
           }
 
+          var ks = ab._dustKillStats;
+          var completedSec = (ab.lootAvg && ab.lootAvg.counter > 0) ? (ab.lootAvg.counter / 1000) : 0;
+          var effSecPerKill = (ab.sessionEnemiesKilled > 0 && completedSec > 0)
+            ? (completedSec / ab.sessionEnemiesKilled)
+            : ((totalFights === 0 && baseline && baseline.effSecPerKill) ? baseline.effSecPerKill : avgKillSec);
+          var avgWinSec = (ks && ab.sessionEnemiesKilled > 0 && ks.winDurMs > 0)
+            ? (ks.winDurMs / 1000 / ab.sessionEnemiesKilled)
+            : ((totalFights === 0 && baseline && baseline.avgWinSec) ? baseline.avgWinSec : avgKillSec);
+          var avgLossSec = (ks && ab.sessionTrimpsKilled > 0 && ks.lossDurMs > 0)
+            ? (ks.lossDurMs / 1000 / ab.sessionTrimpsKilled)
+            : ((totalFights === 0 && baseline && baseline.avgLossSec) ? baseline.avgLossSec : 0);
+          var actualDustPerKill = (ab.sessionEnemiesKilled > 0 && ab.lootAvg && ab.lootAvg.accumulator > 0)
+            ? (ab.lootAvg.accumulator / ab.sessionEnemiesKilled)
+            : null;
+          var dustBreakdown = (totalFights === 0 && baseline && baseline.dustBreakdown)
+            ? baseline.dustBreakdown
+            : SASimEngine.getDustBreakdown(ab, actualDustPerKill);
+
           return {
             battleTimeMs: ab.battleTime,
             frameTimeMs: ab.frameTime,
@@ -3763,8 +3926,16 @@ function createRawAutoBattle(game, u2Mutations) {
             winRate: winRate,
             secPerKill: avgKillSec,
             timePerKill: avgKillSec,
+            effSecPerKill: effSecPerKill,
             avgLast100Sec: avgKillSec,
             avgFightDuration: avgAllSec,
+            avgWinSec: avgWinSec,
+            avgLossSec: avgLossSec,
+            baseDust: dustBreakdown.baseDust,
+            dustMult: dustBreakdown.totalMult,
+            dustPerKill: dustBreakdown.dustPerKill,
+            shardsPerKill: dustBreakdown.shardsPerKill,
+            dustBreakdown: dustBreakdown,
             huffyHp: trimp.health || 0,
             huffyMaxHp: trimp.maxHealth || 1,
             huffyAtk: trimp.attack || 0,

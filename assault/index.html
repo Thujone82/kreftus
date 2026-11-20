@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="sa-build" content="987a38b589b6">
+  <meta name="sa-build" content="e91b71339cc6">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -837,6 +837,215 @@
     }
     .bp-link:hover {
       text-decoration: underline;
+    }
+
+    /* ---------- Dust/s Math Hover Panel ---------- */
+    .dust-est-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      outline: none;
+    }
+    #dustEstimate {
+      cursor: help;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .dust-est-wrap:hover #dustEstimate,
+    .dust-est-wrap:focus-within #dustEstimate {
+      border-color: rgba(247, 147, 26, 0.55);
+      box-shadow: 0 0 0 2px rgba(247, 147, 26, 0.12);
+    }
+    .dust-popover {
+      display: none;
+      position: absolute;
+      right: 0;
+      left: auto;
+      top: calc(100% + 7px);
+      z-index: 85;
+      width: 356px;
+      max-width: calc(100vw - 24px);
+      background: var(--tip-bg);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 11px 13px;
+      box-shadow: 0 18px 42px -10px rgba(0, 0, 0, 0.78);
+      font-family: var(--font);
+      font-size: 11.5px;
+      line-height: 1.42;
+      pointer-events: auto;
+      text-align: left;
+      white-space: normal;
+    }
+    .dust-popover:empty { display: none !important; }
+    .dust-popover::before {
+      content: '';
+      position: absolute;
+      top: -5px;
+      right: 32px;
+      width: 8px;
+      height: 8px;
+      transform: rotate(45deg);
+      background: var(--tip-bg);
+      border-left: 1px solid var(--border-strong);
+      border-top: 1px solid var(--border-strong);
+    }
+    .dust-popover::after {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 0;
+      right: 0;
+      height: 10px;
+    }
+    .dust-est-wrap:hover .dust-popover,
+    .dust-est-wrap:focus-within .dust-popover {
+      display: block;
+      animation: fadein 0.12s ease;
+    }
+    .dp-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 7px;
+      margin-bottom: 7px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dp-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .dp-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1.5px 6px;
+      border-radius: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .dp-badge.sim { color: var(--buy); background: var(--buy-soft); border: 1px solid rgba(45, 206, 137, 0.25); }
+    .dp-badge.override { color: var(--accent); background: var(--accent-soft); border: 1px solid rgba(247, 147, 26, 0.3); }
+    .dp-badge.warn { color: var(--warn); background: var(--warn-soft); border: 1px solid rgba(245, 158, 11, 0.28); }
+    .dp-badge.sheet { color: var(--muted); background: var(--surface-2); border: 1px solid var(--border-strong); }
+    .dp-eq {
+      padding: 7px 9px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      font-family: var(--mono);
+    }
+    .dp-eq-main {
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .dp-eq-sub {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .dp-section {
+      display: grid;
+      gap: 3px;
+      padding-top: 6px;
+      margin-top: 6px;
+      border-top: 1px solid var(--border);
+    }
+    .dp-eq + .dp-section,
+    .dp-head + .dp-section {
+      border-top: none;
+      padding-top: 0;
+      margin-top: 0;
+    }
+    .dp-sec-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 1px;
+    }
+    .dp-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .dp-row.total {
+      padding-top: 4px;
+      margin-top: 2px;
+      border-top: 1px dashed var(--border-strong);
+      font-weight: 700;
+    }
+    .dp-row.total .dp-lbl { color: var(--text); font-weight: 650; }
+    .dp-lbl { color: var(--muted); font-size: 11px; }
+    .dp-sub-lbl { opacity: 0.75; font-size: 10px; }
+    .dp-val {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+    }
+    .dp-val-buy { color: var(--buy); }
+    .dp-val-accent { color: var(--accent); }
+    .dp-val-warn { color: var(--warn); }
+    .dp-mult-list {
+      display: grid;
+      gap: 2px;
+      padding: 5px 8px;
+      margin: 2px 0;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border);
+    }
+    .dp-mult-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .dp-mult-name { color: var(--muted); }
+    .dp-mult-val {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .dp-mult-tag {
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 0.5px 5px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    .dp-mult-tag.buy { color: var(--buy); background: var(--buy-soft); }
+    .dp-mult-tag.accent { color: var(--accent); background: var(--accent-soft); }
+    .dp-mult-tag.warn { color: var(--warn); background: var(--warn-soft); }
+    .dp-note {
+      margin-top: 7px;
+      padding: 6px 8px;
+      border-radius: 7px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .dp-note b { color: var(--text); }
+    .dp-foot {
+      margin-top: 7px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+      font-size: 10.5px;
+      color: var(--muted);
     }
     .top-loaded-fact {
       font-size: 11.5px; padding: 4px 9px;
@@ -2165,6 +2374,7 @@
         flex-wrap: wrap;
       }
       .controls-bar > .control-group:last-child {
+        position: relative;
         margin-left: 0;
         width: 100%;
         justify-content: space-between;
@@ -2172,6 +2382,15 @@
         padding-top: 6px;
         flex-wrap: wrap;
       }
+      .dust-est-wrap { position: static; }
+      .dust-popover {
+        left: 0;
+        right: 0;
+        width: auto;
+        max-width: none;
+        top: calc(100% + 6px);
+      }
+      .dust-popover::before { display: none; }
     }
 
     @media (max-width: 860px) {
@@ -2864,7 +3083,10 @@
                 Your dust/s
               </span>
               <span class="dust-line" style="display:inline-flex;align-items:center;gap:6px;">
-                <span class="pill sm accent" id="dustEstimate" style="display:inline-flex;align-items:center;gap:6px;"></span>
+                <span class="dust-est-wrap" tabindex="0">
+                  <span class="pill sm accent" id="dustEstimate" style="display:inline-flex;align-items:center;gap:6px;"></span>
+                  <div class="dust-popover" id="dustPopover" role="tooltip"></div>
+                </span>
                 <span id="dustOverrideWrap" style="display:none;align-items:center;gap:4px;">
                   <input id="dustOverride" type="text" class="inp sm" style="width:105px;padding:2px 6px;font-size:12px;" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="e.g. 7.5B">
                   <span style="font-size:11px;color:var(--muted);">/s</span>
@@ -6569,6 +6791,7 @@ function createRawAutoBattle(game, u2Mutations) {
     trimpDied: function(){
         this.sessionTrimpsKilled++;
         this.lootAvg.counter += this.battleTime;
+        if (this._dustKillStats) this._dustKillStats.lossDurMs += this.battleTime;
         this.resetCombat();
         if (this.sessionEnemiesKilled < this.sessionTrimpsKilled) swapClass('abTab', 'abTabLosing', document.getElementById('autoBattleTab'));
         this.popup(true, true);
@@ -6619,6 +6842,15 @@ function createRawAutoBattle(game, u2Mutations) {
         if (this.enemyLevel >= 20 && this.trimp.shockTime <= 0 && this.trimp.bleedTime <= 0 && this.trimp.poisonTime <= 0) giveSingleAchieve("Just Smack It");
         if (this.enemyLevel >= 100) giveSingleAchieve("Heroic Huffy");
         var amt = this.getDustReward();
+        if (this._dustKillStats) {
+            this._dustKillStats.winDurMs += this.battleTime;
+            if (this.items.Lifegiving_Gem.equipped) {
+                this._dustKillStats.lgSum += (1 + this.items.Lifegiving_Gem.dustIncrease());
+            }
+            if (this.items.Box_of_Spores.equipped && !this.enemy.hadBleed && this.enemy.poison.time > 0) {
+                this._dustKillStats.sporesProcs++;
+            }
+        }
         if (this.speed == 1) {
             this.dust += amt;
             game.stats.saDust.value += amt;
@@ -6705,6 +6937,7 @@ function createRawAutoBattle(game, u2Mutations) {
         this.lootAvg.counter = 0;
         this.battleTime = 0;
         this.lastFightDurations = [];
+        this._dustKillStats = { lgSum: 0, sporesProcs: 0, winDurMs: 0, lossDurMs: 0 };
         swapClass('abTab', 'abTabNone', document.getElementById('autoBattleTab'));
     },
     getFreshRings: function(){
@@ -7057,6 +7290,116 @@ function createRawAutoBattle(game, u2Mutations) {
       ab.resetCombat(true);
     },
 
+    getBaseDust: function(lvl) {
+      var l = Math.max(1, Number(lvl) || 1);
+      var amt = (1 + ((l - 1) * 5)) * Math.pow(1.19, l - 1);
+      if (l >= 50) amt *= Math.pow(1.1, l - 49);
+      return amt;
+    },
+
+    getDustBreakdown: function(ab, actualDustPerKill) {
+      if (ab && ab._activate) ab._activate();
+      var lvl = (ab && ab.enemy && ab.enemy.level) || (ab && ab.enemyLevel) || 1;
+      var baseDust = SASimEngine.getBaseDust(lvl);
+      var ks = ab && ab._dustKillStats;
+      var kills = (ab && ab.sessionEnemiesKilled) || 0;
+      var amt = 1;
+      var sources = [];
+
+      if (ab && ab.items && ab.items.Lifegiving_Gem && ab.items.Lifegiving_Gem.equipped) {
+        var lgMult = (ks && kills > 0 && ks.lgSum > 0)
+          ? (ks.lgSum / kills)
+          : (1 + ab.items.Lifegiving_Gem.dustIncrease());
+        amt *= lgMult;
+        sources.push({
+          key: 'Lifegiving_Gem',
+          label: 'Lifegiving Gem (Lv ' + ab.items.Lifegiving_Gem.level + ')',
+          op: 'mul',
+          value: lgMult
+        });
+      }
+      if (ab && ab.items && ab.items.Gaseous_Greataxe && ab.items.Gaseous_Greataxe.equipped) {
+        var ggMult = ab.items.Gaseous_Greataxe.dustMult();
+        amt *= ggMult;
+        sources.push({
+          key: 'Gaseous_Greataxe',
+          label: 'Gaseous Greataxe (Lv ' + ab.items.Gaseous_Greataxe.level + ')',
+          op: 'mul',
+          value: ggMult,
+          penalty: ggMult < 1
+        });
+      }
+      var ringAdd = (ab && ab.trimp && ab.trimp.dustMult) || 0;
+      if (ringAdd > 0) {
+        amt += ringAdd;
+        sources.push({
+          key: 'Ring_Dust',
+          label: 'Ring Dust Mod (Lv ' + ((ab.rings && ab.rings.level) || 1) + ')',
+          op: 'add',
+          value: ringAdd
+        });
+      }
+      if (ab && ab.oneTimers && ab.oneTimers.Dusty_Tome && ab.oneTimers.Dusty_Tome.owned) {
+        var dtMult = 1 + (0.05 * (ab.maxEnemyLevel - 1));
+        amt *= dtMult;
+        sources.push({
+          key: 'Dusty_Tome',
+          label: 'Dusty Tome (Max SA ' + ab.maxEnemyLevel + ')',
+          op: 'mul',
+          value: dtMult
+        });
+      }
+      var u2m = ab && ab._u2MutationsMock && ab._u2MutationsMock.tree;
+      if (u2m && u2m.Dust && u2m.Dust.purchased) {
+        var hasD2 = !!(u2m.Dust2 && u2m.Dust2.purchased);
+        var mutMult = hasD2 ? 1.5 : 1.25;
+        amt *= mutMult;
+        sources.push({
+          key: 'Mutators',
+          label: hasD2 ? 'Mutators (Dusty + Dustier)' : 'Mutators (Dusty)',
+          op: 'mul',
+          value: mutMult
+        });
+      }
+      if (ab && ab.items && ab.items.Box_of_Spores && ab.items.Box_of_Spores.equipped) {
+        var bosMult = ab.items.Box_of_Spores.dustMult();
+        var procRate = (ks && kills > 0) ? (ks.sporesProcs / kills) : null;
+        sources.push({
+          key: 'Box_of_Spores',
+          label: 'Box of Spores (Lv ' + ab.items.Box_of_Spores.level + ')',
+          op: 'mul',
+          value: bosMult,
+          conditional: true,
+          procRate: procRate
+        });
+        if (procRate != null) amt *= (1 + procRate * (bosMult - 1));
+      }
+      if (ab && ab._gameMock && ab._gameMock.global && ab._gameMock.global.fluffyExp2 >= 1466015503701000) {
+        amt *= 5;
+        sources.push({
+          key: 'Scruffy',
+          label: 'Scruffy Lv 16+',
+          op: 'mul',
+          value: 5
+        });
+      }
+
+      var dustPerKill = (actualDustPerKill != null && actualDustPerKill > 0)
+        ? actualDustPerKill
+        : (baseDust * amt);
+      var totalMult = baseDust > 0 ? (dustPerKill / baseDust) : amt;
+      var shardsPerKill = lvl > 50 ? (dustPerKill / 1e9) : 0;
+
+      return {
+        level: lvl,
+        baseDust: baseDust,
+        totalMult: totalMult,
+        dustPerKill: dustPerKill,
+        shardsPerKill: shardsPerKill,
+        sources: sources
+      };
+    },
+
     // Fast Headless Batch Runner
     runBatch: function(sourceConfig, options) {
       options = options || {};
@@ -7089,6 +7432,20 @@ function createRawAutoBattle(game, u2Mutations) {
       var winRate = totalFights > 0 ? (ab.sessionEnemiesKilled / totalFights * 100) : 100;
       var totalSimSec = (ticks * ab.frameTime) / 1000;
       var secPerKill = ab.sessionEnemiesKilled > 0 ? (totalSimSec / ab.sessionEnemiesKilled) : 0;
+      var completedSec = (ab.lootAvg && ab.lootAvg.counter > 0) ? (ab.lootAvg.counter / 1000) : totalSimSec;
+      var effSecPerKill = ab.sessionEnemiesKilled > 0 ? (completedSec / ab.sessionEnemiesKilled) : 0;
+      var avgFightSec = totalFights > 0 ? (completedSec / totalFights) : 0;
+      var ks = ab._dustKillStats;
+      var avgWinSec = (ks && ab.sessionEnemiesKilled > 0 && ks.winDurMs > 0)
+        ? (ks.winDurMs / 1000 / ab.sessionEnemiesKilled)
+        : avgFightSec;
+      var avgLossSec = (ks && ab.sessionTrimpsKilled > 0 && ks.lossDurMs > 0)
+        ? (ks.lossDurMs / 1000 / ab.sessionTrimpsKilled)
+        : 0;
+      var actualDustPerKill = (ab.sessionEnemiesKilled > 0 && ab.lootAvg.accumulator > 0)
+        ? (ab.lootAvg.accumulator / ab.sessionEnemiesKilled)
+        : null;
+      var dustBreakdown = SASimEngine.getDustBreakdown(ab, actualDustPerKill);
 
       return {
         dustPs: dps,
@@ -7100,8 +7457,18 @@ function createRawAutoBattle(game, u2Mutations) {
         winRateStr: winRate.toFixed(1) + '%',
         ticks: ticks,
         simSec: totalSimSec,
+        completedSec: completedSec,
         secPerKill: secPerKill,
         timePerKill: secPerKill,
+        effSecPerKill: effSecPerKill,
+        avgFightSec: avgFightSec,
+        avgWinSec: avgWinSec,
+        avgLossSec: avgLossSec,
+        baseDust: dustBreakdown.baseDust,
+        dustMult: dustBreakdown.totalMult,
+        dustPerKill: dustBreakdown.dustPerKill,
+        shardsPerKill: dustBreakdown.shardsPerKill,
+        dustBreakdown: dustBreakdown,
         enemyLevel: ab.enemyLevel
       };
     },
@@ -7549,6 +7916,24 @@ function createRawAutoBattle(game, u2Mutations) {
             avgAllSec = baseline.simSec / baseline.totalFights;
           }
 
+          var ks = ab._dustKillStats;
+          var completedSec = (ab.lootAvg && ab.lootAvg.counter > 0) ? (ab.lootAvg.counter / 1000) : 0;
+          var effSecPerKill = (ab.sessionEnemiesKilled > 0 && completedSec > 0)
+            ? (completedSec / ab.sessionEnemiesKilled)
+            : ((totalFights === 0 && baseline && baseline.effSecPerKill) ? baseline.effSecPerKill : avgKillSec);
+          var avgWinSec = (ks && ab.sessionEnemiesKilled > 0 && ks.winDurMs > 0)
+            ? (ks.winDurMs / 1000 / ab.sessionEnemiesKilled)
+            : ((totalFights === 0 && baseline && baseline.avgWinSec) ? baseline.avgWinSec : avgKillSec);
+          var avgLossSec = (ks && ab.sessionTrimpsKilled > 0 && ks.lossDurMs > 0)
+            ? (ks.lossDurMs / 1000 / ab.sessionTrimpsKilled)
+            : ((totalFights === 0 && baseline && baseline.avgLossSec) ? baseline.avgLossSec : 0);
+          var actualDustPerKill = (ab.sessionEnemiesKilled > 0 && ab.lootAvg && ab.lootAvg.accumulator > 0)
+            ? (ab.lootAvg.accumulator / ab.sessionEnemiesKilled)
+            : null;
+          var dustBreakdown = (totalFights === 0 && baseline && baseline.dustBreakdown)
+            ? baseline.dustBreakdown
+            : SASimEngine.getDustBreakdown(ab, actualDustPerKill);
+
           return {
             battleTimeMs: ab.battleTime,
             frameTimeMs: ab.frameTime,
@@ -7566,8 +7951,16 @@ function createRawAutoBattle(game, u2Mutations) {
             winRate: winRate,
             secPerKill: avgKillSec,
             timePerKill: avgKillSec,
+            effSecPerKill: effSecPerKill,
             avgLast100Sec: avgKillSec,
             avgFightDuration: avgAllSec,
+            avgWinSec: avgWinSec,
+            avgLossSec: avgLossSec,
+            baseDust: dustBreakdown.baseDust,
+            dustMult: dustBreakdown.totalMult,
+            dustPerKill: dustBreakdown.dustPerKill,
+            shardsPerKill: dustBreakdown.shardsPerKill,
+            dustBreakdown: dustBreakdown,
             huffyHp: trimp.health || 0,
             huffyMaxHp: trimp.maxHealth || 1,
             huffyAtk: trimp.attack || 0,
@@ -8142,6 +8535,7 @@ function createRawAutoBattle(game, u2Mutations) {
     simulatedDustTimePerKill: 0,
     simulatedDustWinRate: 0,
     simulatedLevel: 0,
+    simulatedStats: null,
     customDustRates: {},
     levelModeOverrides: {},
     filters: { ring: true, contract: true, limb: true, hideUnused: false },
@@ -8471,10 +8865,22 @@ var ONE_TIMER_MILESTONES = [
           return {
             level: l,
             dustPs: snap.dustPs,
+            shardsPs: snap.shardsPs || (l > 50 ? snap.dustPs / 1e9 : 0),
             secPerKill: (sKillSec && sKillSec > 0) ? sKillSec : Infinity,
             effSecPerKill: sEffK,
+            actualEffKillSec: (snap.effSecPerKill && snap.effSecPerKill > 0) ? snap.effSecPerKill : ((sKillSec && sKillSec > 0) ? sKillSec : Infinity),
             winRate: snap.winRate || 0,
-            kills: snap.kills || 0,
+            kills: snap.sessionKills || snap.wins || 0,
+            deaths: snap.sessionDeaths || snap.losses || 0,
+            totalFights: snap.totalFights || 0,
+            avgFightSec: snap.avgFightDuration || 0,
+            avgWinSec: snap.avgWinSec || sKillSec || 0,
+            avgLossSec: snap.avgLossSec || 0,
+            baseDust: snap.baseDust || 0,
+            dustMult: snap.dustMult || 0,
+            dustPerKill: snap.dustPerKill || 0,
+            shardsPerKill: snap.shardsPerKill || 0,
+            dustBreakdown: snap.dustBreakdown || null,
             fromLiveSession: true
           };
         }
@@ -8489,13 +8895,26 @@ var ONE_TIMER_MILESTONES = [
     if (state.simulatedDustPs != null && Number(state.simulatedLevel) === l && state.simulatedDustTimePerKill > 0) {
       var fWr = (state.simulatedDustWinRate && state.simulatedDustWinRate > 0) ? (state.simulatedDustWinRate / 100) : 0;
       var fEffK = fWr > 0 ? (state.simulatedDustTimePerKill / fWr) : Infinity;
+      var simCached = (state.simulatedStats && Number(state.simulatedStats.enemyLevel) === l) ? state.simulatedStats : null;
       var fightStats = {
         level: l,
         dustPs: state.simulatedDustPs,
+        shardsPs: simCached ? (simCached.shardsPs || 0) : (l > 50 ? state.simulatedDustPs / 1e9 : 0),
         secPerKill: state.simulatedDustTimePerKill,
         effSecPerKill: fEffK,
+        actualEffKillSec: (simCached && simCached.effSecPerKill > 0) ? simCached.effSecPerKill : state.simulatedDustTimePerKill,
         winRate: state.simulatedDustWinRate || 0,
-        kills: state.simulatedDustWinRate > 0 ? 1 : 0
+        kills: simCached ? (simCached.kills || 0) : (state.simulatedDustWinRate > 0 ? 1 : 0),
+        deaths: simCached ? (simCached.deaths || 0) : 0,
+        totalFights: simCached ? (simCached.totalFights || 0) : 0,
+        avgFightSec: simCached ? (simCached.avgFightSec || 0) : 0,
+        avgWinSec: simCached ? (simCached.avgWinSec || 0) : 0,
+        avgLossSec: simCached ? (simCached.avgLossSec || 0) : 0,
+        baseDust: simCached ? (simCached.baseDust || 0) : 0,
+        dustMult: simCached ? (simCached.dustMult || 0) : 0,
+        dustPerKill: simCached ? (simCached.dustPerKill || 0) : 0,
+        shardsPerKill: simCached ? (simCached.shardsPerKill || 0) : 0,
+        dustBreakdown: simCached ? (simCached.dustBreakdown || null) : null
       };
       levelSimCache[cacheKey] = fightStats;
       return fightStats;
@@ -8511,10 +8930,22 @@ var ONE_TIMER_MILESTONES = [
           var stats = {
             level: l,
             dustPs: (res.dustPs && res.dustPs > 0 && isFinite(res.dustPs)) ? res.dustPs : 0,
+            shardsPs: res.shardsPs || 0,
             secPerKill: rawK,
             effSecPerKill: effK,
+            actualEffKillSec: (res.kills > 0 && res.effSecPerKill > 0) ? res.effSecPerKill : rawK,
             winRate: res.winRate || 0,
-            kills: res.kills || 0
+            kills: res.kills || 0,
+            deaths: res.deaths || 0,
+            totalFights: res.totalFights || 0,
+            avgFightSec: res.avgFightSec || 0,
+            avgWinSec: res.avgWinSec || 0,
+            avgLossSec: res.avgLossSec || 0,
+            baseDust: res.baseDust || 0,
+            dustMult: res.dustMult || 0,
+            dustPerKill: res.dustPerKill || 0,
+            shardsPerKill: res.shardsPerKill || 0,
+            dustBreakdown: res.dustBreakdown || null
           };
           levelSimCache[cacheKey] = stats;
           return stats;
@@ -9398,8 +9829,12 @@ var ONE_TIMER_MILESTONES = [
     state.simulatedDustTimePerKill = 0;
     state.simulatedDustWinRate = 0;
     state.simulatedLevel = fightLevel;
+    state.simulatedStats = null;
     try {
       var simRes = SASimEngine.runBatch({ save: state.save, level: fightLevel }, { kills: 9001, maxKills: 9001, maxFights: 9001, fights: 9001, ticks: 150000 });
+      if (simRes) {
+        state.simulatedStats = simRes;
+      }
       if (simRes && simRes.dustPs > 0) {
         state.simulatedDustPs = simRes.dustPs;
         state.simulatedDustTimePerKill = simRes.timePerKill || simRes.secPerKill;
@@ -11076,6 +11511,246 @@ var ONE_TIMER_MILESTONES = [
     return null;
   }
 
+  function renderDustEstimatePopover(opts) {
+    var pop = $("dustPopover");
+    if (!pop) return;
+    opts = opts || {};
+    var mode = opts.mode || "";
+    var lvl = Number(opts.level || state.level || 1);
+    var farmLvl = Number(opts.farmLvl || lvl);
+
+    function fmtKillSec(sec) {
+      if (sec == null || !isFinite(sec) || sec <= 0) return "—";
+      if (sec < 10) return sec.toFixed(2) + "s";
+      if (sec < 100) return sec.toFixed(1) + "s";
+      if (sec < 600) return Math.round(sec) + "s";
+      return fmtDuration(sec);
+    }
+
+    function fmtMult(m) {
+      if (m == null || !isFinite(m)) return "—";
+      if (m < 10) return m.toFixed(2);
+      if (m < 100) return m.toFixed(1);
+      if (m < 1000) return String(Math.round(m));
+      return prettify(m);
+    }
+
+    function dpRow(lbl, val, cls, extraRowCls) {
+      return "<div class='dp-row" + (extraRowCls ? (" " + extraRowCls) : "") + "'>" +
+        "<span class='dp-lbl'>" + lbl + "</span>" +
+        "<span class='dp-val" + (cls ? (" " + cls) : "") + "'>" + val + "</span>" +
+      "</div>";
+    }
+
+    function formatSourceVal(src) {
+      if (src.op === "add") {
+        var pct = src.value * 100;
+        var pctStr = (pct >= 10 || pct % 1 === 0) ? Math.round(pct) : pct.toFixed(1);
+        return "<span class='dp-mult-val'>+" + pctStr + "% (add)</span>";
+      }
+      if (src.penalty) {
+        var penPct = Math.round((1 - src.value) * 100);
+        return "<span class='dp-mult-val dp-val-warn'>×" + src.value.toFixed(2) + " (-" + penPct + "%)</span>";
+      }
+      if (src.conditional) {
+        var procTag = "";
+        if (src.procRate != null) {
+          if (src.procRate >= 0.995) procTag = " <span class='dp-mult-tag buy'>100% proc</span>";
+          else if (src.procRate <= 0.005) procTag = " <span class='dp-mult-tag warn'>0% — Bleed</span>";
+          else procTag = " <span class='dp-mult-tag accent'>" + Math.round(src.procRate * 100) + "% proc</span>";
+        }
+        return "<span class='dp-mult-val'>×" + fmtMult(src.value) + procTag + "</span>";
+      }
+      return "<span class='dp-mult-val'>×" + fmtMult(src.value) + "</span>";
+    }
+
+    function buildSimMathBody(stats, targetLvl) {
+      var effSec = (stats.actualEffKillSec && isFinite(stats.actualEffKillSec) && stats.actualEffKillSec > 0)
+        ? stats.actualEffKillSec
+        : stats.secPerKill;
+      var kills = stats.kills || 0;
+      var deaths = stats.deaths || 0;
+      var totalFights = stats.totalFights || (kills + deaths);
+      var body = "";
+
+      // Headline formula box
+      body += "<div class='dp-eq'>";
+      if ((kills > 0 || (totalFights === 0 && stats.dustPs > 0)) && stats.dustPerKill > 0 && isFinite(effSec) && effSec > 0) {
+        body += "<div class='dp-eq-main'><b>" + prettify(stats.dustPerKill) + "</b>/kill ÷ <b>" + fmtKillSec(effSec) + "</b> = <b class='dp-val-buy'>" + prettify(stats.dustPs) + "/s</b></div>";
+        if (targetLvl > 50 && stats.shardsPerKill > 0) {
+          var shardsPs = stats.shardsPs || (stats.dustPs / 1e9);
+          body += "<div class='dp-eq-sub'><b>" + prettify(stats.shardsPerKill) + "</b> shards/kill = <b>" + prettify(shardsPs) + "</b> shards/s <span style='opacity:0.75;'>(1B dust = 1 shard)</span></div>";
+        }
+      } else {
+        var eqTxt = stats.dustPs > 0
+          ? ("In-progress estimate: <b class='dp-val-accent'>" + prettify(stats.dustPs) + "/s</b>")
+          : ("<span class='dp-val-warn'>0 kills across " + totalFights.toLocaleString() + " " + (totalFights === 1 ? "fight" : "fights") + " · 0% WR</span>");
+        body += "<div class='dp-eq-main'>" + eqTxt + "</div>";
+        if (stats.dustPerKill > 0) {
+          var potSub = "Potential reward: <b>" + prettify(stats.dustPerKill) + "</b> dust/kill";
+          if (targetLvl > 50 && stats.shardsPerKill > 0) {
+            potSub += " (" + prettify(stats.shardsPerKill) + " shards/kill)";
+          }
+          body += "<div class='dp-eq-sub'>" + potSub + "</div>";
+        }
+      }
+      body += "</div>";
+
+      // Kill Timing section
+      body += "<div class='dp-section'><div class='dp-sec-lbl'>Kill Timing</div>";
+      if (deaths > 0) {
+        var effLabel = kills > 0 ? "Eff. Time / Kill <span class='dp-sub-lbl'>(incl. deaths)</span>" : "Eff. Time / Kill";
+        body += dpRow(effLabel, fmtKillSec(effSec));
+        var fightVal = (stats.avgWinSec > 0 && stats.avgLossSec > 0)
+          ? (fmtKillSec(stats.avgWinSec) + " win · " + fmtKillSec(stats.avgLossSec) + " loss")
+          : fmtKillSec(stats.avgFightSec);
+        if (fightVal && fightVal !== "—") {
+          body += dpRow("Avg Fight", fightVal);
+        }
+        var wrCls = (stats.winRate != null && stats.winRate < 50) ? "dp-val-warn" : "";
+        body += dpRow("Win Rate", (stats.winRate != null ? stats.winRate.toFixed(1) : "0.0") + "% (" + kills.toLocaleString() + "W / " + deaths.toLocaleString() + "L)", wrCls);
+      } else {
+        body += dpRow("Kill Time", fmtKillSec(effSec));
+        var wrNum = stats.winRate != null ? stats.winRate : 100;
+        var wrStr = wrNum.toFixed(wrNum % 1 ? 1 : 0) + "% (" + kills.toLocaleString() + (kills === 1 ? " kill)" : " kills)");
+        body += dpRow("Win Rate", wrStr, kills > 0 ? "dp-val-buy" : "");
+      }
+      if (kills > 0 && isFinite(effSec) && effSec > 0) {
+        var paceStr = prettify(3600 / effSec) + " / hr";
+        if (effSec < 60) paceStr += " · " + prettify(60 / effSec) + " / min";
+        body += dpRow("Kill Pace", paceStr);
+      }
+      body += "</div>";
+
+      // Dust per Kill breakdown section
+      if (stats.baseDust > 0) {
+        body += "<div class='dp-section'><div class='dp-sec-lbl'>Dust per Kill</div>";
+        body += dpRow("Base Dust (SA " + targetLvl + ")", prettify(stats.baseDust));
+        body += dpRow("Dust Multiplier", "×" + fmtMult(stats.dustMult), "dp-val-accent");
+        var bd = stats.dustBreakdown;
+        if (bd && bd.sources && bd.sources.length) {
+          body += "<div class='dp-mult-list'>";
+          for (var si = 0; si < bd.sources.length; si++) {
+            var src = bd.sources[si];
+            body += "<div class='dp-mult-row'><span class='dp-mult-name'>" + esc(src.label) + "</span>" + formatSourceVal(src) + "</div>";
+          }
+          body += "</div>";
+        }
+        body += dpRow("Dust / Kill", prettify(stats.dustPerKill), "dp-val-buy", "total");
+        if (targetLvl > 50 && stats.shardsPerKill > 0) {
+          body += dpRow("Shards / Kill", prettify(stats.shardsPerKill), "dp-val-accent");
+        }
+        body += "</div>";
+      }
+
+      return body;
+    }
+
+    var html = "";
+    if (mode === "override") {
+      var customTxt = opts.customTxt || "—";
+      var customNum = opts.customNum;
+      html += "<div class='dp-head'><span class='dp-title'>Dust/s Rate Breakdown</span><span class='dp-badge override'>Custom Override</span></div>";
+      html += "<div class='dp-eq'><div class='dp-eq-main'>Active rate: <b class='dp-val-buy'>" + esc(customTxt) + "/s</b></div>";
+      if (lvl > 50 && isFinite(customNum) && customNum > 0) {
+        html += "<div class='dp-eq-sub'><b>" + prettify(customNum / 1e9) + "</b> shards/s <span style='opacity:0.75;'>(1B dust = 1 shard)</span></div>";
+      }
+      html += "</div>";
+      html += "<div class='dp-section'><div class='dp-sec-lbl'>Reference Rates</div>";
+      if (opts.lvlStats) {
+        var ls = opts.lvlStats;
+        var simEff = (ls.actualEffKillSec && isFinite(ls.actualEffKillSec) && ls.actualEffKillSec > 0) ? ls.actualEffKillSec : ls.secPerKill;
+        var simDetail = prettify(ls.dustPs) + "/s";
+        if (ls.dustPerKill > 0 && isFinite(simEff) && simEff > 0) {
+          simDetail += " (" + prettify(ls.dustPerKill) + "/kill · " + fmtKillSec(simEff) + ")";
+        }
+        html += dpRow("Simulated (SA " + lvl + ")", simDetail);
+      }
+      if (Number(lvl) !== Number(farmLvl) && state.simulatedDustPs > 0) {
+        html += dpRow("Live Farm (SA " + farmLvl + ")", prettify(state.simulatedDustPs) + "/s");
+      }
+      if (opts.est > 0) {
+        html += dpRow("Sheet Estimate" + (opts.rec ? (" (" + esc(opts.rec.n) + ")") : ""), prettify(opts.est) + "/s");
+      }
+      html += "</div>";
+      html += "<div class='dp-foot'>Click ✕ next to this badge to revert to the simulated rate.</div>";
+    } else if (mode === "sim" && opts.lvlStats) {
+      var stats = opts.lvlStats;
+      var badgeCls = stats.fromLiveSession ? "sim" : (stats.dustPs > 0 ? "sim" : "warn");
+      var badgeTxt = stats.fromLiveSession ? "Live Sim" : "Simulated";
+      html += "<div class='dp-head'><span class='dp-title'>Dust/s Math · SA " + lvl + "</span><span class='dp-badge " + badgeCls + "'>" + badgeTxt + "</span></div>";
+      html += buildSimMathBody(stats, lvl);
+      if (Number(lvl) !== Number(farmLvl) && state.simulatedDustPs > 0) {
+        var liveSummary = "<b>" + prettify(state.simulatedDustPs) + "/s</b>";
+        if (state.simulatedStats && state.simulatedStats.dustPerKill > 0) {
+          var liveEff = state.simulatedStats.effSecPerKill || state.simulatedDustTimePerKill;
+          liveSummary += " (" + prettify(state.simulatedStats.dustPerKill) + "/kill ÷ " + fmtKillSec(liveEff) + ")";
+        }
+        html += "<div class='dp-note'>Bank &amp; upgrade wait timers use your live save farm rate on <b>SA " + farmLvl + "</b>: " + liveSummary + ".</div>";
+      }
+      html += "<div class='dp-foot'>Simulated with your current loadout · Click ⚙ to override or open Simulator.</div>";
+    } else if (mode === "fallbackSim") {
+      var sim = state.simulatedStats;
+      var fbStats = opts.lvlStats || (sim ? {
+        level: farmLvl,
+        dustPs: sim.dustPs || state.simulatedDustPs,
+        shardsPs: sim.shardsPs || (farmLvl > 50 ? state.simulatedDustPs / 1e9 : 0),
+        secPerKill: sim.secPerKill || state.simulatedDustTimePerKill,
+        actualEffKillSec: (sim.effSecPerKill && sim.effSecPerKill > 0) ? sim.effSecPerKill : state.simulatedDustTimePerKill,
+        winRate: sim.winRate != null ? sim.winRate : state.simulatedDustWinRate,
+        kills: sim.kills || 0,
+        deaths: sim.deaths || 0,
+        totalFights: sim.totalFights || 0,
+        avgFightSec: sim.avgFightSec || 0,
+        avgWinSec: sim.avgWinSec || 0,
+        avgLossSec: sim.avgLossSec || 0,
+        baseDust: sim.baseDust || 0,
+        dustMult: sim.dustMult || 0,
+        dustPerKill: sim.dustPerKill || 0,
+        shardsPerKill: sim.shardsPerKill || 0,
+        dustBreakdown: sim.dustBreakdown || null
+      } : {
+        level: farmLvl,
+        dustPs: state.simulatedDustPs,
+        shardsPs: farmLvl > 50 ? state.simulatedDustPs / 1e9 : 0,
+        secPerKill: state.simulatedDustTimePerKill,
+        actualEffKillSec: state.simulatedDustTimePerKill,
+        winRate: state.simulatedDustWinRate || 100,
+        kills: state.simulatedDustWinRate > 0 ? 1 : 0,
+        deaths: 0,
+        totalFights: 1
+      });
+      html += "<div class='dp-head'><span class='dp-title'>Dust/s Math · SA " + farmLvl + "</span><span class='dp-badge sim'>Save Farm</span></div>";
+      html += buildSimMathBody(fbStats, farmLvl);
+      html += "<div class='dp-foot'>Auto-calibrated from your live save · Click ⚙ to override or open Simulator.</div>";
+    } else if (mode === "sheet" && opts.rec) {
+      var rec = opts.rec;
+      html += "<div class='dp-head'><span class='dp-title'>Sheet Estimate · SA " + lvl + "</span><span class='dp-badge sheet'>Sheet</span></div>";
+      html += "<div class='dp-section'>";
+      html += dpRow("Recommended Build", esc(rec.n));
+      html += dpRow("Sheet Rate", prettify(opts.est) + "/s", "dp-val-buy");
+      if (rec.k > 0) html += dpRow("Est. Kill Time", fmtKillSec(rec.k));
+      if (lvl > 50 && opts.est > 0) html += dpRow("Shards / s", prettify(opts.est / 1e9), "dp-val-accent");
+      html += "</div>";
+      html += "<div class='dp-foot'>From community sheet data · Click ⚙ to override.</div>";
+    } else {
+      var pSum = opts.pSum;
+      html += "<div class='dp-head'><span class='dp-title'>No Runnable Build · SA " + lvl + "</span><span class='dp-badge warn'>Locked</span></div>";
+      if (pSum && pSum.target) {
+        html += "<div class='dp-section'>";
+        html += dpRow("Target Build", esc(pSum.target.n));
+        html += dpRow("Build Time", esc(pSum.buildTimeStr));
+        html += dpRow("Clear Time", "~" + esc(pSum.clearTimeStr));
+        if (pSum.totalTimeStr) html += dpRow("Total Time", "~" + esc(pSum.totalTimeStr), "dp-val-accent");
+        html += "</div>";
+        html += "<div class='dp-foot'>SA " + lvl + " requires upgrades before a sheet build is runnable.</div>";
+      } else {
+        html += "<div class='dp-note'>No sheet builds recorded for SA " + lvl + ".</div>";
+      }
+    }
+    pop.innerHTML = html;
+  }
+
   function render() {
     if (!state.ab) return;
     var level = Number($("levelSelect").value);
@@ -11099,31 +11774,41 @@ var ONE_TIMER_MILESTONES = [
     var gearIcon = $("dustGearIcon");
     var closeIcon = $("dustCloseIcon");
     var toggleBtn = $("btnDustToggleOverride");
+    var farmLvl = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || level;
+    $("dustEstimate").removeAttribute("title");
 
     if (state.dustOverride) {
       var customNum = parseNum(state.dustOverride);
       var customTxt = (isFinite(customNum) && customNum > 0) ? prettify(customNum) : esc(state.dustOverride);
       $("dustEstimate").innerHTML = "<span class='tone-buy'>Custom: <b>" + customTxt + "/s</b></span> <span style='opacity:0.75;font-size:11px;'>(Sheet: " + prettify(est) + "/s)</span>";
-      $("dustEstimate").title = "Custom override: " + customTxt + "/s. Click X to revert to simulated rate.";
+      renderDustEstimatePopover({
+        mode: "override",
+        level: level,
+        farmLvl: farmLvl,
+        lvlStats: lvlStats,
+        est: est,
+        rec: rec,
+        customTxt: customTxt,
+        customNum: customNum
+      });
       if (gearIcon) gearIcon.style.display = "none";
       if (closeIcon) closeIcon.style.display = "block";
       if (toggleBtn) toggleBtn.title = "Clear custom override and revert to simulated rate";
     } else if (lvlStats) {
-      var farmLvl = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || level;
-      var muts = (state.save && state.save.global && state.save.global.u2MutationData) || {};
-      var mutNote = muts.Dust2 ? " • Mutators: Dusty & Dustier (+50% Dust)" : (muts.Dust ? " • Mutators: Dusty (+25% Dust)" : "");
       if (lvlStats.dustPs > 0) {
         $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(lvlStats.dustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + level + ")</span>";
       } else {
         var wrLbl = lvlStats.winRate > 0 ? (Math.round(lvlStats.winRate) + "% WR") : "0% WR";
         $("dustEstimate").innerHTML = "<span style='color:var(--warn);font-weight:700;'>Sim: 0/s (" + wrLbl + ")</span> <span style='opacity:0.75;font-size:11px;'>(SA " + level + ")</span>";
       }
-      var kTip = isFinite(lvlStats.secPerKill) ? lvlStats.secPerKill.toFixed(2) : "--";
-      var wrTip = lvlStats.winRate != null ? (" · " + Math.round(lvlStats.winRate) + "% WR") : "";
-      var liveNote = (Number(level) !== Number(farmLvl) && state.simulatedDustPs > 0)
-        ? ("\nLive save farm rate (SA " + farmLvl + "): " + prettify(state.simulatedDustPs) + "/s (used for bank & build wait estimates).")
-        : "";
-      $("dustEstimate").title = "Simulated current loadout on SA " + level + ": " + prettify(lvlStats.dustPs) + "/s (~" + kTip + "s/kill" + wrTip + ")" + mutNote + "." + liveNote + "\nClick Simulator to view live combat.";
+      renderDustEstimatePopover({
+        mode: "sim",
+        level: level,
+        farmLvl: farmLvl,
+        lvlStats: lvlStats,
+        est: est,
+        rec: rec
+      });
       if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride && state.simulatedDustPs > 0) {
         $("dustOverride").placeholder = prettify(state.simulatedDustPs) + "/s";
       }
@@ -11133,9 +11818,13 @@ var ONE_TIMER_MILESTONES = [
     } else if (state.simulatedDustPs && state.simulatedDustPs > 0) {
       var farmLvlFallback = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.simulatedLevel || state.level;
       $("dustEstimate").innerHTML = "<span style='color:var(--buy);font-weight:700;'>Sim: " + prettify(state.simulatedDustPs) + "/s</span> <span style='opacity:0.75;font-size:11px;'>(SA " + farmLvlFallback + ")</span>";
-      var muts2 = (state.save && state.save.global && state.save.global.u2MutationData) || {};
-      var mutNote2 = muts2.Dust2 ? " • Mutators: Dusty & Dustier (+50% Dust)" : (muts2.Dust ? " • Mutators: Dusty (+25% Dust)" : "");
-      $("dustEstimate").title = "Auto-calibrated from live save (" + prettify(state.simulatedDustPs) + "/s farming SA " + farmLvlFallback + " · ~" + (state.simulatedDustTimePerKill ? state.simulatedDustTimePerKill.toFixed(2) : "--") + "s/kill)" + mutNote2 + ".\nClick Simulator to view live combat.";
+      renderDustEstimatePopover({
+        mode: "fallbackSim",
+        level: farmLvlFallback,
+        farmLvl: farmLvlFallback,
+        est: est,
+        rec: rec
+      });
       if ($("dustOverride") && document.activeElement !== $("dustOverride") && !state.dustOverride) {
         $("dustOverride").placeholder = prettify(state.simulatedDustPs) + "/s";
       }
@@ -11144,7 +11833,12 @@ var ONE_TIMER_MILESTONES = [
       if (toggleBtn) toggleBtn.title = "Customize dust rate override";
     } else if (rec) {
       $("dustEstimate").textContent = "Sheet: " + prettify(est) + "/s";
-      $("dustEstimate").title = "Recommended build: " + rec.n;
+      renderDustEstimatePopover({
+        mode: "sheet",
+        level: level,
+        est: est,
+        rec: rec
+      });
       if (gearIcon) gearIcon.style.display = "block";
       if (closeIcon) closeIcon.style.display = "none";
       if (toggleBtn) toggleBtn.title = "Customize dust rate override";
@@ -11152,11 +11846,14 @@ var ONE_TIMER_MILESTONES = [
       var pSum = probeBuildSummary(level, null, rate);
       if (pSum && pSum.target) {
         $("dustEstimate").innerHTML = "<span style='color:var(--warn);font-weight:650;'>No runnable build</span> <span style='color:var(--muted);font-size:11px;margin-left:4px;'>(Build: " + esc(pSum.buildTimeStr) + " · Clear: ~" + esc(pSum.clearTimeStr) + ")</span>";
-        $("dustEstimate").title = "SA " + level + " requires upgrades.\nTarget: " + pSum.target.n + "\nBuild Time: " + pSum.buildTimeStr + "\nClear Time: ~" + pSum.clearTimeStr + (pSum.totalTimeStr ? ("\nTotal: ~" + pSum.totalTimeStr) : "");
       } else {
         $("dustEstimate").textContent = "No runnable build";
-        $("dustEstimate").title = "No sheet builds recorded for SA " + level;
       }
+      renderDustEstimatePopover({
+        mode: "none",
+        level: level,
+        pSum: pSum
+      });
     }
     $("controls").hidden = false;
     $("results").hidden = false;

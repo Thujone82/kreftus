@@ -838,6 +838,215 @@
     .bp-link:hover {
       text-decoration: underline;
     }
+
+    /* ---------- Dust/s Math Hover Panel ---------- */
+    .dust-est-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      outline: none;
+    }
+    #dustEstimate {
+      cursor: help;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .dust-est-wrap:hover #dustEstimate,
+    .dust-est-wrap:focus-within #dustEstimate {
+      border-color: rgba(247, 147, 26, 0.55);
+      box-shadow: 0 0 0 2px rgba(247, 147, 26, 0.12);
+    }
+    .dust-popover {
+      display: none;
+      position: absolute;
+      right: 0;
+      left: auto;
+      top: calc(100% + 7px);
+      z-index: 85;
+      width: 356px;
+      max-width: calc(100vw - 24px);
+      background: var(--tip-bg);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 11px 13px;
+      box-shadow: 0 18px 42px -10px rgba(0, 0, 0, 0.78);
+      font-family: var(--font);
+      font-size: 11.5px;
+      line-height: 1.42;
+      pointer-events: auto;
+      text-align: left;
+      white-space: normal;
+    }
+    .dust-popover:empty { display: none !important; }
+    .dust-popover::before {
+      content: '';
+      position: absolute;
+      top: -5px;
+      right: 32px;
+      width: 8px;
+      height: 8px;
+      transform: rotate(45deg);
+      background: var(--tip-bg);
+      border-left: 1px solid var(--border-strong);
+      border-top: 1px solid var(--border-strong);
+    }
+    .dust-popover::after {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 0;
+      right: 0;
+      height: 10px;
+    }
+    .dust-est-wrap:hover .dust-popover,
+    .dust-est-wrap:focus-within .dust-popover {
+      display: block;
+      animation: fadein 0.12s ease;
+    }
+    .dp-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 7px;
+      margin-bottom: 7px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dp-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .dp-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1.5px 6px;
+      border-radius: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .dp-badge.sim { color: var(--buy); background: var(--buy-soft); border: 1px solid rgba(45, 206, 137, 0.25); }
+    .dp-badge.override { color: var(--accent); background: var(--accent-soft); border: 1px solid rgba(247, 147, 26, 0.3); }
+    .dp-badge.warn { color: var(--warn); background: var(--warn-soft); border: 1px solid rgba(245, 158, 11, 0.28); }
+    .dp-badge.sheet { color: var(--muted); background: var(--surface-2); border: 1px solid var(--border-strong); }
+    .dp-eq {
+      padding: 7px 9px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      font-family: var(--mono);
+    }
+    .dp-eq-main {
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .dp-eq-sub {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .dp-section {
+      display: grid;
+      gap: 3px;
+      padding-top: 6px;
+      margin-top: 6px;
+      border-top: 1px solid var(--border);
+    }
+    .dp-eq + .dp-section,
+    .dp-head + .dp-section {
+      border-top: none;
+      padding-top: 0;
+      margin-top: 0;
+    }
+    .dp-sec-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 1px;
+    }
+    .dp-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .dp-row.total {
+      padding-top: 4px;
+      margin-top: 2px;
+      border-top: 1px dashed var(--border-strong);
+      font-weight: 700;
+    }
+    .dp-row.total .dp-lbl { color: var(--text); font-weight: 650; }
+    .dp-lbl { color: var(--muted); font-size: 11px; }
+    .dp-sub-lbl { opacity: 0.75; font-size: 10px; }
+    .dp-val {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+    }
+    .dp-val-buy { color: var(--buy); }
+    .dp-val-accent { color: var(--accent); }
+    .dp-val-warn { color: var(--warn); }
+    .dp-mult-list {
+      display: grid;
+      gap: 2px;
+      padding: 5px 8px;
+      margin: 2px 0;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border);
+    }
+    .dp-mult-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .dp-mult-name { color: var(--muted); }
+    .dp-mult-val {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .dp-mult-tag {
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 0.5px 5px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    .dp-mult-tag.buy { color: var(--buy); background: var(--buy-soft); }
+    .dp-mult-tag.accent { color: var(--accent); background: var(--accent-soft); }
+    .dp-mult-tag.warn { color: var(--warn); background: var(--warn-soft); }
+    .dp-note {
+      margin-top: 7px;
+      padding: 6px 8px;
+      border-radius: 7px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .dp-note b { color: var(--text); }
+    .dp-foot {
+      margin-top: 7px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+      font-size: 10.5px;
+      color: var(--muted);
+    }
     .top-loaded-fact {
       font-size: 11.5px; padding: 4px 9px;
       flex-shrink: 0;
@@ -2165,6 +2374,7 @@
         flex-wrap: wrap;
       }
       .controls-bar > .control-group:last-child {
+        position: relative;
         margin-left: 0;
         width: 100%;
         justify-content: space-between;
@@ -2172,6 +2382,15 @@
         padding-top: 6px;
         flex-wrap: wrap;
       }
+      .dust-est-wrap { position: static; }
+      .dust-popover {
+        left: 0;
+        right: 0;
+        width: auto;
+        max-width: none;
+        top: calc(100% + 6px);
+      }
+      .dust-popover::before { display: none; }
     }
 
     @media (max-width: 860px) {
@@ -2864,7 +3083,10 @@
                 Your dust/s
               </span>
               <span class="dust-line" style="display:inline-flex;align-items:center;gap:6px;">
-                <span class="pill sm accent" id="dustEstimate" style="display:inline-flex;align-items:center;gap:6px;"></span>
+                <span class="dust-est-wrap" tabindex="0">
+                  <span class="pill sm accent" id="dustEstimate" style="display:inline-flex;align-items:center;gap:6px;"></span>
+                  <div class="dust-popover" id="dustPopover" role="tooltip"></div>
+                </span>
                 <span id="dustOverrideWrap" style="display:none;align-items:center;gap:4px;">
                   <input id="dustOverride" type="text" class="inp sm" style="width:105px;padding:2px 6px;font-size:12px;" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="e.g. 7.5B">
                   <span style="font-size:11px;color:var(--muted);">/s</span>
