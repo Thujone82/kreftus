@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="surky-build" content="57028630da63">
+  <meta name="surky-build" content="03f3b50e6bde">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -5564,10 +5564,12 @@ evaluatePerks();
   }
 
   // ---------- Local-First PWA Manager & Update Checker ----------
-  var SURKY_HTML_TOKEN = "surky.html";
+  var SURKY_HTML_TOKEN = "index.html";
   var SURKY_SW_TOKEN = "surky-sw.js";
-  var SURKY_HTML_FILE = SURKY_HTML_TOKEN.indexOf("/*") === 0 ? "surky.html" : SURKY_HTML_TOKEN;
+  var SURKY_SCOPE_TOKEN = "./";
+  var SURKY_HTML_FILE = SURKY_HTML_TOKEN.indexOf("/*") === 0 ? "index.html" : SURKY_HTML_TOKEN;
   var SURKY_SW_FILE = SURKY_SW_TOKEN.indexOf("/*") === 0 ? "surky-sw.js" : SURKY_SW_TOKEN;
+  var SURKY_SW_SCOPE = SURKY_SCOPE_TOKEN.indexOf("/*") === 0 ? "./" : SURKY_SCOPE_TOKEN;
 
   var deferredInstallPrompt = null;
   var pendingSwUpdate = false;
@@ -5639,9 +5641,9 @@ evaluatePerks();
 
   function getSwScopeHref() {
     try {
-      return new URL("./" + SURKY_HTML_FILE, window.location.href).href;
+      return new URL(SURKY_SW_SCOPE, window.location.href).href;
     } catch (e) {
-      return "./" + SURKY_HTML_FILE;
+      return SURKY_SW_SCOPE;
     }
   }
 
@@ -5831,7 +5833,7 @@ evaluatePerks();
 
     if ("serviceWorker" in navigator && window.location && /^https?:$/i.test(window.location.protocol)) {
       navigator.serviceWorker.register("./" + SURKY_SW_FILE, {
-        scope: "./" + SURKY_HTML_FILE,
+        scope: SURKY_SW_SCOPE,
         updateViaCache: "none"
       }).then(function (reg) {
         swRegistrationRef = reg;

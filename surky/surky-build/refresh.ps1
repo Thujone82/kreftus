@@ -1,34 +1,34 @@
 <#
 .SYNOPSIS
-    Rebuilds the self-contained Trimps Surky Perk Optimizer (surky.html).
+    Rebuilds the self-contained Trimps Surky Perk Optimizer (index.html).
 .DESCRIPTION
-    Authoring & build pipeline utility for surky.html. Optionally fetches the latest upstream
+    Authoring & build pipeline utility for index.html. Optionally fetches the latest upstream
     nsheetz/perks index.html snapshot (fetch_upstream.py), validates upstream & overlay JavaScript
     syntax via node --check, and bundles upstream/index.html + head-inject.html + body-inject.html
-    + theme.css + overlay.js into a single self-contained surky.html file with CRLF line endings.
-    Portable: surky.html + surky-build/ are completely self-contained and require no parent repo files.
+    + theme.css + overlay.js into a single self-contained index.html file with CRLF line endings.
+    Portable: index.html + surky-build/ are completely self-contained and require no parent repo files.
 .PARAMETER Fresh
     Downloads the latest upstream index.html and commit metadata from github.com/nsheetz/perks before rebuilding.
 .PARAMETER Ref
     Git branch or commit SHA to fetch when -Fresh is used (defaults to 'master').
 .PARAMETER AssembleOnly
-    Skips upstream snapshot checks and immediately validates JS and assembles surky.html from local files.
+    Skips upstream snapshot checks and immediately validates JS and assembles index.html from local files.
 .PARAMETER OutFile
-    Custom output path for the assembled HTML file (defaults to ..\surky.html relative to surky-build/).
+    Custom output path for the assembled HTML file (defaults to ..\index.html relative to surky-build/).
 .PARAMETER Help
     Displays this documentation and usage guide.
 .EXAMPLE
     .\refresh.ps1
-    Validates JS syntax and assembles ..\surky.html from the committed upstream snapshot and local overlays.
+    Validates JS syntax and assembles ..\index.html from the committed upstream snapshot and local overlays.
 .EXAMPLE
     .\refresh.ps1 -Fresh
-    Downloads the latest upstream nsheetz/perks index.html, reports any perk/preset diffs, and rebuilds surky.html.
+    Downloads the latest upstream nsheetz/perks index.html, reports any perk/preset diffs, and rebuilds index.html.
 .EXAMPLE
     .\refresh.ps1 -AssembleOnly
-    Fast rebuild of surky.html after editing theme.css or overlay.js.
+    Fast rebuild of index.html after editing theme.css or overlay.js.
 .EXAMPLE
-    .\refresh.ps1 -OutFile C:\inetpub\wwwroot\surky.html
-    Builds surky.html directly to a custom hosting path.
+    .\refresh.ps1 -OutFile C:\inetpub\wwwroot\index.html
+    Builds index.html directly to a custom hosting path.
 .EXAMPLE
     .\refresh.ps1 -Help
     Displays this help message.
@@ -44,7 +44,7 @@ param(
 
 # ==============================================================================
 # Script Name:  refresh.ps1
-# Description:  Surky Perk Optimizer (surky.html) Snapshot & Overlay Pipeline
+# Description:  Surky Perk Optimizer (index.html) Snapshot & Overlay Pipeline
 # ==============================================================================
 
 $ErrorActionPreference = 'Stop'
@@ -60,7 +60,7 @@ $OverlayFile   = Join-Path $Here 'overlay.js'
 $HeadInjFile   = Join-Path $Here 'head-inject.html'
 $BodyInjFile   = Join-Path $Here 'body-inject.html'
 $TempUpstreamJs = Join-Path $Here '_upstream-main.js'
-$TargetOutFile = if ($OutFile) { [System.IO.Path]::GetFullPath($OutFile) } else { Join-Path $ParentDir 'surky.html' }
+$TargetOutFile = if ($OutFile) { [System.IO.Path]::GetFullPath($OutFile) } else { Join-Path $ParentDir 'index.html' }
 
 # --- UI Helper Functions (matching sa-build/refresh.ps1 visual style) ---
 function Write-BoxHeader {

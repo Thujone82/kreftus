@@ -1286,8 +1286,10 @@
   // ---------- Local-First PWA Manager & Update Checker ----------
   var SURKY_HTML_TOKEN = "/*__SURKY_HTML_NAME__*/";
   var SURKY_SW_TOKEN = "/*__SURKY_SW_NAME__*/";
-  var SURKY_HTML_FILE = SURKY_HTML_TOKEN.indexOf("/*") === 0 ? "surky.html" : SURKY_HTML_TOKEN;
+  var SURKY_SCOPE_TOKEN = "/*__SURKY_SW_SCOPE__*/";
+  var SURKY_HTML_FILE = SURKY_HTML_TOKEN.indexOf("/*") === 0 ? "index.html" : SURKY_HTML_TOKEN;
   var SURKY_SW_FILE = SURKY_SW_TOKEN.indexOf("/*") === 0 ? "surky-sw.js" : SURKY_SW_TOKEN;
+  var SURKY_SW_SCOPE = SURKY_SCOPE_TOKEN.indexOf("/*") === 0 ? "./" : SURKY_SCOPE_TOKEN;
 
   var deferredInstallPrompt = null;
   var pendingSwUpdate = false;
@@ -1359,9 +1361,9 @@
 
   function getSwScopeHref() {
     try {
-      return new URL("./" + SURKY_HTML_FILE, window.location.href).href;
+      return new URL(SURKY_SW_SCOPE, window.location.href).href;
     } catch (e) {
-      return "./" + SURKY_HTML_FILE;
+      return SURKY_SW_SCOPE;
     }
   }
 
@@ -1551,7 +1553,7 @@
 
     if ("serviceWorker" in navigator && window.location && /^https?:$/i.test(window.location.protocol)) {
       navigator.serviceWorker.register("./" + SURKY_SW_FILE, {
-        scope: "./" + SURKY_HTML_FILE,
+        scope: SURKY_SW_SCOPE,
         updateViaCache: "none"
       }).then(function (reg) {
         swRegistrationRef = reg;

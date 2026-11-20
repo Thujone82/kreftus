@@ -1,10 +1,10 @@
 {
-  "id": "./surky.html",
+  "id": "./",
   "name": "Surky Perk Optimizer",
   "short_name": "Surky",
   "description": "Local-first Universe 2 Radon perk calculator and optimizer for Trimps.",
-  "start_url": "./surky.html",
-  "scope": "./surky.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#08090c",
   "theme_color": "#08090c",

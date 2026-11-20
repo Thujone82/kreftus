@@ -564,7 +564,7 @@
 
   <!-- Top Sticky Navigation Bar -->
   <header class="top-nav">
-    <a href="../surky.html" class="nav-brand" title="Open Surky Perk Optimizer">
+    <a href="../index.html" class="nav-brand" title="Open Surky Perk Optimizer">
       <div class="nav-brand-logo">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/>
@@ -579,7 +579,7 @@
     </a>
 
     <div class="nav-links">
-      <a href="../surky.html" class="nav-btn accent" title="Open the Surky Universe 2 Perk Optimizer">
+      <a href="../index.html" class="nav-btn accent" title="Open the Surky Universe 2 Perk Optimizer">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         <span>Open Optimizer</span>
       </a>
@@ -647,16 +647,16 @@
 
   <!-- Footer -->
   <footer class="page-footer">
-    <div>Trimps Surky Perk Optimizer &middot; <a href="../surky.html">Launch Application</a> &middot; <a href="README.md">Raw Markdown</a> &middot; <a href="#top">Back to Top &uarr;</a></div>
+    <div>Trimps Surky Perk Optimizer &middot; <a href="../index.html">Launch Application</a> &middot; <a href="README.md">Raw Markdown</a> &middot; <a href="#top">Back to Top &uarr;</a></div>
   </footer>
 
   <!-- Embedded Markdown Fallback for Offline / local file:// Protocol -->
   <script type="text/markdown" id="embeddedReadme">
-# Trimps Surky Perk Optimizer (`trimps/surky.html`)
+# Trimps Surky Perk Optimizer (`surky/`)
 
-A self-contained, offline-ready single-page application ([`trimps/surky.html`](../surky.html)) for optimizing **Trimps Universe 2 (Radon) perks**, evaluating preset weight profiles, and calculating Golden Upgrade, Runetrinket, and zone-push recommendations.
+A self-contained, offline-ready single-page application ([`surky/index.html`](../index.html)) for optimizing **Trimps Universe 2 (Radon) perks**, evaluating preset weight profiles, and calculating Golden Upgrade, Runetrinket, and zone-push recommendations.
 
-Built on top of **Surky** by **[nsheetz](https://github.com/nsheetz/perks)** ([upstream live calculator](https://nsheetz.github.io/perks/), original UI adapted from **justme**), wrapped in a non-destructive build pipeline (`trimps/surky-build/`) that preserves upstream perk math while adding a **Trimps 5.10.1 compatibility layer** (covering v5.8.0–5.10.1 mechanics omitted upstream), a modern dark/light theme overhaul, one-click clipboard import/export with save validation, live status pills, and keyboard shortcuts.
+Built on top of **Surky** by **[nsheetz](https://github.com/nsheetz/perks)** ([upstream live calculator](https://nsheetz.github.io/perks/), original UI adapted from **justme**), wrapped in a non-destructive build pipeline (`surky/surky-build/`) that preserves upstream perk math while adding a **Trimps 5.10.1 compatibility layer** (covering v5.8.0–5.10.1 mechanics omitted upstream), a modern dark/light theme overhaul, one-click clipboard import/export with save validation, live status pills, and keyboard shortcuts.
 
 ---
 
@@ -727,7 +727,7 @@ Select from 14 curated preset profiles in the right-hand panel:
 
 Upstream `nsheetz/perks` (`c57fd98`, 2024-04-20) has not been updated for Trimps `5.10.0` / `5.10.1` and never parsed Universe 2 Mutators (`game.global.u2MutationData`) introduced in `5.8.0`–`5.9.0`. `overlay.js` non-destructively extends Surky's evaluation pipeline at runtime so [`upstream/index.html`](./upstream/index.html) remains 100% unmodified while delivering full **Trimps 5.10.1** accuracy:
 
-| Trimps Patch | Game Mechanic | Upstream Surky Behavior | `surky.html` 5.10.1 Behavior |
+| Trimps Patch | Game Mechanic | Upstream Surky Behavior | `index.html` 5.10.1 Behavior |
 |---|---|---|---|
 | **v5.10.0** | **Glass Reward Radon Cap at Z400** (`glassDone` stops doubling VM Radon at Z400+) | Treated `vmZone >= 400` as still receiving 2x Radon per zone (`Greed` over-valued at Z400+) | Caps `props.glassRadon` strictly below Z400 (`(vmZone > 174 && vmZone < 200) \|\| (vmZone > 200 && vmZone < 400)`). |
 | **v5.9.0** | **`Runed` Mutator** (+50% `Observation` Runetrinket cap: `1,000` -> `1,500` per level) | Hardcoded `1,000` per `Observation` level (`max 51,000` at L50) in `getTrinketValues`, `getObservationGains`, and `iterateValueFeedback` | Dynamically uses `1,500` per `Observation` level (`max 76,500` at L50) when `u2MutationData.Runed` is purchased and updates strategy callouts. |
@@ -742,10 +742,10 @@ When a loaded save has purchased Universe 2 Mutators (`u2MutationData`), the hea
 
 ### 6. Local-First Progressive Web App (PWA) & On-Demand Updates
 
-Surky is installable as an independent desktop or mobile **Progressive Web App** ([`surky-manifest.json`](../surky-manifest.json), [`surky-sw.js`](../surky-sw.js), `192px`/`512px` icons in `surky-build/`) scoped exclusively to `./surky.html` so it never collides with Trimps' own service worker:
+Surky is installable as an independent desktop or mobile **Progressive Web App** ([`surky-manifest.json`](../surky-manifest.json), [`surky-sw.js`](../surky-sw.js), `192px`/`512px` icons in `surky-build/`) hosted at its own top-level `/surky/` scope (`./`) so it installs independently without colliding with Trimps' `/trimps/` PWA scope:
 
 - **One-Click Install (`Install App`)**: When opened over HTTPS or `localhost` in an install-capable browser, an **Install App** button appears in the top toolbar (alongside the browser's native install prompt).
-- **Local-First Cache-First Architecture**: Once installed, `surky-sw.js` boots `surky.html` instantaneously from local `CacheStorage` with **zero network wait** and never auto-reloads an active optimization session.
+- **Local-First Cache-First Architecture**: Once installed, `surky-sw.js` boots `index.html` instantaneously from local `CacheStorage` with **zero network wait** and never auto-reloads an active optimization session.
 - **Toolbar `Check for updates` Button (PWA Mode)**: When launched inside an installed standalone PWA window, a **Check for updates** button automatically appears in the top toolbar:
   - Performs an explicit cache-bypassed (`no-store`) check against `surky-sw.js` and `<meta name="surky-build">`.
   - Downloads and activates any newer build cleanly (`SKIP_WAITING` + reload), or confirms you are up to date (or running offline from your local cached build).
@@ -774,7 +774,7 @@ Surky is installable as an independent desktop or mobile **Progressive Web App**
 Rather than hand-editing a fork of `nsheetz/perks`, `surky-build/` keeps the pristine upstream `index.html` in `upstream/index.html` and applies our theme and UX layer at build time via `assemble.py`.
 
 ### Structural Injection Anchors
-`assemble.py` verifies that all 7 structural regex anchors match **exactly once** before building. If an upstream update alters the page structure in a way that breaks any anchor, the build aborts with a diagnostic error and leaves your existing `surky.html` untouched:
+`assemble.py` verifies that all 7 structural regex anchors match **exactly once** before building. If an upstream update alters the page structure in a way that breaks any anchor, the build aborts with a diagnostic error and leaves your existing `index.html` untouched:
 
 | Anchor | Pattern | Purpose |
 |---|---|---|
@@ -793,7 +793,7 @@ Upstream `index.html` references 6 Google Fonts `@font-face` blocks (`fonts.gsta
 
 ## 📦 Standalone Self-Hosting & Portability
 
-- **To host the calculator**: Open [`trimps/surky.html`](../surky.html) directly via `file://` as a single offline file, or copy `surky.html`, [`surky-manifest.json`](../surky-manifest.json), [`surky-sw.js`](../surky-sw.js), and `surky-build/` to any static HTTPS web server or GitHub Pages site to enable local-first PWA installation.
+- **To host the calculator**: Open [`surky/index.html`](../index.html) directly via `file://` as a single offline file, or copy `index.html`, [`surky-manifest.json`](../surky-manifest.json), [`surky-sw.js`](../surky-sw.js), and `surky-build/` to any static HTTPS web server or GitHub Pages site to enable local-first PWA installation.
 - **To rebuild or pull upstream updates**: Copy the `surky-build/` folder anywhere. It requires only **Python 3** (standard library only; no `pip` packages) and **PowerShell** (`node` and `git` are optional enhancements for syntax checking and working-tree diff display).
 
 ---
@@ -810,7 +810,7 @@ Upstream `index.html` references 6 Google Fonts `@font-face` blocks (`fonts.gsta
 | [`overlay.js`](./overlay.js) | Non-invasive IIFE handling Trimps 5.10.1 mechanics (`Runed`, `Glass` Z400 cap, U2 mutators, Z201+ scaling), local-first PWA install & update checks, clipboard paste/copy, save validation, theme sync, status pills, and keyboard shortcuts. |
 | [`surky-icon-192.png`](./surky-icon-192.png) & [`surky-icon-512.png`](./surky-icon-512.png) | Crisp anti-aliased PWA launcher icons bundled in `surky-build/` and precached by `surky-sw.js`. |
 | [`fetch_upstream.py`](./fetch_upstream.py) | Python downloader that pulls the latest `nsheetz/perks` commit metadata and `index.html` snapshot. |
-| [`assemble.py`](./assemble.py) | Anchor-checked Python bundler that strips CDN tags, injects overlays, verifies self-containment, and writes `surky.html` (CRLF). |
+| [`assemble.py`](./assemble.py) | Anchor-checked Python bundler that strips CDN tags, injects overlays, verifies self-containment, and writes `index.html` (CRLF). |
 | [`refresh.ps1`](./refresh.ps1) | PowerShell build pipeline coordinating upstream fetch, `node --check` syntax validation, diff reporting, and assembly. |
 | [`README.html`](./README.html) | Interactive HTML documentation viewer with live Markdown rendering, Dark/Light theme toggle, and `file://` fallback. |
 
@@ -818,7 +818,7 @@ Upstream `index.html` references 6 Google Fonts `@font-face` blocks (`fonts.gsta
 
 ## 🚀 Build Pipeline (`refresh.ps1`)
 
-Run from PowerShell inside `trimps/surky-build/`:
+Run from PowerShell inside `surky/surky-build/`:
 
 ```powershell
 # Fast build: Validates JavaScript syntax and compiles surky.html from local files
@@ -831,14 +831,14 @@ Run from PowerShell inside `trimps/surky-build/`:
 .\refresh.ps1 -Fresh
 
 # Pin to a specific upstream commit or branch and output to a custom path
-.\refresh.ps1 -Fresh -Ref c57fd98 -OutFile C:\path\to\surky.html
+.\refresh.ps1 -Fresh -Ref c57fd98 -OutFile C:\path\to\index.html
 ```
 
 ### Script Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
-| `-AssembleOnly` | Switch | Skips upstream snapshot fetch and rapidly validates & compiles `surky.html` from local files. |
+| `-AssembleOnly` | Switch | Skips upstream snapshot fetch and rapidly validates & compiles `index.html` from local files. |
 | `-Fresh` | Switch | Downloads the latest `index.html` and commit metadata from `github.com/nsheetz/perks` before rebuilding. |
 | `-Ref` | String | Git branch or commit SHA to fetch when `-Fresh` is specified (default: `master`). |
 | `-OutFile` | String | Custom output file path (default: `..\surky.html` relative to `surky-build/`). |
@@ -846,9 +846,9 @@ Run from PowerShell inside `trimps/surky-build/`:
 
 ---
 
-## 🛡️ Upstream Protection (`updtrimps.ps1`)
+## 🛡️ Isolation From `trimps/` & Shared Storage
 
-When hosted inside the main Trimps repository, `updtrimps.ps1` synchronizes `trimps/` with upstream `Trimps.github.io` while explicitly preserving `trimps/surky.html`, `trimps/surky-manifest.json`, `trimps/surky-sw.js`, and the entire `trimps/surky-build/` directory alongside `trimps/sw.js` offline precaching.
+When hosted inside the main Trimps repository, `updtrimps.ps1` synchronizes `trimps/` with upstream `Trimps.github.io` while explicitly preserving `trimps/surky.html`, `trimps/surky-manifest.json`, `trimps/surky-sw.js`, and the entire `surky/surky-build/` directory alongside `trimps/sw.js` offline precaching.
   </script>
 
   <!-- Marked Parser from CDN -->
