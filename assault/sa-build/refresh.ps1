@@ -11,7 +11,9 @@
 .PARAMETER AssembleOnly
     Skips running build_data.py and immediately validates app.js and assembles index.html from existing data.json.
 .PARAMETER CleanCache
-    Removes the cached _sa.xlsx workbook after the build completes so the working tree stays clean.
+    Removes the temporary _sa.xlsx workbook after the build completes (enabled by default; retained for backwards compatibility).
+.PARAMETER KeepCache
+    Retains the downloaded _sa.xlsx workbook on disk after the build completes instead of removing it automatically.
 .PARAMETER VerboseSheets
     Streams per-level SA build counts in the live build stream.
 .PARAMETER Help
@@ -26,8 +28,8 @@
     .\refresh.ps1 -AssembleOnly
     Fast rebuild of index.html after editing shell.html or app.js without re-parsing the spreadsheet.
 .EXAMPLE
-    .\refresh.ps1 -Fresh -CleanCache
-    Downloads fresh sheet data, rebuilds index.html, and deletes the temporary _sa.xlsx cache file.
+    .\refresh.ps1 -Fresh -KeepCache
+    Downloads fresh sheet data, rebuilds index.html, and keeps _sa.xlsx cached locally instead of removing it.
 .EXAMPLE
     .\refresh.ps1 -Help
     Displays this help message.
@@ -37,6 +39,7 @@ param(
     [switch]$Fresh,
     [switch]$AssembleOnly,
     [switch]$CleanCache,
+    [switch]$KeepCache,
     [switch]$VerboseSheets,
     [switch]$Help
 )
@@ -309,6 +312,7 @@ Write-Host "╚$Bar╝" -ForegroundColor Cyan
 Write-Host ""
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+$ExitCode = 0
 
 try {
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
@@ -413,9 +417,10 @@ try {
         throw "assemble.py failed with exit code $LASTEXITCODE"
     }
 
-    if ($CleanCache -and (Test-Path -LiteralPath $CacheFile)) {
+    $ShouldCleanCache = (-not $KeepCache) -or $CleanCache
+    if ($ShouldCleanCache -and (Test-Path -LiteralPath $CacheFile)) {
         Remove-Item -LiteralPath $CacheFile -Force
-        Write-StreamLine "      Cleanup  : Removed temporary _sa.xlsx cache file" "Cyan"
+        Write-StreamLine "      Cleanup  : Removed temporary _sa.xlsx file" "Cyan"
     }
 
     Write-Host ("└" + ("─" * ($BoxWidth - 2)) + "┘") -ForegroundColor DarkCyan
@@ -533,5 +538,12 @@ try {
     Write-BoxRow "Details:" " $($_.ToString())" "DarkRed" "Red" "Red" $BoxWidth
     Write-Host "╚$ErrorBar╝" -ForegroundColor Red
     Write-Host ""
-    exit 1
+    $ExitCode = 1
+} finally {
+    if (((-not $KeepCache) -or $CleanCache) -and (Test-Path -LiteralPath $CacheFile)) {
+        Remove-Item -LiteralPath $CacheFile -Force -ErrorAction SilentlyContinue
+    }
+}
+if ($ExitCode -ne 0) {
+    exit $ExitCode
 }

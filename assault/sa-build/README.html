@@ -834,14 +834,14 @@ Run from PowerShell inside `assault/sa-build/`:
 # Fast build: Validates JavaScript syntax and compiles assault/index.html + PWA files (skips workbook download)
 .\refresh.ps1 -AssembleOnly
 
-# Standard build: Re-parses local cached _sa.xlsx and compiles index.html + PWA files
+# Standard build: Uses _sa.xlsx (if kept) or downloads workbook, compiles index.html + PWA files, and removes temporary _sa.xlsx
 .\refresh.ps1
 
-# Fresh build: Downloads the latest community Google Sheets workbook, re-parses data, and compiles index.html
+# Fresh build: Downloads latest Google Sheets workbook, compiles index.html, and removes temporary _sa.xlsx automatically
 .\refresh.ps1 -Fresh
 
-# Fresh build with cache cleanup: Downloads latest workbook, builds, and removes temporary _sa.xlsx
-.\refresh.ps1 -Fresh -CleanCache
+# Keep cached workbook: Rebuilds index.html and retains _sa.xlsx on disk
+.\refresh.ps1 -Fresh -KeepCache
 ```
 
 ### Script Parameters
@@ -850,7 +850,8 @@ Run from PowerShell inside `assault/sa-build/`:
 |---|---|---|
 | `-AssembleOnly` | Switch | Skips `build_data.py` and rapidly validates & compiles `assault/index.html` + PWA bundle from existing `data.json`. |
 | `-Fresh` | Switch | Forces a fresh download of the community Google Sheets workbook before rebuilding. |
-| `-CleanCache` | Switch | Removes the cached `_sa.xlsx` file after a successful build. |
+| `-KeepCache` | Switch | Keeps the downloaded `_sa.xlsx` file on disk after the build (default cleans it up automatically). |
+| `-CleanCache` | Switch | Removes the cached `_sa.xlsx` file after the build (default behavior; retained for backwards compatibility). |
 | `-VerboseSheets` | Switch | Streams detailed per-level build counts during extraction. |
 | `-Help` | Switch | Displays full parameter documentation and usage examples. |
 
