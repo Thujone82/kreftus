@@ -1,0 +1,32 @@
+{
+  "id": "/vbtc/LedgerAnalysis.html",
+  "name": "vBTC Ledger Analysis",
+  "short_name": "vBTC Ledger",
+  "description": "Local-first deep analysis dashboard for vBTC transaction ledgers: FIFO/LIFO/HIFO/AVG P/L, win rate, drawdown, activity patterns, continuity checks, and exports.",
+  "start_url": "./LedgerAnalysis.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#08090c",
+  "theme_color": "#08090c",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    {
+      "src": "./ledger-icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./ledger-icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./ledger-icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
