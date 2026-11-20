@@ -1,6 +1,6 @@
 // sw.js - Service Worker for Snake VS PWA
 
-const CACHE_NAME = 'snake-vs-cache-v1.5';
+const CACHE_NAME = 'snake-vs-cache-v1.6';
 const urlsToCache = [
   './', // Alias for index.html when served from subfolder
   './index.html',

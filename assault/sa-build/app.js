@@ -8293,17 +8293,23 @@ function renderPresetsModal() {
       }).then(function (reg) {
         swRegistrationRef = reg;
         if (reg.waiting && navigator.serviceWorker.controller) {
-          pendingSwUpdate = true;
-          syncPwaToolbarButtons();
+          if (!isInstalledPwa()) {
+            try { reg.waiting.postMessage({ type: "SKIP_WAITING" }); } catch (e) {}
+          } else {
+            pendingSwUpdate = true;
+            syncPwaToolbarButtons();
+          }
         }
         reg.addEventListener("updatefound", function () {
           var newWorker = reg.installing;
           if (!newWorker) return;
           newWorker.addEventListener("statechange", function () {
             if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-              pendingSwUpdate = true;
-              syncPwaToolbarButtons();
-              if (isInstalledPwa()) {
+              if (!isInstalledPwa()) {
+                try { newWorker.postMessage({ type: "SKIP_WAITING" }); } catch (e) {}
+              } else {
+                pendingSwUpdate = true;
+                syncPwaToolbarButtons();
                 toast("Update ready — click Check for updates in toolbar to reload.");
               }
             }

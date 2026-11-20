@@ -259,6 +259,7 @@ def main() -> int:
 const BUILD_HASH = "{build_hash}";
 const CACHE_NAME = "surky-pwa-" + BUILD_HASH;
 const APP_SHELL_URL = "{pwa_start_url}";
+const MANIFEST_URL = "{manifest_name}";
 const PRECACHE_URLS = {precache_json};
 
 self.addEventListener("install", function (event) {{
@@ -314,6 +315,23 @@ self.addEventListener("fetch", function (event) {{
 
   // Allow explicit update checks to bypass local cache directly to network
   if (request.cache === "no-store" || url.searchParams.has("__surky_update_check")) {{
+    return;
+  }}
+
+  // Always refresh manifest when online so PWA metadata/icons/id stay current, falling back to cache offline
+  if (url.pathname.endsWith("/" + MANIFEST_URL)) {{
+    event.respondWith(
+      caches.open(CACHE_NAME).then(function (cache) {{
+        return fetch(new Request(request, {{ cache: "no-cache" }})).then(function (networkResp) {{
+          if (networkResp && networkResp.ok) {{
+            cache.put(request, networkResp.clone());
+          }}
+          return networkResp;
+        }}).catch(function () {{
+          return cache.match(request, {{ ignoreSearch: true }});
+        }});
+      }})
+    );
     return;
   }}
 
