@@ -97,6 +97,7 @@ try {
     'index.html' = $true
     'manifest.json' = $true
     'sw.js' = $true
+    'surky.html' = $true
     'css\kreftus-local.css' = $true
     'css/kreftus-local.css' = $true
     'js\kreftus-local.js' = $true
