@@ -1,5 +1,5 @@
 // Local-First Service Worker for vBTC Ledger Analysis
-const CACHE_VERSION = '112026@0950'; // MMDDYY@HHmm from system clock (Get-Date -Format 'MMddyy@HHmm') — bump when shipping app updates
+const CACHE_VERSION = '112026@1748'; // MMDDYY@HHmm from system clock (Get-Date -Format 'MMddyy@HHmm') — bump when shipping app updates
 const CACHE_PREFIX = 'vbtc-ledger-pwa-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 const APP_SHELL_URL = './LedgerAnalysis.html';

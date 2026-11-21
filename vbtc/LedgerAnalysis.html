@@ -6,7 +6,7 @@
   <title>Ledger Analysis — vBTC</title>
   <meta name="description" content="Self-contained deep analysis dashboard for vBTC transaction ledgers: FIFO P/L, win rate, drawdown, activity patterns, continuity checks and exports.">
   <meta name="theme-color" content="#08090c">
-  <meta name="vbtc-ledger-build" content="112026@0950">
+  <meta name="vbtc-ledger-build" content="112026@1748">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -219,14 +219,8 @@
       background: var(--accent);
       border-color: var(--accent);
     }
-    #btnCheckUpdates { position: relative; }
-    #btnCheckUpdates.is-checking svg { animation: spin 0.85s linear infinite; }
-    #btnCheckUpdates.has-update {
-      border-color: rgba(247, 147, 26, 0.65);
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-    #btnCheckUpdates.has-update::after {
+    #btnHelp { position: relative; }
+    #btnHelp.has-update::after {
       content: "";
       position: absolute;
       top: 4px;
@@ -237,6 +231,31 @@
       background: var(--accent);
       box-shadow: 0 0 0 2px var(--surface-solid);
       animation: pulse 1.2s infinite;
+    }
+    .pwa-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+    }
+    .pwa-bar-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .pwa-bar-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; font-weight: 650; color: var(--text); }
+    .pwa-feedback { font-size: 12px; font-family: var(--mono); color: var(--muted); line-height: 1.35; }
+    .pwa-feedback.ok { color: var(--buy); }
+    .pwa-feedback.warn { color: var(--warn); }
+    .pwa-feedback.accent { color: var(--accent); }
+    #btnCheckUpdates { flex: none; gap: 6px; }
+    #btnCheckUpdates svg { width: 14px; height: 14px; flex: none; }
+    #btnCheckUpdates.is-checking svg { animation: spin 0.85s linear infinite; }
+    #btnCheckUpdates.has-update {
+      border-color: rgba(247, 147, 26, 0.65);
+      background: var(--accent-soft);
+      color: var(--accent);
     }
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
@@ -558,7 +577,7 @@
       .brand-text small, #sourceStatus { display: none; }
     }
     @media (max-width: 680px) {
-      #btnInstallPwa .lbl, #btnCheckUpdates .lbl { display: none; }
+      #btnInstallPwa .lbl { display: none; }
     }
     @media (max-width: 560px) {
       .bar { padding-left: 12px; padding-right: 12px; }
@@ -611,10 +630,6 @@
         <button type="button" class="icon-btn hidden" id="btnInstallPwa" title="Install Ledger Analysis as a local-first PWA">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polyline points="8 9 12 13 16 9"/><line x1="12" y1="5" x2="12" y2="13"/></svg>
           <span class="lbl">Install</span>
-        </button>
-        <button type="button" class="icon-btn hidden" id="btnCheckUpdates" title="Check for Ledger Analysis updates">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          <span class="lbl" id="updateBtnLbl">Check for updates</span>
         </button>
         <button type="button" class="icon-btn" id="btnTz" title="Toggle UTC / local time (U)"><span class="lbl" id="tzLabel">LOCAL</span></button>
         <button type="button" class="icon-btn" id="btnTheme" title="Toggle theme (T)">
@@ -1009,6 +1024,20 @@
   <dialog id="helpDlg">
     <div class="dlg-h"><h2>Shortcuts &amp; glossary</h2><button type="button" class="icon-btn" style="margin-left:auto" id="btnCloseHelp" title="Close">✕</button></div>
     <div class="dlg-b">
+      <div class="pwa-bar" id="pwaHelpBar">
+        <div class="pwa-bar-info">
+          <div class="pwa-bar-title">
+            <span>Ledger Analysis</span>
+            <span class="pill sm faint" id="pwaVersionBadge">build 112026@1748</span>
+            <span class="pill sm faint" id="pwaModeBadge">Web app</span>
+          </div>
+          <div class="pwa-feedback" id="pwaUpdateFeedback">Local-first build 112026@1748</div>
+        </div>
+        <button type="button" class="btn sm" id="btnCheckUpdates" title="Check for Ledger Analysis updates">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span id="updateBtnLbl">Check for updates</span>
+        </button>
+      </div>
       <div>
         <h4>Keyboard</h4>
         <div class="keys">
@@ -1042,7 +1071,7 @@
           <dt>Hold time</dt><dd>BTC-weighted age of the buy lots consumed by a sell.</dd>
           <dt>Unmatched sell</dt><dd>BTC sold with no prior buy in the loaded data (e.g. missing history); excluded from P/L.</dd>
           <dt>Continuity gap</dt><dd>User BTC differs from previous User BTC ± trade BTC by more than 2 satoshis.</dd>
-          <dt>Local-first PWA</dt><dd>Install via <b>Install</b> (or browser menu) to launch standalone from local cache with zero network wait. When running as an installed PWA, use <b>Check for updates</b> in the toolbar to pull new versions on demand.</dd>
+          <dt>Local-first PWA</dt><dd>Install via <b>Install</b> (or browser menu) to launch standalone from local cache with zero network wait. Use <b>Check for updates</b> at the top of this <b>?</b> menu to view build status and pull new versions on demand.</dd>
         </dl>
       </div>
     </div>
@@ -4793,7 +4822,7 @@
   $('#btnLive').addEventListener('click', () => toggleLive());
   $('#btnTheme').addEventListener('click', () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark'));
   $('#btnTz').addEventListener('click', () => applyTz(!TZ.utc));
-  $('#btnHelp').addEventListener('click', () => $('#helpDlg').showModal());
+  $('#btnHelp').addEventListener('click', openHelpDlg);
   $('#btnCloseHelp').addEventListener('click', () => $('#helpDlg').close());
   $('#helpDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
@@ -5121,7 +5150,7 @@
     }
     else if ((e.key === 'r' || e.key === 'R') && (state.dirHandle || (state.files && state.files.length))) rescan();
     else if ((e.key === 'v' || e.key === 'V') && loaded) toggleLive();
-    else if (e.key === '?') $('#helpDlg').showModal();
+    else if (e.key === '?') openHelpDlg();
     else if (e.key === '/' && loaded) { e.preventDefault(); setTab('trades'); setTimeout(() => $('#tblSearch').focus(), 30); }
     else if (loaded && prefs.tab === 'trades' && (e.key === 'j' || e.key === 'ArrowDown')) { e.preventDefault(); stepRow(1); }
     else if (loaded && prefs.tab === 'trades' && (e.key === 'k' || e.key === 'ArrowUp')) { e.preventDefault(); stepRow(-1); }
@@ -5140,6 +5169,15 @@
   let pendingSwUpdate = false;
   let isCheckingUpdates = false;
   let swRegistrationRef = null;
+  let lastUpdateFeedback = { text: '', tone: '' };
+
+  function setUpdateFeedback(text, tone) {
+    lastUpdateFeedback = { text: text || '', tone: tone || '' };
+    const el = $('#pwaUpdateFeedback');
+    if (!el) return;
+    el.textContent = lastUpdateFeedback.text;
+    el.className = 'pwa-feedback' + (lastUpdateFeedback.tone ? ' ' + lastUpdateFeedback.tone : '');
+  }
 
   function getBuildStamp() {
     try {
@@ -5174,17 +5212,37 @@
 
   function syncPwaToolbarButtons() {
     const pwa = isInstalledPwa();
+    const isHttp = !!(window.location && /^https?:$/i.test(window.location.protocol));
+    const build = getBuildStamp();
     const btnInstall = $('#btnInstallPwa');
     const btnUpdate = $('#btnCheckUpdates');
+    const btnHelp = $('#btnHelp');
     const updLbl = $('#updateBtnLbl');
+    const verBadge = $('#pwaVersionBadge');
+    const modeBadge = $('#pwaModeBadge');
+    const fbEl = $('#pwaUpdateFeedback');
 
     if (btnInstall) {
       const canInstall = !pwa && !!(deferredInstallPrompt || isIosSafari());
       btnInstall.classList.toggle('hidden', !canInstall);
     }
 
+    if (verBadge) verBadge.textContent = 'build ' + build;
+    if (modeBadge) {
+      if (!isHttp) {
+        modeBadge.textContent = 'Local file';
+        modeBadge.className = 'pill sm faint';
+      } else if (pwa) {
+        modeBadge.textContent = 'Installed PWA';
+        modeBadge.className = 'pill sm accent';
+      } else {
+        modeBadge.textContent = 'Web app';
+        modeBadge.className = 'pill sm faint';
+      }
+    }
+
     if (btnUpdate) {
-      btnUpdate.classList.toggle('hidden', !pwa);
+      btnUpdate.classList.toggle('hidden', !isHttp);
       btnUpdate.classList.toggle('has-update', !!pendingSwUpdate && !isCheckingUpdates);
       if (updLbl && !isCheckingUpdates) {
         updLbl.textContent = pendingSwUpdate ? 'Update ready' : 'Check for updates';
@@ -5192,13 +5250,55 @@
       if (!isCheckingUpdates) {
         btnUpdate.title = pendingSwUpdate
           ? 'New Ledger Analysis version downloaded — click to reload now'
-          : 'Check for updates (build ' + getBuildStamp() + ')';
+          : 'Check for updates (build ' + build + ')';
+      }
+    }
+
+    if (btnHelp) {
+      const showBadge = pwa && !!pendingSwUpdate;
+      btnHelp.classList.toggle('has-update', showBadge);
+      btnHelp.title = showBadge
+        ? 'Shortcuts, glossary & updates (?) — Update ready'
+        : 'Shortcuts & glossary (?)';
+    }
+
+    if (fbEl) {
+      if (lastUpdateFeedback.text) {
+        fbEl.textContent = lastUpdateFeedback.text;
+        fbEl.className = 'pwa-feedback' + (lastUpdateFeedback.tone ? ' ' + lastUpdateFeedback.tone : '');
+      } else if (pendingSwUpdate) {
+        fbEl.textContent = 'New build ready — click Update ready to reload';
+        fbEl.className = 'pwa-feedback accent';
+      } else if (!isHttp) {
+        fbEl.textContent = 'Opened as local file · build ' + build;
+        fbEl.className = 'pwa-feedback';
+      } else {
+        fbEl.textContent = 'Build ' + build + (pwa ? ' · Local-first cache active' : ' · Ready to check for updates');
+        fbEl.className = 'pwa-feedback';
       }
     }
 
     const brand = $('.brand');
     if (brand) {
       brand.title = pwa ? 'Ledger Analysis (local-first PWA)' : 'Back to vBTC hub';
+    }
+  }
+
+  function openHelpDlg() {
+    syncPwaToolbarButtons();
+    $('#helpDlg').showModal();
+    if (!lastUpdateFeedback.text && !isCheckingUpdates && !pendingSwUpdate) {
+      getActiveSwInfo().then(info => {
+        if (!info || !info.version || lastUpdateFeedback.text || isCheckingUpdates || pendingSwUpdate) return;
+        const fbEl = $('#pwaUpdateFeedback');
+        if (!fbEl) return;
+        const build = getBuildStamp();
+        const mismatch = info.version !== build;
+        fbEl.textContent = mismatch
+          ? 'Cached SW ' + info.version + ' · Page ' + build
+          : 'Build ' + build + ' · Service worker active (' + info.version + ')';
+        fbEl.className = 'pwa-feedback' + (mismatch ? ' warn' : '');
+      });
     }
   }
 
@@ -5248,6 +5348,7 @@
         reloadOnce();
       });
     }
+    setUpdateFeedback('Applying new build — reloading…', 'accent');
     toast('Applying Ledger Analysis update — reloading…', 'warn');
     try {
       worker.postMessage({ type: 'SKIP_WAITING' });
@@ -5309,6 +5410,7 @@
       btnUpdate.disabled = true;
     }
     if (updLbl) updLbl.textContent = 'Checking…';
+    setUpdateFeedback('Checking server for newer build…', 'accent');
 
     const localBuild = getBuildStamp();
 
@@ -5389,6 +5491,8 @@
             if (mr && mr.ok) await cache.put(mUrl.href, mr);
           } catch (_) {}
           pendingSwUpdate = false;
+          const verMsg = remoteBuild && remoteBuild !== localBuild ? (localBuild + ' → ' + remoteBuild) : (remoteBuild || 'new build');
+          setUpdateFeedback('Update downloaded (' + verMsg + ') — reloading…', 'ok');
           toast('Update downloaded' + (remoteBuild ? ' (build ' + remoteBuild + ')' : '') + ' — reloading…', 'ok');
           setTimeout(() => { window.location.reload(); }, 450);
           return;
@@ -5401,8 +5505,11 @@
       }
 
       pendingSwUpdate = false;
+      const checkedAt = fmtTime(Date.now());
+      setUpdateFeedback('✓ Up to date · build ' + localBuild + ' (checked ' + checkedAt + ')', 'ok');
       toast('Ledger Analysis is up to date (build ' + localBuild + ').', 'ok');
     } catch (_) {
+      setUpdateFeedback('Offline — running cached build ' + localBuild, 'warn');
       toast('Offline — running local cached Ledger Analysis (build ' + localBuild + ').', 'warn');
     } finally {
       isCheckingUpdates = false;
@@ -5471,8 +5578,9 @@
             try { worker.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
           } else {
             pendingSwUpdate = true;
+            setUpdateFeedback('New build ready — click Update ready to reload', 'accent');
             syncPwaToolbarButtons();
-            toast('Update ready — click Check for updates in toolbar to reload.', 'info', 6000);
+            toast('Update ready — open ? menu and click Check for updates to reload.', 'info', 6000);
           }
         };
         if (reg.waiting && navigator.serviceWorker.controller) {
