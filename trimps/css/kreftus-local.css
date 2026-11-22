@@ -1430,6 +1430,8 @@ li.tabNotEnabled:hover {
   width: auto !important;
   flex: 0 0 auto !important;
   padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
 }
 
 #equipmentTitleSpan,
@@ -1472,14 +1474,14 @@ li.tabNotEnabled:hover {
 #autoUpgradeBtn,
 #jobsTitleDiv #fireBtn {
   font-size: clamp(9px, 0.78vw, 11.5px) !important;
+  height: 28px !important;
   min-height: 28px !important;
   line-height: 26px !important;
   padding: 0 7px !important;
   white-space: nowrap !important;
-}
-
-#jobsTitleDiv #fireBtn {
-  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 #buildingsTitleDiv .toggleConfigBtn,
@@ -1493,6 +1495,8 @@ li.tabNotEnabled:hover {
   height: 28px !important;
   min-height: 28px !important;
   padding: 0 !important;
+  display: flex !important;
+  align-items: stretch !important;
 }
 
 #buildingsTitleDiv .toggleConfigBtn div:first-child,
