@@ -614,12 +614,11 @@ body.mode-tui {
 }
 
 .challenge-board-wrap {
-  max-height: 300px;
-  overflow-y: auto;
+  overflow-x: auto;
   border: 1.5px solid var(--frame);
   border-radius: 10px;
   background: var(--empty-bg);
-  padding: 6px 8px;
+  padding: 4px 8px;
 }
 
 .challenge-board-table {
@@ -633,12 +632,12 @@ body.mode-tui {
   color: var(--dim);
   font-size: 0.78rem;
   font-weight: 700;
-  padding: 4px 6px;
+  padding: 3px 6px;
   border-bottom: 1px solid var(--frame);
 }
 
 .challenge-board-table td {
-  padding: 5px 6px;
+  padding: 4px 6px;
   color: var(--fg);
   border-bottom: 1px solid rgba(128, 128, 128, 0.14);
 }

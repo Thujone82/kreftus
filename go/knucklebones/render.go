@@ -525,6 +525,9 @@ func (g *game) drawNetwork() {
 		bw = w - 2
 	}
 	bh := h - 6
+	if g.netChallenge && h >= 24 {
+		bh = h - 3
+	}
 	if bh < 16 {
 		bh = 16
 	}
