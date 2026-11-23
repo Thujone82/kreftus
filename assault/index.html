@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="sa-build" content="36cdc76c98c7">
+  <meta name="sa-build" content="892bbadc9352">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13459,7 +13459,29 @@ var ONE_TIMER_MILESTONES = [
     var listEl = $("spStepList");
     var resetBtn = $("spResetOrderBtn");
 
+    function scrollRoadmapToLastCompleted() {
+      var curList = $("spStepList") || listEl;
+      if (!curList) return;
+      var doneItems = curList.querySelectorAll(".sp-item.completed");
+      if (!doneItems || !doneItems.length) return;
+      var lastDone = doneItems[doneItems.length - 1];
+      requestAnimationFrame(function () {
+        if (!curList.offsetParent) return;
+        var listRect = curList.getBoundingClientRect();
+        var itemRect = lastDone.getBoundingClientRect();
+        var targetTop = (itemRect.top - listRect.top) + curList.scrollTop;
+        curList.scrollTop = Math.max(0, Math.round(targetTop));
+      });
+    }
+
     if (wrap) {
+      wrap.addEventListener("mouseenter", function () {
+        scrollRoadmapToLastCompleted();
+      });
+      wrap.addEventListener("focusin", function (ev) {
+        if (ev && ev.relatedTarget && wrap.contains(ev.relatedTarget)) return;
+        scrollRoadmapToLastCompleted();
+      });
       wrap.addEventListener("mouseleave", function () {
         if (state.keepPopoverOpen) {
           state.keepPopoverOpen = false;
@@ -13479,6 +13501,7 @@ var ONE_TIMER_MILESTONES = [
           } else {
             wrap.classList.add("open");
             state.keepPopoverOpen = true;
+            scrollRoadmapToLastCompleted();
           }
         });
       }
@@ -13491,6 +13514,9 @@ var ONE_TIMER_MILESTONES = [
             state.keepPopoverOpen = false;
           }
         });
+      }
+      if (wrap.classList.contains("open") || state.keepPopoverOpen) {
+        scrollRoadmapToLastCompleted();
       }
     }
 

@@ -5276,7 +5276,29 @@ var ONE_TIMER_MILESTONES = [
     var listEl = $("spStepList");
     var resetBtn = $("spResetOrderBtn");
 
+    function scrollRoadmapToLastCompleted() {
+      var curList = $("spStepList") || listEl;
+      if (!curList) return;
+      var doneItems = curList.querySelectorAll(".sp-item.completed");
+      if (!doneItems || !doneItems.length) return;
+      var lastDone = doneItems[doneItems.length - 1];
+      requestAnimationFrame(function () {
+        if (!curList.offsetParent) return;
+        var listRect = curList.getBoundingClientRect();
+        var itemRect = lastDone.getBoundingClientRect();
+        var targetTop = (itemRect.top - listRect.top) + curList.scrollTop;
+        curList.scrollTop = Math.max(0, Math.round(targetTop));
+      });
+    }
+
     if (wrap) {
+      wrap.addEventListener("mouseenter", function () {
+        scrollRoadmapToLastCompleted();
+      });
+      wrap.addEventListener("focusin", function (ev) {
+        if (ev && ev.relatedTarget && wrap.contains(ev.relatedTarget)) return;
+        scrollRoadmapToLastCompleted();
+      });
       wrap.addEventListener("mouseleave", function () {
         if (state.keepPopoverOpen) {
           state.keepPopoverOpen = false;
@@ -5296,6 +5318,7 @@ var ONE_TIMER_MILESTONES = [
           } else {
             wrap.classList.add("open");
             state.keepPopoverOpen = true;
+            scrollRoadmapToLastCompleted();
           }
         });
       }
@@ -5308,6 +5331,9 @@ var ONE_TIMER_MILESTONES = [
             state.keepPopoverOpen = false;
           }
         });
+      }
+      if (wrap.classList.contains("open") || state.keepPopoverOpen) {
+        scrollRoadmapToLastCompleted();
       }
     }
 
