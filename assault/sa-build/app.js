@@ -8613,6 +8613,7 @@ function renderPresetsModal() {
   }
 
   function openHelpDlg() {
+    updateFooterDbMeta();
     syncPwaToolbarButtons();
     if ($("helpDlg") && typeof $("helpDlg").showModal === "function") {
       $("helpDlg").showModal();
@@ -9303,19 +9304,47 @@ function renderPresetsModal() {
   }
 
   function updateFooterDbMeta() {
-    var el = $("footerDbMeta");
-    if (!el || typeof SA_DATA === "undefined") return;
+    if (typeof SA_DATA === "undefined") return;
     var count = SA_DATA.totalBuilds;
     if (!count && SA_DATA.builds) {
       count = 0;
       for (var k in SA_DATA.builds) count += (SA_DATA.builds[k] || []).length;
     }
     var lvls = SA_DATA.levelCount || (SA_DATA.builds ? Object.keys(SA_DATA.builds).length : 0);
+    var farmCount = Array.isArray(SA_DATA.farmLevels) ? SA_DATA.farmLevels.length : 0;
+    var itemCount = Array.isArray(SA_DATA.itemOrder) ? SA_DATA.itemOrder.length : (SA_DATA.items ? Object.keys(SA_DATA.items).length : 0);
     var syncDate = SA_DATA.lastSynced || "";
+    var sheetUrl = SA_DATA.sheet || "https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs";
     var countTxt = count ? (count.toLocaleString ? count.toLocaleString() : count) : "3,582";
-    var lvlTxt = lvls ? (" across " + lvls + " levels") : "";
-    var syncTxt = syncDate ? (" · Last synced " + syncDate) : "";
-    el.textContent = " · " + countTxt + " builds" + lvlTxt + syncTxt;
+
+    var el = $("footerDbMeta");
+    if (el) {
+      var lvlTxt = lvls ? (" across " + lvls + " levels") : "";
+      var syncTxt = syncDate ? (" · Last synced " + syncDate) : "";
+      el.textContent = " · " + countTxt + " builds" + lvlTxt + syncTxt;
+    }
+
+    var sheetMetaEl = $("pwaSheetMeta");
+    if (sheetMetaEl) {
+      var parts = [
+        "<a href='" + esc(sheetUrl) + "' target='_blank' rel='noopener'>Community Sheet ↗</a>",
+        "<span>·</span>",
+        "<span><span class='mono'>" + esc(String(countTxt)) + "</span> builds</span>"
+      ];
+      if (lvls) {
+        parts.push("<span>·</span>");
+        parts.push("<span><span class='mono'>" + esc(String(lvls)) + "</span> levels" + (farmCount ? (" (" + esc(String(farmCount)) + " farm)") : "") + "</span>");
+      }
+      if (itemCount) {
+        parts.push("<span>·</span>");
+        parts.push("<span><span class='mono'>" + esc(String(itemCount)) + "</span> items</span>");
+      }
+      if (syncDate) {
+        parts.push("<span>·</span>");
+        parts.push("<span>Last refreshed <span class='mono'>" + esc(syncDate) + "</span></span>");
+      }
+      sheetMetaEl.innerHTML = parts.join(" ");
+    }
   }
 
   window.saLoad = onLoad;

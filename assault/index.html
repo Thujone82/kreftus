@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="sa-build" content="b037a2617791">
+  <meta name="sa-build" content="96444ae356b2">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -370,6 +370,26 @@
     .pwa-feedback.ok { color: var(--buy); }
     .pwa-feedback.warn { color: var(--warn); }
     .pwa-feedback.accent { color: var(--accent); }
+    .pwa-sheet-meta {
+      width: 100%;
+      margin-top: 2px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 11.5px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      line-height: 1.4;
+    }
+    .pwa-sheet-meta a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .pwa-sheet-meta a:hover { text-decoration: underline; }
+    .pwa-sheet-meta .mono { color: var(--text); font-weight: 600; }
     #btnCheckUpdates { flex: none; gap: 6px; }
     #btnCheckUpdates svg { width: 14px; height: 14px; flex: none; }
     #btnCheckUpdates.is-checking svg { animation: sa-spin 0.85s linear infinite; }
@@ -3565,6 +3585,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           <span id="saUpdateBtnLbl">Check for updates</span>
         </button>
+        <div class="pwa-sheet-meta" id="pwaSheetMeta"></div>
       </div>
       <div>
         <h4>Keyboard Shortcuts</h4>
@@ -16775,6 +16796,7 @@ function renderPresetsModal() {
   }
 
   function openHelpDlg() {
+    updateFooterDbMeta();
     syncPwaToolbarButtons();
     if ($("helpDlg") && typeof $("helpDlg").showModal === "function") {
       $("helpDlg").showModal();
@@ -17465,19 +17487,47 @@ function renderPresetsModal() {
   }
 
   function updateFooterDbMeta() {
-    var el = $("footerDbMeta");
-    if (!el || typeof SA_DATA === "undefined") return;
+    if (typeof SA_DATA === "undefined") return;
     var count = SA_DATA.totalBuilds;
     if (!count && SA_DATA.builds) {
       count = 0;
       for (var k in SA_DATA.builds) count += (SA_DATA.builds[k] || []).length;
     }
     var lvls = SA_DATA.levelCount || (SA_DATA.builds ? Object.keys(SA_DATA.builds).length : 0);
+    var farmCount = Array.isArray(SA_DATA.farmLevels) ? SA_DATA.farmLevels.length : 0;
+    var itemCount = Array.isArray(SA_DATA.itemOrder) ? SA_DATA.itemOrder.length : (SA_DATA.items ? Object.keys(SA_DATA.items).length : 0);
     var syncDate = SA_DATA.lastSynced || "";
+    var sheetUrl = SA_DATA.sheet || "https://docs.google.com/spreadsheets/d/17Z3dwnkeAmY2La-LWreybTs4Sm7BAck79EzVF_gkZzs";
     var countTxt = count ? (count.toLocaleString ? count.toLocaleString() : count) : "3,582";
-    var lvlTxt = lvls ? (" across " + lvls + " levels") : "";
-    var syncTxt = syncDate ? (" · Last synced " + syncDate) : "";
-    el.textContent = " · " + countTxt + " builds" + lvlTxt + syncTxt;
+
+    var el = $("footerDbMeta");
+    if (el) {
+      var lvlTxt = lvls ? (" across " + lvls + " levels") : "";
+      var syncTxt = syncDate ? (" · Last synced " + syncDate) : "";
+      el.textContent = " · " + countTxt + " builds" + lvlTxt + syncTxt;
+    }
+
+    var sheetMetaEl = $("pwaSheetMeta");
+    if (sheetMetaEl) {
+      var parts = [
+        "<a href='" + esc(sheetUrl) + "' target='_blank' rel='noopener'>Community Sheet ↗</a>",
+        "<span>·</span>",
+        "<span><span class='mono'>" + esc(String(countTxt)) + "</span> builds</span>"
+      ];
+      if (lvls) {
+        parts.push("<span>·</span>");
+        parts.push("<span><span class='mono'>" + esc(String(lvls)) + "</span> levels" + (farmCount ? (" (" + esc(String(farmCount)) + " farm)") : "") + "</span>");
+      }
+      if (itemCount) {
+        parts.push("<span>·</span>");
+        parts.push("<span><span class='mono'>" + esc(String(itemCount)) + "</span> items</span>");
+      }
+      if (syncDate) {
+        parts.push("<span>·</span>");
+        parts.push("<span>Last refreshed <span class='mono'>" + esc(syncDate) + "</span></span>");
+      }
+      sheetMetaEl.innerHTML = parts.join(" ");
+    }
   }
 
   window.saLoad = onLoad;
