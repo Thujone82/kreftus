@@ -1040,12 +1040,94 @@
       color: var(--muted);
     }
     .dp-note b { color: var(--text); }
+    .dp-note.warn {
+      background: var(--warn-soft);
+      border-color: rgba(245, 158, 11, 0.28);
+      color: var(--warn);
+    }
+    .dp-note.warn b { color: var(--warn); }
+    .dp-bar {
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin-top: 6px;
+      width: 100%;
+    }
+    .dp-bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--accent);
+      transition: width 0.25s ease;
+    }
     .dp-foot {
       margin-top: 7px;
       padding-top: 6px;
       border-top: 1px solid var(--border);
       font-size: 10.5px;
       color: var(--muted);
+    }
+
+    /* ---------- KPI Hover Popover (Enemy Level, etc.) ---------- */
+    .kpi.kpi-has-popover {
+      overflow: visible;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .kpi.kpi-has-popover:hover,
+    .kpi.kpi-has-popover:focus-within {
+      z-index: 90;
+      border-color: rgba(247, 147, 26, 0.45);
+      box-shadow: 0 0 0 2px rgba(247, 147, 26, 0.10), var(--shadow);
+    }
+    .kpi-popover {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: auto;
+      top: calc(100% + 7px);
+      z-index: 95;
+      width: 356px;
+      max-width: calc(100vw - 24px);
+      background: var(--tip-bg);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 11px 13px;
+      box-shadow: 0 18px 42px -10px rgba(0, 0, 0, 0.78);
+      font-family: var(--font);
+      font-size: 11.5px;
+      line-height: 1.42;
+      pointer-events: auto;
+      text-align: left;
+      white-space: normal;
+      cursor: default;
+    }
+    .kpi-popover:empty { display: none !important; }
+    .kpi-popover::before {
+      content: '';
+      position: absolute;
+      top: -5px;
+      left: 28px;
+      width: 8px;
+      height: 8px;
+      transform: rotate(45deg);
+      background: var(--tip-bg);
+      border-left: 1px solid var(--border-strong);
+      border-top: 1px solid var(--border-strong);
+    }
+    .kpi-popover::after {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 0;
+      right: 0;
+      height: 10px;
+    }
+    .kpi.kpi-has-popover:hover .kpi-popover,
+    .kpi.kpi-has-popover:focus-within .kpi-popover {
+      display: block;
+      animation: fadein 0.12s ease;
     }
     .top-loaded-fact {
       font-size: 11.5px; padding: 4px 9px;

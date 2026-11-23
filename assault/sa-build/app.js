@@ -2775,6 +2775,93 @@ var ONE_TIMER_MILESTONES = [
       '</div>';
   }
 
+  function buildEnemyLevelPopoverHtml(diag, bnk) {
+    if (!diag) return "";
+    function row(lbl, val, cls) {
+      return "<div class='dp-row'>" +
+        "<span class='dp-lbl'>" + lbl + "</span>" +
+        "<span class='dp-val" + (cls ? (" " + cls) : "") + "'>" + val + "</span>" +
+      "</div>";
+    }
+
+    var badgeCls = "sim";
+    var badgeTxt = "Farming";
+    if (diag.isPushing) {
+      badgeCls = "override";
+      badgeTxt = "Pushing";
+    } else if (diag.isMax) {
+      badgeCls = "sim";
+      badgeTxt = "Max Cleared";
+    } else if (diag.isPractice) {
+      badgeCls = "warn";
+      badgeTxt = "Practice";
+    }
+
+    var enemyLvlType = diag.enemyLevel ? (isFarmLevel(diag.enemyLevel) ? "Farm Level" : "Push Level") : "";
+    var html = "<div class='dp-head'>" +
+      "<span class='dp-title'>Enemy Level · SA " + esc(diag.enemyLevel || "—") + "</span>" +
+      "<span class='dp-badge " + badgeCls + "'>" + badgeTxt + "</span>" +
+    "</div>";
+
+    if (diag.isPushing) {
+      var killsEarned = (diag.secPerKill && diag.secPerKill > 0 && bnk && bnk.elapsedSec > 0)
+        ? Math.min(diag.remainingKills, Math.floor(bnk.elapsedSec / diag.secPerKill))
+        : 0;
+      var curRemaining = Math.max(0, diag.remainingKills - killsEarned);
+      var curKills = diag.curKills + killsEarned;
+      var curPct = diag.neededKills > 0 ? Math.min(100, (curKills / diag.neededKills) * 100) : 0;
+      var curEtaSec = Math.max(0, (diag.etaSec || 0) - ((bnk && bnk.elapsedSec) || 0));
+      var etaDuration = curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear";
+      var etaClock = curEtaSec > 0 ? fmtLocalEta(curEtaSec) : "";
+
+      html += "<div class='dp-eq'>" +
+        "<div class='dp-eq-main'><b>" + prettify(curKills) + "</b> / <b>" + prettify(diag.neededKills) + "</b> kills (<b class='dp-val-accent'>" + curPct.toFixed(1) + "%</b>)</div>" +
+        "<div class='dp-eq-sub'><b>" + prettify(curRemaining) + "</b> remaining · " + esc(etaDuration) + (etaClock ? (" <span style='opacity:0.75;'>(ETA " + esc(etaClock) + ")</span>") : "") + "</div>" +
+        "<div class='dp-bar'><span style='width:" + Math.max(2, curPct).toFixed(1) + "%;'></span></div>" +
+      "</div>";
+
+      html += "<div class='dp-section'><div class='dp-sec-lbl'>Level Progress</div>";
+      if (enemyLvlType) html += row("Level Type", enemyLvlType);
+      if (killsEarned > 0) html += row("Est. Kills Since Load", "+" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)", "dp-val-buy");
+      if (diag.secPerKill && isFinite(diag.secPerKill)) {
+        var spdSrc = diag.buildName ? esc(diag.buildName) : "Simulated";
+        html += row("Kill Speed", "~" + diag.secPerKill.toFixed(1) + "s / kill <span class='dp-sub-lbl'>(" + spdSrc + ")</span>");
+      }
+      html += row("Est. Completion", esc(etaDuration) + (etaClock ? (" · " + esc(etaClock)) : ""), "dp-val-accent");
+      html += row("AutoLevel", diag.autoLevel ? "ON · Auto-advances" : ("OFF · Stays on SA " + diag.enemyLevel), diag.autoLevel ? "dp-val-buy" : "dp-val-warn");
+      html += "</div>";
+    } else {
+      html += "<div class='dp-eq'>" +
+        "<div class='dp-eq-main'>" + esc(diag.modeLabel) + "</div>" +
+        "<div class='dp-eq-sub'>Highest Unlocked: <b>SA " + esc(diag.maxEnemyLevel || "—") + "</b>" + (enemyLvlType ? (" · " + enemyLvlType) : "") + "</div>" +
+      "</div>";
+
+      html += "<div class='dp-section'><div class='dp-sec-lbl'>Level Status</div>";
+      html += row("Highest Unlocked", "SA " + esc(diag.maxEnemyLevel || "—"));
+      html += row("AutoLevel", diag.autoLevel ? "ON · Auto-advances" : "OFF · Manual advance", diag.autoLevel ? "dp-val-buy" : "dp-val-warn");
+      html += "</div>";
+    }
+
+    if (!diag.autoLevel && diag.isPushing) {
+      html += "<div class='dp-note warn'><b>AutoLevel is OFF</b> in Trimps — Huffy will not advance to SA " + ((diag.enemyLevel || 0) + 1) + " automatically once cleared.</div>";
+    }
+
+    html += "<div class='dp-section'><div class='dp-sec-lbl'>Combat Statistics</div>";
+    if (diag.sessionTotal > 0) {
+      var wrNum = (diag.sessionKills / diag.sessionTotal) * 100;
+      var wrCls = wrNum >= 95 ? "dp-val-buy" : (wrNum < 50 ? "dp-val-warn" : "");
+      html += row("Session Win Rate", esc(diag.winRateStr) + " (" + prettify(diag.sessionKills) + "W / " + prettify(diag.sessionDeaths) + "L)", wrCls);
+    }
+    html += row("All-Time Slain", prettify(diag.totalKillsAllTime));
+    if (diag.totalKillsPortal > 0) {
+      html += row("Kills This Portal", prettify(diag.totalKillsPortal));
+    }
+    html += "</div>";
+
+    html += "<div class='dp-foot'>Click card to inspect Presets, Settings &amp; Diagnostics.</div>";
+    return html;
+  }
+
   function renderChips(rec, rate) {
     var ab = state.ab;
     var bnk = bank();
@@ -2812,13 +2899,14 @@ var ONE_TIMER_MILESTONES = [
     var autoLevelPill = '';
     if (state.save) {
       autoLevelPill = !audit.autoLevel
-        ? '<span class="pill sm warn-pill" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;" title="Trimps setting \'AutoLevel\' is OFF. Huffy will NOT automatically advance to the next level when current kill requirement is met.">' + ICONS.warn + 'AutoLevel OFF</span>'
-        : '<span class="pill sm buy" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;" title="Trimps setting \'AutoLevel\' is ON (Auto-advances when cleared)">' + ICONS.check + 'AutoLevel ON</span>';
+        ? '<span class="pill sm warn-pill" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;">' + ICONS.warn + 'AutoLevel OFF</span>'
+        : '<span class="pill sm buy" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;">' + ICONS.check + 'AutoLevel ON</span>';
     }
     var enemyVal = 'SA ' + (diag.enemyLevel || '—');
     var enemyNote = '';
     var enemyTone = 'tone-accent';
     var enemyKpiHtml = '';
+    var enemyPopoverHtml = buildEnemyLevelPopoverHtml(diag, bnk);
 
     if (diag.isPushing) {
       var killsEarned = (diag.secPerKill && diag.secPerKill > 0 && bnk.elapsedSec > 0)
@@ -2830,36 +2918,18 @@ var ONE_TIMER_MILESTONES = [
       var curEtaSec = Math.max(0, (diag.etaSec || 0) - bnk.elapsedSec);
 
       var etaDuration = curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear";
-      var etaClock = curEtaSec > 0 ? fmtLocalEta(curEtaSec) : "";
-      var etaCombined = etaDuration + (etaClock ? " (ETA " + etaClock + ")" : "");
 
-      var enemyLvlTag = diag.enemyLevel ? (isFarmLevel(diag.enemyLevel) ? " (Farm Level)" : " (Push Level)") : "";
-      var enemyTitle = "Enemy Level: SA " + diag.enemyLevel + enemyLvlTag +
-        "\nStatus: " + diag.modeLabel +
-        "\n• Progress: " + prettify(curKills) + " / " + prettify(diag.neededKills) + " kills (" + curPct.toFixed(1) + "%)" +
-        (killsEarned > 0 ? ("\n• Estimated Kills Since Load: +" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
-        "\n• Remaining: " + prettify(curRemaining) + " kills to clear SA " + diag.enemyLevel +
-        (diag.secPerKill && isFinite(diag.secPerKill) ? ("\n• Speed: ~" + diag.secPerKill.toFixed(1) + "s per kill" + (diag.buildName ? " (" + diag.buildName + ")" : " (Simulated)")) : "") +
-        "\n• Estimated Completion: " + etaCombined +
-        "\n• AutoLevel: " + (diag.autoLevel ? "ON (Auto-advances when cleared)" : "OFF (Will NOT advance when cleared!)") +
-        "\n\nCombat Statistics:" +
-        (diag.sessionTotal > 0
-          ? ("\n• Session Win Rate: " + diag.winRateStr + " (" + prettify(diag.sessionKills) + "W / " + prettify(diag.sessionDeaths) + "L in " + prettify(diag.sessionTotal) + " fights)")
-          : "") +
-        "\n• Total Enemies Slain: " + prettify(diag.totalKillsAllTime) + " (All-Time)" +
-        (diag.totalKillsPortal > 0 ? ("\n• Kills This Portal: " + prettify(diag.totalKillsPortal)) : "") +
-        "\n\nClick to inspect Presets, Settings & Diagnostics";
-
-      enemyKpiHtml = '<div class="kpi tone-accent" id="kpiEnemyLevel" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()" title="' + esc(enemyTitle) + '">' +
+      enemyKpiHtml = '<div class="kpi kpi-has-popover tone-accent" id="kpiEnemyLevel" tabindex="0" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
         '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span>' + autoLevelPill + '</div>' +
         '<div class="kpi-value">' + esc(enemyVal) + '</div>' +
         '<div class="kpi-note kpi-note-prog">' +
           '<div class="kpi-prog-row">' +
             '<span class="kpi-prog-txt">Pushing · ' + prettify(curRemaining) + ' to go (' + curPct.toFixed(0) + '%)</span>' +
-            '<span class="kpi-prog-eta mono" style="color:var(--accent); font-weight:650;" title="Estimated completion time' + (etaClock ? ' (' + etaClock + ')' : '') + '">' + esc(etaDuration) + '</span>' +
+            '<span class="kpi-prog-eta mono" style="color:var(--accent); font-weight:650;">' + esc(etaDuration) + '</span>' +
           '</div>' +
           '<div class="kpi-bar"><span style="width:' + Math.max(2, curPct).toFixed(1) + '%; background:var(--accent);"></span></div>' +
         '</div>' +
+        '<div class="kpi-popover" id="kpiEnemyLevelPopover" role="tooltip" onclick="event.stopPropagation()">' + enemyPopoverHtml + '</div>' +
       '</div>';
     } else {
       if (diag.isFarming) {
@@ -2875,22 +2945,11 @@ var ONE_TIMER_MILESTONES = [
         enemyNote = 'Max unlocked: SA ' + (diag.maxEnemyLevel || '—');
       }
 
-      var enemyTitleNonPush = 'Enemy Level: SA ' + diag.enemyLevel +
-        '\nStatus: ' + diag.modeLabel +
-        '\n• Highest Unlocked: SA ' + diag.maxEnemyLevel +
-        '\n• AutoLevel: ' + (diag.autoLevel ? 'ON (Auto-advances when cleared)' : 'OFF (Will NOT advance when cleared!)') +
-        '\n\nCombat Statistics:' +
-        (diag.sessionTotal > 0
-          ? ('\n• Session Win Rate: ' + diag.winRateStr + ' (' + prettify(diag.sessionKills) + 'W / ' + prettify(diag.sessionDeaths) + 'L in ' + prettify(diag.sessionTotal) + ' fights)')
-          : '') +
-        '\n• Total Enemies Slain: ' + prettify(diag.totalKillsAllTime) + ' (All-Time)' +
-        (diag.totalKillsPortal > 0 ? ('\n• Kills This Portal: ' + prettify(diag.totalKillsPortal)) : '') +
-        '\n\nClick to inspect Presets, Settings & Diagnostics';
-
-      enemyKpiHtml = '<div class="kpi ' + enemyTone + '" id="kpiEnemyLevel" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()" title="' + esc(enemyTitleNonPush) + '">' +
+      enemyKpiHtml = '<div class="kpi kpi-has-popover ' + enemyTone + '" id="kpiEnemyLevel" tabindex="0" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
         '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span>' + autoLevelPill + '</div>' +
         '<div class="kpi-value">' + esc(enemyVal) + '</div>' +
         (enemyNote ? '<div class="kpi-note">' + esc(enemyNote) + '</div>' : '') +
+        '<div class="kpi-popover" id="kpiEnemyLevelPopover" role="tooltip" onclick="event.stopPropagation()">' + enemyPopoverHtml + '</div>' +
       '</div>';
     }
 
@@ -6578,6 +6637,8 @@ var ONE_TIMER_MILESTONES = [
         if (txtEl) txtEl.textContent = "Pushing · " + prettify(liveRemaining) + " to go (" + livePct.toFixed(0) + "%)";
         if (etaEl) etaEl.textContent = liveEtaDur;
         if (barEl) barEl.style.width = Math.max(2, livePct).toFixed(1) + "%";
+        var ePop = $("kpiEnemyLevelPopover");
+        if (ePop) ePop.innerHTML = buildEnemyLevelPopoverHtml(eDiag, bnk);
       }
     }
 
