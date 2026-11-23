@@ -396,6 +396,39 @@
     return 15;
   }
 
+  var buildDustCache = {};
+  function buildDustPs(b, level) {
+    if (!b) return 0;
+    var lvl = Number(level || state.level || (state.ab && state.ab.enemyLevel) || 1);
+    if (b._isCurrentLoadout && b.d > 0) return b.d;
+    if (b._simDustPs > 0 && (b._simDustLevel == null || Number(b._simDustLevel) === lvl)) return b._simDustPs;
+    var bId = (typeof buildId === "function") ? buildId(b) : ((b.n || "") + "_" + (b.d || 0));
+    var cacheKey = bId + "@" + lvl;
+    if (buildDustCache[cacheKey] !== undefined) {
+      return buildDustCache[cacheKey];
+    }
+    if (typeof SASimEngine !== "undefined" && state.save && b.i) {
+      try {
+        var res = SASimEngine.runBatch({ save: state.save, build: b, level: lvl }, { kills: 6, maxFights: 12, ticks: 18000 });
+        if (res) {
+          var dps = (res.dustPs && isFinite(res.dustPs) && res.dustPs > 0) ? res.dustPs : 0;
+          buildDustCache[cacheKey] = dps;
+          if (!(b.k > 0) && buildKillTimeCache[cacheKey] === undefined) {
+            buildKillTimeCache[cacheKey] = (res.kills > 0 && res.effSecPerKill > 0) ? res.effSecPerKill : Infinity;
+          }
+          return dps;
+        }
+      } catch (e) {
+        console.warn("Simulation fallback for buildDustPs failed:", e);
+      }
+    }
+    if (b.d && b.d > 0) return b.d;
+    if (typeof SASimEngine !== "undefined" && SASimEngine.getBaseDust && b.k > 0) {
+      return SASimEngine.getBaseDust(lvl) / b.k;
+    }
+    return 0;
+  }
+
   function levelTag(level) {
     return isFarmLevel(level) ? "Farm" : "Push";
   }
@@ -806,7 +839,8 @@ var ONE_TIMER_MILESTONES = [
       i: eqItems,
       l: count,
       r: { lv: rLv, m: rMods },
-      isCurrentEquipped: true
+      isCurrentEquipped: true,
+      _isCurrentLoadout: true
     };
   }
 
@@ -930,8 +964,11 @@ var ONE_TIMER_MILESTONES = [
     if (targetLvl === Number(fightLevel) && state.simulatedDustPs && state.simulatedDustPs > 0) {
       return state.simulatedDustPs;
     }
-    if (recommended && recommended.d) return recommended.d;
-    return sheetDustPs(recommended) || 0;
+    if (recommended) {
+      var recD = buildDustPs(recommended, targetLvl);
+      if (recD > 0) return recD;
+    }
+    return sheetDustPs(recommended, targetLvl) || 0;
   }
 
   function getCurrentCombatSecPerKill(lvl) {
@@ -1535,12 +1572,12 @@ var ONE_TIMER_MILESTONES = [
         var ka = buildSecPerKill(a, level);
         var kb = buildSecPerKill(b, level);
         if (Math.abs(ka - kb) > 0.01) return ka - kb;
-        return (b.d || 0) - (a.d || 0);
+        return buildDustPs(b, level) - buildDustPs(a, level);
       });
     } else {
       list.sort(function (a, b) {
-        var da = a.d || 0;
-        var db = b.d || 0;
+        var da = buildDustPs(a, level);
+        var db = buildDustPs(b, level);
         if (Math.abs(da - db) > 0.01) return db - da;
         return buildSecPerKill(a, level) - buildSecPerKill(b, level);
       });
@@ -1727,7 +1764,7 @@ var ONE_TIMER_MILESTONES = [
     };
   }
 
-  function sheetDustPs(build) { return build && build.d ? build.d : 0; }
+  function sheetDustPs(build, level) { return buildDustPs(build, level); }
 
   function getLoadoutSignature() {
     if (!state.ab) return "";
@@ -1816,15 +1853,19 @@ var ONE_TIMER_MILESTONES = [
     if (state.simulatedDustPs && state.simulatedDustPs > 0) {
       return state.simulatedDustPs;
     }
-    if (recommended && recommended.d) return recommended.d;
+    if (recommended) {
+      var recD = buildDustPs(recommended, state.level);
+      if (recD > 0) return recD;
+    }
     if (state.ab) {
       var fightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level;
       if (fightLevel) {
         var fightRec = bestRunnable(fightLevel);
-        if (fightRec && fightRec.d) return fightRec.d;
+        var fightD = fightRec ? buildDustPs(fightRec, fightLevel) : 0;
+        if (fightD > 0) return fightD;
       }
     }
-    return sheetDustPs(recommended) || 0;
+    return sheetDustPs(recommended, state.level) || 0;
   }
 
   function timeForCost(cost, shards, rate, bankDust, bankShards) {
@@ -2274,7 +2315,8 @@ var ONE_TIMER_MILESTONES = [
       toast("Unlocked advisor for SA " + state.level);
     } else if (target) {
       setLockedBuild(state.level, target);
-      toast("Locked advisor to " + target.n + (target.d ? " (" + prettify(target.d) + "/s)" : ""));
+      var td = buildDustPs(target, state.level);
+      toast("Locked advisor to " + target.n + (td ? " (" + prettify(td) + "/s)" : ""));
     } else {
       clearLockedBuild(state.level);
       toast("Unlocked advisor for SA " + state.level);
@@ -2282,6 +2324,8 @@ var ONE_TIMER_MILESTONES = [
     pushSimCache = {};
     levelSimCache = {};
     upgradeRoiCache = {};
+    buildDustCache = {};
+    buildKillTimeCache = {};
     state._cachedDiag = null;
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
@@ -3154,9 +3198,9 @@ var ONE_TIMER_MILESTONES = [
     }
     var cur = (typeof cmpRateOverride === "number" && cmpRateOverride >= 0)
       ? cmpRateOverride
-      : Math.max(levelCurrentDustPs(state.level, rec), rec ? (rec.d || 0) : 0);
+      : Math.max(levelCurrentDustPs(state.level, rec), rec ? buildDustPs(rec, state.level) : 0);
     return buildsFor(state.level).filter(function (b) {
-      return (b.d || 0) > cur + 1e-9 && !runnable(b) && allowedUpgrade(b);
+      return !runnable(b) && allowedUpgrade(b) && buildDustPs(b, state.level) > cur + 1e-9;
     });
   }
 
@@ -3200,7 +3244,7 @@ var ONE_TIMER_MILESTONES = [
         }
       }
     }
-    return (build && build.d) ? build.d : 0;
+    return buildDustPs(build, state.level);
   }
 
   function scorePlanCandidate(planObj, mode, cmpCur, curK, bnk, earnRate) {
@@ -3335,7 +3379,7 @@ var ONE_TIMER_MILESTONES = [
     var cur = (typeof cmpRateOverride === "number" && cmpRateOverride >= 0)
       ? cmpRateOverride
       : levelCurrentDustPs(state.level, rec);
-    var cmpCur = Math.max(cur, rec ? (rec.d || 0) : 0);
+    var cmpCur = Math.max(cur, rec ? buildDustPs(rec, state.level) : 0);
     var bnk = bank();
     var lockedEntry = state.lockedPlans && state.lockedPlans[String(state.level)];
     if (lockedEntry) {
@@ -3360,7 +3404,7 @@ var ONE_TIMER_MILESTONES = [
             totalSteps: totalSteps,
             completedCount: completedCount,
             allSteps: planSteps,
-            gain: (target.d || 0) - cmpCur
+            gain: buildDustPs(target, state.level) - cmpCur
           };
         }
         var firstPending = null;
@@ -3385,7 +3429,7 @@ var ONE_TIMER_MILESTONES = [
           var targetFirst = atomicStep(firstPending);
           return {
             step: targetFirst,
-            gain: (target.d || 0) - cmpCur,
+            gain: buildDustPs(target, state.level) - cmpCur,
             cost: stepsCostDust([targetFirst]).combined,
             build: target,
             mode: "locked",
@@ -3418,7 +3462,7 @@ var ONE_TIMER_MILESTONES = [
         var unlocked = bestAfter(s);
         var gain = (mode === "push")
           ? (isFinite(curK) ? Math.max(0, curK - (unlocked ? buildSecPerKill(unlocked, state.level) : Infinity)) : ((unlocked && isFinite(buildSecPerKill(unlocked, state.level))) ? Infinity : 0))
-          : ((unlocked ? unlocked.d || 0 : 0) - cmpCur);
+          : ((unlocked ? buildDustPs(unlocked, state.level) : 0) - cmpCur);
         var wInfo = stepsWaitInfo([s], 1, bnk);
         var effCost = wInfo.remDustEq > 0 ? wInfo.remDustEq : Math.max(1, wInfo.combined * 1e-6);
         if (gain > 0 && unlocked) immediate.push({ step: s, gain: gain, cost: wInfo.combined, roi: gain / effCost, build: unlocked, mode: "unlocks", remaining: 1, allSteps: [s], activeIndex: 0, blocked: false });
@@ -3433,7 +3477,7 @@ var ONE_TIMER_MILESTONES = [
       var blocked = steps.some(function (s) { return s.kind === "contract" && !s.reach; });
       var pathGain = (mode === "push")
         ? Math.max(0, curK - buildSecPerKill(b, state.level))
-        : ((b.d || 0) - cmpCur);
+        : (buildDustPs(b, state.level) - cmpCur);
       var firstStep = null;
       var activeIdx = 0;
       for (var sj = 0; sj < steps.length; sj++) {
@@ -3490,7 +3534,7 @@ var ONE_TIMER_MILESTONES = [
       : ((cur > 0) || (curCombatK && isFinite(curCombatK) && curCombatK > 0));
     var curBeatsOrMatchesRec = !rec ||
       isBuildEquippedNow(rec) ||
-      (mode === "farm" ? (cur >= (rec.d || 0) * 0.98) : (isCurWinning && curCombatK <= recK + 0.05));
+      (mode === "farm" ? (cur >= buildDustPs(rec, state.level) * 0.98) : (isCurWinning && curCombatK <= recK + 0.05));
     var canCompareSim = (typeof SASimEngine !== "undefined" && state.save && (curBeatsOrMatchesRec || (!isCurWinning && !bestPlan)));
     var simCand = canCompareSim ? buildSimUpgradeCandidate(mode, cur, curCombatK, bnk, earnRate) : null;
 
@@ -3788,7 +3832,7 @@ var ONE_TIMER_MILESTONES = [
     var rec = bestRunnable(level);
     var rate = activeDustPs(rec);
     var lvlStats = getCurrentCombatStats(level);
-    var est = sheetDustPs(rec);
+    var est = sheetDustPs(rec, level);
     if ($("btnOpenSim")) $("btnOpenSim").style.display = "inline-flex";
 
     var gearIcon = $("dustGearIcon");
@@ -4380,11 +4424,11 @@ var ONE_TIMER_MILESTONES = [
       var curStats = getCurrentCombatStats(state.level);
       curDust = levelCurrentDustPs(state.level, rec);
       var isWinningOnLevel = curDust > 0 || !!(curStats && curStats.kills > 0);
-      var recDust = rec ? (rec.d || 0) : 0;
+      var recDust = rec ? buildDustPs(rec, state.level) : 0;
       if (isWinningOnLevel && curDust > 0 && curDust > recDust) {
         // Current loadout outperforms runnable sheet builds; weigh best plan vs single-item sim upgrade
         activePick = bestNextUpgrade(rec, rate, curDust);
-        if (activePick && activePick.mode !== "upgradeValue" && activePick.build && (activePick.build.d || 0) > curDust) {
+        if (activePick && activePick.mode !== "upgradeValue" && activePick.build && buildDustPs(activePick.build, state.level) > curDust) {
           activeBuild = activePick.build;
         } else {
           var curFarmBuild = getCurrentEquippedCombatBuild(state.level);
@@ -4483,7 +4527,9 @@ var ONE_TIMER_MILESTONES = [
 
     var metrics = [];
     metrics.push(lvlTagPill);
-    var dispD = activeBuild.d || ((isOptimalClear || isOptimalFarm) ? (isOptimalFarm ? levelCurrentDustPs(state.level, rec) : rate) : 0);
+    var dispD = (isOptimalClear || isOptimalFarm)
+      ? (isOptimalFarm ? levelCurrentDustPs(state.level, rec) : (activeBuild.d || rate))
+      : buildDustPs(activeBuild, state.level);
     if (dispD > 0) metrics.push("<span class='pill sm buy' title='Expected Dust Earning Rate: " + prettify(dispD) + "/s'>" + ICONS.dust + " " + prettify(dispD) + "/s</span>");
     if (activeBuild.k != null && isFinite(activeBuild.k)) metrics.push("<span class='pill sm info'>" + ICONS.clock + " ~" + Number(activeBuild.k).toFixed(1) + "s kills" + (isOptimalClear ? " (Fastest)" : "") + "</span>");
     if (activeBuild.wr != null) metrics.push("<span class='pill sm accent'>" + Math.round((activeBuild.wr <= 1 ? activeBuild.wr : activeBuild.wr / 100) * 100) + "% WR</span>");
@@ -4578,7 +4624,7 @@ var ONE_TIMER_MILESTONES = [
 
     var explText = "";
     if (isPlanLocked && rec && rec.n !== activeBuild.n) {
-      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your plan <b>" + esc(activeBuild.n) + "</b>. Currently running: <b>" + esc(rec.n) + "</b> (" + prettify(rec.d) + "/s). Follow the swap guide above and the Next Upgrade Advisor on the right to transition.</span></div>";
+      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your plan <b>" + esc(activeBuild.n) + "</b>. Currently running: <b>" + esc(rec.n) + "</b> (" + prettify(buildDustPs(rec, state.level)) + "/s). Follow the swap guide above and the Next Upgrade Advisor on the right to transition.</span></div>";
     } else if (isOptimalClear || isOptimalFarm) {
       var vsPlanNote = (pickForRec && pickForRec.vsPlan)
         ? (" Nearest stronger sheet plan (<b>" + esc(pickForRec.vsPlan.name) + "</b>, " + pickForRec.vsPlan.remaining + " steps) currently has worse cost-benefit than single-item upgrades.")
@@ -4595,7 +4641,7 @@ var ONE_TIMER_MILESTONES = [
       if (!rec) {
         explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No sheet build on SA " + state.level + " is currently runnable with your items and levels. Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock)." + vsSimNote + " Follow the swap guide above and the Next Upgrade Advisor on the right to progress toward this build.</span></div>";
       } else if (mode === "farm") {
-        explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Your current loadout (" + prettify(curDust) + "/s) outperforms all runnable sheet builds on SA " + state.level + " (best runnable: <b>" + esc(rec.n) + "</b> at " + prettify(rec.d) + "/s). Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock) as the best cost-benefit plan to improve your rate." + vsSimNote + "</span></div>";
+        explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Your current loadout (" + prettify(curDust) + "/s) outperforms all runnable sheet builds on SA " + state.level + " (best runnable: <b>" + esc(rec.n) + "</b> at " + prettify(buildDustPs(rec, state.level)) + "/s). Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock) as the best cost-benefit plan to improve your rate." + vsSimNote + "</span></div>";
       } else {
         explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>No runnable sheet build clears SA " + state.level + " faster than your current loadout (best runnable: <b>" + esc(rec.n) + "</b> at ~" + buildSecPerKill(rec, state.level).toFixed(1) + "s/kill). Targeting <b>" + esc(activeBuild.n) + "</b> (" + remSteps + " upgrade step" + (remSteps === 1 ? "" : "s") + " to unlock) to push faster." + vsSimNote + "</span></div>";
       }
@@ -4936,7 +4982,7 @@ var ONE_TIMER_MILESTONES = [
         }
       }
     }
-    var effectiveDust = (simRate && simRate > 0) ? simRate : (b.d || 0);
+    var effectiveDust = (simRate && simRate > 0) ? simRate : buildDustPs(b, state.level);
     var gain = effectiveDust - cur;
     var totalCost = (bWInfo.totalCostDust || 0) + ((bWInfo.totalCostShards || 0) * SHARD_DUST);
     var effRate = (gain > 0) ? gain : (effectiveDust > 0 ? effectiveDust : 0);
@@ -5514,7 +5560,7 @@ var ONE_TIMER_MILESTONES = [
           el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--warn);'>" + ICONS.warn + " Adjustments Needed</div><p class='empty'>Your current loadout cannot beat SA " + state.level + " (" + Math.round(noPickStats.winRate || 0) + "% WR). Apply the swaps on the left to switch to <b>" + esc(rec.n) + "</b> (" + modeDesc + ").</p></div>";
         } else if (curInsufficient) {
           el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--warn);'>" + ICONS.warn + " Build Insufficient</div><p class='empty'>Your current loadout cannot beat SA " + state.level + " (" + Math.round(noPickStats.winRate || 0) + "% WR), and no stronger sheet build or single-step upgrade unlocks a clear yet.</p></div>";
-        } else if (recNotEquipped && noPickStats && (noPickMode === "push" ? (!isFinite(noPickStats.effSecPerKill) || noPickStats.effSecPerKill > buildSecPerKill(rec, state.level) + 0.05) : (noPickStats.dustPs < (rec.d || 0) * 0.98))) {
+        } else if (recNotEquipped && noPickStats && (noPickMode === "push" ? (!isFinite(noPickStats.effSecPerKill) || noPickStats.effSecPerKill > buildSecPerKill(rec, state.level) + 0.05) : (noPickStats.dustPs < buildDustPs(rec, state.level) * 0.98))) {
           el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--accent);'>" + ICONS.target + " Adjustments Needed</div><p class='empty'>Apply the swaps on the left to switch to <b>" + esc(rec.n) + "</b>, the " + modeDesc + " on SA " + state.level + ".</p></div>";
         } else {
           el.innerHTML = "<div class='next'><div class='next-kicker' style='color:var(--buy);'>" + ICONS.check + " Peak Build Reached</div><p class='empty'>You already match the " + modeDesc + " on SA " + state.level + ".</p></div>";
@@ -5616,7 +5662,7 @@ var ONE_TIMER_MILESTONES = [
         "</div>" +
         "<div class='next-action-box'>" +
         "<div class='next-head' style='color:var(--buy);'>" + ICONS.check + "<span>" + esc(pick.build.n) + " is fully unlocked!</span></div>" +
-        "<div class='next-meta'><span class='pill sm buy'>" + ICONS.check + " Runnable now · " + prettify(pick.build.d) + "/s</span>" + alignStatusPill + "</div>" +
+        "<div class='next-meta'><span class='pill sm buy'>" + ICONS.check + " Runnable now · " + prettify(buildDustPs(pick.build, state.level)) + "/s</span>" + alignStatusPill + "</div>" +
         alignGuideHtml +
         "</div>" +
         "<div class='next-why'>" + whyDone + "</div>" +
@@ -5677,7 +5723,7 @@ var ONE_TIMER_MILESTONES = [
       if (mode === "farm") {
         var curD = (pick.currentDustPs && pick.currentDustPs > 0) ? (prettify(pick.currentDustPs) + "/s") : (prettify(levelCurrentDustPs(state.level, rec)) + "/s");
         var gainNote = (pick.gain && pick.gain > 0) ? (" (+" + prettify(pick.gain) + "/s)") : "";
-        var sheetRel = (!rec || (pick.currentDustPs || levelCurrentDustPs(state.level, rec)) >= (rec.d || 0))
+        var sheetRel = (!rec || (pick.currentDustPs || levelCurrentDustPs(state.level, rec)) >= buildDustPs(rec, state.level))
           ? "higher than all recorded runnable sheet builds"
           : "matching runnable sheet builds";
         why = "Your current loadout earns " + curD + " on SA " + state.level + " (~" + kStr + "s/kill), " + sheetRel + ". The simulator's <b>Upgrade Value</b> analysis recommends <b>" + esc(pick.label || (pick.step && pick.step.key) || "this upgrade") + "</b>" + gainNote + " as the highest-value upgrade." + planCmp;
@@ -5821,7 +5867,7 @@ var ONE_TIMER_MILESTONES = [
           var kDiff = (recK && recK > targetK) ? (" (-" + (recK - targetK).toFixed(1) + "s)") : "";
           return "<span class='pill sm buy'>" + ICONS.clock + " ~" + targetK.toFixed(1) + "s kills" + kDiff + " → " + esc(pick.build.n) + "</span>";
         }
-        return "<span class='pill sm buy'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + " (" + prettify(pick.build.d) + "/s)</span>";
+        return "<span class='pill sm buy'>+" + prettify(pick.gain) + "/s → " + esc(pick.build.n) + " (" + prettify(buildDustPs(pick.build, state.level)) + "/s)</span>";
       })() +
       "</div>" +
       "</div>" +
@@ -6185,8 +6231,9 @@ var ONE_TIMER_MILESTONES = [
         "</div>";
     }).join("");
 
+    var bDust = buildDustPs(b, state.level);
     var metaPills = [];
-    metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(b.d) + "/s</span>");
+    metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(bDust) + "/s</span>");
     if (b.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + b.k + "s</span>");
     if (b.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((b.wr <= 1 ? b.wr : b.wr / 100) * 100) + "% WR</span>");
     metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (b.l || itemKeys.length) + " Limbs</span>");
@@ -6197,7 +6244,7 @@ var ONE_TIMER_MILESTONES = [
     var pillCls = "bb-info-pill " + (swapCount === 0 ? "aligned" : "has-swaps");
     var pillTxt = swapCount === 0 ? "Aligned" : (swapCount + (swapCount === 1 ? " swap" : " swaps"));
 
-    var gain = (b.d || 0) - cur;
+    var gain = bDust - cur;
     var popHtml = "<div class='bb-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.info + "<span>" + esc(b.n) + " · Build &amp; Swap Details</span></span>" +
@@ -6225,7 +6272,8 @@ var ONE_TIMER_MILESTONES = [
 
     var cur = (state.lastBetterCur != null) ? state.lastBetterCur : levelCurrentDustPs(state.level);
     var delta = loadoutDelta(build);
-    var gain = (build.d || 0) - cur;
+    var buildD = buildDustPs(build, state.level);
+    var gain = buildD - cur;
 
     var bTitle = $("bddTitle");
     if (bTitle) bTitle.textContent = (build.n || "Build") + " · Swap & Loadout Guidance";
@@ -6234,7 +6282,7 @@ var ONE_TIMER_MILESTONES = [
     if (bBody) {
       var reqMods = formatModList(build.r && build.r.m || []) || "None";
       var metaPills = [];
-      metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(build.d) + "/s (" + (gain >= 0 ? "+" : "") + prettify(gain) + "/s)</span>");
+      metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(buildD) + "/s (" + (gain >= 0 ? "+" : "") + prettify(gain) + "/s)</span>");
       if (build.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + build.k + "s kills</span>");
       if (build.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((build.wr <= 1 ? build.wr : build.wr / 100) * 100) + "% WR</span>");
       metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (build.l || "?") + " Limbs</span>");
@@ -6311,7 +6359,7 @@ var ONE_TIMER_MILESTONES = [
   function renderBetter(rec, rate, cmpRateOverride) {
     var cur = (typeof cmpRateOverride === "number" && cmpRateOverride >= 0)
       ? cmpRateOverride
-      : Math.max(levelCurrentDustPs(state.level, rec), rec ? (rec.d || 0) : 0);
+      : Math.max(levelCurrentDustPs(state.level, rec), rec ? buildDustPs(rec, state.level) : 0);
     var bnk = bank();
     var list = betterBuilds(rec, cur);
     var mode = getLevelMode(state.level);
@@ -6337,8 +6385,8 @@ var ONE_TIMER_MILESTONES = [
         if (Math.abs(ra - rb) > 1e-12) return rb - ra;
         return ka - kb;
       }
-      var ra = ((a.d || 0) - cur) / ca;
-      var rb = ((b.d || 0) - cur) / cb;
+      var ra = (buildDustPs(a, state.level) - cur) / ca;
+      var rb = (buildDustPs(b, state.level) - cur) / cb;
       return rb - ra;
     });
     list = list.slice(0, 8);
@@ -6378,7 +6426,7 @@ var ONE_TIMER_MILESTONES = [
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
         (blocked ? "<span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + esc(String(b.c || "?")) + "</span>" : "") +
-        "</div><div class='sub mono' style='margin-top:3px;'>" + prettify(b.d) + "/s" + (b.k != null ? " · " + esc(String(b.k)) + "s" : "") + "</div></td>" +
+        "</div><div class='sub mono' style='margin-top:3px;'>" + prettify(buildDustPs(b, state.level)) + "/s" + (b.k != null ? " · " + esc(String(b.k)) + "s" : "") + "</div></td>" +
         "<td><div class='steps'>" + steps.map(function (s) {
           return stepBadgeHtml(s);
         }).join("") + "</div></td>" +
@@ -6582,9 +6630,9 @@ var ONE_TIMER_MILESTONES = [
 
   function shouldDisableContractsOnLoad(level) {
     var rec = bestRunnable(level);
-    var cur = Math.max(levelCurrentDustPs(level, rec), rec ? (rec.d || 0) : 0);
+    var cur = Math.max(levelCurrentDustPs(level, rec), rec ? buildDustPs(rec, level) : 0);
     var allBetter = buildsFor(level).filter(function (b) {
-      return (b.d || 0) > cur + 1e-9 && !runnable(b);
+      return !runnable(b) && buildDustPs(b, level) > cur + 1e-9;
     });
     if (!allBetter.length) return false;
     var contractBetter = allBetter.filter(function (b) {
@@ -6600,8 +6648,8 @@ var ONE_TIMER_MILESTONES = [
     visible.sort(function (a, b) {
       var ca = stepsCostDust(gapSteps(a)).combined;
       var cb = stepsCostDust(gapSteps(b)).combined;
-      var ra = ca > 0 ? ((a.d || 0) - cur) / ca : 0;
-      var rb = cb > 0 ? ((b.d || 0) - cur) / cb : 0;
+      var ra = ca > 0 ? (buildDustPs(a, level) - cur) / ca : 0;
+      var rb = cb > 0 ? (buildDustPs(b, level) - cur) / cb : 0;
       return rb - ra;
     });
     var top8 = visible.slice(0, 8);
@@ -6889,6 +6937,7 @@ var ONE_TIMER_MILESTONES = [
       pushSimCache = {};
       levelSimCache = {};
       upgradeRoiCache = {};
+      buildDustCache = {};
       buildKillTimeCache = {};
       betterSimToken++;
       if (state.lastBetterBuilds) {

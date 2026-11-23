@@ -298,6 +298,10 @@ def parse_level_sheet(rows: list[list], level: int) -> list[dict]:
                 if lv and lv > 0:
                     items[key] = lv
         dust_ps = parse_num(get(row, "d/s"))
+        if dust_ps is None:
+            shards_ps = parse_num(get(row, "s/s", "shards/s", "shard/s"))
+            if shards_ps is not None:
+                dust_ps = shards_ps * 1e9
         if not items and not dust_ps:
             continue
         if name.lower() in ("", "author"):
