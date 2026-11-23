@@ -380,9 +380,8 @@
     if (typeof SASimEngine !== "undefined" && state.save) {
       try {
         var res = SASimEngine.runBatch({ save: state.save, build: b, level: lvl }, { kills: 25, maxFights: 40 });
-        if (res && res.kills > 0 && res.secPerKill > 0) {
-          var wr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 1;
-          var effK = res.secPerKill / wr;
+        if (res && res.kills > 0 && (res.effSecPerKill > 0 || res.secPerKill > 0)) {
+          var effK = (res.effSecPerKill && res.effSecPerKill > 0) ? res.effSecPerKill : res.secPerKill;
           buildKillTimeCache[cacheKey] = effK;
           return effK;
         } else if (res && res.winRate === 0) {
@@ -849,57 +848,27 @@ var ONE_TIMER_MILESTONES = [
 
   function getCurrentCombatStats(lvl) {
     var l = Number(lvl) || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
-    // 1. Live simulator session if active on this exact level
-    if (simState.session && simState.config && Number(simState.config.level) === l) {
-      var snap = simState.session.getState();
-      if (snap) {
-        var sKillSec = (snap.avgLast100Sec && snap.avgLast100Sec > 0) ? snap.avgLast100Sec : snap.timePerKill;
-        var sWr = (snap.winRate && snap.winRate > 0) ? (snap.winRate / 100) : 0;
-        var sEffK = (sKillSec && sKillSec > 0 && sWr > 0) ? (sKillSec / sWr) : Infinity;
-        if (snap.dustPs != null && isFinite(snap.dustPs)) {
-          return {
-            level: l,
-            dustPs: snap.dustPs,
-            shardsPs: snap.shardsPs || (l > 50 ? snap.dustPs / 1e9 : 0),
-            secPerKill: (sKillSec && sKillSec > 0) ? sKillSec : Infinity,
-            effSecPerKill: sEffK,
-            actualEffKillSec: (snap.effSecPerKill && snap.effSecPerKill > 0) ? snap.effSecPerKill : ((sKillSec && sKillSec > 0) ? sKillSec : Infinity),
-            winRate: snap.winRate || 0,
-            kills: snap.sessionKills || snap.wins || 0,
-            deaths: snap.sessionDeaths || snap.losses || 0,
-            totalFights: snap.totalFights || 0,
-            avgFightSec: snap.avgFightDuration || 0,
-            avgWinSec: snap.avgWinSec || sKillSec || 0,
-            avgLossSec: snap.avgLossSec || 0,
-            baseDust: snap.baseDust || 0,
-            dustMult: snap.dustMult || 0,
-            dustPerKill: snap.dustPerKill || 0,
-            shardsPerKill: snap.shardsPerKill || 0,
-            dustBreakdown: snap.dustBreakdown || null,
-            fromLiveSession: true
-          };
-        }
-      }
-    }
     var sig = (state.save && state.ab) ? getLoadoutSignature() : "nosave";
     var cacheKey = sig + "@" + l;
     if (levelSimCache[cacheKey]) {
       return levelSimCache[cacheKey];
     }
-    // 2. Reuse calibrated live save farm results when requesting the same level
+    // 1. Reuse calibrated live save farm results when requesting the same level
     if (state.simulatedDustPs != null && Number(state.simulatedLevel) === l && state.simulatedDustTimePerKill > 0) {
-      var fWr = (state.simulatedDustWinRate && state.simulatedDustWinRate > 0) ? (state.simulatedDustWinRate / 100) : 0;
-      var fEffK = fWr > 0 ? (state.simulatedDustTimePerKill / fWr) : Infinity;
+      var fWinRate = state.simulatedDustWinRate || 0;
       var simCached = (state.simulatedStats && Number(state.simulatedStats.enemyLevel) === l) ? state.simulatedStats : null;
+      var fActualEff = (fWinRate > 0)
+        ? ((simCached && simCached.effSecPerKill > 0) ? simCached.effSecPerKill : state.simulatedDustTimePerKill)
+        : Infinity;
       var fightStats = {
         level: l,
         dustPs: state.simulatedDustPs,
         shardsPs: simCached ? (simCached.shardsPs || 0) : (l > 50 ? state.simulatedDustPs / 1e9 : 0),
         secPerKill: state.simulatedDustTimePerKill,
-        effSecPerKill: fEffK,
-        actualEffKillSec: (simCached && simCached.effSecPerKill > 0) ? simCached.effSecPerKill : state.simulatedDustTimePerKill,
-        winRate: state.simulatedDustWinRate || 0,
-        kills: simCached ? (simCached.kills || 0) : (state.simulatedDustWinRate > 0 ? 1 : 0),
+        effSecPerKill: fActualEff,
+        actualEffKillSec: fActualEff,
+        winRate: fWinRate,
+        kills: simCached ? (simCached.kills || 0) : (fWinRate > 0 ? 1 : 0),
         deaths: simCached ? (simCached.deaths || 0) : 0,
         totalFights: simCached ? (simCached.totalFights || 0) : 0,
         avgFightSec: simCached ? (simCached.avgFightSec || 0) : 0,
@@ -914,22 +883,24 @@ var ONE_TIMER_MILESTONES = [
       levelSimCache[cacheKey] = fightStats;
       return fightStats;
     }
-    // 3. Run and cache a combat simulation on target level l using current loadout
+    // 2. Run and cache a combat simulation on target level l using current loadout
     if (typeof SASimEngine !== "undefined" && state.save && getCurrentEquippedCombatBuild(l)) {
       try {
         var res = SASimEngine.runBatch({ save: state.save, level: l }, { kills: 9001, maxKills: 9001, maxFights: 9001, fights: 9001, ticks: 150000 });
         if (res) {
-          var wr = (res.winRate && res.winRate > 0) ? (res.winRate / 100) : 0;
+          var winRate = res.winRate || 0;
           var rawK = (res.kills > 0 && res.secPerKill > 0) ? res.secPerKill : Infinity;
-          var effK = (isFinite(rawK) && wr > 0) ? (rawK / wr) : Infinity;
+          var actualEff = (res.kills > 0 && winRate > 0)
+            ? ((res.effSecPerKill && res.effSecPerKill > 0) ? res.effSecPerKill : rawK)
+            : Infinity;
           var stats = {
             level: l,
             dustPs: (res.dustPs && res.dustPs > 0 && isFinite(res.dustPs)) ? res.dustPs : 0,
             shardsPs: res.shardsPs || 0,
             secPerKill: rawK,
-            effSecPerKill: effK,
-            actualEffKillSec: (res.kills > 0 && res.effSecPerKill > 0) ? res.effSecPerKill : rawK,
-            winRate: res.winRate || 0,
+            effSecPerKill: actualEff,
+            actualEffKillSec: actualEff,
+            winRate: winRate,
             kills: res.kills || 0,
             deaths: res.deaths || 0,
             totalFights: res.totalFights || 0,
@@ -973,7 +944,9 @@ var ONE_TIMER_MILESTONES = [
 
   function getCurrentCombatSecPerKill(lvl) {
     var stats = getCurrentCombatStats(lvl);
-    return stats ? stats.effSecPerKill : null;
+    return (stats && stats.actualEffKillSec > 0 && isFinite(stats.actualEffKillSec))
+      ? stats.actualEffKillSec
+      : (stats ? stats.effSecPerKill : null);
   }
 
   function getActiveBuildForLevel(lvl) {
@@ -1019,46 +992,37 @@ var ONE_TIMER_MILESTONES = [
   function getPushSecPerKill(enemyLvl) {
     var l = Number(enemyLvl) || (state.ab && state.ab.enemyLevel) || state.level || 1;
 
-    // 1. If simulator has live session results for this level, use them directly
-    if (simState.session && simState.config && Number(simState.config.level) === l) {
-      var snap = simState.session.getState();
-      if (snap) {
-        var sKillSec = (snap.avgLast100Sec && snap.avgLast100Sec > 0) ? snap.avgLast100Sec : snap.timePerKill;
-        if (sKillSec && sKillSec > 0) {
-          var sWr = (snap.winRate && snap.winRate > 0) ? (snap.winRate / 100) : 1;
-          return sKillSec / sWr;
+    // 1. Always measure Huffy's actual equipped combat loadout on this level
+    if (state.save && getCurrentEquippedCombatBuild(l)) {
+      var curStats = getCurrentCombatStats(l);
+      if (curStats) {
+        if (curStats.kills > 0 && curStats.actualEffKillSec > 0 && isFinite(curStats.actualEffKillSec)) {
+          return curStats.actualEffKillSec;
+        }
+        if (curStats.winRate <= 0 || curStats.kills === 0) {
+          return Infinity;
         }
       }
     }
 
-    // 2. If a plan is explicitly locked for this level, use that locked build's simulated speed
-    var lockedEntry = state.lockedPlans && state.lockedPlans[String(l)];
-    var lockedTarget = lockedEntry ? findLockedTarget(l, lockedEntry) : null;
-    if (lockedTarget) {
-      var bK = buildSecPerKill(lockedTarget, l);
-      if (bK && bK > 0 && isFinite(bK)) {
-        return bK;
-      }
-    }
-
-    // 3. Use user's active combat loadout speed against this level
     var curCombatK = getCurrentCombatSecPerKill(l);
     if (curCombatK && curCombatK > 0 && isFinite(curCombatK)) {
       return curCombatK;
     }
 
-    // 4. Fall back to best runnable sheet build
+    if (state.simulatedLevel === l && state.simulatedDustTimePerKill > 0 && (!state.simulatedDustWinRate || state.simulatedDustWinRate > 0)) {
+      return (state.simulatedStats && state.simulatedStats.effSecPerKill > 0)
+        ? state.simulatedStats.effSecPerKill
+        : state.simulatedDustTimePerKill;
+    }
+
+    // 2. Fallback only when no save / no equipped items exist
     var rec = bestRunnable(l);
     if (rec) {
       var recK = buildSecPerKill(rec, l);
       if (recK && recK > 0 && isFinite(recK)) {
         return recK;
       }
-    }
-
-    if (state.simulatedLevel === l && state.simulatedDustTimePerKill > 0) {
-      var wr = (state.simulatedDustWinRate && state.simulatedDustWinRate > 0) ? (state.simulatedDustWinRate / 100) : 1;
-      return state.simulatedDustTimePerKill / wr;
     }
 
     return null;
@@ -1114,10 +1078,14 @@ var ONE_TIMER_MILESTONES = [
 
     var secPerKill = null;
     var etaSec = null;
+    var simWinRate = null;
+    var pushStalled = false;
     var lockedEntry = state.lockedPlans && state.lockedPlans[String(enemyLvl)];
     var lockedTarget = lockedEntry ? findLockedTarget(enemyLvl, lockedEntry) : null;
     var activeTargetBuild = lockedTarget || getActiveBuildForLevel(enemyLvl);
-    var buildName = lockedTarget ? lockedTarget.n : (mode === "pushing" ? "Current Loadout" : (activeTargetBuild ? (activeTargetBuild.n || "Build") : null));
+    var buildName = (mode === "pushing")
+      ? ((state.save && getCurrentEquippedCombatBuild(enemyLvl)) ? "Current Loadout" : (curRec ? (curRec.n || "Build") : "Simulated"))
+      : (activeTargetBuild ? (activeTargetBuild.n || "Build") : null);
     var dustPerKill = 0;
     if (curRec && curRec.d && curRec.k) {
       dustPerKill = curRec.d * curRec.k;
@@ -1129,8 +1097,16 @@ var ONE_TIMER_MILESTONES = [
 
     if (mode === "pushing" && remaining > 0) {
       // 1. Accurately simulated kill time from live save combat
+      var curStats = (state.save && getCurrentEquippedCombatBuild(enemyLvl)) ? getCurrentCombatStats(enemyLvl) : null;
+      if (curStats && typeof curStats.winRate === "number" && isFinite(curStats.winRate)) {
+        simWinRate = curStats.winRate;
+      }
       var simSpk = getPushSecPerKill(enemyLvl);
-      if (simSpk && simSpk > 0 && isFinite(simSpk)) {
+      if (simSpk === Infinity) {
+        pushStalled = true;
+        secPerKill = null;
+        etaSec = null;
+      } else if (simSpk && simSpk > 0 && isFinite(simSpk)) {
         secPerKill = simSpk;
       } else if (curRec && curRec.k && curRec.k > 0) {
         secPerKill = curRec.k;
@@ -1168,6 +1144,8 @@ var ONE_TIMER_MILESTONES = [
       dustPerKill: dustPerKill,
       secPerKill: secPerKill,
       etaSec: etaSec,
+      simWinRate: simWinRate,
+      pushStalled: pushStalled,
       buildName: buildName,
       totalKillsAllTime: totalKillsAllTime,
       totalKillsPortal: totalKillsPortal,
@@ -2855,8 +2833,10 @@ var ONE_TIMER_MILESTONES = [
       var curKills = diag.curKills + killsEarned;
       var curPct = diag.neededKills > 0 ? Math.min(100, (curKills / diag.neededKills) * 100) : 0;
       var curEtaSec = Math.max(0, (diag.etaSec || 0) - ((bnk && bnk.elapsedSec) || 0));
-      var etaDuration = curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear";
-      var etaClock = curEtaSec > 0 ? fmtLocalEta(curEtaSec) : "";
+      var etaDuration = diag.pushStalled
+        ? "Cannot clear (0% wins)"
+        : (curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear");
+      var etaClock = (!diag.pushStalled && curEtaSec > 0) ? fmtLocalEta(curEtaSec) : "";
 
       html += "<div class='dp-eq'>" +
         "<div class='dp-eq-main'><b>" + prettify(curKills) + "</b> / <b>" + prettify(diag.neededKills) + "</b> kills (<b class='dp-val-accent'>" + curPct.toFixed(1) + "%</b>)</div>" +
@@ -2869,6 +2849,9 @@ var ONE_TIMER_MILESTONES = [
       if (killsEarned > 0) html += row("Est. Kills Since Load", "+" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)", "dp-val-buy");
       if (diag.secPerKill && isFinite(diag.secPerKill)) {
         var spdSrc = diag.buildName ? esc(diag.buildName) : "Simulated";
+        if (diag.simWinRate != null && diag.simWinRate < 99.95 && diag.simWinRate > 0) {
+          spdSrc += " · " + diag.simWinRate.toFixed(1) + "% win";
+        }
         html += row("Kill Speed", "~" + diag.secPerKill.toFixed(1) + "s / kill <span class='dp-sub-lbl'>(" + spdSrc + ")</span>");
       }
       html += row("Est. Completion", esc(etaDuration) + (etaClock ? (" · " + esc(etaClock)) : ""), "dp-val-accent");
@@ -2961,7 +2944,9 @@ var ONE_TIMER_MILESTONES = [
       var curPct = diag.neededKills > 0 ? Math.min(100, (curKills / diag.neededKills) * 100) : 0;
       var curEtaSec = Math.max(0, (diag.etaSec || 0) - bnk.elapsedSec);
 
-      var etaDuration = curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear";
+      var etaDuration = diag.pushStalled
+        ? "Cannot clear (0% wins)"
+        : (curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear");
 
       enemyKpiHtml = '<div class="kpi kpi-has-popover tone-accent" id="kpiEnemyLevel" tabindex="0" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
         '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span>' + autoLevelPill + '</div>' +
@@ -6685,7 +6670,7 @@ var ONE_TIMER_MILESTONES = [
 
     var eCard = $("kpiEnemyLevel");
     if (eCard) {
-      var eDiag = (simState.session && simState.active) ? combatDiagnostics(rate) : (state._cachedDiag || combatDiagnostics(rate));
+      var eDiag = state._cachedDiag || combatDiagnostics(rate);
       if (eDiag.isPushing && eDiag.etaSec > 0) {
         var liveRemSec = Math.max(0, eDiag.etaSec - bnk.elapsedSec);
         var liveEtaDur = liveRemSec > 0 ? ("~" + fmtDuration(liveRemSec)) : "Ready to clear";
