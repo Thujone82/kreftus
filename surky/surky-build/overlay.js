@@ -1182,8 +1182,8 @@
     var btnTopInstallPwa = $("btnTopInstallPwa");
     if (btnTopInstallPwa) btnTopInstallPwa.addEventListener("click", promptInstallPwa);
 
-    var btnTopCheckUpdates = $("btnTopCheckUpdates");
-    if (btnTopCheckUpdates) btnTopCheckUpdates.addEventListener("click", checkForPwaUpdates);
+    var btnCheckUpdates = $("btnCheckUpdates");
+    if (btnCheckUpdates) btnCheckUpdates.addEventListener("click", checkForPwaUpdates);
 
     var btnTopTheme = $("btnTopTheme");
     if (btnTopTheme) btnTopTheme.addEventListener("click", toggleTheme);
@@ -1192,9 +1192,7 @@
     var btnTopHelp = $("btnTopHelp");
     var btnCloseHelp = $("btnCloseSurkyHelp");
     if (btnTopHelp && helpDlg) {
-      btnTopHelp.addEventListener("click", function () {
-        if (typeof helpDlg.showModal === "function") helpDlg.showModal();
-      });
+      btnTopHelp.addEventListener("click", openHelpDlg);
     }
     if (btnCloseHelp && helpDlg) {
       btnCloseHelp.addEventListener("click", function () {
@@ -1277,7 +1275,7 @@
         if (helpDlg && typeof helpDlg.showModal === "function") {
           ev.preventDefault();
           if (helpDlg.open) helpDlg.close();
-          else helpDlg.showModal();
+          else openHelpDlg();
         }
       }
     });
@@ -1295,6 +1293,15 @@
   var pendingSwUpdate = false;
   var isCheckingUpdates = false;
   var swRegistrationRef = null;
+  var lastUpdateFeedback = { text: "", tone: "" };
+
+  function setUpdateFeedback(text, tone) {
+    lastUpdateFeedback = { text: text || "", tone: tone || "" };
+    var el = $("pwaUpdateFeedback");
+    if (!el) return;
+    el.textContent = lastUpdateFeedback.text;
+    el.className = "pwa-feedback" + (lastUpdateFeedback.tone ? (" " + lastUpdateFeedback.tone) : "");
+  }
 
   function getBuildHash() {
     try {
@@ -1336,17 +1343,37 @@
 
   function syncPwaToolbarButtons() {
     var pwa = isInstalledPwa();
+    var isHttp = !!(window.location && /^https?:$/i.test(window.location.protocol));
+    var shortBuild = formatShortBuild();
     var btnInstall = $("btnTopInstallPwa");
-    var btnUpdate = $("btnTopCheckUpdates");
+    var btnUpdate = $("btnCheckUpdates");
+    var btnHelp = $("btnTopHelp");
     var updLbl = $("surkyUpdateBtnLbl");
+    var verBadge = $("pwaVersionBadge");
+    var modeBadge = $("pwaModeBadge");
+    var fbEl = $("pwaUpdateFeedback");
 
     if (btnInstall) {
       var canInstall = !pwa && !!(deferredInstallPrompt || isIosSafari());
       btnInstall.classList.toggle("hidden", !canInstall);
     }
 
+    if (verBadge) verBadge.textContent = "build " + shortBuild;
+    if (modeBadge) {
+      if (!isHttp) {
+        modeBadge.textContent = "Local file";
+        modeBadge.className = "pill sm";
+      } else if (pwa) {
+        modeBadge.textContent = "Installed PWA";
+        modeBadge.className = "pill sm accent";
+      } else {
+        modeBadge.textContent = "Web app";
+        modeBadge.className = "pill sm";
+      }
+    }
+
     if (btnUpdate) {
-      btnUpdate.classList.toggle("hidden", !pwa);
+      btnUpdate.classList.toggle("hidden", !isHttp);
       btnUpdate.classList.toggle("has-update", !!pendingSwUpdate && !isCheckingUpdates);
       if (updLbl && !isCheckingUpdates) {
         updLbl.textContent = pendingSwUpdate ? "Update ready" : "Check for updates";
@@ -1354,8 +1381,75 @@
       if (!isCheckingUpdates) {
         btnUpdate.title = pendingSwUpdate
           ? "New Surky version downloaded — click to reload now"
-          : "Check for Surky updates (build " + formatShortBuild() + ")";
+          : "Check for Surky updates (build " + shortBuild + ")";
       }
+    }
+
+    if (btnHelp) {
+      var showBadge = pwa && !!pendingSwUpdate;
+      btnHelp.classList.toggle("has-update", showBadge);
+      btnHelp.title = showBadge
+        ? "Shortcuts, workflow, credits & updates (?) — Update ready"
+        : "Shortcuts, workflow & credits (?)";
+    }
+
+    if (fbEl) {
+      if (lastUpdateFeedback.text) {
+        fbEl.textContent = lastUpdateFeedback.text;
+        fbEl.className = "pwa-feedback" + (lastUpdateFeedback.tone ? (" " + lastUpdateFeedback.tone) : "");
+      } else if (pendingSwUpdate) {
+        fbEl.textContent = "New build ready — click Update ready to reload";
+        fbEl.className = "pwa-feedback accent";
+      } else if (!isHttp) {
+        fbEl.textContent = "Opened as local file · build " + shortBuild;
+        fbEl.className = "pwa-feedback";
+      } else {
+        fbEl.textContent = "Build " + shortBuild + (pwa ? " · Local-first cache active" : " · Ready to check for updates");
+        fbEl.className = "pwa-feedback";
+      }
+    }
+  }
+
+  function getActiveSwInfo() {
+    return new Promise(function (resolve) {
+      try {
+        if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller || typeof MessageChannel === "undefined") {
+          resolve(null);
+          return;
+        }
+        var ch = new MessageChannel();
+        var timer = setTimeout(function () { resolve(null); }, 1200);
+        ch.port1.onmessage = function (ev) {
+          clearTimeout(timer);
+          var d = ev && ev.data;
+          resolve(d && d.type === "VERSION" ? { buildHash: d.buildHash || "", cacheName: d.cacheName || "" } : null);
+        };
+        navigator.serviceWorker.controller.postMessage({ type: "GET_VERSION" }, [ch.port2]);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  function openHelpDlg() {
+    syncPwaToolbarButtons();
+    var helpDlg = $("surkyHelpDlg");
+    if (helpDlg && typeof helpDlg.showModal === "function") {
+      helpDlg.showModal();
+    }
+    if (!lastUpdateFeedback.text && !isCheckingUpdates && !pendingSwUpdate) {
+      getActiveSwInfo().then(function (info) {
+        if (!info || !info.buildHash || lastUpdateFeedback.text || isCheckingUpdates || pendingSwUpdate) return;
+        var fbEl = $("pwaUpdateFeedback");
+        if (!fbEl) return;
+        var shortHash = formatShortBuild();
+        var swShort = info.buildHash.slice(0, 8);
+        var mismatch = getBuildHash() && info.buildHash !== getBuildHash();
+        fbEl.textContent = mismatch
+          ? ("Cached SW " + swShort + " · Page " + shortHash)
+          : ("Build " + shortHash + " · Service worker active (" + swShort + ")");
+        fbEl.className = "pwa-feedback" + (mismatch ? " warn" : "");
+      });
     }
   }
 
@@ -1384,6 +1478,7 @@
         reloadOnce();
       });
     }
+    setUpdateFeedback("Applying new build — reloading...", "accent");
     toast("Applying Surky update — reloading...", "warn");
     try {
       worker.postMessage({ type: "SKIP_WAITING" });
@@ -1442,13 +1537,14 @@
   async function checkForPwaUpdates() {
     if (isCheckingUpdates) return;
     isCheckingUpdates = true;
-    var btnUpdate = $("btnTopCheckUpdates");
+    var btnUpdate = $("btnCheckUpdates");
     var updLbl = $("surkyUpdateBtnLbl");
     if (btnUpdate) {
       btnUpdate.classList.add("is-checking");
       btnUpdate.disabled = true;
     }
     if (updLbl) updLbl.textContent = "Checking...";
+    setUpdateFeedback("Checking server for newer build...", "accent");
 
     var shortHash = formatShortBuild();
     var localHash = getBuildHash();
@@ -1500,16 +1596,28 @@
             await cache.put("./" + SURKY_HTML_FILE, new Response(htmlText, {
               headers: { "Content-Type": "text/html; charset=utf-8" }
             }));
+            if (SURKY_HTML_FILE.toLowerCase() === "index.html") {
+              await cache.put("./", new Response(htmlText, {
+                headers: { "Content-Type": "text/html; charset=utf-8" }
+              }));
+            }
           } catch (ce) {}
         }
+        setUpdateFeedback("Update downloaded (" + shortHash + " → " + remoteHash.slice(0, 8) + ") — reloading...", "ok");
         toast("Update found (build " + remoteHash.slice(0, 8) + ") — reloading Surky...");
         setTimeout(function () { window.location.reload(); }, 450);
         return;
       }
 
       pendingSwUpdate = false;
+      var checkedAt = "";
+      try {
+        checkedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      } catch (e) {}
+      setUpdateFeedback("✓ Up to date · build " + shortHash + (checkedAt ? (" (checked " + checkedAt + ")") : ""), "ok");
       toast("Surky is up to date (build " + shortHash + ").");
     } catch (err) {
+      setUpdateFeedback("Offline — running cached build " + shortHash, "warn");
       toast("Offline — running local cached Surky (build " + shortHash + ").", "warn");
     } finally {
       isCheckingUpdates = false;
@@ -1575,7 +1683,7 @@
               } else {
                 pendingSwUpdate = true;
                 syncPwaToolbarButtons();
-                toast("Update ready — click Check for updates in toolbar to reload.");
+                toast("Update ready — open ? menu and click Check for updates to reload.");
               }
             }
           });

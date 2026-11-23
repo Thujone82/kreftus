@@ -746,9 +746,10 @@ Surky is installable as an independent desktop or mobile **Progressive Web App**
 
 - **One-Click Install (`Install App`)**: When opened over HTTPS or `localhost` in an install-capable browser, an **Install App** button appears in the top toolbar (alongside the browser's native install prompt).
 - **Local-First Cache-First Architecture**: Once installed, `surky-sw.js` boots `index.html` instantaneously from local `CacheStorage` with **zero network wait** and never auto-reloads an active optimization session.
-- **Toolbar `Check for updates` Button (PWA Mode)**: When launched inside an installed standalone PWA window, a **Check for updates** button automatically appears in the top toolbar:
+- **Help Menu `Check for updates` Bar (`?` Dialog)**: Open the **Shortcuts, Workflow & Credits (`?`)** menu at any time to view your active build hash, PWA/Web mode badge, and service worker status, and click **Check for updates**:
   - Performs an explicit cache-bypassed (`no-store`) check against `surky-sw.js` and `<meta name="surky-build">`.
   - Downloads and activates any newer build cleanly (`SKIP_WAITING` + reload), or confirms you are up to date (or running offline from your local cached build).
+  - When a background update is downloaded in installed PWA mode, an accent dot indicator highlights the `?` toolbar button until you open it to reload.
 
 ---
 
