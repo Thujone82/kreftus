@@ -3135,8 +3135,14 @@ function createRawAutoBattle(game, u2Mutations) {
         cfg.u2Mutations.Dust2 = !!mutSrc.Dust2;
       }
 
-      var rSource = (targetBuild && targetBuild.r) || source.r || source.ring || source.rings || (abData && (abData.rings || abData.ring)) || {};
-      cfg.ring.level = Number(rSource.lv || rSource.level || 1);
+      var saveRing = (abData && (abData.rings || abData.ring)) || null;
+      var saveRingLv = saveRing ? Number(saveRing.level || saveRing.lv || 1) : 1;
+      var rSource = (targetBuild && targetBuild.r) || source.r || source.ring || source.rings || saveRing || {};
+      var reqRingLv = Number(rSource.lv || rSource.level || 1);
+      cfg.ring.level = (targetBuild && targetBuild.r) ? Math.max(saveRingLv, reqRingLv) : reqRingLv;
+      if (targetBuild && targetBuild.r) {
+        cfg.oneTimers.The_Ring = true;
+      }
       var rawMods = rSource.m || rSource.mods || [];
       cfg.ring.mods = rawMods.map(function(m) {
         var s = String(m).toLowerCase();

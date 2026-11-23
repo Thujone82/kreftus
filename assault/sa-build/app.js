@@ -4467,7 +4467,7 @@ var ONE_TIMER_MILESTONES = [
       var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "") + (under ? " underleveled" : "");
       var tip = (under ? ("Upgrade needed: Lv " + myLv + " → Lv " + reqLv) : ("Requirement met: Lv " + myLv + " >= " + reqLv)) +
         (isEq ? " · Equipped" : " · Unequipped");
-      var lvText = under ? ("Lv " + myLv + " → " + reqLv) : ("Lv " + reqLv);
+      var lvText = under ? ("Lv " + myLv + " → " + reqLv) : ("Lv " + Math.max(myLv, reqLv));
       return "<div class='" + cls + "' title='" + esc(tip) + "'>" +
         "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
         "<span class='li-lv'>" + esc(lvText) + "</span>" +
@@ -4538,11 +4538,17 @@ var ONE_TIMER_MILESTONES = [
     }
     metrics.push("<span class='pill sm'>" + ICONS.limb + " " + (activeBuild.l || "?") + " Limbs</span>");
     if (activeBuild.r) {
+      var myRLv = hasRing() ? ringLevel() : 0;
+      var reqRLv = activeBuild.r.lv || 1;
+      var ringLvDisp = !hasRing()
+        ? ("Unlock → " + reqRLv)
+        : (myRLv < reqRLv ? (myRLv + " → " + reqRLv) : String(Math.max(myRLv, reqRLv)));
+      var ringMinNote = (myRLv > reqRLv) ? (" (Plan min: Lv " + reqRLv + ")") : "";
       if (targetDelta.ringMismatch) {
         var curModTxt = formatModList(targetDelta.curMods) || "None";
-        metrics.push("<span class='pill sm warn-pill' title='Your Ring is currently set to " + esc(curModTxt) + " — switch to " + esc(targetMods) + "'>" + ICONS.warn + " Ring " + activeBuild.r.lv + " (" + esc(curModTxt) + " → " + esc(targetMods) + ")</span>");
+        metrics.push("<span class='pill sm warn-pill' title='Your Ring is currently set to " + esc(curModTxt) + " — switch to " + esc(targetMods) + esc(ringMinNote) + "'>" + ICONS.warn + " Ring " + ringLvDisp + " (" + esc(curModTxt) + " → " + esc(targetMods) + ")</span>");
       } else {
-        metrics.push("<span class='pill sm teal'>" + ICONS.ring + " Ring " + activeBuild.r.lv + (targetMods ? " (" + esc(targetMods) + ")" : "") + "</span>");
+        metrics.push("<span class='pill sm teal'" + (ringMinNote ? (" title='Effective Ring Lv " + Math.max(myRLv, reqRLv) + esc(ringMinNote) + "'") : "") + ">" + ICONS.ring + " Ring " + ringLvDisp + (targetMods ? " (" + esc(targetMods) + ")" : "") + "</span>");
       }
     }
     if (activeBuild.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + activeBuild.c + "</span>");
@@ -6224,7 +6230,7 @@ var ONE_TIMER_MILESTONES = [
       var isEq = !!(userItem(k) && userItem(k).equipped);
       var sh = isShards(k);
       var cls = "bb-li" + (sh ? " shards" : "") + (!isEq ? " swap-in" : "") + (!owned ? " locked-item" : (myLv < needLv ? " need-up" : ""));
-      var lvBadge = !owned ? ("Z" + ((itemCat(k) && itemCat(k).zone) || "?") + " → Lv " + needLv) : (myLv < needLv ? ("Lv " + myLv + "→" + needLv) : ("Lv " + needLv));
+      var lvBadge = !owned ? ("Z" + ((itemCat(k) && itemCat(k).zone) || "?") + " → Lv " + needLv) : (myLv < needLv ? ("Lv " + myLv + "→" + needLv) : ("Lv " + Math.max(myLv, needLv)));
       return "<div class='" + cls + "'>" +
         "<span class='bb-li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
         "<span class='bb-li-lv'>" + esc(lvBadge) + "</span>" +
@@ -6237,7 +6243,12 @@ var ONE_TIMER_MILESTONES = [
     if (b.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + b.k + "s</span>");
     if (b.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((b.wr <= 1 ? b.wr : b.wr / 100) * 100) + "% WR</span>");
     metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (b.l || itemKeys.length) + " Limbs</span>");
-    if (b.r) metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " R" + b.r.lv + (reqMods.length ? " (" + esc(reqModTxt) + ")" : "") + "</span>");
+    if (b.r) {
+      var popMyRLv = hasRing() ? ringLevel() : 0;
+      var popReqRLv = b.r.lv || 1;
+      var popRingDisp = !hasRing() ? ("Unlock→" + popReqRLv) : (popMyRLv < popReqRLv ? (popMyRLv + "→" + popReqRLv) : String(Math.max(popMyRLv, popReqRLv)));
+      metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " R" + popRingDisp + (reqMods.length ? " (" + esc(reqModTxt) + ")" : "") + "</span>");
+    }
 
     var itemSwapCount = delta ? (Math.max(delta.toEquip.length, delta.toUnequip.length) + (delta.toSwap ? delta.toSwap.length : 0)) : 0;
     var swapCount = itemSwapCount + (hasRingModSwap ? 1 : 0);
@@ -6286,7 +6297,12 @@ var ONE_TIMER_MILESTONES = [
       if (build.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + build.k + "s kills</span>");
       if (build.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((build.wr <= 1 ? build.wr : build.wr / 100) * 100) + "% WR</span>");
       metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (build.l || "?") + " Limbs</span>");
-      if (build.r) metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " Ring Lv " + build.r.lv + " (" + esc(reqMods) + ")</span>");
+      if (build.r) {
+        var modMyRLv = hasRing() ? ringLevel() : 0;
+        var modReqRLv = build.r.lv || 1;
+        var modRingDisp = !hasRing() ? ("Unlock → " + modReqRLv) : (modMyRLv < modReqRLv ? (modMyRLv + " → " + modReqRLv) : String(Math.max(modMyRLv, modReqRLv)));
+        metaPills.push("<span class='pill sm teal'>" + ICONS.ring + " Ring Lv " + modRingDisp + " (" + esc(reqMods) + ")</span>");
+      }
 
       var swapGuideHtml = renderAlignmentGuide(build, delta, "Loadout & Ring Changes Needed (Swaps)", true);
 
@@ -6295,11 +6311,12 @@ var ONE_TIMER_MILESTONES = [
         var owned = userOwns(k);
         var myLv = owned ? userLevel(k) : 0;
         var needLv = build.i[k] || 1;
+        var effLv = Math.max(myLv, needLv);
         var isEq = !!(userItem(k) && userItem(k).equipped);
         var sh = isShards(k);
         var cls = "loadout-item" + (sh ? " shards" : "") + (!isEq ? " unequipped" : "") + (myLv < needLv ? " underleveled" : "");
-        var lvBadge = !owned ? ("Locked · Lv " + needLv) : (myLv < needLv ? ("Lv " + myLv + " → " + needLv) : ("Lv " + needLv));
-        var tip = (isEq ? "Equipped" : "Unequipped") + " · Target: Lv " + needLv + (owned ? (" (Current: Lv " + myLv + ")") : " (Not yet unlocked)");
+        var lvBadge = !owned ? ("Locked · Lv " + needLv) : (myLv < needLv ? ("Lv " + myLv + " → " + needLv) : ("Lv " + effLv));
+        var tip = (isEq ? "Equipped" : "Unequipped") + " · Effective: Lv " + effLv + (myLv > needLv ? (" (Plan min: Lv " + needLv + ")") : "") + (owned ? (" (Current: Lv " + myLv + ")") : " (Not yet unlocked)");
         return "<div class='" + cls + "' title='" + esc(tip) + "'>" +
           "<span class='li-name'>" + iconForItem(k) + "<span>" + esc(itemName(k)) + "</span></span>" +
           "<span class='li-lv'>" + esc(lvBadge) + "</span>" +
@@ -8457,6 +8474,15 @@ function renderPresetsModal() {
   var pendingSwUpdate = false;
   var isCheckingUpdates = false;
   var swRegistrationRef = null;
+  var lastUpdateFeedback = { text: "", tone: "" };
+
+  function setUpdateFeedback(text, tone) {
+    lastUpdateFeedback = { text: text || "", tone: tone || "" };
+    var el = $("pwaUpdateFeedback");
+    if (!el) return;
+    el.textContent = lastUpdateFeedback.text;
+    el.className = "pwa-feedback" + (lastUpdateFeedback.tone ? (" " + lastUpdateFeedback.tone) : "");
+  }
 
   function getBuildHash() {
     try {
@@ -8498,17 +8524,37 @@ function renderPresetsModal() {
 
   function syncPwaToolbarButtons() {
     var pwa = isInstalledPwa();
+    var isHttp = !!(window.location && /^https?:$/i.test(window.location.protocol));
+    var shortBuild = formatShortBuild();
     var btnInstall = $("btnInstallPwa");
     var btnUpdate = $("btnCheckUpdates");
+    var btnHelp = $("btnHelp");
     var updLbl = $("saUpdateBtnLbl");
+    var verBadge = $("pwaVersionBadge");
+    var modeBadge = $("pwaModeBadge");
+    var fbEl = $("pwaUpdateFeedback");
 
     if (btnInstall) {
       var canInstall = !pwa && !!(deferredInstallPrompt || isIosSafari());
       btnInstall.classList.toggle("hidden", !canInstall);
     }
 
+    if (verBadge) verBadge.textContent = "build " + shortBuild;
+    if (modeBadge) {
+      if (!isHttp) {
+        modeBadge.textContent = "Local file";
+        modeBadge.className = "pill sm";
+      } else if (pwa) {
+        modeBadge.textContent = "Installed PWA";
+        modeBadge.className = "pill sm accent";
+      } else {
+        modeBadge.textContent = "Web app";
+        modeBadge.className = "pill sm";
+      }
+    }
+
     if (btnUpdate) {
-      btnUpdate.classList.toggle("hidden", !pwa);
+      btnUpdate.classList.toggle("hidden", !isHttp);
       btnUpdate.classList.toggle("has-update", !!pendingSwUpdate && !isCheckingUpdates);
       if (updLbl && !isCheckingUpdates) {
         updLbl.textContent = pendingSwUpdate ? "Update ready" : "Check for updates";
@@ -8516,8 +8562,74 @@ function renderPresetsModal() {
       if (!isCheckingUpdates) {
         btnUpdate.title = pendingSwUpdate
           ? "New Spire Assault Planner version downloaded — click to reload now"
-          : "Check for Spire Assault Planner updates (build " + formatShortBuild() + ")";
+          : "Check for Spire Assault Planner updates (build " + shortBuild + ")";
       }
+    }
+
+    if (btnHelp) {
+      var showBadge = pwa && !!pendingSwUpdate;
+      btnHelp.classList.toggle("has-update", showBadge);
+      btnHelp.title = showBadge
+        ? "Shortcuts, glossary & updates (?) — Update ready"
+        : "Shortcuts & glossary (?)";
+    }
+
+    if (fbEl) {
+      if (lastUpdateFeedback.text) {
+        fbEl.textContent = lastUpdateFeedback.text;
+        fbEl.className = "pwa-feedback" + (lastUpdateFeedback.tone ? (" " + lastUpdateFeedback.tone) : "");
+      } else if (pendingSwUpdate) {
+        fbEl.textContent = "New build ready — click Update ready to reload";
+        fbEl.className = "pwa-feedback accent";
+      } else if (!isHttp) {
+        fbEl.textContent = "Opened as local file · build " + shortBuild;
+        fbEl.className = "pwa-feedback";
+      } else {
+        fbEl.textContent = "Build " + shortBuild + (pwa ? " · Local-first cache active" : " · Ready to check for updates");
+        fbEl.className = "pwa-feedback";
+      }
+    }
+  }
+
+  function getActiveSwInfo() {
+    return new Promise(function (resolve) {
+      try {
+        if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller || typeof MessageChannel === "undefined") {
+          resolve(null);
+          return;
+        }
+        var ch = new MessageChannel();
+        var timer = setTimeout(function () { resolve(null); }, 1200);
+        ch.port1.onmessage = function (ev) {
+          clearTimeout(timer);
+          var d = ev && ev.data;
+          resolve(d && d.type === "VERSION" ? { buildHash: d.buildHash || "", cacheName: d.cacheName || "" } : null);
+        };
+        navigator.serviceWorker.controller.postMessage({ type: "GET_VERSION" }, [ch.port2]);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  function openHelpDlg() {
+    syncPwaToolbarButtons();
+    if ($("helpDlg") && typeof $("helpDlg").showModal === "function") {
+      $("helpDlg").showModal();
+    }
+    if (!lastUpdateFeedback.text && !isCheckingUpdates && !pendingSwUpdate) {
+      getActiveSwInfo().then(function (info) {
+        if (!info || !info.buildHash || lastUpdateFeedback.text || isCheckingUpdates || pendingSwUpdate) return;
+        var fbEl = $("pwaUpdateFeedback");
+        if (!fbEl) return;
+        var shortHash = formatShortBuild();
+        var swShort = info.buildHash.slice(0, 8);
+        var mismatch = getBuildHash() && info.buildHash !== getBuildHash();
+        fbEl.textContent = mismatch
+          ? ("Cached SW " + swShort + " · Page " + shortHash)
+          : ("Build " + shortHash + " · Service worker active (" + swShort + ")");
+        fbEl.className = "pwa-feedback" + (mismatch ? " warn" : "");
+      });
     }
   }
 
@@ -8546,6 +8658,7 @@ function renderPresetsModal() {
         reloadOnce();
       });
     }
+    setUpdateFeedback("Applying new build — reloading...", "accent");
     toast("Applying Spire Assault Planner update — reloading...", "warn");
     try {
       worker.postMessage({ type: "SKIP_WAITING" });
@@ -8611,6 +8724,7 @@ function renderPresetsModal() {
       btnUpdate.disabled = true;
     }
     if (updLbl) updLbl.textContent = "Checking...";
+    setUpdateFeedback("Checking server for newer build...", "accent");
 
     var shortHash = formatShortBuild();
     var localHash = getBuildHash();
@@ -8669,14 +8783,21 @@ function renderPresetsModal() {
             }
           } catch (ce) {}
         }
+        setUpdateFeedback("Update downloaded (" + shortHash + " → " + remoteHash.slice(0, 8) + ") — reloading...", "ok");
         toast("Update found (build " + remoteHash.slice(0, 8) + ") — reloading Spire Assault Planner...");
         setTimeout(function () { window.location.reload(); }, 450);
         return;
       }
 
       pendingSwUpdate = false;
+      var checkedAt = "";
+      try {
+        checkedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      } catch (e) {}
+      setUpdateFeedback("✓ Up to date · build " + shortHash + (checkedAt ? (" (checked " + checkedAt + ")") : ""), "ok");
       toast("Spire Assault Planner is up to date (build " + shortHash + ").");
     } catch (err) {
+      setUpdateFeedback("Offline — running cached build " + shortHash, "warn");
       toast("Offline — running local cached Spire Assault Planner (build " + shortHash + ").", "warn");
     } finally {
       isCheckingUpdates = false;
@@ -8729,6 +8850,7 @@ function renderPresetsModal() {
             try { reg.waiting.postMessage({ type: "SKIP_WAITING" }); } catch (e) {}
           } else {
             pendingSwUpdate = true;
+            setUpdateFeedback("New build ready — click Update ready to reload", "accent");
             syncPwaToolbarButtons();
           }
         }
@@ -8741,8 +8863,9 @@ function renderPresetsModal() {
                 try { newWorker.postMessage({ type: "SKIP_WAITING" }); } catch (e) {}
               } else {
                 pendingSwUpdate = true;
+                setUpdateFeedback("New build ready — click Update ready to reload", "accent");
                 syncPwaToolbarButtons();
-                toast("Update ready — click Check for updates in toolbar to reload.");
+                toast("Update ready — open Help (?) and click Check for updates to reload.");
               }
             }
           });
@@ -8797,7 +8920,7 @@ function renderPresetsModal() {
       $(id).addEventListener("change", onFilterChange);
     });
     if ($("btnHelp") && $("helpDlg")) {
-      $("btnHelp").addEventListener("click", function () { $("helpDlg").showModal(); });
+      $("btnHelp").addEventListener("click", openHelpDlg);
       $("btnCloseHelp").addEventListener("click", function () { $("helpDlg").close(); });
       $("helpDlg").addEventListener("click", function (ev) {
         if (ev.target === $("helpDlg")) $("helpDlg").close();
@@ -8959,7 +9082,7 @@ function renderPresetsModal() {
       else if (ev.key === "[") { ev.preventDefault(); stepLevel(-1); }
       else if (ev.key === "]") { ev.preventDefault(); stepLevel(1); }
       else if (ev.key === "?") {
-        if ($("helpDlg")) { ev.preventDefault(); $("helpDlg").showModal(); }
+        if ($("helpDlg")) { ev.preventDefault(); openHelpDlg(); }
       }
     });
     window.addEventListener("resize", function () {
