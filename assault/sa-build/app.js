@@ -8333,6 +8333,23 @@ function renderPresetsModal() {
           var diffCls = r.deltaDustPs > 0 ? "pos" : (r.deltaDustPs < 0 ? "neg" : "muted");
           var paybackStr = (r.paybackSec != null && isFinite(r.paybackSec) && r.paybackSec > 0) ? fmtTime(r.paybackSec) : (r.deltaDustPs > 0 ? "Instant" : "Never");
 
+          var ttkCellHtml = "<td class='mono muted'>—</td>";
+          if (r.newSecPerKill > 0 && isFinite(r.newSecPerKill)) {
+            var ttkBase = r.newSecPerKill.toFixed(2) + "s";
+            var ttkDeltaHtml = "";
+            if (r.flippedToWin) {
+              ttkDeltaHtml = " <span class='pos' style='font-size:11px;'>(Wins!)</span>";
+            } else if (r.baselineSecPerKill > 0 && isFinite(r.baselineSecPerKill)) {
+              var dTtk = r.newSecPerKill - r.baselineSecPerKill;
+              if (dTtk <= -0.005) {
+                ttkDeltaHtml = " <span class='pos' style='font-size:11px;'>(" + dTtk.toFixed(2) + "s)</span>";
+              } else if (dTtk >= 0.005) {
+                ttkDeltaHtml = " <span class='neg' style='font-size:11px;'>(+" + dTtk.toFixed(2) + "s)</span>";
+              }
+            }
+            ttkCellHtml = "<td class='mono' style='white-space:nowrap;'><b>" + esc(ttkBase) + "</b>" + ttkDeltaHtml + "</td>";
+          }
+
           return "<tr>" +
             "<td>#" + (idx + 1) + "</td>" +
             "<td><b>" + esc(r.label) + "</b></td>" +
@@ -8346,12 +8363,13 @@ function renderPresetsModal() {
               "</div>" +
             "</td>" +
             "<td class='mono " + diffCls + "'><b>" + esc(diffStr) + "</b></td>" +
+            ttkCellHtml +
             "<td class='mono'>" + esc(paybackStr) + "</td>" +
             "<td><button type='button' class='btn sm ghost' data-apply-upgrade='" + esc(r.type + ":" + (r.key || "")) + "'>Apply to Sandbox</button></td>" +
             "</tr>";
         }).join("");
 
-        resDiv.innerHTML = "<div class='tbl-wrap'><table class='sim-ext-table'><thead><tr><th>Rank</th><th>Upgrade Step</th><th>Cost</th><th>Simulated Δ Dust/s</th><th>Payback</th><th>Action</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+        resDiv.innerHTML = "<div class='tbl-wrap'><table class='sim-ext-table'><thead><tr><th>Rank</th><th>Upgrade Step</th><th>Cost</th><th>Simulated Δ Dust/s</th><th>TTK</th><th>Payback</th><th>Action</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
 
         resDiv.onclick = function (ev) {
           var btn = ev.target.closest("button[data-apply-upgrade]");
