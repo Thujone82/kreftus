@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="sa-build" content="851acd82a780">
+  <meta name="sa-build" content="e69facc51249">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -9045,6 +9045,7 @@ var ONE_TIMER_MILESTONES = [
   var levelSimCache = {};
   var upgradeRoiCache = {};
   var ringOptCache = {};
+  var nextLevelViableCache = {};
 
   function normalizeRingModKey(mods) {
     return (mods || []).map(function (m) {
@@ -9289,6 +9290,46 @@ var ONE_TIMER_MILESTONES = [
   window.saOpenRingOptimizer = function () {
     openSimModal(null, { forceReset: true, tab: "ringopt" });
   };
+  window.saOpenMonteCarlo = function () {
+    openSimModal(null, { forceReset: true, tab: "montecarlo" });
+  };
+
+  function checkNextLevelViable(nextLvl) {
+    var l = Number(nextLvl) || 0;
+    if (!state.save || !state.ab || typeof SASimEngine === "undefined" || !l || l > 160 || !getCurrentEquippedCombatBuild(l)) {
+      return null;
+    }
+    var sig = getLoadoutSignature();
+    var cacheKey = sig + "@" + l;
+    if (levelSimCache[cacheKey]) {
+      var cached = levelSimCache[cacheKey];
+      var cViable = !!(cached.kills > 0 && cached.winRate > 0 && isFinite(cached.actualEffKillSec));
+      var fromLevelCache = { level: l, viable: cViable, winRate: cached.winRate || 0, kills: cached.kills || 0 };
+      nextLevelViableCache[cacheKey] = fromLevelCache;
+      return fromLevelCache;
+    }
+    if (nextLevelViableCache[cacheKey]) {
+      return nextLevelViableCache[cacheKey];
+    }
+    try {
+      var res = SASimEngine.runBatch({ save: state.save, level: l }, {
+        kills: 10,
+        maxFights: 50,
+        ticks: 25000
+      });
+      var out = {
+        level: l,
+        viable: !!(res && res.kills > 0 && res.winRate > 0),
+        winRate: (res && res.winRate) || 0,
+        kills: (res && res.kills) || 0
+      };
+      nextLevelViableCache[cacheKey] = out;
+      return out;
+    } catch (e) {
+      console.warn("Next-level viability probe error on SA " + l + ":", e);
+      return null;
+    }
+  }
 
   function getCurrentCombatStats(lvl) {
     var l = Number(lvl) || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
@@ -10332,7 +10373,9 @@ var ONE_TIMER_MILESTONES = [
         dustEarned: diag.pushStalled ? 0 : (baseRate * elapsed),
         stalled: !!diag.pushStalled,
         stalledByAutoLevel: false,
-        stalledForSec: diag.pushStalled ? elapsed : 0
+        stalledForSec: diag.pushStalled ? elapsed : 0,
+        nextLevel: baseLvl + 1,
+        nextLevelUnclearable: false
       };
     }
 
@@ -10430,6 +10473,15 @@ var ONE_TIMER_MILESTONES = [
       dustEarned += currentDustPs * timeLeft;
     }
 
+    var nextLevel = curLvl + 1;
+    var nextLevelUnclearable = false;
+    if (!stalled && curLvl < 160) {
+      var nextCheck = checkNextLevelViable(nextLevel);
+      if (nextCheck && !nextCheck.viable) {
+        nextLevelUnclearable = true;
+      }
+    }
+
     return {
       baseLevel: baseLvl,
       currentLevel: curLvl,
@@ -10447,7 +10499,9 @@ var ONE_TIMER_MILESTONES = [
       dustEarned: dustEarned,
       stalled: stalled,
       stalledByAutoLevel: stalledByAutoLevel,
-      stalledForSec: stalledForSec
+      stalledForSec: stalledForSec,
+      nextLevel: nextLevel,
+      nextLevelUnclearable: nextLevelUnclearable
     };
   }
 
@@ -10497,6 +10551,14 @@ var ONE_TIMER_MILESTONES = [
       rate: rate,
       autoLevelProj: autoLevelProj
     };
+  }
+
+  function getProjectedFightLevel() {
+    var bnk = bank();
+    return (bnk && bnk.autoLevelProj && bnk.autoLevelProj.currentLevel) ||
+      (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) ||
+      state.level ||
+      1;
   }
 
   function setTheme(theme) {
@@ -10918,6 +10980,7 @@ var ONE_TIMER_MILESTONES = [
     levelSimCache = {};
     upgradeRoiCache = {};
     ringOptCache = {};
+    nextLevelViableCache = {};
     buildDustCache = {};
     buildKillTimeCache = {};
     state._cachedDiag = null;
@@ -11249,8 +11312,8 @@ var ONE_TIMER_MILESTONES = [
   function renderQuickLevels() {
     var el = $("quickLevels");
     if (!el || !state.ab) return;
-    var fight = state.ab.enemyLevel;
-    var max = state.ab.maxEnemyLevel;
+    var fight = getProjectedFightLevel();
+    var max = Math.max((state.ab && state.ab.maxEnemyLevel) || 1, fight || 1);
     var html = "";
     if (fight && SA_DATA.builds[String(fight)]) {
       var fTag = isFarmLevel(fight) ? "Farm" : "Push";
@@ -11417,29 +11480,53 @@ var ONE_TIMER_MILESTONES = [
   function renderAutoLevelStallBanner(proj) {
     var el = $("autoLevelStallBanner");
     if (!el) return;
-    if (!proj || !proj.stalled) {
+    if (!proj || (!proj.stalled && !proj.nextLevelUnclearable)) {
       el.hidden = true;
       el.innerHTML = "";
       return;
     }
     el.hidden = false;
-    var advTxt = proj.autoAdvancedLevels > 0
-      ? ("AutoLevel advanced from <b>SA " + proj.baseLevel + "</b> to <b>SA " + proj.currentLevel + "</b> (+" + proj.autoAdvancedLevels + " level" + (proj.autoAdvancedLevels === 1 ? "" : "s") + ") and stalled")
-      : ("Huffy is stalled on <b>SA " + proj.currentLevel + "</b>");
-    var stalledAgoTxt = proj.stalledForSec >= 5 ? (" · idle for ~" + fmtTime(proj.stalledForSec)) : "";
+    if (proj.stalled) {
+      el.style.borderColor = "rgba(248,113,113,0.45)";
+      el.style.background = "color-mix(in srgb,var(--bad) 8%,var(--surface-solid))";
+      var advTxt = proj.autoAdvancedLevels > 0
+        ? ("AutoLevel advanced from <b>SA " + proj.baseLevel + "</b> to <b>SA " + proj.currentLevel + "</b> (+" + proj.autoAdvancedLevels + " level" + (proj.autoAdvancedLevels === 1 ? "" : "s") + ") and stalled")
+        : ("Huffy is stalled on <b>SA " + proj.currentLevel + "</b>");
+      var stalledAgoTxt = proj.stalledForSec >= 5 ? (" · idle for ~" + fmtTime(proj.stalledForSec)) : "";
+      el.innerHTML =
+        "<div class='delta-title' style='justify-content:space-between;color:var(--bad);'>" +
+          "<span style='display:inline-flex;align-items:center;gap:6px;'>" + ICONS.warn + "<span>AutoLevel Stalled on SA " + proj.currentLevel + " (0% wins)</span></span>" +
+          "<button type='button' class='btn sm ghost' style='padding:2px 8px;font-size:11px;' onclick='window.saSelectLevel&&saSelectLevel(" + proj.currentLevel + ")'>View SA " + proj.currentLevel + " Builds</button>" +
+        "</div>" +
+        "<div style='color:var(--muted);font-size:12px;'>" +
+          advTxt + " because your current equipped build has a <b>0% win rate</b> on SA " + proj.currentLevel + " (earning <b>0 dust/s</b>" + esc(stalledAgoTxt) + "). Swap builds or upgrade items to keep pushing." +
+        "</div>";
+      return;
+    }
+
+    el.style.borderColor = "rgba(251,191,36,0.45)";
+    el.style.background = "color-mix(in srgb,var(--warn) 7%,var(--surface-solid))";
+    var etaTxt = (proj.curEtaSec && proj.curEtaSec > 0) ? ("~" + fmtDuration(proj.curEtaSec)) : "soon";
+    var etaClockTxt = (proj.curEtaSec && proj.curEtaSec > 0) ? (" (ETA " + fmtLocalEta(proj.curEtaSec) + ")") : "";
     el.innerHTML =
-      "<div class='delta-title' style='justify-content:space-between;color:var(--bad);'>" +
-        "<span style='display:inline-flex;align-items:center;gap:6px;'>" + ICONS.warn + "<span>AutoLevel Stalled on SA " + proj.currentLevel + " (0% wins)</span></span>" +
-        "<button type='button' class='btn sm ghost' style='padding:2px 8px;font-size:11px;' onclick='window.saSelectLevel&&saSelectLevel(" + proj.currentLevel + ")'>View SA " + proj.currentLevel + " Builds</button>" +
+      "<div class='delta-title' style='justify-content:space-between;color:var(--warn);flex-wrap:wrap;gap:6px;'>" +
+        "<span style='display:inline-flex;align-items:center;gap:6px;'>" + ICONS.warn + "<span>AutoLevel Warning · SA " + proj.nextLevel + " Unclearable (0% wins)</span></span>" +
+        "<span style='display:inline-flex;align-items:center;gap:6px;'>" +
+          "<button type='button' class='btn sm ghost' style='padding:2px 8px;font-size:11px;' onclick='window.saSelectLevel&&saSelectLevel(" + proj.nextLevel + ")'>View SA " + proj.nextLevel + " Builds</button>" +
+          "<button type='button' class='btn sm ghost' style='padding:2px 8px;font-size:11px;' onclick='window.saOpenMonteCarlo&&saOpenMonteCarlo()'>Monte Carlo Test</button>" +
+        "</span>" +
       "</div>" +
       "<div style='color:var(--muted);font-size:12px;'>" +
-        advTxt + " because your current equipped build has a <b>0% win rate</b> on SA " + proj.currentLevel + " (earning <b>0 dust/s</b>" + esc(stalledAgoTxt) + "). Swap builds or upgrade items to keep pushing." +
+        "AutoLevel is ON. Your current build clears SA " + proj.currentLevel + " in <b>" + esc(etaTxt) + "</b>" + esc(etaClockTxt) + " and will stall at <b>0 dust/s</b> on SA " + proj.nextLevel + ". Turn AutoLevel OFF in Trimps or prepare a SA " + proj.nextLevel + " build before then." +
       "</div>";
   }
 
   function getAutoLevelPillMeta(audit, proj) {
     if (proj && proj.stalled) {
       return { cls: "pill sm warn-pill", html: ICONS.warn + "AutoLevel Stalled" };
+    }
+    if (proj && proj.nextLevelUnclearable) {
+      return { cls: "pill sm warn-pill", html: ICONS.warn + "SA " + proj.nextLevel + " Wall" };
     }
     if (proj && proj.autoAdvancedLevels > 0) {
       return { cls: "pill sm buy", html: ICONS.check + "Auto +" + proj.autoAdvancedLevels };
@@ -11520,6 +11607,12 @@ var ONE_TIMER_MILESTONES = [
         html += "<div class='dp-note warn' style='margin-top:0;margin-bottom:8px;'>" +
           "<div style='margin-bottom:6px;'>" + stallDesc + "</div>" +
           "<button type='button' class='btn sm ghost' style='width:100%;justify-content:center;' onclick='event.stopPropagation();window.saSelectLevel&&saSelectLevel(" + proj.currentLevel + ")'>View SA " + proj.currentLevel + " Builds</button>" +
+        "</div>";
+      } else if (proj.nextLevelUnclearable) {
+        var nextEtaTxt = (proj.curEtaSec && proj.curEtaSec > 0) ? ("~" + fmtDuration(proj.curEtaSec)) : "soon";
+        html += "<div class='dp-note warn' style='margin-top:0;margin-bottom:8px;'>" +
+          "<div style='margin-bottom:6px;'><b>Next Level Wall (SA " + proj.nextLevel + ")</b> — Your current build has a 0% win rate on SA " + proj.nextLevel + " and will stall in " + esc(nextEtaTxt) + " unless AutoLevel is turned OFF or you swap builds.</div>" +
+          "<button type='button' class='btn sm ghost' style='width:100%;justify-content:center;' onclick='event.stopPropagation();window.saSelectLevel&&saSelectLevel(" + proj.nextLevel + ")'>View SA " + proj.nextLevel + " Builds</button>" +
         "</div>";
       }
 
@@ -11666,6 +11759,7 @@ var ONE_TIMER_MILESTONES = [
     var diag = combatDiagnostics(rate);
     var audit = saSettingsAudit();
     var pushProj = diag.isPushing ? (bnk.autoLevelProj || projectAutoLevelProgress(diag, bnk.elapsedSec)) : null;
+    state._lastProjectedFightLevel = (pushProj ? pushProj.currentLevel : (diag && diag.enemyLevel)) || state._lastProjectedFightLevel;
     var autoLevelPill = '';
     if (state.save) {
       var pillMeta = getAutoLevelPillMeta(audit, pushProj);
@@ -15458,11 +15552,20 @@ var ONE_TIMER_MILESTONES = [
     var bnk = bank();
 
     var eCard = $("kpiEnemyLevel");
+    var autoAdvancedFromLvl = null;
+    var autoAdvancedToLvl = null;
     if (eCard) {
       var eDiag = state._cachedDiag || combatDiagnostics(rate);
       if (eDiag.isPushing) {
         var eProj = bnk.autoLevelProj || projectAutoLevelProgress(eDiag, bnk.elapsedSec);
         if (eProj) {
+          if (eProj.currentLevel && state._lastProjectedFightLevel && eProj.currentLevel !== state._lastProjectedFightLevel) {
+            autoAdvancedFromLvl = state._lastProjectedFightLevel;
+            autoAdvancedToLvl = eProj.currentLevel;
+            state._lastProjectedFightLevel = eProj.currentLevel;
+          } else if (eProj.currentLevel && !state._lastProjectedFightLevel) {
+            state._lastProjectedFightLevel = eProj.currentLevel;
+          }
           var liveEtaDur = eProj.stalled
             ? "0/s · Stalled"
             : (eProj.curEtaSec > 0 ? ("~" + fmtDuration(eProj.curEtaSec)) : "Ready to clear");
@@ -15541,6 +15644,28 @@ var ONE_TIMER_MILESTONES = [
     }
 
     updateBonusesPopover(rate, bnk);
+
+    if (autoAdvancedToLvl != null && autoAdvancedFromLvl != null && autoAdvancedToLvl !== autoAdvancedFromLvl) {
+      if (simState.config && Number(simState.config.level || simState.config.enemyLevel) === Number(autoAdvancedFromLvl)) {
+        simState.config.level = autoAdvancedToLvl;
+        simState.config.enemyLevel = autoAdvancedToLvl;
+        simState.lastMcScan = null;
+        simState.lastMcSig = null;
+        if (simState.active) {
+          fillSimLevelSelect(autoAdvancedToLvl);
+          renderSimSandboxUI();
+          startSimSession();
+          if (simState.activeTab === "montecarlo") runMonteCarloPush(false);
+          else if (simState.activeTab === "ringopt") runRingOptimizer();
+          else if (simState.activeTab === "sensitivity") runUpgradeSensitivity();
+        }
+      }
+      if (Number(state.level) === Number(autoAdvancedFromLvl) && SA_DATA.builds[String(autoAdvancedToLvl)]) {
+        selectLevel(autoAdvancedToLvl);
+      } else {
+        renderQuickLevels();
+      }
+    }
 
     var dlg = $("presetsDlg");
     if (dlg && dlg.open) {
@@ -15744,6 +15869,7 @@ var ONE_TIMER_MILESTONES = [
       levelSimCache = {};
       upgradeRoiCache = {};
       ringOptCache = {};
+      nextLevelViableCache = {};
       buildDustCache = {};
       buildKillTimeCache = {};
       betterSimToken++;
@@ -15756,6 +15882,7 @@ var ONE_TIMER_MILESTONES = [
       }
       state.ab = decoded.ab;
       state.radon = decoded.radon;
+      state._lastProjectedFightLevel = (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || null;
       if (!isRestore || !state.saveLoadedAt) {
         state.saveLoadedAt = Date.now();
       }
@@ -16157,9 +16284,14 @@ function renderPresetsModal() {
       simState.paused = false;
       closeSimAddItemMenu();
 
+      var projFightLvl = getProjectedFightLevel();
       var shouldResetLoadout = !!targetBuild || !!(options && options.forceReset) || !simState.config;
       if (shouldResetLoadout) {
-        var simLvl = (targetBuild && (targetBuild.saLevel || targetBuild.level)) || state.level || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || 1;
+        var baseSaveLvl = state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel);
+        var followProjLvl = (!targetBuild && state.ab && Number(state.level) === Number(baseSaveLvl) && projFightLvl > state.level)
+          ? projFightLvl
+          : (state.level || projFightLvl || 1);
+        var simLvl = (targetBuild && (targetBuild.saLevel || targetBuild.level)) || followProjLvl;
         fillSimLevelSelect(simLvl);
 
         var cfgSource = targetBuild
@@ -16191,6 +16323,13 @@ function renderPresetsModal() {
         simState.lastMcSig = null;
       } else {
         var persistedLvl = Number(simState.config.level || simState.config.enemyLevel || state.level || 1);
+        if (!targetBuild && state.ab && persistedLvl >= Number(state.ab.enemyLevel || 1) && persistedLvl < projFightLvl) {
+          persistedLvl = projFightLvl;
+          simState.config.level = projFightLvl;
+          simState.config.enemyLevel = projFightLvl;
+          simState.lastMcScan = null;
+          simState.lastMcSig = null;
+        }
         fillSimLevelSelect(persistedLvl);
         syncSimEquipped();
       }
