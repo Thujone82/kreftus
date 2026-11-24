@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="sa-build" content="e69facc51249">
+  <meta name="sa-build" content="1e5bbec52137">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -10981,6 +10981,7 @@ var ONE_TIMER_MILESTONES = [
     upgradeRoiCache = {};
     ringOptCache = {};
     nextLevelViableCache = {};
+    optimalTargetRingCache = {};
     buildDustCache = {};
     buildKillTimeCache = {};
     state._cachedDiag = null;
@@ -12883,6 +12884,189 @@ var ONE_TIMER_MILESTONES = [
     return result;
   }
 
+  var optimalTargetRingCache = {};
+  function toSaveRingModKey(m) {
+    var s = String(m || "").trim().toLowerCase();
+    if (s === "dust" || s === "dustmult") return "dustMult";
+    if (s === "attack") return "attack";
+    if (s === "health") return "health";
+    if (s === "defense") return "defense";
+    if (s === "lifesteal") return "lifesteal";
+    return s;
+  }
+
+  function toSimRingModName(m) {
+    var s = String(m || "").trim().toLowerCase();
+    if (s === "dust" || s === "dustmult") return "Dust";
+    return s ? (s.charAt(0).toUpperCase() + s.slice(1)) : "";
+  }
+
+  function findOptimalTargetRingMods(targetBuild, level, mode, extraLimbItems) {
+    if (!targetBuild || !targetBuild.r || !state.save || !state.ab || typeof SASimEngine === "undefined") {
+      return null;
+    }
+    var lvl = Number(level || state.level || 1);
+    var m = mode || getLevelMode(lvl);
+    var effRingLv = Math.max(hasRing() ? ringLevel() : 0, Number(targetBuild.r.lv) || 0);
+    var unlockedSlots = ringBaseStats(effRingLv).slots;
+    var planMods = (targetBuild.r.m || []).filter(Boolean);
+    if (unlockedSlots <= 0 || unlockedSlots <= planMods.length) {
+      return null;
+    }
+
+    var bId = (typeof buildId === "function") ? buildId(targetBuild) : ((targetBuild.n || "") + "_" + (targetBuild.d || 0));
+    var extraList = (extraLimbItems || []).slice().sort();
+    var eqRingMods = hasRing() ? ringMods() : [];
+    var eqRingKey = normalizeRingModKey(eqRingMods);
+    var cacheKey = bId + "@" + lvl + "@" + m + "@" + effRingLv + "@" + extraList.join(",") + "@" + eqRingKey;
+    if (optimalTargetRingCache[cacheKey]) {
+      return optimalTargetRingCache[cacheKey];
+    }
+
+    try {
+      var simItems = Object.assign({}, targetBuild.i || {});
+      for (var ei = 0; ei < extraList.length; ei++) {
+        var ek = extraList[ei];
+        if (ek && !simItems[ek]) {
+          simItems[ek] = Math.max(1, userLevel(ek) || 1);
+        }
+      }
+      var simBuild = {
+        n: targetBuild.n || "Target",
+        i: simItems,
+        r: { lv: effRingLv, m: planMods.slice() }
+      };
+
+      // Stage 1: Screen all valid full-slot Ring combinations
+      var results = SASimEngine.optimizeRing({ save: state.save, build: simBuild, level: lvl }, {
+        slots: unlockedSlots,
+        enemyLevel: lvl,
+        maxKills: 80,
+        maxFights: 130,
+        ticks: 25000
+      });
+      if (!results || !results.length) return null;
+
+      // Stage 2: Confirm top 2 finalists for mode + current equipped Ring (if full-slot) at 500 kills
+      var finalists = [];
+      var seen = {};
+      function addFin(entry) {
+        if (!entry) return;
+        var k = normalizeRingModKey(entry.mods);
+        if (seen[k]) return;
+        seen[k] = true;
+        finalists.push(entry);
+      }
+
+      var curEntry = null;
+      if (hasRing() && eqRingMods.length === unlockedSlots) {
+        for (var ci = 0; ci < results.length; ci++) {
+          if (normalizeRingModKey(results[ci].mods) === eqRingKey) {
+            curEntry = results[ci];
+            break;
+          }
+        }
+        if (curEntry) addFin(curEntry);
+      }
+
+      var sortedScreen = (m === "push")
+        ? results.slice().sort(function (a, b) {
+            var ka = ringEntryEffSecPerKill(a);
+            var kb = ringEntryEffSecPerKill(b);
+            if (isFinite(ka) !== isFinite(kb)) return isFinite(ka) ? -1 : 1;
+            if (isFinite(ka) && Math.abs(ka - kb) > 0.02) return ka - kb;
+            return (b.dustPs || 0) - (a.dustPs || 0);
+          })
+        : results.slice().sort(function (a, b) {
+            var da = a.dustPs || 0;
+            var db = b.dustPs || 0;
+            if (Math.abs(db - da) > 0.5) return db - da;
+            return ringEntryEffSecPerKill(a) - ringEntryEffSecPerKill(b);
+          });
+
+      for (var si = 0; si < Math.min(2, sortedScreen.length); si++) {
+        addFin(sortedScreen[si]);
+      }
+
+      var baseCfg = SASimEngine.normalizeConfig({ save: state.save, build: simBuild, level: lvl });
+      for (var fi = 0; fi < finalists.length; fi++) {
+        var fin = finalists[fi];
+        var testCfg = JSON.parse(JSON.stringify(baseCfg));
+        testCfg.ring.mods = (fin.mods || []).slice();
+        testCfg.rings.mods = (fin.mods || []).slice();
+        var precise = SASimEngine.runBatch(testCfg, {
+          enemyLevel: lvl,
+          kills: 500,
+          maxFights: 800,
+          ticks: 40000
+        });
+        if (precise) {
+          fin.dustPs = precise.dustPs;
+          fin.winRate = precise.winRate;
+          fin.timePerKill = precise.secPerKill;
+          fin.secPerKill = precise.secPerKill;
+          fin.effSecPerKill = precise.effSecPerKill;
+          fin.kills = precise.kills;
+        }
+      }
+
+      var rankedFinalists = (m === "push")
+        ? finalists.slice().sort(function (a, b) {
+            var ka = ringEntryEffSecPerKill(a);
+            var kb = ringEntryEffSecPerKill(b);
+            if (isFinite(ka) !== isFinite(kb)) return isFinite(ka) ? -1 : 1;
+            if (isFinite(ka) && Math.abs(ka - kb) > 0.02) return ka - kb;
+            return (b.dustPs || 0) - (a.dustPs || 0);
+          })
+        : finalists.slice().sort(function (a, b) {
+            var da = a.dustPs || 0;
+            var db = b.dustPs || 0;
+            if (Math.abs(db - da) > 0.5) return db - da;
+            return ringEntryEffSecPerKill(a) - ringEntryEffSecPerKill(b);
+          });
+
+      var best = rankedFinalists[0];
+      if (!best) return null;
+
+      // Avoid unnecessary Ring swaps when user's full-slot Ring is within noise tolerance of winner
+      if (curEntry && curEntry !== best) {
+        var curEffK = ringEntryEffSecPerKill(curEntry);
+        var bestEffK = ringEntryEffSecPerKill(best);
+        var curD = curEntry.dustPs || 0;
+        var bestD = best.dustPs || 0;
+        var keepCurrent = false;
+        if (m === "push") {
+          if (!isFinite(bestEffK) && !isFinite(curEffK)) {
+            keepCurrent = true;
+          } else if (isFinite(bestEffK) && isFinite(curEffK) && !(bestEffK < curEffK * 0.98 && (curEffK - bestEffK) >= 0.05)) {
+            keepCurrent = true;
+          }
+        } else {
+          if (!((curD <= 0 && bestD > 0) || (bestD > curD * 1.02 && (bestD - curD) >= 1))) {
+            keepCurrent = true;
+          }
+        }
+        if (keepCurrent) best = curEntry;
+      }
+
+      var chosenMods = (best.mods || []).slice();
+      var out = {
+        mods: chosenMods.map(toSaveRingModKey),
+        simMods: chosenMods.map(toSimRingModName),
+        label: formatRingModNames(chosenMods),
+        slots: unlockedSlots,
+        planMods: planMods.slice(),
+        dustPs: best.dustPs || 0,
+        effSecPerKill: ringEntryEffSecPerKill(best)
+      };
+      optimalTargetRingCache[cacheKey] = out;
+      return out;
+    } catch (e) {
+      console.warn("Error optimizing target Ring mods on SA " + lvl + ":", e);
+      return null;
+    }
+  }
+
   function loadoutDelta(rec, level, mode) {
     if (!rec) return null;
     var lvl = (level != null) ? Number(level) : Number(state.level || 1);
@@ -12961,15 +13145,29 @@ var ONE_TIMER_MILESTONES = [
       toUnequip = curExtraEquipped;
     }
 
-    var reqMods = (rec.r && rec.r.m) ? rec.r.m : [];
+    var extraLimbKeys = [];
+    for (var ei = 0; ei < extraLimbOptimal.length; ei++) {
+      if (extraLimbOptimal[ei] && extraLimbOptimal[ei].item && extraLimbKeys.indexOf(extraLimbOptimal[ei].item) === -1) {
+        extraLimbKeys.push(extraLimbOptimal[ei].item);
+      }
+    }
+    for (var si = 0; si < toSwap.length; si++) {
+      if (toSwap[si] && toSwap[si].to && extraLimbKeys.indexOf(toSwap[si].to) === -1) {
+        extraLimbKeys.push(toSwap[si].to);
+      }
+    }
+
+    var planMods = (rec.r && rec.r.m) ? rec.r.m : [];
+    var optRing = (rec.r && state.save && typeof SASimEngine !== "undefined")
+      ? findOptimalTargetRingMods(rec, lvl, m, extraLimbKeys)
+      : null;
+    var reqMods = (optRing && optRing.mods && optRing.mods.length) ? optRing.mods : planMods;
     var curMods = hasRing() ? ringMods() : [];
+    var curModKeys = curMods.map(function (mod) { return normalizeRingModKey([mod]); });
     var missingMods = reqMods.filter(function (mod) {
-      return curMods.indexOf(mod) === -1;
+      return curModKeys.indexOf(normalizeRingModKey([mod])) === -1;
     });
-    var extraMods = curMods.filter(function (mod) {
-      return reqMods.indexOf(mod) === -1;
-    });
-    var ringMismatch = !!(rec.r && missingMods.length > 0);
+    var ringMismatch = !!(rec.r && (curMods.length !== reqMods.length || missingMods.length > 0));
     var aligned = toEquip.length === 0 && toUnequip.length === 0 && toSwap.length === 0 && !ringMismatch;
 
     return {
@@ -12978,6 +13176,9 @@ var ONE_TIMER_MILESTONES = [
       toSwap: toSwap,
       extraLimbOptimal: extraLimbOptimal,
       reqMods: reqMods,
+      planReqMods: planMods,
+      ringExpandedSlots: optRing ? optRing.slots : 0,
+      ringOptimalInfo: optRing,
       curMods: curMods,
       missingMods: missingMods,
       ringMismatch: ringMismatch,
@@ -13000,14 +13201,14 @@ var ONE_TIMER_MILESTONES = [
   function renderAlignmentGuide(b, delta, titleOverride, isModal) {
     if (!b || !delta) return "";
     var title = titleOverride || "Steps to Initiate Plan · Loadout & Ring Changes";
-    var reqMods = formatModList(b.r && b.r.m || []) || "None";
-    var curMods = formatModList(delta.curMods) || "None";
+    var reqModsArr = (delta && delta.reqMods) ? delta.reqMods : ((b.r && b.r.m) || []);
+    var reqMods = formatRingModNames(reqModsArr) || "None";
+    var curMods = formatRingModNames(delta.curMods) || "None";
     var curRingLv = hasRing() ? ringLevel() : 0;
     var reqRingLv = (b.r && b.r.lv) || 0;
     var ringLvGap = b.r && curRingLv < reqRingLv;
 
-    var missingMods = delta.missingMods || [];
-    var hasRingModSwap = b.r && (!hasRing() || missingMods.length > 0);
+    var hasRingModSwap = b.r && (!hasRing() || delta.ringMismatch);
     var reqLimbs = Math.max(b.l || 0, Object.keys(b.i || {}).length);
     var curLimbSlots = maxSlots();
     var limbGap = Math.max(0, reqLimbs - curLimbSlots);
@@ -13057,9 +13258,12 @@ var ONE_TIMER_MILESTONES = [
         } else {
           ringTxt = curMods + " → " + reqMods;
         }
+        var ringTipAttr = (delta && delta.ringExpandedSlots)
+          ? (" title='Optimized for all " + delta.ringExpandedSlots + " unlocked Ring slots (sheet plan listed " + esc(formatRingModNames(delta.planReqMods) || "None") + ")'")
+          : "";
         dRows.push(
           "<div class='delta-row'><span class='delta-lbl'>Ring:</span>" +
-          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'>" + ICONS.ring + " " + esc(ringTxt) + "</span></div>"
+          "<span class='pill sm " + (hasRingModSwap ? "warn-pill" : "teal") + "'" + ringTipAttr + ">" + ICONS.ring + " " + esc(ringTxt) + "</span></div>"
         );
       }
     }
@@ -13277,7 +13481,7 @@ var ONE_TIMER_MILESTONES = [
     var summaryInfo = probeBuildSummary(state.level, activeBuild, rate, pStepsForRec);
     state.lastActiveBuild = activeBuild;
     var targetDelta = loadoutDelta(activeBuild, state.level, mode);
-    var targetMods = formatModList(activeBuild.r && activeBuild.r.m || []);
+    var targetMods = formatRingModNames((targetDelta && targetDelta.reqMods) || (activeBuild.r && activeBuild.r.m) || []);
 
     var itemCards = Object.keys(activeBuild.i).map(function (k) {
       var sh = isShards(k);
@@ -13365,8 +13569,11 @@ var ONE_TIMER_MILESTONES = [
         ? ("Unlock → " + reqRLv)
         : (myRLv < reqRLv ? (myRLv + " → " + reqRLv) : String(Math.max(myRLv, reqRLv)));
       var ringMinNote = (myRLv > reqRLv) ? (" (Plan min: Lv " + reqRLv + ")") : "";
+      if (targetDelta.ringExpandedSlots) {
+        ringMinNote += " (" + targetDelta.ringExpandedSlots + "-slot optimal; plan listed " + (formatRingModNames(targetDelta.planReqMods) || "None") + ")";
+      }
       if (targetDelta.ringMismatch) {
-        var curModTxt = formatModList(targetDelta.curMods) || "None";
+        var curModTxt = formatRingModNames(targetDelta.curMods) || "None";
         metrics.push("<span class='pill sm warn-pill' title='Your Ring is currently set to " + esc(curModTxt) + " — switch to " + esc(targetMods) + esc(ringMinNote) + "'>" + ICONS.warn + " Ring " + ringLvDisp + " (" + esc(curModTxt) + " → " + esc(targetMods) + ")</span>");
       } else {
         metrics.push("<span class='pill sm teal'" + (ringMinNote ? (" title='Effective Ring Lv " + Math.max(myRLv, reqRLv) + esc(ringMinNote) + "'") : "") + ">" + ICONS.ring + " Ring " + ringLvDisp + (targetMods ? " (" + esc(targetMods) + ")" : "") + "</span>");
@@ -15007,16 +15214,17 @@ var ONE_TIMER_MILESTONES = [
 
   function renderBetterPopover(b, cur) {
     var delta = loadoutDelta(b, state.level, getLevelMode(state.level));
-    var reqMods = (b.r && b.r.m) ? b.r.m : [];
+    var reqMods = (delta && delta.reqMods) ? delta.reqMods : ((b.r && b.r.m) ? b.r.m : []);
     var curMods = hasRing() ? ringMods() : [];
-    var reqModTxt = formatModList(reqMods) || "None";
-    var curModTxt = hasRing() ? (formatModList(curMods) || "None") : "Locked";
+    var reqModTxt = formatRingModNames(reqMods) || "None";
+    var curModTxt = hasRing() ? (formatRingModNames(curMods) || "None") : "Locked";
     var curRingLv = hasRing() ? ringLevel() : 0;
     var reqRingLv = (b.r && b.r.lv) || 0;
     var ringLvGap = reqRingLv > curRingLv;
 
-    var missingMods = reqMods.filter(function (m) { return curMods.indexOf(m) === -1; });
-    var hasRingModSwap = b.r && (!hasRing() || missingMods.length > 0);
+    var curModKeys = curMods.map(function (m) { return normalizeRingModKey([m]); });
+    var missingMods = reqMods.filter(function (m) { return curModKeys.indexOf(normalizeRingModKey([m])) === -1; });
+    var hasRingModSwap = b.r && (!hasRing() || (delta ? delta.ringMismatch : missingMods.length > 0));
     var hasItemSwaps = delta && (delta.toEquip.length > 0 || delta.toUnequip.length > 0 || (delta.toSwap && delta.toSwap.length > 0));
     var hasAnySwap = hasRingModSwap || hasItemSwaps || ringLvGap;
 
@@ -15870,6 +16078,7 @@ var ONE_TIMER_MILESTONES = [
       upgradeRoiCache = {};
       ringOptCache = {};
       nextLevelViableCache = {};
+      optimalTargetRingCache = {};
       buildDustCache = {};
       buildKillTimeCache = {};
       betterSimToken++;
@@ -16302,9 +16511,11 @@ function renderPresetsModal() {
           var maxLimbs = (simState.config.extraLimbs || 0) + 4;
           var curEqCount = simState.config.equipped ? simState.config.equipped.length : 0;
           var simSurplus = Math.max(0, maxLimbs - curEqCount);
+          var simAddedExtras = [];
           if (simSurplus > 0) {
             var simOpt = findOptimalExtraLimbItems(targetBuild, simLvl, getLevelMode(simLvl), simSurplus);
             if (simOpt && simOpt.bestItems && simOpt.bestItems.length > 0) {
+              simAddedExtras = simOpt.bestItems.slice();
               simOpt.bestItems.forEach(function (bestK) {
                 if (simState.config.equipped.indexOf(bestK) === -1) {
                   simState.config.equipped.push(bestK);
@@ -16316,6 +16527,11 @@ function renderPresetsModal() {
                 }
               });
             }
+          }
+          var simRingOpt = findOptimalTargetRingMods(targetBuild, simLvl, getLevelMode(simLvl), simAddedExtras);
+          if (simRingOpt && simRingOpt.simMods && simRingOpt.simMods.length) {
+            simState.config.ring.mods = simRingOpt.simMods.slice();
+            simState.config.rings.mods = simRingOpt.simMods.slice();
           }
         }
         syncSimEquipped();
