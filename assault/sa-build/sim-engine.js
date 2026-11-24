@@ -3575,7 +3575,9 @@ function createRawAutoBattle(game, u2Mutations) {
           dustPs: res.dustPs,
           winRate: res.winRate,
           timePerKill: res.secPerKill,
-          secPerKill: res.secPerKill
+          secPerKill: res.secPerKill,
+          effSecPerKill: res.effSecPerKill,
+          kills: res.kills
         };
       });
 

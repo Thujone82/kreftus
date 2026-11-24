@@ -845,6 +845,199 @@ var ONE_TIMER_MILESTONES = [
 
   var levelSimCache = {};
   var upgradeRoiCache = {};
+  var ringOptCache = {};
+
+  function normalizeRingModKey(mods) {
+    return (mods || []).map(function (m) {
+      var s = String(m || "").trim().toLowerCase();
+      return (s === "dustmult") ? "dust" : s;
+    }).filter(Boolean).sort().join(",");
+  }
+
+  function formatRingModNames(mods) {
+    return (mods || []).map(function (m) {
+      if (RING_MOD_NAMES[m]) return RING_MOD_NAMES[m];
+      var low = String(m || "").trim().toLowerCase();
+      if (low === "dust" || low === "dustmult") return "Dust";
+      return low ? (low.charAt(0).toUpperCase() + low.slice(1)) : "";
+    }).filter(Boolean).join(" / ");
+  }
+
+  function ringEntryEffSecPerKill(entry) {
+    if (!entry) return Infinity;
+    if (entry.kills > 0 && entry.effSecPerKill > 0 && isFinite(entry.effSecPerKill)) {
+      return entry.effSecPerKill;
+    }
+    if (entry.winRate > 0 && entry.secPerKill > 0 && isFinite(entry.secPerKill)) {
+      return entry.secPerKill;
+    }
+    return Infinity;
+  }
+
+  function evaluateRingCombos(lvl) {
+    var l = Number(lvl) || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
+    if (!state.save || !state.ab || !hasRing() || typeof SASimEngine === "undefined" || !getCurrentEquippedCombatBuild(l)) {
+      return null;
+    }
+    var rSlots = ringBaseStats(ringLevel()).slots;
+    if (rSlots <= 0) return null;
+
+    var sig = getLoadoutSignature();
+    var cacheKey = sig + "@" + l;
+    if (ringOptCache[cacheKey]) {
+      return ringOptCache[cacheKey];
+    }
+
+    try {
+      var results = SASimEngine.optimizeRing({ save: state.save, level: l }, {
+        slots: rSlots,
+        enemyLevel: l,
+        maxKills: 30
+      });
+      if (!results || !results.length) return null;
+
+      var eqMods = ringMods();
+      var curKey = normalizeRingModKey(eqMods);
+      var curEntry = null;
+      for (var i = 0; i < results.length; i++) {
+        if (normalizeRingModKey(results[i].mods) === curKey) {
+          curEntry = results[i];
+          break;
+        }
+      }
+      if (!curEntry) {
+        var curRes = SASimEngine.runBatch({ save: state.save, level: l }, {
+          enemyLevel: l,
+          kills: 30,
+          maxFights: 35
+        });
+        curEntry = {
+          mods: eqMods.slice(),
+          dustPs: (curRes && curRes.dustPs) || 0,
+          winRate: (curRes && curRes.winRate) || 0,
+          timePerKill: (curRes && curRes.secPerKill) || 0,
+          secPerKill: (curRes && curRes.secPerKill) || 0,
+          effSecPerKill: (curRes && curRes.effSecPerKill) || 0,
+          kills: (curRes && curRes.kills) || 0
+        };
+      }
+
+      var evaluated = { level: l, slots: rSlots, results: results, curEntry: curEntry };
+      ringOptCache[cacheKey] = evaluated;
+      return evaluated;
+    } catch (e) {
+      console.warn("Ring optimality check error on SA " + l + ":", e);
+      return null;
+    }
+  }
+
+  function checkRingOptimality(lvl, mode) {
+    var l = Number(lvl) || state.level || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || 1;
+    var m = mode || getLevelMode(l);
+    var ev = evaluateRingCombos(l);
+    if (!ev || !ev.curEntry || !ev.results || !ev.results.length) return null;
+
+    var cur = ev.curEntry;
+    var curKey = normalizeRingModKey(cur.mods);
+    var curDustPs = (cur.dustPs && isFinite(cur.dustPs)) ? cur.dustPs : 0;
+    var curEffK = ringEntryEffSecPerKill(cur);
+    var curWinRate = cur.winRate || 0;
+
+    var best = null;
+    if (m === "push") {
+      var winners = ev.results.filter(function (c) { return isFinite(ringEntryEffSecPerKill(c)); });
+      if (winners.length) {
+        winners.sort(function (a, b) {
+          var ka = ringEntryEffSecPerKill(a);
+          var kb = ringEntryEffSecPerKill(b);
+          if (Math.abs(ka - kb) > 0.02) return ka - kb;
+          return (b.dustPs || 0) - (a.dustPs || 0);
+        });
+        best = winners[0];
+      } else {
+        best = ev.results[0];
+      }
+    } else {
+      var sortedFarm = ev.results.slice().sort(function (a, b) {
+        var da = a.dustPs || 0;
+        var db = b.dustPs || 0;
+        if (Math.abs(db - da) > 0.5) return db - da;
+        return ringEntryEffSecPerKill(a) - ringEntryEffSecPerKill(b);
+      });
+      best = sortedFarm[0];
+    }
+    if (!best) return null;
+
+    var bestKey = normalizeRingModKey(best.mods);
+    var bestDustPs = (best.dustPs && isFinite(best.dustPs)) ? best.dustPs : 0;
+    var bestEffK = ringEntryEffSecPerKill(best);
+    var bestWinRate = best.winRate || 0;
+    var flippedToWin = (!isFinite(curEffK) && isFinite(bestEffK));
+
+    var isSuboptimal = false;
+    if (bestKey !== curKey) {
+      if (m === "push") {
+        isSuboptimal = flippedToWin || (isFinite(bestEffK) && isFinite(curEffK) && bestEffK < curEffK * 0.98 && (curEffK - bestEffK) >= 0.05);
+      } else {
+        isSuboptimal = (curDustPs <= 0 && bestDustPs > 0) || (bestDustPs > curDustPs * 1.02 && (bestDustPs - curDustPs) >= 1);
+      }
+    }
+
+    var deltaDustPs = bestDustPs - curDustPs;
+    var deltaDustPct = curDustPs > 0 ? ((deltaDustPs / curDustPs) * 100) : (bestDustPs > 0 ? 100 : 0);
+    var deltaK = (isFinite(curEffK) && isFinite(bestEffK)) ? (curEffK - bestEffK) : 0;
+    var deltaKPct = (isFinite(curEffK) && curEffK > 0 && isFinite(bestEffK)) ? ((deltaK / curEffK) * 100) : 0;
+
+    return {
+      level: l,
+      mode: m,
+      isSuboptimal: isSuboptimal,
+      curMods: (cur.mods || []).slice(),
+      bestMods: (best.mods || []).slice(),
+      curModsLabel: formatRingModNames(cur.mods) || "None",
+      bestModsLabel: formatRingModNames(best.mods),
+      curDustPs: curDustPs,
+      bestDustPs: bestDustPs,
+      deltaDustPs: deltaDustPs,
+      deltaDustPct: deltaDustPct,
+      curEffK: curEffK,
+      bestEffK: bestEffK,
+      deltaK: deltaK,
+      deltaKPct: deltaKPct,
+      curWinRate: curWinRate,
+      bestWinRate: bestWinRate,
+      flippedToWin: flippedToWin,
+      slots: ev.slots
+    };
+  }
+
+  function formatRingGainText(ringOpt, variant) {
+    if (!ringOpt || !ringOpt.isSuboptimal) return "";
+    if (ringOpt.mode === "push") {
+      if (ringOpt.flippedToWin) {
+        return variant === "short"
+          ? ("Wins SA " + ringOpt.level)
+          : ("wins SA " + ringOpt.level + " at ~" + ringOpt.bestEffK.toFixed(1) + "s/kill");
+      }
+      if (variant === "short") {
+        return "-" + ringOpt.deltaK.toFixed(2) + "s/kill";
+      }
+      return "~" + ringOpt.bestEffK.toFixed(2) + "s/kill (-" + ringOpt.deltaK.toFixed(2) + "s faster, -" + ringOpt.deltaKPct.toFixed(0) + "%)";
+    }
+    if (ringOpt.curDustPs <= 0 && ringOpt.bestDustPs > 0) {
+      return variant === "short"
+        ? (prettify(ringOpt.bestDustPs) + "/s")
+        : ("earns " + prettify(ringOpt.bestDustPs) + "/s");
+    }
+    if (variant === "short") {
+      return "+" + ringOpt.deltaDustPct.toFixed(1) + "% dust";
+    }
+    return "+" + prettify(ringOpt.deltaDustPs) + "/s (+" + ringOpt.deltaDustPct.toFixed(1) + "%)";
+  }
+
+  window.saOpenRingOptimizer = function () {
+    openSimModal(null, { forceReset: true, tab: "ringopt" });
+  };
 
   function getCurrentCombatStats(lvl) {
     var l = Number(lvl) || (state.ab && (state.ab.enemyLevel || state.ab.maxEnemyLevel)) || state.level || 1;
@@ -2302,6 +2495,7 @@ var ONE_TIMER_MILESTONES = [
     pushSimCache = {};
     levelSimCache = {};
     upgradeRoiCache = {};
+    ringOptCache = {};
     buildDustCache = {};
     buildKillTimeCache = {};
     state._cachedDiag = null;
@@ -2889,6 +3083,68 @@ var ONE_TIMER_MILESTONES = [
     return html;
   }
 
+  function buildRingPopoverHtml(rUnlocked, rLvl, rStats, mods, ringOpt) {
+    function row(lbl, val, cls) {
+      return "<div class='dp-row'>" +
+        "<span class='dp-lbl'>" + lbl + "</span>" +
+        "<span class='dp-val" + (cls ? (" " + cls) : "") + "'>" + val + "</span>" +
+      "</div>";
+    }
+
+    if (!rUnlocked) {
+      return "<div class='dp-head'>" +
+          "<span class='dp-title'>The Ring · Locked</span>" +
+          "<span class='dp-badge warn'>Locked</span>" +
+        "</div>" +
+        "<div class='dp-eq'>" +
+          "<div class='dp-eq-main'>Unlock: <b>" + prettify(oneTimerRingCost()) + "</b> shards</div>" +
+          "<div class='dp-eq-sub'>Requires 42 items owned in Spire Assault.</div>" +
+        "</div>";
+    }
+
+    var isSub = !!(ringOpt && ringOpt.isSuboptimal);
+    var badgeCls = isSub ? "warn" : (ringOpt ? "sim" : "override");
+    var badgeTxt = isSub ? "Suboptimal" : (ringOpt ? "Optimal" : "Ring Lv " + rLvl);
+    var modeTxt = ringOpt ? (ringOpt.mode === "push" ? "Push Mode" : "Farm Mode") : "";
+
+    var html = "<div class='dp-head'>" +
+      "<span class='dp-title'>The Ring · Lv " + esc(rLvl) + "</span>" +
+      "<span class='dp-badge " + badgeCls + "'>" + esc(badgeTxt) + "</span>" +
+    "</div>";
+
+    if (isSub) {
+      var gainLine = formatRingGainText(ringOpt, "full");
+      html += "<div class='dp-note warn' style='margin-top:0;margin-bottom:8px;'>" +
+        "<div style='font-weight:700;margin-bottom:3px;'>Suboptimal Mods · SA " + ringOpt.level + " (" + modeTxt + ")</div>" +
+        "<div style='color:var(--text);margin-bottom:4px;'>Current: <b>" + esc(ringOpt.curModsLabel) + "</b> → Try: <b>" + esc(ringOpt.bestModsLabel) + "</b></div>" +
+        "<div style='margin-bottom:6px;'>Expected gain: <b>" + esc(gainLine) + "</b></div>" +
+        "<button type='button' class='btn sm ghost' style='width:100%;justify-content:center;' onclick='event.stopPropagation();window.saOpenRingOptimizer&&saOpenRingOptimizer()'>Open Ring Mod Optimizer</button>" +
+      "</div>";
+    } else if (ringOpt) {
+      var metricNote = ringOpt.mode === "push"
+        ? (isFinite(ringOpt.curEffK) ? ("~" + ringOpt.curEffK.toFixed(2) + "s/kill") : "0% win rate")
+        : (prettify(ringOpt.curDustPs) + "/s");
+      html += "<div class='dp-eq'>" +
+        "<div class='dp-eq-main'><b>" + esc(ringOpt.curModsLabel) + "</b></div>" +
+        "<div class='dp-eq-sub'>Optimal for SA " + ringOpt.level + " (" + modeTxt + ") · " + esc(metricNote) + "</div>" +
+      "</div>";
+    }
+
+    html += "<div class='dp-section'><div class='dp-sec-lbl'>Inherent Bonuses</div>";
+    html += row("Bleed &amp; Shock Dmg", "+" + prettify(rStats.statusDmg) + "%");
+    html += row("Poison Damage", "+" + prettify(rStats.poisonDmg));
+    html += row("Status Chance", rStats.statusChance > 0 ? ("+" + prettify(rStats.statusChance) + "%") : "Unlocks at Lv 10");
+    html += "</div>";
+
+    html += "<div class='dp-section'><div class='dp-sec-lbl'>Customizable Mods</div>";
+    html += row("Mod Slots", rStats.slots + " / 3" + (rStats.nextSlotLvl ? (" <span class='dp-sub-lbl'>(next Lv " + rStats.nextSlotLvl + ")</span>") : ""));
+    html += row("Equipped Mods", esc(mods || (rStats.slots > 0 ? "No mods set" : "None")), isSub ? "dp-val-warn" : "");
+    html += "</div>";
+
+    html += "<div class='dp-foot'>Click card for Presets &amp; Diagnostics" + (ringOpt ? " · Simulated across your " + ringOpt.slots + "-slot combos" : "") + ".</div>";
+    return html;
+  }
+
   function renderChips(rec, rate) {
     var ab = state.ab;
     var bnk = bank();
@@ -3000,25 +3256,25 @@ var ONE_TIMER_MILESTONES = [
     var rLvl = ringLevel();
     var rUnlocked = hasRing();
     var rStats = ringBaseStats(rLvl);
+    var ringOpt = checkRingOptimality(state.level, getLevelMode(state.level));
+    var ringSubopt = !!(ringOpt && ringOpt.isSuboptimal);
     var ringVal = rUnlocked ? ("Lv " + rLvl) : "Locked";
     var ringNote = rUnlocked
-      ? ((rStats.nextSlotLvl ? ("Next slot Lv " + rStats.nextSlotLvl + " · ") : "") + (mods || (rStats.slots > 0 ? "No mods set" : "0/3 slots")))
+      ? (ringSubopt
+        ? ("Try " + ringOpt.bestModsLabel + " (" + formatRingGainText(ringOpt, "short") + ")")
+        : ((rStats.nextSlotLvl ? ("Next slot Lv " + rStats.nextSlotLvl + " · ") : "") + (mods || (rStats.slots > 0 ? "No mods set" : "0/3 slots"))))
       : ("Unlock: " + prettify(oneTimerRingCost()) + " shards");
-    var ringTitle = rUnlocked
-      ? ("The Ring · Level " + rLvl +
-         "\n\nInherent Ring Bonuses:" +
-         "\n• +" + prettify(rStats.statusDmg) + "% Bleed & Shock Damage" +
-         "\n• +" + prettify(rStats.poisonDmg) + " Poison Damage" +
-         (rStats.statusChance > 0 ? ("\n• +" + prettify(rStats.statusChance) + "% Status Chance") : "\n• Status Chance unlocks at Lv 10") +
-         "\n\nCustomizable Slots: " + rStats.slots + " / 3 unlocked" +
-         (rStats.nextSlotLvl
-           ? ("\n• Next slot at Level " + rStats.nextSlotLvl + " (" + rStats.levelsToNext + " levels to go)")
-           : "\n• All 3 customizable slots unlocked") +
-         (mods ? ("\n\nEquipped Mods:\n• " + mods.split(" / ").join("\n• ")) : "") +
-         "\n\nClick to inspect Presets & Diagnostics")
-      : ("The Ring (Locked)" +
-         "\nUnlock Cost: " + prettify(oneTimerRingCost()) + " shards" +
-         "\nRequires 42 items owned to unlock in Spire Assault.");
+    var ringTone = ringSubopt ? "tone-warn" : "tone-info";
+    var ringBadge = ringSubopt
+      ? "<span class='pill sm warn-pill' style='margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;'>" + ICONS.warn + "Suboptimal</span>"
+      : "";
+    var ringPopoverHtml = buildRingPopoverHtml(rUnlocked, rLvl, rStats, mods, ringOpt);
+    var ringKpiHtml = "<div class='kpi kpi-has-popover " + ringTone + "' id='kpiRing' tabindex='0' style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()'>" +
+      "<div class='kpi-label'>" + ICONS.ring + "<span>The Ring</span>" + ringBadge + "</div>" +
+      "<div class='kpi-value'>" + esc(ringVal) + "</div>" +
+      (ringNote ? "<div class='kpi-note'>" + esc(ringNote) + "</div>" : "") +
+      "<div class='kpi-popover kpi-popover-right' id='kpiRingPopover' role='tooltip' onclick='event.stopPropagation()'>" + ringPopoverHtml + "</div>" +
+    "</div>";
 
     var pick = bestNextUpgrade(rec, rate);
     state._cachedRec = rec;
@@ -3033,7 +3289,7 @@ var ONE_TIMER_MILESTONES = [
       kpi("Dust Bank", dustVal, dustNote, "tone-buy", ICONS.dust, "id='kpiDustBank' title='" + esc(dustTitle) + "'"),
       kpi("Shard Bank", shardVal, shardNote, "tone-teal", ICONS.gem, "id='kpiShardBank' title='" + esc(shardTitle) + "'"),
       kpi("Huffy Limbs", limbVal, limbNote, "tone-warn", ICONS.limb, "style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='" + esc(limbTitle) + "'"),
-      kpi("The Ring", ringVal, ringNote, "tone-info", ICONS.ring, "style='cursor:pointer;' onclick='window.saOpenPresets&&saOpenPresets()' title='" + esc(ringTitle) + "'"),
+      ringKpiHtml,
       lastKpiHtml
     ].join("");
     fitKpiValue($("kpiNextActionVal"));
@@ -4600,11 +4856,31 @@ var ONE_TIMER_MILESTONES = [
         "</div>";
     }
 
+    var ringOpt = checkRingOptimality(state.level, mode);
+    var hasRingAlert = !!(ringOpt && ringOpt.isSuboptimal);
+    var ringAlertHtml = "";
+    if (hasRingAlert) {
+      var ringModeLabel = mode === "push" ? "Push Mode" : "Farm Mode";
+      var ringGainTxt = formatRingGainText(ringOpt, "full");
+      ringAlertHtml = "<div class='delta-box' id='recRingAlertBox' style='margin-top:4px;'>" +
+        "<div class='delta-title' style='justify-content:space-between;'>" +
+          "<span style='display:inline-flex;align-items:center;gap:6px;'>" + ICONS.warn + "<span>Suboptimal Ring Configuration · SA " + ringOpt.level + " (" + ringModeLabel + ")</span></span>" +
+          "<button type='button' class='btn sm ghost' style='padding:2px 8px;font-size:11px;' onclick='window.saOpenRingOptimizer&&saOpenRingOptimizer()'>Ring Optimizer</button>" +
+        "</div>" +
+        "<div style='color:var(--muted);font-size:12px;'>" +
+          "Equipped: <b style='color:var(--text);'>" + esc(ringOpt.curModsLabel) + "</b> → Switch to: <b style='color:var(--buy);'>" + esc(ringOpt.bestModsLabel) + "</b> (" + esc(ringGainTxt) + ") for your current equipped items." +
+        "</div>" +
+      "</div>";
+    }
+
     var headPrefix = isPlanLocked ? "Target Plan:" : ((isOptimalClear || isOptimalFarm) ? ("Current Loadout (" + (isOptimalFarm ? "Optimal Farm" : "Optimal Clear") + "):") : (isTargetOnly ? "Target Build:" : "Recommended Build:"));
     var swapTitle = isPlanLocked ? "Steps to Initiate Plan · Loadout & Ring Changes" : ((isOptimalClear || isOptimalFarm) ? "Current Combat Loadout · Fully Aligned" : (isTargetOnly ? "Steps to Initiate Plan · Loadout & Ring Changes" : "Steps to Initiate Build · Loadout & Ring Changes"));
+    var optTitleTxt = hasRingAlert
+      ? "Equipped Items Are Optimal · Swap Ring Mods Above"
+      : "Current Loadout Is Optimal · No Slower Swaps Recommended";
     var swapGuideHtml = (isOptimalClear || isOptimalFarm)
       ? ("<div class='delta-box' style='margin-top:4px;border-color:rgba(45,206,137,0.35);background:color-mix(in srgb,var(--buy) 6%,var(--surface-solid));'>" +
-          "<div class='delta-title' style='color:var(--buy);'>" + ICONS.check + "<span>Current Loadout Is Optimal · No Slower Swaps Recommended</span></div>" +
+          "<div class='delta-title' style='color:var(--buy);'>" + ICONS.check + "<span>" + optTitleTxt + "</span></div>" +
           "<div style='color:var(--muted);font-size:12px;'>" +
           (isOptimalFarm
             ? ("Your current equipped items earn " + prettify(dispD) + "/s on SA " + state.level + ", which is higher than all recorded runnable sheet builds. Keep this loadout active while farming.")
@@ -4648,6 +4924,7 @@ var ONE_TIMER_MILESTONES = [
       "</div>" +
       timingBox +
       "<div class='rec-metrics'>" + metrics.join("") + "</div>" +
+      ringAlertHtml +
       swapGuideHtml +
       explText +
       "<div class='loadout-grid'>" + itemCards + "</div>" +
@@ -6965,6 +7242,7 @@ var ONE_TIMER_MILESTONES = [
       pushSimCache = {};
       levelSimCache = {};
       upgradeRoiCache = {};
+      ringOptCache = {};
       buildDustCache = {};
       buildKillTimeCache = {};
       betterSimToken++;
