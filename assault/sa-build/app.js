@@ -889,10 +889,13 @@ var ONE_TIMER_MILESTONES = [
     }
 
     try {
+      // Stage 1: Screen all valid Ring mod permutations at moderate sample size
       var results = SASimEngine.optimizeRing({ save: state.save, level: l }, {
         slots: rSlots,
         enemyLevel: l,
-        maxKills: 30
+        maxKills: 150,
+        maxFights: 250,
+        ticks: 25000
       });
       if (!results || !results.length) return null;
 
@@ -906,20 +909,69 @@ var ONE_TIMER_MILESTONES = [
         }
       }
       if (!curEntry) {
-        var curRes = SASimEngine.runBatch({ save: state.save, level: l }, {
-          enemyLevel: l,
-          kills: 30,
-          maxFights: 35
-        });
         curEntry = {
           mods: eqMods.slice(),
-          dustPs: (curRes && curRes.dustPs) || 0,
-          winRate: (curRes && curRes.winRate) || 0,
-          timePerKill: (curRes && curRes.secPerKill) || 0,
-          secPerKill: (curRes && curRes.secPerKill) || 0,
-          effSecPerKill: (curRes && curRes.effSecPerKill) || 0,
-          kills: (curRes && curRes.kills) || 0
+          dustPs: 0,
+          winRate: 0,
+          timePerKill: 0,
+          secPerKill: 0,
+          effSecPerKill: 0,
+          kills: 0
         };
+      }
+
+      // Stage 2: High-precision confirmation for current + top Farm + top Push finalists
+      var finalists = [];
+      var seenKeys = {};
+      function addFinalist(entry) {
+        if (!entry) return;
+        var k = normalizeRingModKey(entry.mods);
+        if (seenKeys[k]) return;
+        seenKeys[k] = true;
+        finalists.push(entry);
+      }
+
+      addFinalist(curEntry);
+
+      var farmTop = results.slice().sort(function (a, b) {
+        return (b.dustPs || 0) - (a.dustPs || 0);
+      });
+      for (var fi = 0; fi < Math.min(3, farmTop.length); fi++) {
+        addFinalist(farmTop[fi]);
+      }
+
+      var pushTop = results.filter(function (c) {
+        return isFinite(ringEntryEffSecPerKill(c));
+      }).sort(function (a, b) {
+        var ka = ringEntryEffSecPerKill(a);
+        var kb = ringEntryEffSecPerKill(b);
+        if (Math.abs(ka - kb) > 0.02) return ka - kb;
+        return (b.dustPs || 0) - (a.dustPs || 0);
+      });
+      for (var pi = 0; pi < Math.min(3, pushTop.length); pi++) {
+        addFinalist(pushTop[pi]);
+      }
+
+      var baseCfg = SASimEngine.normalizeConfig({ save: state.save, level: l });
+      for (var ci = 0; ci < finalists.length; ci++) {
+        var target = finalists[ci];
+        var testCfg = JSON.parse(JSON.stringify(baseCfg));
+        testCfg.ring.mods = (target.mods || []).slice();
+        testCfg.rings.mods = (target.mods || []).slice();
+        var precise = SASimEngine.runBatch(testCfg, {
+          enemyLevel: l,
+          kills: 1000,
+          maxFights: 1500,
+          ticks: 50000
+        });
+        if (precise) {
+          target.dustPs = precise.dustPs;
+          target.winRate = precise.winRate;
+          target.timePerKill = precise.secPerKill;
+          target.secPerKill = precise.secPerKill;
+          target.effSecPerKill = precise.effSecPerKill;
+          target.kills = precise.kills;
+        }
       }
 
       var evaluated = { level: l, slots: rSlots, results: results, curEntry: curEntry };
@@ -8551,7 +8603,11 @@ function renderPresetsModal() {
       simState.pendingTimeout = null;
       if (!simState.active) return;
       try {
-        var results = SASimEngine.optimizeRing(simState.config, { maxKills: 20 });
+        var results = SASimEngine.optimizeRing(simState.config, {
+          maxKills: 200,
+          maxFights: 350,
+          ticks: 40000
+        });
         if (!results || !results.length) {
           resDiv.innerHTML = "<p class='empty'>No valid ring permutations found for your Ring level.</p>";
           return;
@@ -8586,7 +8642,7 @@ function renderPresetsModal() {
             "<td class='mono'><b>" + prettify(r.dustPs) + "/s</b></td>" +
             "<td class='mono " + diffCls + "'>" + esc(diffStr) + "</td>" +
             "<td>" + r.winRate.toFixed(0) + "%</td>" +
-            "<td>" + (r.timePerKill ? r.timePerKill.toFixed(2) + "s" : "--") + "</td>" +
+            "<td>" + ((r.effSecPerKill || r.timePerKill) ? (r.effSecPerKill || r.timePerKill).toFixed(2) + "s" : "--") + "</td>" +
             "<td><button type='button' class='btn sm ghost' data-apply-mods='" + esc(r.mods.join(",")) + "'>Apply to Sandbox</button></td>" +
             "</tr>";
         }).join("");

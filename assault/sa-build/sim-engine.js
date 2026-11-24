@@ -3561,14 +3561,19 @@ function createRawAutoBattle(game, u2Mutations) {
 
       getCombinations(availableMods, slotCount, 0, []);
 
+      var optKills = options.maxKills || 25;
+      var optFights = options.maxFights || Math.max(optKills * 2, 50);
+      var optTicks = options.ticks || Math.max(optKills * 50, 50000);
+
       var results = perms.map(function(modCombo) {
         var testCfg = JSON.parse(JSON.stringify(cfg));
         testCfg.ring.mods = modCombo.slice();
         testCfg.rings.mods = modCombo.slice();
         var res = SASimEngine.runBatch(testCfg, {
           enemyLevel: enemyLevel,
-          kills: options.maxKills || 25,
-          maxFights: 35
+          kills: optKills,
+          maxFights: optFights,
+          ticks: optTicks
         });
         return {
           mods: modCombo,
