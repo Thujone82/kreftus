@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="sa-build" content="73ea04a3c095">
+  <meta name="sa-build" content="851acd82a780">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3182,6 +3182,7 @@
 
     <div id="workspace" hidden>
       <div class="kpis" id="chips"></div>
+      <div id="autoLevelStallBanner" class="delta-box" hidden style="margin-bottom:12px;border-color:rgba(248,113,113,0.45);background:color-mix(in srgb,var(--bad) 8%,var(--surface-solid));"></div>
 
       <section class="panel compact-toolbar" id="controls" hidden>
         <div class="controls-bar">
@@ -10298,9 +10299,161 @@ var ONE_TIMER_MILESTONES = [
     return Math.max(0, cost - (bankDust || 0)) / rate;
   }
 
+  function projectAutoLevelProgress(diag, elapsedSec) {
+    if (!diag || !diag.isPushing) return null;
+    var elapsed = Math.max(0, Number(elapsedSec) || 0);
+    var baseLvl = diag.enemyLevel || 1;
+    var hasCustomOverride = !!(state.dustOverride && parseNum(state.dustOverride) > 0);
+    var hasEqBuild = !!(state.save && getCurrentEquippedCombatBuild(baseLvl));
+
+    if (!diag.autoLevel || !hasEqBuild) {
+      var kEarned = (diag.secPerKill && diag.secPerKill > 0 && elapsed > 0)
+        ? Math.min(diag.remainingKills, Math.floor(elapsed / diag.secPerKill))
+        : 0;
+      var kTotal = diag.curKills + kEarned;
+      var kRem = Math.max(0, diag.remainingKills - kEarned);
+      var kPct = diag.neededKills > 0 ? Math.min(100, (kTotal / diag.neededKills) * 100) : 0;
+      var baseRate = hasCustomOverride ? parseNum(state.dustOverride) : (state.simulatedDustPs || 0);
+      if (diag.pushStalled) baseRate = 0;
+      return {
+        baseLevel: baseLvl,
+        currentLevel: baseLvl,
+        autoAdvancedLevels: 0,
+        clearedLevels: [],
+        curKills: kTotal,
+        neededKills: diag.neededKills,
+        curRemaining: kRem,
+        curPct: kPct,
+        totalKillsSinceLoad: kEarned,
+        curEtaSec: diag.pushStalled ? null : Math.max(0, (diag.etaSec || 0) - elapsed),
+        currentSecPerKill: diag.secPerKill,
+        currentWinRate: diag.simWinRate,
+        currentDustPs: baseRate,
+        dustEarned: diag.pushStalled ? 0 : (baseRate * elapsed),
+        stalled: !!diag.pushStalled,
+        stalledByAutoLevel: false,
+        stalledForSec: diag.pushStalled ? elapsed : 0
+      };
+    }
+
+    var curLvl = baseLvl;
+    var timeLeft = elapsed;
+    var dustEarned = 0;
+    var totalKillsSinceLoad = 0;
+    var clearedLevels = [];
+    var curKills = diag.curKills;
+    var curRemaining = diag.remainingKills;
+    var curPct = diag.progressPct;
+    var curEtaSec = diag.etaSec;
+    var currentDustPs = state.simulatedDustPs || 0;
+    var currentSecPerKill = diag.secPerKill;
+    var currentWinRate = diag.simWinRate;
+    var stalled = false;
+    var stalledByAutoLevel = false;
+    var stalledForSec = 0;
+    var maxSteps = 25;
+
+    for (var step = 0; step < maxSteps; step++) {
+      var lvlStalled = false;
+      var lvlSpk = null;
+      var lvlDustPs = 0;
+      var lvlWinRate = 0;
+
+      if (curLvl === baseLvl && diag.pushStalled) {
+        lvlStalled = true;
+        lvlWinRate = diag.simWinRate || 0;
+      } else if (curLvl === baseLvl && diag.secPerKill && isFinite(diag.secPerKill) && diag.secPerKill > 0) {
+        lvlSpk = diag.secPerKill;
+        lvlWinRate = diag.simWinRate;
+        var baseStats = getCurrentCombatStats(curLvl);
+        lvlDustPs = (baseStats && baseStats.dustPs) ? baseStats.dustPs : (state.simulatedDustPs || 0);
+      } else {
+        var lvlStats = getCurrentCombatStats(curLvl);
+        lvlStalled = !lvlStats || lvlStats.kills === 0 || lvlStats.winRate <= 0 || !isFinite(lvlStats.actualEffKillSec) || lvlStats.actualEffKillSec <= 0;
+        lvlSpk = lvlStalled ? null : lvlStats.actualEffKillSec;
+        lvlDustPs = lvlStalled ? 0 : (lvlStats.dustPs || 0);
+        lvlWinRate = lvlStats ? lvlStats.winRate : 0;
+      }
+
+      if (hasCustomOverride && !lvlStalled && curLvl === baseLvl) {
+        lvlDustPs = parseNum(state.dustOverride);
+      }
+
+      var lvlNeeded = saLevelReq(curLvl);
+      var lvlBaseKills = (curLvl === baseLvl) ? diag.curKills : 0;
+      var lvlRemAtStart = Math.max(0, lvlNeeded - lvlBaseKills);
+
+      if (lvlStalled) {
+        stalled = true;
+        stalledByAutoLevel = true;
+        stalledForSec = timeLeft;
+        curKills = lvlBaseKills;
+        curRemaining = lvlRemAtStart;
+        curPct = lvlNeeded > 0 ? Math.min(100, (curKills / lvlNeeded) * 100) : 0;
+        curEtaSec = null;
+        currentDustPs = 0;
+        currentSecPerKill = null;
+        currentWinRate = lvlWinRate;
+        timeLeft = 0;
+        break;
+      }
+
+      var clearTimeSec = lvlRemAtStart * lvlSpk;
+      if (timeLeft < clearTimeSec || curLvl >= 160) {
+        var killsOnLvl = (lvlSpk > 0 && timeLeft > 0)
+          ? Math.min(lvlRemAtStart, Math.floor(timeLeft / lvlSpk))
+          : 0;
+        totalKillsSinceLoad += killsOnLvl;
+        curKills = lvlBaseKills + killsOnLvl;
+        curRemaining = Math.max(0, lvlNeeded - curKills);
+        curPct = lvlNeeded > 0 ? Math.min(100, (curKills / lvlNeeded) * 100) : 0;
+        curEtaSec = Math.max(0, clearTimeSec - timeLeft);
+        dustEarned += lvlDustPs * timeLeft;
+        currentDustPs = lvlDustPs;
+        currentSecPerKill = lvlSpk;
+        currentWinRate = lvlWinRate;
+        timeLeft = 0;
+        break;
+      }
+
+      totalKillsSinceLoad += lvlRemAtStart;
+      dustEarned += lvlDustPs * clearTimeSec;
+      timeLeft -= clearTimeSec;
+      clearedLevels.push({ level: curLvl, dustPs: lvlDustPs, secPerKill: lvlSpk, durationSec: clearTimeSec });
+      currentDustPs = lvlDustPs;
+      currentSecPerKill = lvlSpk;
+      currentWinRate = lvlWinRate;
+      curLvl++;
+    }
+
+    if (timeLeft > 0 && !stalled) {
+      dustEarned += currentDustPs * timeLeft;
+    }
+
+    return {
+      baseLevel: baseLvl,
+      currentLevel: curLvl,
+      autoAdvancedLevels: Math.max(0, curLvl - baseLvl),
+      clearedLevels: clearedLevels,
+      curKills: curKills,
+      neededKills: saLevelReq(curLvl),
+      curRemaining: curRemaining,
+      curPct: curPct,
+      totalKillsSinceLoad: totalKillsSinceLoad,
+      curEtaSec: curEtaSec,
+      currentSecPerKill: currentSecPerKill,
+      currentWinRate: currentWinRate,
+      currentDustPs: currentDustPs,
+      dustEarned: dustEarned,
+      stalled: stalled,
+      stalledByAutoLevel: stalledByAutoLevel,
+      stalledForSec: stalledForSec
+    };
+  }
+
   function bank(atTime) {
     if (!state.ab) {
-      return { dust: 0, shards: 0, rawDust: 0, rawShards: 0, dustEarned: 0, shardsEarned: 0, elapsedSec: 0, rate: 0 };
+      return { dust: 0, shards: 0, rawDust: 0, rawShards: 0, dustEarned: 0, shardsEarned: 0, elapsedSec: 0, rate: 0, autoLevelProj: null };
     }
     var baseDust = Number(state.ab.dust) || 0;
     var baseShards = Number(state.ab.shards) || 0;
@@ -10309,10 +10462,28 @@ var ONE_TIMER_MILESTONES = [
     var loadedAt = state.saveLoadedAt || now;
     var elapsedSec = Math.max(0, (now - loadedAt) / 1000);
     if (elapsedSec > 7 * 86400) elapsedSec = 7 * 86400;
+    var hasCustomOverride = !!(state.dustOverride && parseNum(state.dustOverride) > 0);
     var rate = activeDustPs();
     var dustEarned = rate > 0 ? (rate * elapsedSec) : 0;
+    var autoLevelProj = null;
+
+    var ab = state.ab;
+    var enemyLvl = ab.enemyLevel || 1;
+    var maxLvl = ab.maxEnemyLevel || enemyLvl;
+    var isPushingNow = enemyLvl >= maxLvl && !ab.sealed && !ab.canSeal;
+    if (!hasCustomOverride && isPushingNow && ab.autoLevel !== false && elapsedSec > 0) {
+      var diagForBank = state._cachedDiag || combatDiagnostics();
+      if (diagForBank && diagForBank.isPushing) {
+        autoLevelProj = projectAutoLevelProgress(diagForBank, elapsedSec);
+        if (autoLevelProj) {
+          dustEarned = autoLevelProj.dustEarned;
+          rate = autoLevelProj.currentDustPs;
+        }
+      }
+    }
+
     var shardsEarned = 0;
-    if (canEarnShards() && rate > 0) {
+    if (canEarnShards() && dustEarned > 0) {
       shardsEarned = Math.floor((baseShardDust + dustEarned) / SHARD_DUST);
     }
     return {
@@ -10323,7 +10494,8 @@ var ONE_TIMER_MILESTONES = [
       dustEarned: dustEarned,
       shardsEarned: shardsEarned,
       elapsedSec: elapsedSec,
-      rate: rate
+      rate: rate,
+      autoLevelProj: autoLevelProj
     };
   }
 
@@ -11072,6 +11244,7 @@ var ONE_TIMER_MILESTONES = [
       render();
     }
   }
+  window.saSelectLevel = selectLevel;
 
   function renderQuickLevels() {
     var el = $("quickLevels");
@@ -11241,6 +11414,56 @@ var ONE_TIMER_MILESTONES = [
       '</div>';
   }
 
+  function renderAutoLevelStallBanner(proj) {
+    var el = $("autoLevelStallBanner");
+    if (!el) return;
+    if (!proj || !proj.stalled) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    var advTxt = proj.autoAdvancedLevels > 0
+      ? ("AutoLevel advanced from <b>SA " + proj.baseLevel + "</b> to <b>SA " + proj.currentLevel + "</b> (+" + proj.autoAdvancedLevels + " level" + (proj.autoAdvancedLevels === 1 ? "" : "s") + ") and stalled")
+      : ("Huffy is stalled on <b>SA " + proj.currentLevel + "</b>");
+    var stalledAgoTxt = proj.stalledForSec >= 5 ? (" · idle for ~" + fmtTime(proj.stalledForSec)) : "";
+    el.innerHTML =
+      "<div class='delta-title' style='justify-content:space-between;color:var(--bad);'>" +
+        "<span style='display:inline-flex;align-items:center;gap:6px;'>" + ICONS.warn + "<span>AutoLevel Stalled on SA " + proj.currentLevel + " (0% wins)</span></span>" +
+        "<button type='button' class='btn sm ghost' style='padding:2px 8px;font-size:11px;' onclick='window.saSelectLevel&&saSelectLevel(" + proj.currentLevel + ")'>View SA " + proj.currentLevel + " Builds</button>" +
+      "</div>" +
+      "<div style='color:var(--muted);font-size:12px;'>" +
+        advTxt + " because your current equipped build has a <b>0% win rate</b> on SA " + proj.currentLevel + " (earning <b>0 dust/s</b>" + esc(stalledAgoTxt) + "). Swap builds or upgrade items to keep pushing." +
+      "</div>";
+  }
+
+  function getAutoLevelPillMeta(audit, proj) {
+    if (proj && proj.stalled) {
+      return { cls: "pill sm warn-pill", html: ICONS.warn + "AutoLevel Stalled" };
+    }
+    if (proj && proj.autoAdvancedLevels > 0) {
+      return { cls: "pill sm buy", html: ICONS.check + "Auto +" + proj.autoAdvancedLevels };
+    }
+    if (!audit || !audit.autoLevel) {
+      return { cls: "pill sm warn-pill", html: ICONS.warn + "AutoLevel OFF" };
+    }
+    return { cls: "pill sm buy", html: ICONS.check + "AutoLevel ON" };
+  }
+
+  function formatDustBankNote(bnk, rate) {
+    var p = bnk && bnk.autoLevelProj;
+    if (p && p.stalled) {
+      return "Base " + prettify(bnk.rawDust) + (bnk.dustEarned > 0 ? (" · +" + prettify(bnk.dustEarned)) : "") + " · Stalled (0/s on SA " + p.currentLevel + ")";
+    }
+    if (bnk && bnk.dustEarned > 0) {
+      if (p && p.autoAdvancedLevels > 0) {
+        return "Base " + prettify(bnk.rawDust) + " · +" + prettify(bnk.dustEarned) + " (" + prettify(bnk.rate) + "/s on SA " + p.currentLevel + ")";
+      }
+      return "Base " + prettify(bnk.rawDust) + " · +" + prettify(bnk.dustEarned) + " earned (" + fmtTime(bnk.elapsedSec) + ")";
+    }
+    return rate ? ("Active rate: " + prettify(rate) + "/s") : "No active rate";
+  }
+
   function buildEnemyLevelPopoverHtml(diag, bnk) {
     if (!diag) return "";
     function row(lbl, val, cls) {
@@ -11250,9 +11473,18 @@ var ONE_TIMER_MILESTONES = [
       "</div>";
     }
 
+    var proj = diag.isPushing ? ((bnk && bnk.autoLevelProj) || projectAutoLevelProgress(diag, (bnk && bnk.elapsedSec) || 0)) : null;
+    var dispLvl = proj ? proj.currentLevel : (diag.enemyLevel || "—");
+
     var badgeCls = "sim";
     var badgeTxt = "Farming";
-    if (diag.isPushing) {
+    if (proj && proj.stalled) {
+      badgeCls = "warn";
+      badgeTxt = "Stalled";
+    } else if (proj && proj.autoAdvancedLevels > 0) {
+      badgeCls = "sim";
+      badgeTxt = "Auto +" + proj.autoAdvancedLevels;
+    } else if (diag.isPushing) {
       badgeCls = "override";
       badgeTxt = "Pushing";
     } else if (diag.isMax) {
@@ -11263,43 +11495,50 @@ var ONE_TIMER_MILESTONES = [
       badgeTxt = "Practice";
     }
 
-    var enemyLvlType = diag.enemyLevel ? (isFarmLevel(diag.enemyLevel) ? "Farm Level" : "Push Level") : "";
+    var enemyLvlType = dispLvl !== "—" ? (isFarmLevel(dispLvl) ? "Farm Level" : "Push Level") : "";
     var html = "<div class='dp-head'>" +
-      "<span class='dp-title'>Enemy Level · SA " + esc(diag.enemyLevel || "—") + "</span>" +
-      "<span class='dp-badge " + badgeCls + "'>" + badgeTxt + "</span>" +
+      "<span class='dp-title'>Enemy Level · SA " + esc(dispLvl) + "</span>" +
+      "<span class='dp-badge " + badgeCls + "'>" + esc(badgeTxt) + "</span>" +
     "</div>";
 
-    if (diag.isPushing) {
-      var killsEarned = (diag.secPerKill && diag.secPerKill > 0 && bnk && bnk.elapsedSec > 0)
-        ? Math.min(diag.remainingKills, Math.floor(bnk.elapsedSec / diag.secPerKill))
-        : 0;
-      var curRemaining = Math.max(0, diag.remainingKills - killsEarned);
-      var curKills = diag.curKills + killsEarned;
-      var curPct = diag.neededKills > 0 ? Math.min(100, (curKills / diag.neededKills) * 100) : 0;
-      var curEtaSec = Math.max(0, (diag.etaSec || 0) - ((bnk && bnk.elapsedSec) || 0));
-      var etaDuration = diag.pushStalled
+    if (diag.isPushing && proj) {
+      var etaDuration = proj.stalled
         ? "Cannot clear (0% wins)"
-        : (curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear");
-      var etaClock = (!diag.pushStalled && curEtaSec > 0) ? fmtLocalEta(curEtaSec) : "";
+        : (proj.curEtaSec > 0 ? ("~" + fmtDuration(proj.curEtaSec)) : "Ready to clear");
+      var etaClock = (!proj.stalled && proj.curEtaSec > 0) ? fmtLocalEta(proj.curEtaSec) : "";
 
       html += "<div class='dp-eq'>" +
-        "<div class='dp-eq-main'><b>" + prettify(curKills) + "</b> / <b>" + prettify(diag.neededKills) + "</b> kills (<b class='dp-val-accent'>" + curPct.toFixed(1) + "%</b>)</div>" +
-        "<div class='dp-eq-sub'><b>" + prettify(curRemaining) + "</b> remaining · " + esc(etaDuration) + (etaClock ? (" <span style='opacity:0.75;'>(ETA " + esc(etaClock) + ")</span>") : "") + "</div>" +
-        "<div class='dp-bar'><span style='width:" + Math.max(2, curPct).toFixed(1) + "%;'></span></div>" +
+        "<div class='dp-eq-main'><b>" + prettify(proj.curKills) + "</b> / <b>" + prettify(proj.neededKills) + "</b> kills (<b class='" + (proj.stalled ? "dp-val-warn" : "dp-val-accent") + "'>" + proj.curPct.toFixed(1) + "%</b>)</div>" +
+        "<div class='dp-eq-sub'><b>" + prettify(proj.curRemaining) + "</b> remaining · " + esc(etaDuration) + (etaClock ? (" <span style='opacity:0.75;'>(ETA " + esc(etaClock) + ")</span>") : "") + "</div>" +
+        "<div class='dp-bar'><span style='width:" + Math.max(2, proj.curPct).toFixed(1) + "%;" + (proj.stalled ? "background:var(--bad);" : "") + "'></span></div>" +
       "</div>";
 
-      html += "<div class='dp-section'><div class='dp-sec-lbl'>Level Progress</div>";
-      if (enemyLvlType) html += row("Level Type", enemyLvlType);
-      if (killsEarned > 0) html += row("Est. Kills Since Load", "+" + prettify(killsEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)", "dp-val-buy");
-      if (diag.secPerKill && isFinite(diag.secPerKill)) {
-        var spdSrc = diag.buildName ? esc(diag.buildName) : "Simulated";
-        if (diag.simWinRate != null && diag.simWinRate < 99.95 && diag.simWinRate > 0) {
-          spdSrc += " · " + diag.simWinRate.toFixed(1) + "% win";
-        }
-        html += row("Kill Speed", "~" + diag.secPerKill.toFixed(1) + "s / kill <span class='dp-sub-lbl'>(" + spdSrc + ")</span>");
+      if (proj.stalled) {
+        var stallDesc = proj.autoAdvancedLevels > 0
+          ? ("<b>AutoLevel Stalled</b> — Cleared up to SA " + proj.currentLevel + " with your saved loadout, but 0% win rate there (earning 0 dust/s).")
+          : ("<b>AutoLevel Stalled</b> — Current equipped loadout has a 0% win rate on SA " + proj.currentLevel + " (earning 0 dust/s).");
+        html += "<div class='dp-note warn' style='margin-top:0;margin-bottom:8px;'>" +
+          "<div style='margin-bottom:6px;'>" + stallDesc + "</div>" +
+          "<button type='button' class='btn sm ghost' style='width:100%;justify-content:center;' onclick='event.stopPropagation();window.saSelectLevel&&saSelectLevel(" + proj.currentLevel + ")'>View SA " + proj.currentLevel + " Builds</button>" +
+        "</div>";
       }
-      html += row("Est. Completion", esc(etaDuration) + (etaClock ? (" · " + esc(etaClock)) : ""), "dp-val-accent");
-      html += row("AutoLevel", diag.autoLevel ? "ON · Auto-advances" : ("OFF · Stays on SA " + diag.enemyLevel), diag.autoLevel ? "dp-val-buy" : "dp-val-warn");
+
+      html += "<div class='dp-section'><div class='dp-sec-lbl'>Level Progress</div>";
+      if (proj.autoAdvancedLevels > 0) {
+        html += row("Auto-Advanced", "SA " + proj.baseLevel + " → SA " + proj.currentLevel + " (+" + proj.autoAdvancedLevels + " cleared)", "dp-val-buy");
+        html += row("Est. Rate on SA " + proj.currentLevel, proj.stalled ? "0/s (Stalled)" : (prettify(proj.currentDustPs) + "/s"), proj.stalled ? "dp-val-warn" : "dp-val-buy");
+      }
+      if (enemyLvlType) html += row("Level Type", enemyLvlType);
+      if (proj.totalKillsSinceLoad > 0) html += row("Est. Kills Since Load", "+" + prettify(proj.totalKillsSinceLoad) + " (" + fmtTime(bnk.elapsedSec) + " ago)", "dp-val-buy");
+      if (proj.currentSecPerKill && isFinite(proj.currentSecPerKill)) {
+        var spdSrc = diag.buildName ? esc(diag.buildName) : "Simulated";
+        if (proj.currentWinRate != null && proj.currentWinRate < 99.95 && proj.currentWinRate > 0) {
+          spdSrc += " · " + proj.currentWinRate.toFixed(1) + "% win";
+        }
+        html += row("Kill Speed", "~" + proj.currentSecPerKill.toFixed(1) + "s / kill <span class='dp-sub-lbl'>(" + spdSrc + ")</span>");
+      }
+      html += row("Est. Completion", esc(etaDuration) + (etaClock ? (" · " + esc(etaClock)) : ""), proj.stalled ? "dp-val-warn" : "dp-val-accent");
+      html += row("AutoLevel", diag.autoLevel ? "ON · Auto-advances" : ("OFF · Stays on SA " + diag.enemyLevel), diag.autoLevel ? (proj.stalled ? "dp-val-warn" : "dp-val-buy") : "dp-val-warn");
       html += "</div>";
     } else {
       html += "<div class='dp-eq'>" +
@@ -11403,10 +11642,7 @@ var ONE_TIMER_MILESTONES = [
     var mods = ringMods().map(function (m) { return RING_MOD_NAMES[m] || m; }).join(" / ");
 
     var dustVal = prettify(bnk.dust);
-    var dustNote = rate ? ("Active rate: " + prettify(rate) + "/s") : "No active rate";
-    if (bnk.dustEarned > 0) {
-      dustNote = "Base " + prettify(bnk.rawDust) + " · +" + prettify(bnk.dustEarned) + " earned (" + fmtTime(bnk.elapsedSec) + ")";
-    }
+    var dustNote = formatDustBankNote(bnk, rate);
 
     var shardVal = prettify(bnk.shards);
     var shardNote = "";
@@ -11429,40 +11665,40 @@ var ONE_TIMER_MILESTONES = [
     // Item 4: Kill & Death Diagnostics + Level Mode
     var diag = combatDiagnostics(rate);
     var audit = saSettingsAudit();
+    var pushProj = diag.isPushing ? (bnk.autoLevelProj || projectAutoLevelProgress(diag, bnk.elapsedSec)) : null;
     var autoLevelPill = '';
     if (state.save) {
-      autoLevelPill = !audit.autoLevel
-        ? '<span class="pill sm warn-pill" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;">' + ICONS.warn + 'AutoLevel OFF</span>'
-        : '<span class="pill sm buy" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;">' + ICONS.check + 'AutoLevel ON</span>';
+      var pillMeta = getAutoLevelPillMeta(audit, pushProj);
+      autoLevelPill = '<span class="' + pillMeta.cls + '" id="kpiEnemyAutoPill" style="margin-left:auto; font-size:10px; padding:1px 6px; text-transform:none; letter-spacing:normal;">' + pillMeta.html + '</span>';
     }
-    var enemyVal = 'SA ' + (diag.enemyLevel || '—');
+    var enemyVal = 'SA ' + ((pushProj ? pushProj.currentLevel : diag.enemyLevel) || '—');
     var enemyNote = '';
-    var enemyTone = 'tone-accent';
+    var enemyTone = (pushProj && pushProj.stalled) ? 'tone-sell' : 'tone-accent';
     var enemyKpiHtml = '';
     var enemyPopoverHtml = buildEnemyLevelPopoverHtml(diag, bnk);
+    renderAutoLevelStallBanner(pushProj);
 
-    if (diag.isPushing) {
-      var killsEarned = (diag.secPerKill && diag.secPerKill > 0 && bnk.elapsedSec > 0)
-        ? Math.min(diag.remainingKills, Math.floor(bnk.elapsedSec / diag.secPerKill))
-        : 0;
-      var curRemaining = Math.max(0, diag.remainingKills - killsEarned);
-      var curKills = diag.curKills + killsEarned;
-      var curPct = diag.neededKills > 0 ? Math.min(100, (curKills / diag.neededKills) * 100) : 0;
-      var curEtaSec = Math.max(0, (diag.etaSec || 0) - bnk.elapsedSec);
+    if (diag.isPushing && pushProj) {
+      var curRemaining = pushProj.curRemaining;
+      var curPct = pushProj.curPct;
+      var etaDuration = pushProj.stalled
+        ? "0/s · Stalled"
+        : (pushProj.curEtaSec > 0 ? ("~" + fmtDuration(pushProj.curEtaSec)) : "Ready to clear");
+      var progLabel = pushProj.stalled
+        ? ("Stalled · 0% wins")
+        : ("Pushing · " + prettify(curRemaining) + " to go (" + curPct.toFixed(0) + "%)");
+      var etaColor = pushProj.stalled ? "var(--bad)" : "var(--accent)";
+      var barColor = pushProj.stalled ? "var(--bad)" : "var(--accent)";
 
-      var etaDuration = diag.pushStalled
-        ? "Cannot clear (0% wins)"
-        : (curEtaSec > 0 ? ("~" + fmtDuration(curEtaSec)) : "Ready to clear");
-
-      enemyKpiHtml = '<div class="kpi kpi-has-popover tone-accent" id="kpiEnemyLevel" tabindex="0" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
+      enemyKpiHtml = '<div class="kpi kpi-has-popover ' + enemyTone + '" id="kpiEnemyLevel" tabindex="0" style="cursor:pointer;" onclick="window.saOpenPresets&&saOpenPresets()">' +
         '<div class="kpi-label">' + ICONS.spire + '<span>Enemy Level</span>' + autoLevelPill + '</div>' +
         '<div class="kpi-value">' + esc(enemyVal) + '</div>' +
         '<div class="kpi-note kpi-note-prog">' +
           '<div class="kpi-prog-row">' +
-            '<span class="kpi-prog-txt">Pushing · ' + prettify(curRemaining) + ' to go (' + curPct.toFixed(0) + '%)</span>' +
-            '<span class="kpi-prog-eta mono" style="color:var(--accent); font-weight:650;">' + esc(etaDuration) + '</span>' +
+            '<span class="kpi-prog-txt">' + esc(progLabel) + '</span>' +
+            '<span class="kpi-prog-eta mono" style="color:' + etaColor + '; font-weight:650;">' + esc(etaDuration) + '</span>' +
           '</div>' +
-          '<div class="kpi-bar"><span style="width:' + Math.max(2, curPct).toFixed(1) + '%; background:var(--accent);"></span></div>' +
+          '<div class="kpi-bar"><span style="width:' + Math.max(2, curPct).toFixed(1) + '%; background:' + barColor + ';"></span></div>' +
         '</div>' +
         '<div class="kpi-popover" id="kpiEnemyLevelPopover" role="tooltip" onclick="event.stopPropagation()">' + enemyPopoverHtml + '</div>' +
       '</div>';
@@ -15224,24 +15460,43 @@ var ONE_TIMER_MILESTONES = [
     var eCard = $("kpiEnemyLevel");
     if (eCard) {
       var eDiag = state._cachedDiag || combatDiagnostics(rate);
-      if (eDiag.isPushing && eDiag.etaSec > 0) {
-        var liveRemSec = Math.max(0, eDiag.etaSec - bnk.elapsedSec);
-        var liveEtaDur = liveRemSec > 0 ? ("~" + fmtDuration(liveRemSec)) : "Ready to clear";
-        var liveKillsEarned = (eDiag.secPerKill && eDiag.secPerKill > 0)
-          ? Math.min(eDiag.remainingKills, Math.floor(bnk.elapsedSec / eDiag.secPerKill))
-          : 0;
-        var liveRemaining = Math.max(0, eDiag.remainingKills - liveKillsEarned);
-        var liveKillsTotal = eDiag.curKills + liveKillsEarned;
-        var livePct = Math.min(100, (liveKillsTotal / eDiag.neededKills) * 100);
-
-        var txtEl = eCard.querySelector(".kpi-prog-txt");
-        var etaEl = eCard.querySelector(".kpi-prog-eta");
-        var barEl = eCard.querySelector(".kpi-bar > span");
-        if (txtEl) txtEl.textContent = "Pushing · " + prettify(liveRemaining) + " to go (" + livePct.toFixed(0) + "%)";
-        if (etaEl) etaEl.textContent = liveEtaDur;
-        if (barEl) barEl.style.width = Math.max(2, livePct).toFixed(1) + "%";
-        var ePop = $("kpiEnemyLevelPopover");
-        if (ePop) ePop.innerHTML = buildEnemyLevelPopoverHtml(eDiag, bnk);
+      if (eDiag.isPushing) {
+        var eProj = bnk.autoLevelProj || projectAutoLevelProgress(eDiag, bnk.elapsedSec);
+        if (eProj) {
+          var liveEtaDur = eProj.stalled
+            ? "0/s · Stalled"
+            : (eProj.curEtaSec > 0 ? ("~" + fmtDuration(eProj.curEtaSec)) : "Ready to clear");
+          var liveProgTxt = eProj.stalled
+            ? "Stalled · 0% wins"
+            : ("Pushing · " + prettify(eProj.curRemaining) + " to go (" + eProj.curPct.toFixed(0) + "%)");
+          eCard.classList.toggle("tone-sell", !!eProj.stalled);
+          eCard.classList.toggle("tone-accent", !eProj.stalled);
+          var eValEl = eCard.querySelector(".kpi-value");
+          if (eValEl) eValEl.textContent = "SA " + eProj.currentLevel;
+          var ePillEl = $("kpiEnemyAutoPill");
+          if (ePillEl) {
+            var pMeta = getAutoLevelPillMeta(saSettingsAudit(), eProj);
+            ePillEl.className = pMeta.cls;
+            ePillEl.innerHTML = pMeta.html;
+          }
+          var txtEl = eCard.querySelector(".kpi-prog-txt");
+          var etaEl = eCard.querySelector(".kpi-prog-eta");
+          var barEl = eCard.querySelector(".kpi-bar > span");
+          if (txtEl) txtEl.textContent = liveProgTxt;
+          if (etaEl) {
+            etaEl.textContent = liveEtaDur;
+            etaEl.style.color = eProj.stalled ? "var(--bad)" : "var(--accent)";
+          }
+          if (barEl) {
+            barEl.style.width = Math.max(2, eProj.curPct).toFixed(1) + "%";
+            barEl.style.background = eProj.stalled ? "var(--bad)" : "var(--accent)";
+          }
+          var ePop = $("kpiEnemyLevelPopover");
+          if (ePop) ePop.innerHTML = buildEnemyLevelPopoverHtml(eDiag, bnk);
+          renderAutoLevelStallBanner(eProj);
+        }
+      } else {
+        renderAutoLevelStallBanner(null);
       }
     }
 
@@ -15250,16 +15505,12 @@ var ONE_TIMER_MILESTONES = [
       var dVal = dCard.querySelector(".kpi-value");
       var dNote = dCard.querySelector(".kpi-note");
       if (dVal) dVal.textContent = prettify(bnk.dust);
-      if (dNote) {
-        if (bnk.dustEarned > 0) {
-          dNote.textContent = "Base " + prettify(bnk.rawDust) + " · +" + prettify(bnk.dustEarned) + " earned (" + fmtTime(bnk.elapsedSec) + ")";
-        } else {
-          dNote.textContent = rate ? ("Active rate: " + prettify(rate) + "/s") : "No active rate";
-        }
-      }
+      if (dNote) dNote.textContent = formatDustBankNote(bnk, rate);
       dCard.title = "Live estimated dust bank\nSnapshot from save: " + prettify(bnk.rawDust) +
         (bnk.dustEarned > 0 ? ("\nEarned since load: +" + prettify(bnk.dustEarned) + " (" + fmtTime(bnk.elapsedSec) + " ago)") : "") +
-        (rate ? ("\nActive earning rate: " + prettify(rate) + "/s") : "");
+        ((bnk.autoLevelProj && bnk.autoLevelProj.stalled)
+          ? ("\nAutoLevel Stalled on SA " + bnk.autoLevelProj.currentLevel + " (0/s)")
+          : (bnk.rate ? ("\nActive earning rate: " + prettify(bnk.rate) + "/s" + ((bnk.autoLevelProj && bnk.autoLevelProj.autoAdvancedLevels > 0) ? (" on SA " + bnk.autoLevelProj.currentLevel) : "")) : ""));
     }
 
     var sCard = $("kpiShardBank");
