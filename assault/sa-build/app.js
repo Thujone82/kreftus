@@ -3325,7 +3325,7 @@ var ONE_TIMER_MILESTONES = [
 
   function getAutoLevelPillMeta(audit, proj) {
     if (proj && proj.stalled) {
-      return { cls: "pill sm warn-pill", html: ICONS.warn + "AutoLevel Stalled" };
+      return { cls: "pill sm warn-pill", html: ICONS.warn + "Stalled" };
     }
     if (proj && proj.nextLevelUnclearable) {
       return { cls: "pill sm warn-pill", html: ICONS.warn + "SA " + proj.nextLevel + " Wall" };
