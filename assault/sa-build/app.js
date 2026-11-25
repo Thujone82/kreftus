@@ -2652,7 +2652,10 @@ var ONE_TIMER_MILESTONES = [
       }
 
       var evaluated = doneSteps.concat(sortedPending);
-      state.lockedPlans[String(level)] = { id: id, name: name, d: target.d || 0, steps: evaluated };
+      var preservedCustom = (entry && entry.customBuild) ? entry.customBuild : (target && target._isUpgradeValuePlan ? target : null);
+      state.lockedPlans[String(level)] = preservedCustom
+        ? { id: id, name: name, d: target.d || 0, steps: evaluated, customBuild: preservedCustom }
+        : { id: id, name: name, d: target.d || 0, steps: evaluated };
       try { localStorage.setItem("saPlanner.lockedPlans", JSON.stringify(state.lockedPlans)); } catch (e) {}
       return evaluated;
     }
@@ -3964,9 +3967,34 @@ var ONE_TIMER_MILESTONES = [
     var uStep = (top.type === "ring")
       ? { kind: "ring", from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards }
       : { kind: "level", key: top.key, from: top.currentLevel, to: top.nextLevel, cost: top.cost, shards: top.shards };
-    var curBld = getCurrentEquippedCombatBuild(state.level) || { n: "Current Loadout" };
+    var curBld = getCurrentEquippedCombatBuild(state.level) || { n: "Current Loadout", i: {} };
+    var itemsCopy = Object.assign({}, curBld.i || {});
+    var ringCopy = curBld.r
+      ? { lv: curBld.r.lv, m: (curBld.r.m || []).slice() }
+      : (hasRing() ? { lv: ringLevel(), m: ringMods().slice() } : undefined);
+    if (top.type === "ring") {
+      ringCopy = { lv: top.nextLevel, m: (ringCopy && ringCopy.m) ? ringCopy.m.slice() : ringMods().slice() };
+    } else if (top.key) {
+      itemsCopy[top.key] = top.nextLevel;
+    }
     var newK = (top.newSecPerKill && top.newSecPerKill > 0) ? top.newSecPerKill : (curCombatK || 15);
-    var cloneBld = Object.assign({}, curBld, { k: newK });
+    var uvMeta = {
+      gain: top.deltaDustPs || 0,
+      paybackSec: chosen.paybackSec != null ? chosen.paybackSec : top.paybackSec,
+      label: top.label || stepLabel(uStep),
+      deltaSecPerKill: top.deltaSecPerKill || 0,
+      flippedToWin: !!top.flippedToWin
+    };
+    var cloneBld = {
+      n: "Current Loadout (" + stepLabel(uStep) + ")",
+      i: itemsCopy,
+      l: Object.keys(itemsCopy).length,
+      r: ringCopy,
+      d: (cur || 0) + (top.deltaDustPs || 0),
+      k: newK,
+      _isUpgradeValuePlan: true,
+      _upgradeValueMeta: uvMeta
+    };
     return {
       step: uStep,
       mode: "upgradeValue",
@@ -4050,10 +4078,18 @@ var ONE_TIMER_MILESTONES = [
         }
         if (firstPending) {
           var targetFirst = atomicStep(firstPending);
+          var uvMetaLocked = target._upgradeValueMeta || null;
+          var lockedGain = (uvMetaLocked && uvMetaLocked.gain > 0)
+            ? uvMetaLocked.gain
+            : (buildDustPs(target, state.level) - cmpCur);
           return {
             step: targetFirst,
-            gain: buildDustPs(target, state.level) - cmpCur,
+            gain: lockedGain,
             cost: stepsCostDust([targetFirst]).combined,
+            paybackSec: uvMetaLocked ? uvMetaLocked.paybackSec : undefined,
+            label: uvMetaLocked ? uvMetaLocked.label : undefined,
+            deltaSecPerKill: uvMetaLocked ? uvMetaLocked.deltaSecPerKill : undefined,
+            flippedToWin: uvMetaLocked ? !!uvMetaLocked.flippedToWin : false,
             build: target,
             mode: "locked",
             remaining: pendingSteps.length,
@@ -5383,10 +5419,14 @@ var ONE_TIMER_MILESTONES = [
     if (activeBuild.c) metrics.push("<span class='pill sm violet'>" + ICONS.contract + " Z" + activeBuild.c + "</span>");
 
     var remSteps = summaryInfo ? summaryInfo.steps.length : 0;
+    var uvPick = (summaryInfo && summaryInfo.pick && summaryInfo.pick.mode === "upgradeValue" && summaryInfo.pick.build)
+      ? summaryInfo.pick
+      : ((activePick && activePick.mode === "upgradeValue" && activePick.build) ? activePick : null);
+    var lockTarget = (!isPlanLocked && (isOptimalClear || isOptimalFarm) && uvPick) ? uvPick.build : activeBuild;
     var simBtn = "<button type='button' class='btn sm ghost sim-plan-btn' id='recSimPlanBtn' title='Load " + esc(activeBuild.n) + " into Combat Simulator'>⚔️ Sim</button>";
     var lockBtn = (isPlanLocked || (summaryInfo && summaryInfo.pick && summaryInfo.pick.isLocked))
-      ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='recLockPlanBtn' title='Advisor is locked to " + esc(activeBuild.n) + ". Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
-      : "<button type='button' class='btn sm ghost lock-plan-btn' id='recLockPlanBtn' title='Lock advisor to " + esc(activeBuild.n) + " so recommendations follow this build.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
+      ? "<button type='button' class='btn sm accent lock-plan-btn locked' id='recLockPlanBtn' title='Advisor is locked to " + esc(lockTarget.n) + ". Click to unlock.'>" + ICONS.lock + "<span>Locked</span></button>"
+      : "<button type='button' class='btn sm ghost lock-plan-btn' id='recLockPlanBtn' title='Lock advisor to " + esc(lockTarget.n) + " so recommendations follow this build.'>" + ICONS.unlock + "<span>Lock Plan</span></button>";
 
     var statusPills = [];
     if (isPlanLocked) {
@@ -5478,7 +5518,9 @@ var ONE_TIMER_MILESTONES = [
       : renderAlignmentGuide(activeBuild, targetDelta, swapTitle);
 
     var explText = "";
-    if (isPlanLocked && rec && rec.n !== activeBuild.n) {
+    if (isPlanLocked && activeBuild._isUpgradeValuePlan) {
+      explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your upgrade plan <b>" + esc(activeBuild.n) + "</b>. Your current items are aligned; follow the Next Upgrade Advisor on the right to complete this step.</span></div>";
+    } else if (isPlanLocked && rec && rec.n !== activeBuild.n) {
       explText = "<div class='notes' style='margin-top:8px;'>" + ICONS.info + "<span>Advisor is locked to your plan <b>" + esc(activeBuild.n) + "</b>. Currently running: <b>" + esc(rec.n) + "</b> (" + prettify(buildDustPs(rec, state.level)) + "/s). Follow the swap guide above and the Next Upgrade Advisor on the right to transition.</span></div>";
     } else if (isOptimalClear || isOptimalFarm) {
       var vsPlanNote = (pickForRec && pickForRec.vsPlan)
@@ -5521,7 +5563,7 @@ var ONE_TIMER_MILESTONES = [
     var rLockBtn = $("recLockPlanBtn");
     if (rLockBtn) {
       rLockBtn.addEventListener("click", function () {
-        toggleLockBuild(activeBuild);
+        toggleLockBuild(lockTarget);
       });
     }
     var rSimBtn = $("recSimPlanBtn");
