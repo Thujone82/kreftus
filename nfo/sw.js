@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-v3-112526@0929-cache'; // MMDDYY@HHmm from system clock — bump when shipping app updates
+const CACHE_NAME = 'info2go-v3-112526@1019-cache'; // MMDDYY@HHmm from system clock — bump when shipping app updates
 const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
     SW_MESSAGES: {
         SKIP_WAITING: 'SKIP_WAITING'

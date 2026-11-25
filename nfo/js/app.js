@@ -71,8 +71,7 @@ const app = {
         } else {
             ui.toggleConfigButtons(false);
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
-            const providerName = app.getProviderDisplayName(app.config.activeProvider);
-            if (ui.appConfigError) ui.appConfigError.textContent = `${providerName} API Key is required for core functionality.`;
+            if (ui.appConfigError) ui.appConfigError.textContent = "An API Key is required for core functionality.";
         }
 
         // Check for OpenWeatherMap API Key for weather features (logging for now)
