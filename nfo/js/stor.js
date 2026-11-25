@@ -30,10 +30,14 @@ const store = {
         return {
             activeProvider: parsedSettings.activeProvider || 'google',
             googleApiKey: parsedSettings.googleApiKey || '',
+            googleModel: parsedSettings.googleModel || 'gemini-3.5-flash',
             googleRpmLimit: parsedSettings.googleRpmLimit || 10,
             openRouterApiKey: parsedSettings.openRouterApiKey || '',
             openRouterModel: parsedSettings.openRouterModel || '',
             openRouterRpmLimit: parsedSettings.openRouterRpmLimit || 10,
+            oneMinApiKey: parsedSettings.oneMinApiKey || '',
+            oneMinModel: parsedSettings.oneMinModel || '',
+            oneMinRpmLimit: parsedSettings.oneMinRpmLimit || 10,
             owmApiKey: parsedSettings.owmApiKey || '',
             primaryColor: parsedSettings.primaryColor || '#029ec5',
             backgroundColor: parsedSettings.backgroundColor || '#1E1E1E'

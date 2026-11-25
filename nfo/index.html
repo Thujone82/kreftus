@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#029ec5"/> <!-- Updated to match default primaryColor -->
     <title>nfo2Go v.3</title>
-    <meta name="description" content="nfo2Go is a personal AI information hub with customizable location-based briefings via Google Gemini or OpenRouter.">
+    <meta name="description" content="nfo2Go is a personal AI information hub with customizable location-based briefings via Google Gemini, OpenRouter, or 1min.AI.">
     <link rel="canonical" href="https://kreft.us/nfo/">
     <meta property="og:title" content="nfo2Go v.3">
-    <meta property="og:description" content="nfo2Go is a personal AI information hub with customizable location-based briefings via Google Gemini or OpenRouter.">
+    <meta property="og:description" content="nfo2Go is a personal AI information hub with customizable location-based briefings via Google Gemini, OpenRouter, or 1min.AI.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us/nfo/">
     <meta property="og:image" content="https://kreft.us/images/nfo.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="nfo2Go v.3">
-    <meta name="twitter:description" content="nfo2Go is a personal AI information hub with customizable location-based briefings via Google Gemini or OpenRouter.">
+    <meta name="twitter:description" content="nfo2Go is a personal AI information hub with customizable location-based briefings via Google Gemini, OpenRouter, or 1min.AI.">
     <meta name="twitter:image" content="https://kreft.us/images/nfo.png">
     <link rel="stylesheet" href="css/style.css">
     <link rel="manifest" href="manifest.json">
@@ -66,6 +66,7 @@
                 <select id="activeProvider" name="activeProvider" style="padding: 8px; margin: 5px 0 10px 0; border: 1px solid var(--input-border-color); background-color: var(--input-bg-color); color: var(--text-color); border-radius: 4px; width: 100%; box-sizing: border-box;">
                     <option value="google">Google (Gemini)</option>
                     <option value="openrouter">OpenRouter</option>
+                    <option value="1min">1min.AI</option>
                 </select>
             </div>
             <!-- Google Provider Settings -->
@@ -125,6 +126,29 @@
                     <label for="openRouterRpmLimit">Rate per Minute (OpenRouter):</label>
                     <input type="number" id="openRouterRpmLimit" name="openRouterRpmLimit" min="1" value="10" class="rpm-input">
                     <small>Default: 10</small>
+                </div>
+            </div>
+            <!-- 1min.AI Provider Settings -->
+            <div id="oneMinProviderSettings" class="hidden">
+                <div>
+                    <label for="oneMinApiKey">1min.AI API Key:</label><div class="api-key-wrapper">
+                        <input type="password" id="oneMinApiKey" name="oneMinApiKey" class="api-key-input">
+                        <span id="oneMinApiKeyStatus" class="api-key-status"></span>
+                    </div>
+                    <small id="getOneMinApiKeyLinkContainer" class="hidden">
+                        <a href="https://app.1min.ai/" target="_blank">Get 1min.AI API Key</a>
+                    </small>
+                </div>
+                <div>
+                    <label for="oneMinModel">Model (Web Search Enabled):</label>
+                    <select id="oneMinModel" name="oneMinModel" style="padding: 8px; margin: 5px 0 10px 0; border: 1px solid var(--input-border-color); background-color: var(--input-bg-color); color: var(--text-color); border-radius: 4px; width: 100%; box-sizing: border-box;">
+                        <option value="">Select Model...</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="oneMinRpmLimit">Rate per Minute (1min.AI):</label>
+                    <input type="number" id="oneMinRpmLimit" name="oneMinRpmLimit" min="1" value="10" class="rpm-input">
+                    <small>Default: 10 (1min.AI API limit: 180 RPM)</small>
                 </div>
             </div>
             <div>

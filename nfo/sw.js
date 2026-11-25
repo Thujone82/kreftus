@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-v3-083026@1825-cache'; // MMDDYY@HHmm from system clock — bump when shipping app updates
+const CACHE_NAME = 'info2go-v3-112526@0929-cache'; // MMDDYY@HHmm from system clock — bump when shipping app updates
 const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
     SW_MESSAGES: {
         SKIP_WAITING: 'SKIP_WAITING'
@@ -63,6 +63,11 @@ async function hasRealInternetAccess() {
 }
 
 self.addEventListener('fetch', event => {
+    const requestUrl = new URL(event.request.url);
+    if (event.request.method !== 'GET' || requestUrl.pathname.includes('/api/')) {
+        return; // Let the browser handle API proxy calls directly on the network
+    }
+
     // Use network-first strategy for HTML files to ensure updates are picked up
     if (event.request.url.includes('index.html') || event.request.url.endsWith('/')) {
         event.respondWith(

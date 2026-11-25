@@ -1,11 +1,14 @@
 console.log("api.js loaded");
 
 const OWM_API_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
+const ONEMIN_PROXY_URL = './api/1min.php';
 
 const api = {
     fetchAiData: async (provider, apiKey, locationName, topicQuery, model = null) => {
         if (provider === 'openrouter') {
             return api.fetchAiDataOpenRouter(apiKey, locationName, topicQuery, model);
+        } else if (provider === '1min') {
+            return api.fetchAiDataOneMin(apiKey, locationName, topicQuery, model);
         } else {
             return api.fetchAiDataGoogle(apiKey, locationName, topicQuery, model);
         }
@@ -202,6 +205,186 @@ const api = {
         }
     },
 
+    fetchAiDataOneMin: async (apiKey, locationName, topicQuery, model) => {
+        if (!model || model === '') {
+            throw new Error("1min.AI model is not selected. Please select a model in settings.");
+        }
+
+        const now = new Date();
+        const todayLong = now.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const promptText = `Current date: ${todayLong} (${todayIso}). Treat this as today's date when searching the web and reporting current news or events.\n\n${locationName}: ${topicQuery}`;
+
+        console.log(`Fetching AI data for: ${locationName}: ${topicQuery} using 1min.AI model ${model} with web search`);
+
+        try {
+            const response = await fetch(`${ONEMIN_PROXY_URL}?action=chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'API-KEY': apiKey
+                },
+                body: JSON.stringify({
+                    type: 'UNIFY_CHAT_WITH_AI',
+                    model: model,
+                    promptObject: {
+                        prompt: promptText,
+                        settings: {
+                            webSearchSettings: {
+                                webSearch: true,
+                                numOfSite: 3,
+                                maxWord: 1000
+                            },
+                            historySettings: {
+                                isMixed: false
+                            },
+                            withMemories: false
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                console.error("1min.AI API Error Response:", errorData);
+                if (
+                    response.status === 401 ||
+                    response.status === 403 ||
+                    errorData.errorCode === 'INVALID_API_KEY' ||
+                    errorData.error?.code === 'UNAUTHORIZED'
+                ) {
+                    throw new Error("Invalid 1min.AI API Key. Please check your configuration.");
+                }
+                const detail = errorData.error?.message || errorData.message || '';
+                throw new Error(`1min.AI API request failed with status ${response.status}${detail ? `: ${detail}` : ''}`);
+            }
+
+            const data = await response.json();
+            console.log("1min.AI API Response Data:", data);
+
+            if (data?.aiRecord?.status === 'FAILED') {
+                throw new Error("1min.AI request failed to generate a response.");
+            }
+
+            const resultObject = data?.aiRecord?.aiRecordDetail?.resultObject;
+            if (Array.isArray(resultObject)) {
+                const combined = resultObject
+                    .filter(item => typeof item === 'string' && item.trim() !== '')
+                    .join('\n\n')
+                    .trim();
+                if (combined) {
+                    return combined;
+                }
+            } else if (typeof resultObject === 'string' && resultObject.trim() !== '') {
+                return resultObject.trim();
+            }
+
+            console.warn("1min.AI API response did not contain expected text data structure:", data);
+            throw new Error("1min.AI API response did not contain usable text content.");
+        } catch (error) {
+            console.error('Error fetching AI data from 1min.AI:', error);
+            throw error;
+        }
+    },
+
+    fetchOneMinModels: async () => {
+        console.log('Fetching 1min.AI UNIFY_CHAT_WITH_AI models via proxy...');
+
+        const providerLabels = {
+            perplexity: 'Perplexity (Native Web Search)',
+            openai: 'OpenAI',
+            'aws-bedrock': 'Anthropic (Claude)',
+            anthropic: 'Anthropic (Claude)',
+            googleai: 'Google (Gemini)',
+            google: 'Google (Gemini)',
+            xai: 'xAI (Grok)',
+            deepseek: 'DeepSeek',
+            alibaba: 'Alibaba (Qwen)',
+            mistralai: 'Mistral AI',
+            mistral: 'Mistral AI',
+            cohere: 'Cohere',
+            openrouter: 'OpenRouter',
+            replicate: 'Meta / Replicate',
+            zai: 'Z.AI (GLM)'
+        };
+
+        try {
+            const response = await fetch(`${ONEMIN_PROXY_URL}?action=models`, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch 1min.AI models: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data || !Array.isArray(data.models)) {
+                throw new Error('Invalid response format from 1min.AI models API');
+            }
+
+            const nowMs = Date.now();
+            const seenIds = new Set();
+            const models = [];
+
+            for (const model of data.models) {
+                if (!model || !model.modelId || model.modelId === 'NOT_APPLICABLE') continue;
+                if (model.status && model.status !== 'ACTIVE') continue;
+
+                if (model.deprecationDate) {
+                    const depTs = Date.parse(model.deprecationDate);
+                    if (!isNaN(depTs) && depTs <= nowMs) continue;
+                }
+
+                const idLower = model.modelId.toLowerCase();
+                if (idLower.endsWith('-codex') || idLower.endsWith('-code')) continue;
+
+                if (seenIds.has(model.modelId)) continue;
+                seenIds.add(model.modelId);
+
+                const providerKey = (model.provider || 'other').toLowerCase();
+                const providerLabel = providerLabels[providerKey] || (model.provider ? model.provider : 'Other');
+                models.push({
+                    id: model.modelId,
+                    name: model.name || model.modelId,
+                    provider: providerKey,
+                    providerLabel: providerLabel,
+                    isNativeWebSearch: providerKey === 'perplexity'
+                });
+            }
+
+            models.sort((a, b) => {
+                if (a.isNativeWebSearch && !b.isNativeWebSearch) return -1;
+                if (!a.isNativeWebSearch && b.isNativeWebSearch) return 1;
+                const providerCmp = a.providerLabel.localeCompare(b.providerLabel);
+                if (providerCmp !== 0) return providerCmp;
+                return a.name.localeCompare(b.name);
+            });
+
+            console.log(`Fetched ${models.length} active web-search-capable 1min.AI models`);
+            return models;
+        } catch (error) {
+            console.error('Error fetching 1min.AI models:', error);
+            throw error;
+        }
+    },
+
+    validateOneMinModel: async (selectedModel) => {
+        if (!selectedModel || selectedModel === '') {
+            return { isValid: false, availableModels: [] };
+        }
+
+        try {
+            const models = await api.fetchOneMinModels();
+            const modelExists = models.some(model => model.id === selectedModel);
+            return { isValid: modelExists, availableModels: models };
+        } catch (error) {
+            console.error('Error validating 1min.AI model:', error);
+            return { isValid: false, availableModels: [] };
+        }
+    },
+
     /**
      * Fetches current weather data from OpenWeatherMap One Call API
      * @param {number} lat Latitude of the location.
@@ -310,6 +493,32 @@ const api = {
             return { isValid: false, reason: 'invalid' };
         } catch (error) {
             console.error('Error validating OpenRouter API key:', error);
+            return { isValid: false, reason: 'network_error' };
+        }
+    },
+
+    validateOneMinApiKey: async (apiKey) => {
+        if (!apiKey) return { isValid: false, reason: 'missing' };
+        try {
+            const response = await fetch(`${ONEMIN_PROXY_URL}?action=validate`, {
+                headers: {
+                    'API-KEY': apiKey
+                },
+                cache: 'no-store'
+            });
+            if (response.ok) {
+                return { isValid: true };
+            } else if (response.status === 429) {
+                console.warn('1min.AI API key validation: Rate limit hit (429).');
+                return { isValid: false, reason: 'rate_limit' };
+            } else if (response.status === 401 || response.status === 403) {
+                console.warn('1min.AI API key validation: Invalid key.');
+                return { isValid: false, reason: 'invalid' };
+            }
+            console.warn(`1min.AI API key validation failed with status: ${response.status}`);
+            return { isValid: false, reason: 'invalid' };
+        } catch (error) {
+            console.error('Error validating 1min.AI API key:', error);
             return { isValid: false, reason: 'network_error' };
         }
     }

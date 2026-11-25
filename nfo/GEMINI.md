@@ -15,8 +15,9 @@
 The application supports multiple AI providers:
 - **Google Gemini API:** The default provider, offering direct access to Google's Gemini models
 - **OpenRouter API:** An alternative provider that provides access to hundreds of AI models through a unified interface, including free tier options
+- **1min.AI API:** A unified multi-model provider via the `UNIFY_CHAT_WITH_AI` Chat with AI endpoint (`POST /api/chat-with-ai`) with real-time web search enabled and a same-origin PHP relay (`api/1min.php`)
 
-The application is built with vanilla JavaScript, HTML, and CSS, and it leverages modern browser features like localStorage for persistent storage and Service Workers for offline capabilities and app updates.
+The application is built with vanilla JavaScript, HTML, CSS, and a lightweight PHP relay for 1min.AI, and it leverages modern browser features like localStorage for persistent storage and Service Workers for offline capabilities and app updates.
 
 ### Key Functionality
 
@@ -25,12 +26,13 @@ The application is built with vanilla JavaScript, HTML, and CSS, and it leverage
 -   **Multi-Provider AI Integration:**
     -   **Google Gemini:** The default AI provider, offering direct access to Google's Gemini models with Google Search integration.
     -   **OpenRouter:** An alternative AI provider that provides access to hundreds of AI models through a unified API, including free tier models. Features dynamic model selection with free models highlighted and sorted first.
+    -   **1min.AI:** Supports all active, non-deprecated web-search-capable `UNIFY_CHAT_WITH_AI` models across Perplexity, OpenAI, Anthropic, Google, xAI, DeepSeek, Alibaba, Mistral, Cohere, and more via `api/1min.php`, with automatic `webSearchSettings` and current-date grounding in prompts.
     -   **OpenWeatherMap:** Fetches and displays real-time weather data for the selected location.
 -   **Offline First (PWA):** As a Progressive Web App, it can be "installed" on a home screen. The service worker enables offline access by serving cached data, displaying an "OFFLINE CACHE VIEW" when the network is unavailable.
 -   **Configuration Management:** An extensive in-app configuration menu allows users to:
-    -   Select AI provider (Google Gemini or OpenRouter) with a dropdown interface.
+    -   Select AI provider (Google Gemini, OpenRouter, or 1min.AI) with a dropdown interface.
     -   Securely enter and validate API keys for the selected AI provider and OpenWeatherMap (stored separately for each provider).
-    -   For OpenRouter: Dynamically fetch and select from available AI models, with free models highlighted in green and sorted first.
+    -   For OpenRouter and 1min.AI: Dynamically fetch and select from available AI models (OpenRouter highlights free models first; 1min.AI groups web-search-enabled models by provider with Perplexity listed first).
     -   Set custom Rate-Per-Minute (RPM) limits separately for each AI provider to manage usage.
     -   Customize the application's primary and background colors.
     -   Model validation on app launch ensures selected models are still available.
@@ -39,7 +41,7 @@ The application is built with vanilla JavaScript, HTML, and CSS, and it leverage
 
 ### How to Run
 
-The application is a static web app. To run it, simply open the `index.html` file in a modern web browser that supports Service Workers and localStorage (e.g., Chrome, Firefox, Edge, Safari).
+The application is served from `kreft.us/nfo/` (Apache/PHP 8.2+ for the `api/1min.php` same-origin relay). For Google Gemini and OpenRouter, opening `index.html` statically works directly; for 1min.AI, `api/1min.php` requires a PHP host (`curl` or `allow_url_fopen`).
 
 For full functionality, API keys must be configured in the "App" settings menu.
 
@@ -47,9 +49,11 @@ For full functionality, API keys must be configured in the "App" settings menu.
 
 -   A modern web browser.
 -   An active internet connection (for initial data fetching and updates).
+-   PHP 8.2+ with `curl` or `allow_url_fopen` enabled on the host (for the `api/1min.php` relay when using 1min.AI).
 -   **AI Provider API Key (choose one):**
     -   A free API key from [Google AI Studio (Gemini)](https://aistudio.google.com/app/apikey) for Google Gemini provider.
     -   OR an API key from [OpenRouter](https://openrouter.ai/keys) for OpenRouter provider (supports free tier models).
+    -   OR an API key from [1min.AI](https://app.1min.ai/) for the 1min.AI provider.
 -   A free API key from [OpenWeatherMap](https://home.openweathermap.org/api_keys) (with billing info added to enable the One Call API, though it remains free under the 1,000 calls/day limit).
 
 ### File Structure
@@ -57,11 +61,12 @@ For full functionality, API keys must be configured in the "App" settings menu.
 -   `index.html`: The main entry point and structure of the application.
 -   `manifest.json`: PWA manifest for installation and app metadata.
 -   `sw.js`: Service worker script for offline caching and app updates.
+-   `api/1min.php`: Same-origin PHP relay for 1min.AI (`models`, `validate`, and `chat` endpoints).
 -   `css/style.css`: All styling for the application.
 -   `icons/`: Contains the application icons for the PWA manifest and favicon.
 -   `js/`:
     -   `app.js`: Main application logic, event listeners, and initialization.
-    -   `api.js`: Handles all API requests to AI providers (Google Gemini and OpenRouter) and OpenWeatherMap.
+    -   `api.js`: Handles all API requests to AI providers (Google Gemini, OpenRouter, and 1min.AI) and OpenWeatherMap.
     -   `stor.js`: A module for managing all interactions with the browser's localStorage for persistent data storage.
     -   `ui.js`: Controls all UI manipulations, including modals, button states, and dynamic content rendering.
     -   `utils.js`: Contains helper and utility functions used across the application.

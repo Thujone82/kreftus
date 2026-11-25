@@ -25,8 +25,14 @@ const ui = {
     openRouterRpmLimitInput: document.getElementById('openRouterRpmLimit'),
     openRouterApiKeyStatusUI: document.getElementById('openRouterApiKeyStatus'),
     getOpenRouterApiKeyLinkContainer: document.getElementById('getOpenRouterApiKeyLinkContainer'),
+    oneMinApiKeyInput: document.getElementById('oneMinApiKey'),
+    oneMinModelSelect: document.getElementById('oneMinModel'),
+    oneMinRpmLimitInput: document.getElementById('oneMinRpmLimit'),
+    oneMinApiKeyStatusUI: document.getElementById('oneMinApiKeyStatus'),
+    getOneMinApiKeyLinkContainer: document.getElementById('getOneMinApiKeyLinkContainer'),
     googleProviderSettings: document.getElementById('googleProviderSettings'),
     openRouterProviderSettings: document.getElementById('openRouterProviderSettings'),
+    oneMinProviderSettings: document.getElementById('oneMinProviderSettings'),
     primaryColorInput: document.getElementById('primaryColor'),
     owmApiKeyInput: document.getElementById('owmApiKey'), // Added
     owmApiKeyStatusUI: document.getElementById('owmApiKeyStatus'), // Added
@@ -195,6 +201,10 @@ const ui = {
         // Load OpenRouter provider settings
         if(ui.openRouterApiKeyInput) ui.openRouterApiKeyInput.value = settings.openRouterApiKey || '';
         if(ui.openRouterRpmLimitInput) ui.openRouterRpmLimitInput.value = settings.openRouterRpmLimit || 10;
+
+        // Load 1min.AI provider settings
+        if(ui.oneMinApiKeyInput) ui.oneMinApiKeyInput.value = settings.oneMinApiKey || '';
+        if(ui.oneMinRpmLimitInput) ui.oneMinRpmLimitInput.value = settings.oneMinRpmLimit || 10;
         
         // Load common settings
         if(ui.owmApiKeyInput) ui.owmApiKeyInput.value = settings.owmApiKey || '';
@@ -202,28 +212,26 @@ const ui = {
         if(ui.backgroundColorInput) ui.backgroundColorInput.value = settings.backgroundColor; 
         if(ui.appConfigError) ui.appConfigError.textContent = ''; 
 
-        // Toggle visibility of provider-specific sections
-        // First set the dropdown value, then call onProviderChange
-        if(ui.activeProviderSelect) {
-            ui.activeProviderSelect.value = settings.activeProvider || 'google';
-        }
-        
-        // Call onProviderChange to set visibility and populate models
-        // onProviderChange will populate models for OpenRouter, but we want to use settings value
-        const wasOpenRouter = (settings.activeProvider || 'google') === 'openrouter';
-        if (wasOpenRouter) {
-            // Set visibility manually first
+        // Toggle visibility of provider-specific sections and populate dynamic models
+        const activeProvider = settings.activeProvider || 'google';
+        if (ui.googleProviderSettings) ui.googleProviderSettings.classList.add('hidden');
+        if (ui.openRouterProviderSettings) ui.openRouterProviderSettings.classList.add('hidden');
+        if (ui.oneMinProviderSettings) ui.oneMinProviderSettings.classList.add('hidden');
+
+        if (activeProvider === 'openrouter') {
             if (ui.openRouterProviderSettings) {
                 ui.openRouterProviderSettings.classList.remove('hidden');
             }
-            if (ui.googleProviderSettings) {
-                ui.googleProviderSettings.classList.add('hidden');
-            }
-            // Populate with settings value (fresh fetch)
             await ui.populateOpenRouterModelDropdown(settings.openRouterModel || '');
+        } else if (activeProvider === '1min') {
+            if (ui.oneMinProviderSettings) {
+                ui.oneMinProviderSettings.classList.remove('hidden');
+            }
+            await ui.populateOneMinModelDropdown(settings.oneMinModel || '');
         } else {
-            // For Google, just set visibility
-            ui.onProviderChange();
+            if (ui.googleProviderSettings) {
+                ui.googleProviderSettings.classList.remove('hidden');
+            }
         }
 
         // Toggle visibility of "Get API Key" links
@@ -232,6 +240,9 @@ const ui = {
         }
         if (ui.getOpenRouterApiKeyLinkContainer) {
             ui.getOpenRouterApiKeyLinkContainer.classList.toggle('hidden', !!settings.openRouterApiKey);
+        }
+        if (ui.getOneMinApiKeyLinkContainer) {
+            ui.getOneMinApiKeyLinkContainer.classList.toggle('hidden', !!settings.oneMinApiKey);
         }
         if (ui.getOwmApiKeyLinkContainer) {
             ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!settings.owmApiKey);
@@ -245,11 +256,7 @@ const ui = {
         
         // Show/hide provider-specific sections (use classList to handle !important in CSS)
         if (ui.googleProviderSettings) {
-            if (selectedProvider === 'google') {
-                ui.googleProviderSettings.classList.remove('hidden');
-            } else {
-                ui.googleProviderSettings.classList.add('hidden');
-            }
+            ui.googleProviderSettings.classList.toggle('hidden', selectedProvider !== 'google');
         }
         if (ui.openRouterProviderSettings) {
             if (selectedProvider === 'openrouter') {
@@ -263,6 +270,29 @@ const ui = {
                     ui.openRouterModelSelect.innerHTML = '<option value="">Select Model...</option>';
                 }
             }
+        }
+        if (ui.oneMinProviderSettings) {
+            if (selectedProvider === '1min') {
+                ui.oneMinProviderSettings.classList.remove('hidden');
+                await ui.populateOneMinModelDropdown(app.config.oneMinModel || '');
+            } else {
+                ui.oneMinProviderSettings.classList.add('hidden');
+                if (ui.oneMinModelSelect) {
+                    ui.oneMinModelSelect.innerHTML = '<option value="">Select Model...</option>';
+                }
+            }
+        }
+
+        // Refresh API key status badge for the newly selected provider
+        if (selectedProvider === 'google') {
+            if (app.config.googleApiKey) app.validateAndDisplayGeminiKeyStatus(app.config.googleApiKey, true);
+            else ui.setApiKeyStatus('gemini', 'checking', 'Key Test');
+        } else if (selectedProvider === 'openrouter') {
+            if (app.config.openRouterApiKey) app.validateAndDisplayOpenRouterKeyStatus(app.config.openRouterApiKey, true);
+            else ui.setApiKeyStatus('openrouter', 'checking', 'Key Test');
+        } else if (selectedProvider === '1min') {
+            if (app.config.oneMinApiKey) app.validateAndDisplayOneMinKeyStatus(app.config.oneMinApiKey, true);
+            else ui.setApiKeyStatus('1min', 'checking', 'Key Test');
         }
     },
 
@@ -296,6 +326,48 @@ const ui = {
         } catch (error) {
             console.error('Error populating OpenRouter model dropdown:', error);
             // Keep placeholder option on error
+        }
+    },
+
+    populateOneMinModelDropdown: async (selectedModelId = '') => {
+        if (!ui.oneMinModelSelect) return;
+
+        ui.oneMinModelSelect.innerHTML = '<option value="">Loading models...</option>';
+
+        try {
+            const models = await api.fetchOneMinModels();
+            ui.oneMinModelSelect.innerHTML = '<option value="">Select Model...</option>';
+
+            const groups = new Map();
+            models.forEach(model => {
+                if (!groups.has(model.providerLabel)) {
+                    groups.set(model.providerLabel, []);
+                }
+                groups.get(model.providerLabel).push(model);
+            });
+
+            groups.forEach((groupModels, label) => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = label;
+                groupModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.name;
+                    if (model.id === selectedModelId) {
+                        option.selected = true;
+                    }
+                    optgroup.appendChild(option);
+                });
+                ui.oneMinModelSelect.appendChild(optgroup);
+            });
+
+            if (selectedModelId && !models.some(m => m.id === selectedModelId)) {
+                ui.oneMinModelSelect.value = '';
+                console.warn(`Selected 1min.AI model ${selectedModelId} not found in available models`);
+            }
+        } catch (error) {
+            console.error('Error populating 1min.AI model dropdown:', error);
+            ui.oneMinModelSelect.innerHTML = '<option value="">Failed to load models</option>';
         }
     },
 
@@ -338,6 +410,8 @@ const ui = {
             statusElement = ui.owmApiKeyStatusUI;
         } else if (apiKeyType === 'openrouter') {
             statusElement = ui.openRouterApiKeyStatusUI;
+        } else if (apiKeyType === '1min') {
+            statusElement = ui.oneMinApiKeyStatusUI;
         }
 
         if (statusElement) {
@@ -819,6 +893,17 @@ const ui = {
             }, DEBOUNCE_DELAY_MS));
         }
 
+        // Debounced API Key Validation for 1min.AI
+        if (ui.oneMinApiKeyInput) {
+            ui.oneMinApiKeyInput.addEventListener('input', utils.debounce((event) => {
+                const key = event.target.value.trim();
+                // Only validate if 1min.AI provider is selected
+                if (ui.activeProviderSelect && ui.activeProviderSelect.value === '1min') {
+                    app.validateAndDisplayOneMinKeyStatus(key, false);
+                }
+            }, DEBOUNCE_DELAY_MS));
+        }
+
         // Debounced API Key Validation for OpenWeatherMap
         if (ui.owmApiKeyInput) {
             ui.owmApiKeyInput.addEventListener('input', utils.debounce((event) => {
@@ -827,10 +912,14 @@ const ui = {
             }, DEBOUNCE_DELAY_MS));
         }
 
-        // Show/hide API keys on focus/blur for easier editing (OpenRouter)
+        // Show/hide API keys on focus/blur for easier editing (OpenRouter & 1min.AI)
         if (ui.openRouterApiKeyInput) {
             ui.openRouterApiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
             ui.openRouterApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
+        }
+        if (ui.oneMinApiKeyInput) {
+            ui.oneMinApiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
+            ui.oneMinApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
         }
 
         console.log("UI initialized");

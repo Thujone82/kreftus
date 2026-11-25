@@ -25,6 +25,9 @@ const app = {
         openRouterApiKey: null, // For OpenRouter
         openRouterModel: '', // OpenRouter model (empty until user selects)
         openRouterRpmLimit: 10, // Default RPM limit for OpenRouter
+        oneMinApiKey: null, // For 1min.AI
+        oneMinModel: '', // 1min.AI model (empty until user selects)
+        oneMinRpmLimit: 10, // Default RPM limit for 1min.AI
         owmApiKey: null, // For OpenWeatherMap
         primaryColor: '#029ec5',
         backgroundColor: '#1E1E1E'
@@ -54,9 +57,11 @@ const app = {
         
         app.checkOnlineStatus(); // Perform initial, robust online status check
         
-        // Validate OpenRouter model if OpenRouter is active
+        // Validate OpenRouter or 1min.AI model if active
         if (app.config.activeProvider === 'openrouter') {
             app.validateOpenRouterModelOnInit();
+        } else if (app.config.activeProvider === '1min') {
+            app.validateOneMinModelOnInit();
         }
         
         // Check for API Key for core functionality (provider-specific)
@@ -66,7 +71,7 @@ const app = {
         } else {
             ui.toggleConfigButtons(false);
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
-            const providerName = app.config.activeProvider === 'openrouter' ? 'OpenRouter' : 'Gemini';
+            const providerName = app.getProviderDisplayName(app.config.activeProvider);
             if (ui.appConfigError) ui.appConfigError.textContent = `${providerName} API Key is required for core functionality.`;
         }
 
@@ -170,6 +175,9 @@ const app = {
             openRouterApiKey: storedSettings.openRouterApiKey || null,
             openRouterModel: storedSettings.openRouterModel || '',
             openRouterRpmLimit: storedSettings.openRouterRpmLimit || 10,
+            oneMinApiKey: storedSettings.oneMinApiKey || null,
+            oneMinModel: storedSettings.oneMinModel || '',
+            oneMinRpmLimit: storedSettings.oneMinRpmLimit || 10,
             owmApiKey: storedSettings.owmApiKey || null,
             primaryColor: storedSettings.primaryColor || '#029ec5',
             backgroundColor: storedSettings.backgroundColor || '#1E1E1E'
@@ -180,12 +188,24 @@ const app = {
         console.log("App settings loaded and applied:", app.config);
     },
 
+    getProviderDisplayName: (provider) => {
+        if (provider === 'openrouter') return 'OpenRouter';
+        if (provider === '1min') return '1min.AI';
+        return 'Gemini';
+    },
+
     getActiveProviderConfig: () => {
         if (app.config.activeProvider === 'openrouter') {
             return {
                 apiKey: app.config.openRouterApiKey,
                 rpmLimit: app.config.openRouterRpmLimit,
                 model: app.config.openRouterModel
+            };
+        } else if (app.config.activeProvider === '1min') {
+            return {
+                apiKey: app.config.oneMinApiKey,
+                rpmLimit: app.config.oneMinRpmLimit,
+                model: app.config.oneMinModel
             };
         } else {
             return {
@@ -218,6 +238,28 @@ const app = {
         }
     },
 
+    validateOneMinModelOnInit: async () => {
+        if (app.config.activeProvider !== '1min') return;
+
+        const selectedModel = app.config.oneMinModel;
+        if (!selectedModel || selectedModel === '') {
+            if (ui.appConfigError) ui.appConfigError.textContent = "Selected 1min.AI model is not configured. Please select a model.";
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
+            return;
+        }
+
+        try {
+            const validation = await api.validateOneMinModel(selectedModel);
+            if (!validation.isValid) {
+                if (ui.appConfigError) ui.appConfigError.textContent = "Selected 1min.AI model is no longer available. Please select a new model.";
+                ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
+            }
+        } catch (error) {
+            console.error('Error validating 1min.AI model on init:', error);
+            // Don't block app startup on validation error, but log it
+        }
+    },
+
     loadLocations: () => {
         app.locations = store.getLocations();
         console.log("Locations loaded:", app.locations);
@@ -246,6 +288,12 @@ const app = {
                     app.validateAndDisplayOpenRouterKeyStatus(app.config.openRouterApiKey, true);
                 } else {
                     ui.setApiKeyStatus('openrouter', 'checking', 'Key Test');
+                }
+            } else if (app.config.activeProvider === '1min') {
+                if (app.config.oneMinApiKey) {
+                    app.validateAndDisplayOneMinKeyStatus(app.config.oneMinApiKey, true);
+                } else {
+                    ui.setApiKeyStatus('1min', 'checking', 'Key Test');
                 }
             }
             if (app.config.owmApiKey) {
@@ -338,6 +386,9 @@ const app = {
         const newOpenRouterApiKey = ui.openRouterApiKeyInput ? ui.openRouterApiKeyInput.value.trim() : '';
         const newOpenRouterModel = ui.openRouterModelSelect ? ui.openRouterModelSelect.value : '';
         const newOpenRouterRpmLimit = ui.openRouterRpmLimitInput ? parseInt(ui.openRouterRpmLimitInput.value, 10) || 10 : 10;
+        const newOneMinApiKey = ui.oneMinApiKeyInput ? ui.oneMinApiKeyInput.value.trim() : '';
+        const newOneMinModel = ui.oneMinModelSelect ? ui.oneMinModelSelect.value : '';
+        const newOneMinRpmLimit = ui.oneMinRpmLimitInput ? parseInt(ui.oneMinRpmLimitInput.value, 10) || 10 : 10;
         const newOwmApiKey = ui.owmApiKeyInput ? ui.owmApiKeyInput.value.trim() : '';
         const newPrimaryColor = ui.primaryColorInput.value;
         const newBackgroundColor = ui.backgroundColorInput.value;
@@ -359,11 +410,22 @@ const app = {
                 if(ui.appConfigError) ui.appConfigError.textContent = "Please select an OpenRouter model before saving.";
                 return;
             }
+        } else if (activeProvider === '1min') {
+            if (!newOneMinApiKey) {
+                if(ui.appConfigError) ui.appConfigError.textContent = "1min.AI API Key is required.";
+                if (ui.getOneMinApiKeyLinkContainer) ui.getOneMinApiKeyLinkContainer.classList.remove('hidden');
+                return;
+            }
+            if (!newOneMinModel || newOneMinModel === '') {
+                if(ui.appConfigError) ui.appConfigError.textContent = "Please select a 1min.AI model before saving.";
+                return;
+            }
         }
 
         if(ui.appConfigError) ui.appConfigError.textContent = "";
         if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden');
         if (ui.getOpenRouterApiKeyLinkContainer) ui.getOpenRouterApiKeyLinkContainer.classList.add('hidden');
+        if (ui.getOneMinApiKeyLinkContainer) ui.getOneMinApiKeyLinkContainer.classList.add('hidden');
 
         // Save all settings
         app.config.activeProvider = activeProvider;
@@ -373,6 +435,9 @@ const app = {
         app.config.openRouterApiKey = newOpenRouterApiKey;
         app.config.openRouterModel = newOpenRouterModel;
         app.config.openRouterRpmLimit = newOpenRouterRpmLimit;
+        app.config.oneMinApiKey = newOneMinApiKey;
+        app.config.oneMinModel = newOneMinModel;
+        app.config.oneMinRpmLimit = newOneMinRpmLimit;
         app.config.owmApiKey = newOwmApiKey;
         app.config.primaryColor = newPrimaryColor;
         app.config.backgroundColor = newBackgroundColor;
@@ -555,15 +620,16 @@ const app = {
     handleOpenLocationInfo: async (locationId) => {
         const activeConfig = app.getActiveProviderConfig();
         if (!activeConfig || !activeConfig.apiKey) {
-            const providerName = app.config.activeProvider === 'openrouter' ? 'OpenRouter' : 'Gemini';
+            const providerName = app.getProviderDisplayName(app.config.activeProvider);
             if(ui.appConfigError) ui.appConfigError.textContent = `${providerName} API Key is not configured. Please configure it first.`;
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); return;
         }
         
-        // Validate OpenRouter model if using OpenRouter
-        if (app.config.activeProvider === 'openrouter') {
+        // Validate OpenRouter or 1min.AI model if active
+        if (app.config.activeProvider === 'openrouter' || app.config.activeProvider === '1min') {
             if (!activeConfig.model || activeConfig.model === '') {
-                if(ui.appConfigError) ui.appConfigError.textContent = "OpenRouter model is not selected. Please select a model in settings.";
+                const providerName = app.getProviderDisplayName(app.config.activeProvider);
+                if(ui.appConfigError) ui.appConfigError.textContent = `${providerName} model is not selected. Please select a model in settings.`;
                 ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); return;
             }
         }
@@ -635,17 +701,18 @@ const app = {
         const activeConfig = app.getActiveProviderConfig();
         if (!activeConfig || !activeConfig.apiKey) {
             if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
-                const providerName = app.config.activeProvider === 'openrouter' ? 'OpenRouter' : 'Gemini';
+                const providerName = app.getProviderDisplayName(app.config.activeProvider);
                 if(ui.appConfigError) ui.appConfigError.textContent = `${providerName} API Key is required to fetch data.`;
                 ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
             } return false;
         }
         
-        // Validate OpenRouter model if using OpenRouter
-        if (app.config.activeProvider === 'openrouter') {
+        // Validate OpenRouter or 1min.AI model if active
+        if (app.config.activeProvider === 'openrouter' || app.config.activeProvider === '1min') {
             if (!activeConfig.model || activeConfig.model === '') {
                 if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
-                    if(ui.appConfigError) ui.appConfigError.textContent = "OpenRouter model is not selected. Please select a model in settings.";
+                    const providerName = app.getProviderDisplayName(app.config.activeProvider);
+                    if(ui.appConfigError) ui.appConfigError.textContent = `${providerName} model is not selected. Please select a model in settings.`;
                     ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
                 } return false;
             }
@@ -718,7 +785,11 @@ const app = {
                 .catch(error => {
                     console.error(`Failed to fetch AI data for ${location.description} - ${topic.description}:`, error.message);
                     store.saveAiCache(locationId, topic.id, `Error: ${error.message}`);
-                    if (error.message.toLowerCase().includes("invalid api key") || error.message.toLowerCase().includes("invalid openrouter api key")) {
+                    if (
+                        error.message.toLowerCase().includes("invalid api key") ||
+                        error.message.toLowerCase().includes("invalid openrouter api key") ||
+                        error.message.toLowerCase().includes("invalid 1min.ai api key")
+                    ) {
                         anInvalidKeyErrorOccurred = true;
                     }
                     return { status: 'rejected', topicId: topic.id, reason: error };
@@ -1011,6 +1082,24 @@ const app = {
         }
     },
 
+    validateAndDisplayOneMinKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('1min', 'checking', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('1min', 'checking', 'Checking...');
+        const validationResult = await api.validateOneMinApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
+            ui.setApiKeyStatus('1min', 'valid', 'Valid');
+        } else {
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('1min', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('1min', 'invalid', 'Invalid');
+            }
+        }
+    },
+
     // Loader Management
     incrementActiveLoaders: () => {
         app.activeLoadingOperations++;
@@ -1142,6 +1231,8 @@ const app = {
             let heartbeat;
             if (app.config.activeProvider === 'openrouter') {
                 heartbeat = await api.validateOpenRouterApiKey(activeConfig.apiKey);
+            } else if (app.config.activeProvider === '1min') {
+                heartbeat = await api.validateOneMinApiKey(activeConfig.apiKey);
             } else {
                 heartbeat = await api.validateGeminiApiKey(activeConfig.apiKey);
             }

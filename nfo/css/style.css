@@ -244,17 +244,17 @@ input[type="color"] {
 }
 
 /* API Key Link Styling */
-#getApiKeyLinkContainer, #getOwmApiKeyLinkContainer { /* Combined for OWM key link */
+#getApiKeyLinkContainer, #getOpenRouterApiKeyLinkContainer, #getOneMinApiKeyLinkContainer, #getOwmApiKeyLinkContainer { /* Combined for provider & OWM key links */
     display: block;
     margin-top: 5px;
     margin-bottom: 10px;
     font-size: 0.9em;
 }
-#getApiKeyLinkContainer a, #getOwmApiKeyLinkContainer a { /* Combined for OWM key link */
+#getApiKeyLinkContainer a, #getOpenRouterApiKeyLinkContainer a, #getOneMinApiKeyLinkContainer a, #getOwmApiKeyLinkContainer a { /* Combined for provider & OWM key links */
     color: var(--primary-color);
     text-decoration: underline;
 }
-#getApiKeyLinkContainer a:hover, #getOwmApiKeyLinkContainer a:hover { /* Combined for OWM key link */
+#getApiKeyLinkContainer a:hover, #getOpenRouterApiKeyLinkContainer a:hover, #getOneMinApiKeyLinkContainer a:hover, #getOwmApiKeyLinkContainer a:hover { /* Combined for provider & OWM key links */
     opacity: 0.8;
 }
 
