@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#08090c">
-  <meta name="sa-build" content="e50d42182f04">
+  <meta name="sa-build" content="b2b706605b90">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2113,6 +2113,27 @@
     .steps { display: flex; flex-wrap: wrap; gap: 5px; }
     .bb-actions-cell { display: flex; gap: 4px; align-items: center; }
     .bb-earn-return.blocked { color: var(--sell); }
+    .bb-sim-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .bb-sim-note svg {
+      flex: 0 0 auto;
+      width: 15px;
+      height: 15px;
+      margin-top: 2px;
+      color: var(--accent);
+    }
+    .bb-sim-note strong { color: var(--text); }
 
     /* ---------- better builds info hover popover ---------- */
     .bb-build-cell {
@@ -8595,6 +8616,7 @@ function createRawAutoBattle(game, u2Mutations) {
   }
 
   var buildDustCache = {};
+  var topPlanSimCache = {};
   function buildDustPs(b, level) {
     if (!b) return 0;
     var lvl = Number(level || state.level || (state.ab && state.ab.enemyLevel) || 1);
@@ -10987,6 +11009,7 @@ var ONE_TIMER_MILESTONES = [
     optimalTargetRingCache = {};
     buildDustCache = {};
     buildKillTimeCache = {};
+    topPlanSimCache = {};
     state._cachedDiag = null;
     var rec = bestRunnable(state.level);
     var rate = activeDustPs(rec);
@@ -12027,6 +12050,133 @@ var ONE_TIMER_MILESTONES = [
     return buildsFor(state.level).filter(function (b) {
       return !runnable(b) && allowedUpgrade(b) && buildDustPs(b, state.level) > cur + 1e-9;
     });
+  }
+
+  function simulateTopPlanWithUserLevels(b, level, mode) {
+    if (!b || !state.save || typeof SASimEngine === "undefined") return null;
+    var lvl = Number(level || state.level || 1);
+    var m = mode || getLevelMode(lvl);
+    var sig = (state.ab ? getLoadoutSignature() : "nosave") + "|" + lvl + "|" + m + "|" + buildId(b);
+    if (topPlanSimCache[sig]) return topPlanSimCache[sig];
+
+    try {
+      var cfg = SASimEngine.normalizeConfig({ save: state.save, build: b, level: lvl });
+      var maxLimbs = (cfg.extraLimbs || 0) + 4;
+      var curEqCount = cfg.equipped ? cfg.equipped.length : 0;
+      var surplus = Math.max(0, maxLimbs - curEqCount);
+      var addedExtras = [];
+      if (surplus > 0) {
+        var opt = findOptimalExtraLimbItems(b, lvl, m, surplus);
+        if (opt && opt.bestItems && opt.bestItems.length) {
+          addedExtras = opt.bestItems.slice();
+          for (var ei = 0; ei < addedExtras.length; ei++) {
+            var ek = addedExtras[ei];
+            if (cfg.equipped.indexOf(ek) === -1) {
+              cfg.equipped.push(ek);
+              if (!cfg.items[ek]) {
+                cfg.items[ek] = { level: userLevel(ek) || 1, equipped: true };
+              } else {
+                cfg.items[ek].equipped = true;
+              }
+            }
+          }
+        }
+      }
+      var ringOpt = findOptimalTargetRingMods(b, lvl, m, addedExtras);
+      if (ringOpt && ringOpt.simMods && ringOpt.simMods.length) {
+        cfg.ring.mods = ringOpt.simMods.slice();
+        cfg.rings.mods = ringOpt.simMods.slice();
+      }
+      var res = SASimEngine.runBatch(cfg, { kills: 60, maxKills: 60, maxFights: 100, fights: 100, ticks: 25000 });
+      var dustPs = (res && res.dustPs > 0 && isFinite(res.dustPs)) ? res.dustPs : 0;
+      var effSecPerKill = (res && res.kills > 0 && res.effSecPerKill > 0)
+        ? res.effSecPerKill
+        : ((res && res.kills > 0 && res.secPerKill > 0) ? res.secPerKill : Infinity);
+      var winRate = (res && typeof res.winRate === "number") ? res.winRate : 0;
+      var out = {
+        dustPs: dustPs,
+        effSecPerKill: effSecPerKill,
+        winRate: winRate,
+        extraItems: addedExtras,
+        ringMods: (cfg.ring && cfg.ring.mods) ? cfg.ring.mods.slice() : []
+      };
+      topPlanSimCache[sig] = out;
+      return out;
+    } catch (e) {
+      console.warn("simulateTopPlanWithUserLevels failed:", e);
+      return null;
+    }
+  }
+
+  function topFallbackBuilds(level, mode) {
+    if (!state.save || typeof SASimEngine === "undefined") return [];
+    var lvl = Number(level || state.level || 1);
+    var m = mode || getLevelMode(lvl);
+    var raw = buildsFor(lvl).filter(allowedUpgrade);
+    if (!raw.length) return [];
+
+    var seen = {};
+    var candidates = [];
+    for (var i = 0; i < raw.length; i++) {
+      var id = buildId(raw[i]);
+      if (seen[id]) continue;
+      seen[id] = true;
+      candidates.push(raw[i]);
+    }
+
+    if (m === "push") {
+      candidates.sort(function (a, b) {
+        var ka = (a.k && a.k > 0) ? a.k : buildSecPerKill(a, lvl);
+        var kb = (b.k && b.k > 0) ? b.k : buildSecPerKill(b, lvl);
+        if (ka !== kb) return ka - kb;
+        return (b.d || 0) - (a.d || 0);
+      });
+    } else {
+      candidates.sort(function (a, b) {
+        var da = (a.d && a.d > 0) ? a.d : buildDustPs(a, lvl);
+        var db = (b.d && b.d > 0) ? b.d : buildDustPs(b, lvl);
+        if (db !== da) return db - da;
+        var ka = (a.k && a.k > 0) ? a.k : Infinity;
+        var kb = (b.k && b.k > 0) ? b.k : Infinity;
+        return ka - kb;
+      });
+    }
+
+    var top5 = candidates.slice(0, 5);
+    var simmed = top5.map(function (b) {
+      var sim = simulateTopPlanWithUserLevels(b, lvl, m);
+      return Object.assign({}, b, {
+        _isTopPlanFallback: true,
+        _simDustPs: sim ? sim.dustPs : buildDustPs(b, lvl),
+        _simDustLevel: lvl,
+        _simSecPerKill: sim ? sim.effSecPerKill : buildSecPerKill(b, lvl),
+        _simWinRate: sim ? sim.winRate : (b.wr != null ? (b.wr <= 1 ? b.wr : b.wr / 100) : null),
+        _simExtraItems: sim ? sim.extraItems : [],
+        _simRingMods: sim ? sim.ringMods : null
+      });
+    });
+
+    if (m === "push") {
+      simmed.sort(function (a, b) {
+        var ka = a._simSecPerKill;
+        var kb = b._simSecPerKill;
+        if (isFinite(ka) !== isFinite(kb)) return isFinite(ka) ? -1 : 1;
+        if (isFinite(ka) && Math.abs(ka - kb) > 0.01) return ka - kb;
+        return (b._simDustPs || 0) - (a._simDustPs || 0);
+      });
+    } else {
+      simmed.sort(function (a, b) {
+        var da = a._simDustPs || 0;
+        var db = b._simDustPs || 0;
+        if (Math.abs(db - da) > 1e-6) return db - da;
+        var ka = a._simSecPerKill;
+        var kb = b._simSecPerKill;
+        if (isFinite(ka) !== isFinite(kb)) return isFinite(ka) ? -1 : 1;
+        return ka - kb;
+      });
+    }
+
+    return simmed;
   }
 
   function getCachedUpgradeROI(lvl) {
@@ -13825,6 +13975,31 @@ var ONE_TIMER_MILESTONES = [
     return { hasCost: true, text: "Payback: " + timeTxt, title: title };
   }
 
+  function formatPlanFootSub(calc, bnk) {
+    if (!calc) return { show: false, leftText: "", rightText: "" };
+    var remParts = [];
+    if (calc.remDust > 0) remParts.push(prettify(calc.remDust) + " dust");
+    if (calc.remShards > 0) remParts.push(prettify(calc.remShards) + " shards");
+    var remTxt = remParts.length ? remParts.join(" + ") : "0 (covered by bank)";
+    if (calc.totalCostDust > 0 && calc.totalCostShards > 0) {
+      var wdStr = calc.cumDustSec === 0 ? "0s" : fmtTime(calc.cumDustSec);
+      var wsStr = calc.cumShardSec === 0 ? "0s" : fmtTime(calc.cumShardSec);
+      return {
+        show: true,
+        leftText: "Need: " + remTxt,
+        rightText: "Total: " + wdStr + " dust ∥ " + wsStr + " shards"
+      };
+    }
+    if ((calc.totalCostDust > 0 && (bnk.dust || 0) > 0) || (calc.totalCostShards > 0 && (bnk.shards || 0) > 0)) {
+      return {
+        show: true,
+        leftText: "Need after bank: " + remTxt,
+        rightText: ""
+      };
+    }
+    return { show: false, leftText: "", rightText: "" };
+  }
+
   function refreshPlanPopoverWaitTimes() {
     if (!state.lastPlanSteps || !state.lastPlanSteps.length) return;
     var bnk = bank();
@@ -13864,6 +14039,16 @@ var ONE_TIMER_MILESTONES = [
     if (totalWaitEl) {
       var twStr = calc.totalWait === 0 ? "Ready now" : fmtTime(calc.totalWait);
       if (totalWaitEl.textContent !== twStr) totalWaitEl.textContent = twStr;
+    }
+
+    var footSubEl = $("spFootSub");
+    if (footSubEl) {
+      var needEl = $("spNeedAfterBank");
+      var parEl = $("spParallelTotals");
+      var footSub = formatPlanFootSub(calc, bnk);
+      footSubEl.style.display = footSub.show ? "" : "none";
+      if (needEl && needEl.textContent !== footSub.leftText) needEl.textContent = footSub.leftText;
+      if (parEl && parEl.textContent !== footSub.rightText) parEl.textContent = footSub.rightText;
     }
 
     var paybackEl = $("spPaybackPill");
@@ -14087,18 +14272,32 @@ var ONE_TIMER_MILESTONES = [
       ? 0
       : (effRate > 0 ? (totalCost / effRate) : Infinity);
 
+    var noPosPayback = !!(b._isTopPlanFallback && gain <= 0 && totalCost > 0);
+    if (noPosPayback) retSec = Infinity;
+
     var retStr = (totalCost === 0 || retSec === 0)
       ? "0s"
-      : (isFinite(retSec) ? fmtTime(retSec) : "Never");
+      : (noPosPayback ? "—" : (isFinite(retSec) ? fmtTime(retSec) : "Never"));
 
     return {
       totalCost: totalCost,
       effectiveDust: effectiveDust,
       gain: gain,
+      noPosPayback: noPosPayback,
       retSec: retSec,
       retStr: retStr,
-      isSimmed: !!(b._isSimulated || (bSteps && bSteps.some(function (s) { return s._stepRate > 0; })))
+      isSimmed: !!(b._isSimulated || b._isTopPlanFallback || (bSteps && bSteps.some(function (s) { return s._stepRate > 0; })))
     };
+  }
+
+  function formatBetterEarnReturnTip(blocked, blockedZone, bEarnStr, bRetStr, bEarnDurStr, isSimmed, retInfo) {
+    if (blocked) {
+      return "Requires unreached Zone " + (blockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + bEarnStr + " (" + bEarnDurStr + ") · Return: " + bRetStr;
+    }
+    if (retInfo.noPosPayback) {
+      return "Earn: " + bEarnStr + " (" + bEarnDurStr + " remaining wait · Sim) · Simulated dust/s is at or below current rate — no positive payback";
+    }
+    return "Earn: " + bEarnStr + " (" + bEarnDurStr + " remaining wait" + (isSimmed ? " · Sim" : "") + ") · Return: " + bRetStr + " (payback: cost / " + (retInfo.gain > 0 ? "Δ d/s" : "plan d/s") + ")";
   }
 
   function updateBetterBuildRow(idx, b, defaultRate) {
@@ -14123,9 +14322,7 @@ var ONE_TIMER_MILESTONES = [
     var bEarnReturnVal = bEarnStr + "/" + bRetStr;
     var isSimmed = retInfo.isSimmed;
     var bEarnDurStr = fmtDuration(bEarn);
-    var bEarnReturnTip = bBlocked
-      ? ("Requires unreached Zone " + (bBlockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + bEarnStr + " (" + bEarnDurStr + ") · Return: " + bRetStr)
-      : ("Earn: " + bEarnStr + " (" + bEarnDurStr + " remaining wait" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + bRetStr + " (payback: cost / " + (retInfo.gain > 0 ? "Δ d/s" : "plan d/s") + ")");
+    var bEarnReturnTip = formatBetterEarnReturnTip(bBlocked, bBlockedZone, bEarnStr, bRetStr, bEarnDurStr, isSimmed, retInfo);
     if (cell.textContent !== bEarnReturnVal) cell.textContent = bEarnReturnVal;
     if (cell.title !== bEarnReturnTip) cell.title = bEarnReturnTip;
   }
@@ -14335,17 +14532,8 @@ var ONE_TIMER_MILESTONES = [
     var totalCostLabel = costParts.length ? costParts.join(" + ") : "0 dust";
     var totalWaitStr = calc.totalWait === 0 ? "Ready now" : fmtTime(calc.totalWait);
 
-    var remParts = [];
-    if (calc.remDust > 0) remParts.push(prettify(calc.remDust) + " dust");
-    if (calc.remShards > 0) remParts.push(prettify(calc.remShards) + " shards");
-    var parHtml = "";
-    if (calc.totalCostDust > 0 && calc.totalCostShards > 0) {
-      var wdStr = calc.cumDustSec === 0 ? "0s" : fmtTime(calc.cumDustSec);
-      var wsStr = calc.cumShardSec === 0 ? "0s" : fmtTime(calc.cumShardSec);
-      parHtml = "<div class='sp-foot-sub'><span>Need: " + esc(remParts.join(" + ")) + "</span><span>Total: " + esc(wdStr) + " dust ∥ " + esc(wsStr) + " shards</span></div>";
-    } else if ((calc.totalCostDust > 0 && (bnk.dust || 0) > 0) || (calc.totalCostShards > 0 && (bnk.shards || 0) > 0)) {
-      parHtml = "<div class='sp-foot-sub'><span>Need after bank: " + esc(remParts.join(" + ")) + "</span><span></span></div>";
-    }
+    var footSub = formatPlanFootSub(calc, bnk);
+    var parHtml = "<div class='sp-foot-sub' id='spFootSub'" + (footSub.show ? "" : " style='display:none;'") + "><span id='spNeedAfterBank'>" + esc(footSub.leftText) + "</span><span id='spParallelTotals'>" + esc(footSub.rightText) + "</span></div>";
 
     var titleTxt;
     if (steps.length === 1) {
@@ -15355,11 +15543,13 @@ var ONE_TIMER_MILESTONES = [
         "</div>";
     }).join("");
 
-    var bDust = buildDustPs(b, state.level);
+    var bDust = b._isTopPlanFallback ? (b._simDustPs || 0) : buildDustPs(b, state.level);
     var metaPills = [];
-    metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(bDust) + "/s</span>");
-    if (b.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + b.k + "s</span>");
-    if (b.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((b.wr <= 1 ? b.wr : b.wr / 100) * 100) + "% WR</span>");
+    metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(bDust) + "/s" + (b._isTopPlanFallback ? " (Sim)" : "") + "</span>");
+    var popK = (b._isTopPlanFallback && b._simSecPerKill != null) ? b._simSecPerKill : b.k;
+    if (popK != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + (isFinite(popK) ? (Number(popK).toFixed(1).replace(/\.0$/, "") + "s") : "0% WR") + "</span>");
+    var popWr = (b._isTopPlanFallback && b._simWinRate != null) ? b._simWinRate : (b.wr != null ? (b.wr <= 1 ? b.wr : b.wr / 100) : null);
+    if (popWr != null) metaPills.push("<span class='pill sm accent'>" + Math.round(popWr * 100) + "% WR</span>");
     metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (b.l || itemKeys.length) + " Limbs</span>");
     if (b.r) {
       var popMyRLv = hasRing() ? ringLevel() : 0;
@@ -15374,10 +15564,12 @@ var ONE_TIMER_MILESTONES = [
     var pillTxt = swapCount === 0 ? "Aligned" : (swapCount + (swapCount === 1 ? " swap" : " swaps"));
 
     var gain = bDust - cur;
+    var gainTxt = gain > 1e-6 ? ("+" + prettify(gain) + "/s") : (gain < -1e-6 ? ("-" + prettify(Math.abs(gain)) + "/s") : "0/s");
+    var gainStyle = gain < -1e-6 ? " style='color:var(--sell);'" : (Math.abs(gain) <= 1e-6 ? " style='color:var(--muted);'" : "");
     var popHtml = "<div class='bb-popover' role='tooltip'>" +
       "<div class='sp-head'>" +
       "<span class='sp-title'>" + ICONS.info + "<span>" + esc(b.n) + " · Build &amp; Swap Details</span></span>" +
-      "<div class='sp-head-right'><span class='sp-target'>+" + prettify(gain) + "/s</span></div>" +
+      "<div class='sp-head-right'><span class='sp-target'" + gainStyle + ">" + gainTxt + "</span></div>" +
       "</div>" +
       "<div class='rec-metrics'>" + metaPills.join("") + "</div>" +
       swapSectionHtml +
@@ -15401,8 +15593,9 @@ var ONE_TIMER_MILESTONES = [
 
     var cur = (state.lastBetterCur != null) ? state.lastBetterCur : levelCurrentDustPs(state.level);
     var delta = loadoutDelta(build);
-    var buildD = buildDustPs(build, state.level);
+    var buildD = build._isTopPlanFallback ? (build._simDustPs || 0) : buildDustPs(build, state.level);
     var gain = buildD - cur;
+    var modGainTxt = gain > 1e-6 ? ("+" + prettify(gain) + "/s") : (gain < -1e-6 ? ("-" + prettify(Math.abs(gain)) + "/s") : "0/s");
 
     var bTitle = $("bddTitle");
     if (bTitle) bTitle.textContent = (build.n || "Build") + " · Swap & Loadout Guidance";
@@ -15411,9 +15604,11 @@ var ONE_TIMER_MILESTONES = [
     if (bBody) {
       var reqMods = formatModList(build.r && build.r.m || []) || "None";
       var metaPills = [];
-      metaPills.push("<span class='pill sm buy'>" + ICONS.dust + " " + prettify(buildD) + "/s (" + (gain >= 0 ? "+" : "") + prettify(gain) + "/s)</span>");
-      if (build.k != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + build.k + "s kills</span>");
-      if (build.wr != null) metaPills.push("<span class='pill sm accent'>" + Math.round((build.wr <= 1 ? build.wr : build.wr / 100) * 100) + "% WR</span>");
+      metaPills.push("<span class='pill sm " + (gain < -1e-6 ? "sell" : "buy") + "'>" + ICONS.dust + " " + prettify(buildD) + "/s (" + modGainTxt + (build._isTopPlanFallback ? " · Sim" : "") + ")</span>");
+      var modK = (build._isTopPlanFallback && build._simSecPerKill != null) ? build._simSecPerKill : build.k;
+      if (modK != null) metaPills.push("<span class='pill sm info'>" + ICONS.clock + " " + (isFinite(modK) ? (Number(modK).toFixed(1).replace(/\.0$/, "") + "s kills") : "0% WR") + "</span>");
+      var modWr = (build._isTopPlanFallback && build._simWinRate != null) ? build._simWinRate : (build.wr != null ? (build.wr <= 1 ? build.wr : build.wr / 100) : null);
+      if (modWr != null) metaPills.push("<span class='pill sm accent'>" + Math.round(modWr * 100) + "% WR</span>");
       metaPills.push("<span class='pill sm'>" + ICONS.limb + " " + (build.l || "?") + " Limbs</span>");
       if (build.r) {
         var modMyRLv = hasRing() ? ringLevel() : 0;
@@ -15498,33 +15693,48 @@ var ONE_TIMER_MILESTONES = [
     var bnk = bank();
     var list = betterBuilds(rec, cur);
     var mode = getLevelMode(state.level);
-    var curK = rec ? buildSecPerKill(rec, state.level) : Infinity;
-    list.sort(function (a, b) {
-      var stepsA = a._planSteps || applyStepOrder(state.level, a, expandSteps(gapSteps(a)));
-      a._planSteps = stepsA;
-      var stepsB = b._planSteps || applyStepOrder(state.level, b, expandSteps(gapSteps(b)));
-      b._planSteps = stepsB;
-      var wa = calculateStepWaitTimes(stepsA, bnk, rate);
-      var wb = calculateStepWaitTimes(stepsB, bnk, rate);
-      var ca = Math.max(wa.remDust, wa.remShards * SHARD_DUST);
-      if (ca <= 0) ca = Math.max(1, (wa.totalCostDust + wa.totalCostShards * SHARD_DUST) * 1e-6);
-      var cb = Math.max(wb.remDust, wb.remShards * SHARD_DUST);
-      if (cb <= 0) cb = Math.max(1, (wb.totalCostDust + wb.totalCostShards * SHARD_DUST) * 1e-6);
-      if (mode === "push") {
-        var ka = buildSecPerKill(a, state.level);
-        var kb = buildSecPerKill(b, state.level);
-        var ga = Math.max(0, curK - ka);
-        var gb = Math.max(0, curK - kb);
-        var ra = ga / ca;
-        var rb = gb / cb;
-        if (Math.abs(ra - rb) > 1e-12) return rb - ra;
-        return ka - kb;
+    var curCombatK = getCurrentCombatSecPerKill(state.level);
+    var recK = rec ? buildSecPerKill(rec, state.level) : Infinity;
+    var curK = (curCombatK && curCombatK > 0) ? Math.min(curCombatK, recK) : recK;
+    var isTopSimFallback = false;
+
+    if (!list.length && state.save && typeof SASimEngine !== "undefined") {
+      var fbList = topFallbackBuilds(state.level, mode);
+      if (fbList.length) {
+        list = fbList;
+        isTopSimFallback = true;
       }
-      var ra = (buildDustPs(a, state.level) - cur) / ca;
-      var rb = (buildDustPs(b, state.level) - cur) / cb;
-      return rb - ra;
-    });
-    list = list.slice(0, 8);
+    }
+
+    if (!isTopSimFallback) {
+      list.sort(function (a, b) {
+        var stepsA = a._planSteps || applyStepOrder(state.level, a, expandSteps(gapSteps(a)));
+        a._planSteps = stepsA;
+        var stepsB = b._planSteps || applyStepOrder(state.level, b, expandSteps(gapSteps(b)));
+        b._planSteps = stepsB;
+        var wa = calculateStepWaitTimes(stepsA, bnk, rate);
+        var wb = calculateStepWaitTimes(stepsB, bnk, rate);
+        var ca = Math.max(wa.remDust, wa.remShards * SHARD_DUST);
+        if (ca <= 0) ca = Math.max(1, (wa.totalCostDust + wa.totalCostShards * SHARD_DUST) * 1e-6);
+        var cb = Math.max(wb.remDust, wb.remShards * SHARD_DUST);
+        if (cb <= 0) cb = Math.max(1, (wb.totalCostDust + wb.totalCostShards * SHARD_DUST) * 1e-6);
+        if (mode === "push") {
+          var ka = buildSecPerKill(a, state.level);
+          var kb = buildSecPerKill(b, state.level);
+          var ga = Math.max(0, curK - ka);
+          var gb = Math.max(0, curK - kb);
+          var ra = ga / ca;
+          var rb = gb / cb;
+          if (Math.abs(ra - rb) > 1e-12) return rb - ra;
+          return ka - kb;
+        }
+        var ra = (buildDustPs(a, state.level) - cur) / ca;
+        var rb = (buildDustPs(b, state.level) - cur) / cb;
+        return rb - ra;
+      });
+      list = list.slice(0, 8);
+    }
+
     state.lastBetterBuilds = list;
     state.lastBetterCur = cur;
     if (!list.length) {
@@ -15554,27 +15764,60 @@ var ONE_TIMER_MILESTONES = [
       var earnReturnVal = earnStr + "/" + retStr;
       var isSimmed = retInfo.isSimmed;
       var earnDurStr = fmtDuration(earn);
-      var earnReturnTip = blocked
-        ? ("Requires unreached Zone " + (blockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + earnStr + " (" + earnDurStr + ") · Return: " + retStr)
-        : ("Earn: " + earnStr + " (" + earnDurStr + " remaining wait" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + retStr + " (payback: cost / " + (retInfo.gain > 0 ? "Δ d/s" : "plan d/s") + ")");
+      var earnReturnTip = formatBetterEarnReturnTip(blocked, blockedZone, earnStr, retStr, earnDurStr, isSimmed, retInfo);
+      var dispDust = isTopSimFallback ? (b._simDustPs || 0) : buildDustPs(b, state.level);
+      var dispK = isTopSimFallback ? b._simSecPerKill : b.k;
+      var kSubTxt = (dispK != null)
+        ? (isFinite(dispK) ? (" · " + Number(dispK).toFixed(1).replace(/\.0$/, "") + "s") : " · 0% WR")
+        : "";
+      var wrSubTxt = (isTopSimFallback && b._simWinRate != null && b._simWinRate < 0.995)
+        ? (" · " + Math.round(b._simWinRate * 100) + "% WR")
+        : "";
+      var subTitle = isTopSimFallback
+        ? ("Simulated with your current item &amp; Ring levels" + (b.d ? (" · Sheet baseline: " + prettify(b.d) + "/s") : ""))
+        : "";
+      var stepsHtml = steps.length
+        ? steps.map(function (s) { return stepBadgeHtml(s); }).join("")
+        : (isBuildEquippedNow(b)
+          ? "<span class='pill sm buy'>✓ Equipped</span>"
+          : "<span class='pill sm buy'>✓ Ready (owned)</span>");
+      var costHtml = (cost.dust || cost.shards)
+        ? ((cost.dust ? prettify(cost.dust) + " dust" : "") + (cost.dust && cost.shards ? "<br>" : "") + (cost.shards ? prettify(cost.shards) + " shards" : ""))
+        : "<span style='color:var(--muted);'>0 (ready)</span>";
+      var deltaCellHtml;
+      if (mode === "push") {
+        var bk = (isTopSimFallback && b._simSecPerKill != null) ? b._simSecPerKill : buildSecPerKill(b, state.level);
+        if (!isFinite(bk)) {
+          deltaCellHtml = "<td class='mono neg'>0% WR</td>";
+        } else {
+          var diffSec = isFinite(curK) ? (bk - curK) : 0;
+          var dCls = !isFinite(curK) ? "pos" : (diffSec < -0.05 ? "pos" : (diffSec > 0.05 ? "neg" : ""));
+          var diffTag = (isFinite(curK) && Math.abs(diffSec) >= 0.05)
+            ? (" <span style='font-size:11px;opacity:0.8;'>(" + (diffSec < 0 ? "" : "+") + diffSec.toFixed(1) + "s)</span>")
+            : "";
+          deltaCellHtml = "<td class='mono" + (dCls ? (" " + dCls) : "") + "'>" + bk.toFixed(1) + "s kills" + diffTag + "</td>";
+        }
+      } else {
+        var deltaD = dispDust - cur;
+        var pctTag = (isTopSimFallback && cur > 0 && Math.abs(deltaD) > 1e-6)
+          ? (" <span style='font-size:11px;opacity:0.8;'>(" + (deltaD > 0 ? "+" : "") + ((deltaD / cur) * 100).toFixed(1) + "%)</span>")
+          : "";
+        if (deltaD > 1e-6) {
+          deltaCellHtml = "<td class='mono pos'>+" + prettify(deltaD) + "/s" + pctTag + "</td>";
+        } else if (deltaD < -1e-6) {
+          deltaCellHtml = "<td class='mono neg'>-" + prettify(Math.abs(deltaD)) + "/s" + pctTag + "</td>";
+        } else {
+          deltaCellHtml = "<td class='mono' style='color:var(--muted);'>0/s</td>";
+        }
+      }
       return "<tr" + (blocked ? " class='unreachable'" : "") + ">" +
         "<td><div class='bb-build-cell'><strong>" + esc(b.n) + "</strong>" +
         renderBetterPopover(b, cur) +
         (blocked ? "<span class='pill sm sell' title='Requires a Void Map zone higher than your Highest Zone U2'>" + ICONS.warn + " Z" + esc(String(b.c || "?")) + "</span>" : "") +
-        "</div><div class='sub mono' style='margin-top:3px;'>" + prettify(buildDustPs(b, state.level)) + "/s" + (b.k != null ? " · " + esc(String(b.k)) + "s" : "") + "</div></td>" +
-        "<td><div class='steps'>" + steps.map(function (s) {
-          return stepBadgeHtml(s);
-        }).join("") + "</div></td>" +
-        "<td class='mono'>" + (cost.dust ? prettify(cost.dust) + " dust" : "") +
-        (cost.dust && cost.shards ? "<br>" : "") +
-        (cost.shards ? prettify(cost.shards) + " shards" : "") + "</td>" +
-        (mode === "push"
-          ? (function() {
-              var bk = buildSecPerKill(b, state.level);
-              var diff = isFinite(curK) && curK > bk ? (" (-" + (curK - bk).toFixed(1) + "s)") : "";
-              return "<td class='mono pos'>" + bk.toFixed(1) + "s kills" + (diff ? "<span style='font-size:11px;opacity:0.8;'> " + diff + "</span>" : "") + "</td>";
-            })()
-          : ("<td class='mono pos'>+" + prettify(gain) + "/s</td>")) +
+        "</div><div class='sub mono' style='margin-top:3px;'" + (subTitle ? (" title='" + esc(subTitle) + "'") : "") + ">" + prettify(dispDust) + "/s" + esc(kSubTxt + wrSubTxt) + "</div></td>" +
+        "<td><div class='steps'>" + stepsHtml + "</div></td>" +
+        "<td class='mono'>" + costHtml + "</td>" +
+        deltaCellHtml +
         "<td class='mono bb-earn-return" + (blocked && earn === 0 ? " blocked" : "") + "' data-build-idx='" + idx + "' title='" + esc(earnReturnTip) + "'>" + esc(earnReturnVal) + "</td>" +
         "<td class='bb-actions-td'><div class='bb-actions-cell'>" +
         "<button type='button' class='btn sm ghost sim-row-btn' data-sim-build='" + esc(buildId(b)) + "' title='Load into Combat Simulator'>⚔️ Sim</button>" +
@@ -15588,7 +15831,16 @@ var ONE_TIMER_MILESTONES = [
     }).join("");
     var betterEl = $("better");
     var colGainLbl = (mode === "push") ? "Kill Speed (Δ)" : "Δ d/s";
-    betterEl.innerHTML = "<div class='tbl-wrap'><div class='tbl-swipe-hint'>↔ Swipe table horizontally to view all columns &amp; actions</div><table><thead><tr><th>Build</th><th class='th-missing'>Missing Upgrades</th><th class='th-cost'>Total Cost</th><th class='th-gain'>" + colGainLbl + "</th><th class='th-earn'>Earn / Return</th><th class='th-actions'>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    var simNoteHtml = "";
+    if (isTopSimFallback) {
+      var curMetricTxt = (mode === "push")
+        ? ("kill speed" + (isFinite(curK) ? (" (" + curK.toFixed(1) + "s/kill)") : ""))
+        : ("dust rate (" + prettify(cur) + "/s)");
+      simNoteHtml = "<div class='bb-sim-note'>" + ICONS.info +
+        "<div>Your current " + curMetricTxt + " matches or exceeds listed sheet baselines on SA " + esc(String(state.level)) +
+        ". Showing the <strong>top " + list.length + " sheet plans simulated with your current item &amp; Ring levels</strong> (actual Δ vs your current loadout).</div></div>";
+    }
+    betterEl.innerHTML = simNoteHtml + "<div class='tbl-wrap'><div class='tbl-swipe-hint'>↔ Swipe table horizontally to view all columns &amp; actions</div><table><thead><tr><th>Build</th><th class='th-missing'>Missing Upgrades</th><th class='th-cost'>Total Cost</th><th class='th-gain'>" + colGainLbl + "</th><th class='th-earn'>Earn / Return</th><th class='th-actions'>Sim / Plan</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     betterEl.onclick = function(ev) {
       var sBtn = ev.target.closest("button[data-sim-build]");
       if (sBtn) {
@@ -16043,9 +16295,7 @@ var ONE_TIMER_MILESTONES = [
           var bEarnReturnVal = bEarnStr + "/" + bRetStr;
           var isSimmed = retInfo.isSimmed;
           var bEarnDurStr = fmtDuration(bEarn);
-          var bEarnReturnTip = bBlocked
-            ? ("Requires unreached Zone " + (bBlockedZone || "?") + " contract (highest zone: " + (state.radon + 1) + ") · Dust wait: " + fmtTime(bEarn) + " · Return: " + bRetStr)
-            : ("Earn: " + bEarnStr + " (remaining wait with bank" + (isSimmed ? " · Sim 9001" : "") + ") · Return: " + bRetStr + " (payback: cost / " + (retInfo.gain > 0 ? "Δ d/s" : "plan d/s") + ")");
+          var bEarnReturnTip = formatBetterEarnReturnTip(bBlocked, bBlockedZone, bEarnStr, bRetStr, bEarnDurStr, isSimmed, retInfo);
           if (cell.textContent !== bEarnReturnVal) cell.textContent = bEarnReturnVal;
           if (cell.title !== bEarnReturnTip) cell.title = bEarnReturnTip;
         }
@@ -16123,6 +16373,7 @@ var ONE_TIMER_MILESTONES = [
       optimalTargetRingCache = {};
       buildDustCache = {};
       buildKillTimeCache = {};
+      topPlanSimCache = {};
       betterSimToken++;
       if (state.lastBetterBuilds) {
         state.lastBetterBuilds.forEach(function (b) {

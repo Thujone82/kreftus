@@ -2113,6 +2113,27 @@
     .steps { display: flex; flex-wrap: wrap; gap: 5px; }
     .bb-actions-cell { display: flex; gap: 4px; align-items: center; }
     .bb-earn-return.blocked { color: var(--sell); }
+    .bb-sim-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .bb-sim-note svg {
+      flex: 0 0 auto;
+      width: 15px;
+      height: 15px;
+      margin-top: 2px;
+      color: var(--accent);
+    }
+    .bb-sim-note strong { color: var(--text); }
 
     /* ---------- better builds info hover popover ---------- */
     .bb-build-cell {
