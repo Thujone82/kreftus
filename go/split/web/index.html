@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Split</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand">
+          <span class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
+              <rect x="2.5" y="4.5" width="7.5" height="15" rx="2" fill="url(#splitGradL)" />
+              <rect x="14" y="4.5" width="7.5" height="15" rx="2" fill="url(#splitGradR)" />
+              <line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <polygon points="12,1.5 14.2,3.7 12,5.9 9.8,3.7" fill="#38bdf8" />
+              <defs>
+                <linearGradient id="splitGradL" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#22d3ee" />
+                  <stop offset="100%" stop-color="#10b981" />
+                </linearGradient>
+                <linearGradient id="splitGradR" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#6366f1" />
+                  <stop offset="100%" stop-color="#8b5cf6" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </span>
+          <span class="brand-title">Split</span>
+        </div>
+
+        <button id="btnOpen" class="btn btn-surface" title="Open video file (Ctrl+O)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Open Video</span>
+        </button>
+
+        <div id="fileBadge" class="file-badge hidden">
+          <span id="fileName" class="file-name"></span>
+          <span id="fileMeta" class="file-meta"></span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <!-- Join / Split Mode Segmented Toggle -->
+        <div class="mode-switch" role="group" aria-label="Export Mode">
+          <button id="btnModeJoin" class="mode-btn active" data-mode="join" title="Join all kept segments into 1 file (_edit)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 6l4 4-4 4"></path>
+              <path d="M16 6l-4 4 4 4"></path>
+              <line x1="12" y1="10" x2="12" y2="20"></line>
+            </svg>
+            <span>Join</span>
+          </button>
+          <button id="btnModeSplit" class="mode-btn" data-mode="split" title="Export each kept segment separately (_01, _02...)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="3" x2="12" y2="21"></line>
+              <polyline points="7 8 3 12 7 16"></polyline>
+              <polyline points="17 8 21 12 17 16"></polyline>
+            </svg>
+            <span>Split</span>
+          </button>
+        </div>
+
+        <!-- Theme Toggle -->
+        <button id="btnTheme" class="btn btn-icon" title="Toggle Light / Dark theme" aria-label="Toggle Light / Dark theme">
+          <svg id="iconSun" class="hidden" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="iconMoon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+
+        <!-- Primary Export Button -->
+        <button id="btnExport" class="btn btn-export" disabled title="Export kept segments losslessly (Ctrl+E)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span id="lblExport">Export</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Empty Drop Zone -->
+      <section id="emptyView" class="empty-view">
+        <div id="dropCard" class="drop-card">
+          <div class="drop-artwork" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="64" height="64" fill="none">
+              <rect x="6" y="14" width="22" height="36" rx="5" fill="rgba(34,211,238,0.18)" stroke="#22d3ee" stroke-width="2.2" />
+              <rect x="36" y="14" width="22" height="36" rx="5" fill="rgba(99,102,241,0.18)" stroke="#818cf8" stroke-width="2.2" />
+              <line x1="32" y1="6" x2="32" y2="58" stroke="#f8fafc" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="4 4" />
+              <circle cx="32" cy="32" r="9" fill="#0f172a" stroke="#38bdf8" stroke-width="2.2" />
+              <polygon points="30,28 36,32 30,36" fill="#38bdf8" />
+            </svg>
+          </div>
+          <h1>Lossless Keyframe Video Splitter</h1>
+          <p class="drop-subtitle">
+            Drag &amp; drop any video file anywhere in this window, or browse to select one.
+            Cuts snap to the nearest keyframe for instant zero-reencode export.
+          </p>
+          <div class="drop-actions">
+            <button id="btnEmptyBrowse" class="btn btn-primary-lg">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span>Browse Video File</span>
+            </button>
+          </div>
+          <div class="format-chips">
+            <span>MP4</span><span>MKV</span><span>MOV</span><span>WEBM</span><span>AVI</span><span>TS</span>
+          </div>
+          <div id="toolHealth" class="tool-health">Checking FFmpeg...</div>
+        </div>
+      </section>
+
+      <!-- Editor View -->
+      <section id="editorView" class="editor-view hidden">
+        <!-- Video Viewport -->
+        <div class="player-stage">
+          <div class="video-wrap">
+            <video id="videoEl" playsinline preload="metadata"></video>
+
+            <!-- Floating Timecode + Keyframe Status Badge -->
+            <div class="hud-overlay">
+              <div class="timecode-pill">
+                <span id="hudTime">00:00.00</span>
+                <span class="time-sep">/</span>
+                <span id="hudDuration">00:00.00</span>
+                <span id="kfBadge" class="kf-badge" title="Playhead is aligned on a video keyframe">KF</span>
+              </div>
+              <div id="remuxBadge" class="remux-badge hidden" title="Playing via live lossless FFmpeg remux">LIVE REMUX</div>
+            </div>
+
+            <!-- Loading / Probe Overlay -->
+            <div id="loadingOverlay" class="loading-overlay hidden">
+              <div class="spinner"></div>
+              <div id="loadingText" class="loading-text">Scanning keyframes...</div>
+            </div>
+          </div>
+
+          <!-- Transport & Marker Controls -->
+          <div class="transport-bar">
+            <div class="transport-group">
+              <button id="btnPlayPause" class="btn btn-icon-sq" title="Play / Pause (Space)">
+                <svg id="iconPlay" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <polygon points="6,4 20,12 6,20"></polygon>
+                </svg>
+                <svg id="iconPause" class="hidden" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                  <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+                </svg>
+              </button>
+
+              <button id="btnBack5" class="btn btn-subtle" title="Seek back 5s (Left Arrow)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="11 17 6 12 11 7"></polyline>
+                  <polyline points="18 17 13 12 18 7"></polyline>
+                </svg>
+                <span>5s</span>
+              </button>
+
+              <button id="btnPrevKF" class="btn btn-subtle" title="Jump to previous keyframe ([)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="6" y1="5" x2="6" y2="19"></line>
+                  <polygon points="18,6 10,12 18,18" fill="currentColor"></polygon>
+                </svg>
+                <span>Prev KF</span>
+              </button>
+
+              <button id="btnNextKF" class="btn btn-subtle" title="Jump to next keyframe (])">
+                <span>Next KF</span>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="6,6 14,12 6,18" fill="currentColor"></polygon>
+                  <line x1="18" y1="5" x2="18" y2="19"></line>
+                </svg>
+              </button>
+
+              <button id="btnFwd5" class="btn btn-subtle" title="Seek forward 5s (Right Arrow)">
+                <span>5s</span>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="13 17 18 12 13 7"></polyline>
+                  <polyline points="6 17 11 12 6 7"></polyline>
+                </svg>
+              </button>
+            </div>
+
+            <div class="transport-center">
+              <button id="btnAddCut" class="btn btn-cut" title="Place cut marker at nearest keyframe (C or M)">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="6" cy="6" r="3"></circle>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+                  <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+                  <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+                </svg>
+                <span>Add Cut Here</span>
+              </button>
+            </div>
+
+            <div class="transport-group">
+              <button id="btnSkipDropped" class="btn btn-toggle active" title="Automatically skip Drop segments during preview playback">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                  <line x1="19" y1="5" x2="19" y2="19"></line>
+                </svg>
+                <span>Skip Dropped</span>
+              </button>
+
+              <select id="selSpeed" class="speed-select" title="Playback speed">
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1.0×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2.0×</option>
+              </select>
+
+              <button id="btnMute" class="btn btn-icon-sq" title="Mute / Unmute">
+                <svg id="iconVolOn" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+                <svg id="iconVolOff" class="hidden" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="23" y1="9" x2="17" y2="15"></line>
+                  <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+              </button>
+              <input id="rngVolume" class="vol-slider" type="range" min="0" max="1" step="0.05" value="1" title="Volume" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Keyframe Timeline & Segment Editor -->
+        <div class="timeline-dock">
+          <div class="timeline-header">
+            <div class="timeline-hint">
+              <span class="hint-dot keep"></span> Click segment to toggle <strong>Keep</strong>/<strong>Drop</strong>
+              <span class="hint-sep">•</span>
+              Drag ruler/waveform to scrub (Shift+Click to cut)
+              <span class="hint-sep">•</span>
+              Wheel to zoom
+            </div>
+
+            <div class="timeline-tools-right">
+              <div class="zoom-controls" title="Zoom timeline (Mouse wheel or +/- / 0)">
+                <button id="btnZoomOut" class="btn-mini" title="Zoom out (-)">−</button>
+                <input id="rngZoom" class="zoom-slider" type="range" min="0" max="1000" value="0" aria-label="Timeline Zoom" />
+                <span id="lblZoom" class="zoom-readout">1.0×</span>
+                <button id="btnZoomIn" class="btn-mini" title="Zoom in (+)">+</button>
+                <button id="btnZoomFit" class="btn-mini" title="Reset zoom (0)">Fit</button>
+              </div>
+
+              <div class="segment-actions">
+                <button id="btnKeepAll" class="btn-mini">Keep All</button>
+                <button id="btnDropAll" class="btn-mini">Drop All</button>
+                <button id="btnInvert" class="btn-mini">Invert</button>
+                <button id="btnClearCuts" class="btn-mini btn-mini-danger">Clear Cuts</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="timelineWrap" class="timeline-wrap">
+            <canvas id="timelineCanvas"></canvas>
+            <div id="rulerHit" class="ruler-hit" title="Drag to scrub playhead • Shift+Click to add cut at nearest keyframe"></div>
+            <div id="segmentsHit" class="segments-hit"></div>
+            <div id="markerLayer" class="marker-layer"></div>
+            <div id="hoverTooltip" class="hover-tooltip hidden"></div>
+          </div>
+
+          <div id="overviewWrap" class="overview-wrap" title="Click or drag to pan timeline viewport">
+            <canvas id="overviewCanvas"></canvas>
+          </div>
+
+          <!-- Segment Pills + Live Output Summary -->
+          <div class="segment-footer">
+            <div id="segmentPills" class="segment-pills"></div>
+            <div id="outputSummary" class="output-summary"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Global Drag-and-Drop Overlay -->
+    <div id="globalDropOverlay" class="global-drop-overlay hidden">
+      <div class="global-drop-box">
+        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <div>Drop video file to load</div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Export Progress / Result Modal -->
+    <div id="exportModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3 id="modalTitle">Exporting Video</h3>
+          <button id="btnModalClose" class="btn-close hidden" title="Close">✕</button>
+        </div>
+        <div id="modalBody" class="modal-body">
+          <div id="exportProgressArea">
+            <div class="progress-track">
+              <div id="exportProgressBar" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div id="exportPhaseText" class="progress-phase">Preparing lossless stream copy...</div>
+          </div>
+          <div id="exportResultArea" class="hidden"></div>
+        </div>
+        <div class="modal-foot">
+          <button id="btnCancelExport" class="btn btn-subtle">Cancel</button>
+          <button id="btnRevealFolder" class="btn btn-surface hidden">Show in Folder</button>
+          <button id="btnDoneModal" class="btn btn-primary-sm hidden">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
