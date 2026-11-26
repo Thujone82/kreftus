@@ -7058,11 +7058,9 @@ var ONE_TIMER_MILESTONES = [
     var nextCost = 0;
     var pct = 0;
     var isReady = false;
-    var barTip = "";
 
     if (!owned) {
       pct = 0;
-      barTip = "Locked contract";
       topLv = "<div class='lv'><span>Locked</span>" + (cat && cat.zone ? "<span class='muted' style='font-size:12px;'>Z" + cat.zone + "</span>" : "") + "</div>";
       if (cat && cat.zone) {
         var active = state.ab.activeContract === key;
@@ -7085,11 +7083,6 @@ var ONE_TIMER_MILESTONES = [
         var tNext = timeForCost(next, isSh, rate, bnk.dust, bnk.shards);
         isReady = (next <= 0) || (curFunds >= next);
         pct = next > 0 ? Math.min(100, Math.max(0, (curFunds / next) * 100)) : 100;
-        if (isReady) {
-          barTip = "Ready to upgrade to Lv " + (lv + 1) + "! (" + prettify(next) + " " + currencyName(key) + ")";
-        } else {
-          barTip = "Progress to Lv " + (lv + 1) + ": " + pct.toFixed(1) + "% (" + prettify(curFunds) + " / " + prettify(next) + " " + currencyName(key) + ")";
-        }
         meta += "<div class='cost'><span>Next (Lv " + (lv + 1) + ")</span><span>" + prettify(next) + " " + currencyName(key) + "</span></div>";
         meta += "<div class='time'><span>Wait</span><span class='board-wait' data-item-cost='" + next + "' data-item-shards='" + (isSh ? "1" : "0") + "'>" + fmtTime(tNext) + "</span></div>";
         lines.push("Next upgrade: " + (cat.upgrade || "—") + ".");
@@ -7102,7 +7095,6 @@ var ONE_TIMER_MILESTONES = [
         }
       } else {
         pct = 0;
-        barTip = "Max Level — cannot be upgraded";
         meta += "<div class='cost max-level' style='justify-content:center;'><span style='color:var(--muted);font-weight:600;'>Max Level</span></div>";
         lines.push("Max Level (Cannot be upgraded).");
       }
@@ -7114,11 +7106,11 @@ var ONE_TIMER_MILESTONES = [
       lines.unshift(describeItem(key, lv));
     }
 
-    return "<article class='" + cls + "' title='" + esc([itemName(key)].concat(lines).join(" — ")) + "'>" +
+    return "<article class='" + cls + "'>" +
       "<div>" +
       "<div class='card-head-row'><h3>" + iconForItem(key) + "<span>" + esc(itemName(key)) + "</span></h3>" + badge + "</div>" +
       topLv +
-      "<div class='lv-bar' title='" + esc(barTip) + "'><span class='board-bar" + (isReady ? " ready" : "") + "' data-item-cost='" + nextCost + "' data-item-shards='" + (isSh ? "1" : "0") + "' data-next-lv='" + (lv + 1) + "' data-currency='" + currencyName(key) + "' data-max-level='" + (isMaxLevel ? "1" : "0") + "' style='width:" + (isReady ? 100 : pct.toFixed(1)) + "%'></span></div>" +
+      "<div class='lv-bar'><span class='board-bar" + (isReady ? " ready" : "") + "' data-item-cost='" + nextCost + "' data-item-shards='" + (isSh ? "1" : "0") + "' data-next-lv='" + (lv + 1) + "' data-currency='" + currencyName(key) + "' data-max-level='" + (isMaxLevel ? "1" : "0") + "' style='width:" + (isReady ? 100 : pct.toFixed(1)) + "%'></span></div>" +
       "</div>" +
       "<div class='card-meta-rows'>" + meta + "</div>" +
       cardTooltip(itemName(key), lines) +
@@ -7169,7 +7161,6 @@ var ONE_TIMER_MILESTONES = [
       var curShards = bnk.shards || 0;
       var ringReady = (next <= 0) || (curShards >= next);
       pct = next > 0 ? Math.min(100, Math.max(0, (curShards / next) * 100)) : 100;
-      var ringBarTip = ringReady ? ("Ready to upgrade Ring to Lv " + (lv + 1) + "! (" + prettify(next) + " shards)") : ("Progress to Ring Lv " + (lv + 1) + ": " + pct.toFixed(1) + "% (" + prettify(curShards) + " / " + prettify(next) + " shards)");
       var mods = formatModList(curMods);
       var reqModTxt = formatModList(reqMods);
       topLv = "<div class='lv'><span>Lv " + lv + (need && need > lv ? " <span class='gap'>→ " + need + "</span>" : "") + "</span></div>";
@@ -7189,11 +7180,11 @@ var ONE_TIMER_MILESTONES = [
       lines.unshift(describeRing(lv, ringMods()));
       lines.push("Next level: all ring stats scale. " + nextRingSlotNote(lv + 1));
     }
-    return "<article class='" + cls + "' title='" + esc(["The Ring"].concat(lines).join(" — ")) + "'>" +
+    return "<article class='" + cls + "'>" +
       "<div>" +
       "<div class='card-head-row'><h3>" + ICONS.ring + "<span>The Ring</span></h3>" + badge + "</div>" +
       topLv +
-      "<div class='lv-bar' title='" + esc(hasRing() ? ringBarTip : "Unlock The Ring") + "'><span class='board-bar" + (hasRing() && ringReady ? " ready" : "") + "' data-item-cost='" + (hasRing() ? next : cost) + "' data-item-shards='1' data-next-lv='" + (hasRing() ? (lv + 1) : "1") + "' data-currency='shards' data-max-level='0' style='width:" + (hasRing() ? (ringReady ? 100 : pct.toFixed(1)) : 0) + "%'></span></div>" +
+      "<div class='lv-bar'><span class='board-bar" + (hasRing() && ringReady ? " ready" : "") + "' data-item-cost='" + (hasRing() ? next : cost) + "' data-item-shards='1' data-next-lv='" + (hasRing() ? (lv + 1) : "1") + "' data-currency='shards' data-max-level='0' style='width:" + (hasRing() ? (ringReady ? 100 : pct.toFixed(1)) : 0) + "%'></span></div>" +
       "</div>" +
       "<div class='card-meta-rows'>" + meta + "</div>" +
       cardTooltip("The Ring", lines) + "</article>";
@@ -7207,12 +7198,11 @@ var ONE_TIMER_MILESTONES = [
     var curDust = bnk.dust || 0;
     var isReady = (cost <= 0) || (curDust >= cost);
     var pct = cost > 0 ? Math.min(100, Math.max(0, (curDust / cost) * 100)) : 100;
-    var limbBarTip = isReady ? ("Ready to buy Extra Limbs! (" + prettify(cost) + " dust)") : ("Progress to Extra Limbs: " + pct.toFixed(1) + "% (" + prettify(curDust) + " / " + prettify(cost) + " dust)");
     return "<article class='card warn rec'>" +
       "<div>" +
       "<div class='card-head-row'><h3>" + ICONS.limb + "<span>Extra Limbs</span></h3><span class='card-badge warn'>Need " + needSlots + "</span></div>" +
       "<div class='lv'><span>" + maxSlots() + " slots <span class='gap'>→ " + needSlots + "</span></span></div>" +
-      "<div class='lv-bar' title='" + esc(limbBarTip) + "'><span class='board-bar" + (isReady ? " ready" : "") + "' data-item-cost='" + cost + "' data-item-shards='0' data-next-lv='" + needSlots + " slots' data-currency='dust' data-max-level='0' style='width:" + (isReady ? 100 : pct.toFixed(1)) + "%'></span></div>" +
+      "<div class='lv-bar'><span class='board-bar" + (isReady ? " ready" : "") + "' data-item-cost='" + cost + "' data-item-shards='0' data-next-lv='" + needSlots + " slots' data-currency='dust' data-max-level='0' style='width:" + (isReady ? 100 : pct.toFixed(1)) + "%'></span></div>" +
       "</div>" +
       "<div class='card-meta-rows'>" +
       "<div class='cost'><span>Cost</span><span>" + prettify(cost) + " dust</span></div>" +
@@ -8111,13 +8101,6 @@ var ONE_TIMER_MILESTONES = [
       if (bar.style.width !== bPctStr) bar.style.width = bPctStr;
       if (bReady && !bar.classList.contains("ready")) bar.classList.add("ready");
       else if (!bReady && bar.classList.contains("ready")) bar.classList.remove("ready");
-      var pLv = bar.getAttribute("data-next-lv");
-      var pCurr = bar.getAttribute("data-currency") || (bSh ? "shards" : "dust");
-      if (bar.parentElement) {
-        var nTip = bReady ? ("Ready to upgrade" + (pLv ? (" to Lv " + pLv) : "") + "! (" + prettify(bCost) + " " + pCurr + ")") :
-          ("Progress" + (pLv ? (" to Lv " + pLv) : "") + ": " + bPct.toFixed(1) + "% (" + prettify(bFunds) + " / " + prettify(bCost) + " " + pCurr + ")");
-        if (bar.parentElement.title !== nTip) bar.parentElement.title = nTip;
-      }
     }
   }
 
