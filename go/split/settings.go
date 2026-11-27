@@ -9,12 +9,15 @@ import (
 
 // Settings persists user preferences across sessions in %APPDATA%\Split\settings.json.
 type Settings struct {
-	Theme         string `json:"theme"`         // "dark" | "light"
-	ExportMode    string `json:"exportMode"`    // "join" | "split"
-	SkipDropped   bool   `json:"skipDropped"`   // skip dropped segments during playback preview
-	LastDir       string `json:"lastDir"`       // last opened video folder
-	FFmpegPath    string `json:"ffmpegPath"`    // optional override
-	FFprobePath   string `json:"ffprobePath"`   // optional override
+	Theme         string  `json:"theme"`         // "dark" | "light"
+	ExportMode    string  `json:"exportMode"`    // "join" | "split"
+	SkipDropped   bool    `json:"skipDropped"`   // skip dropped segments during playback preview
+	ShowAudio     bool    `json:"showAudio"`     // show audio sound-level histogram lane
+	ShowVisual    bool    `json:"showVisual"`    // show visual frame-delta & scene-cut lane
+	TimelineScale float64 `json:"timelineScale"` // vertical timeline lane height scale (0.55..3.2)
+	LastDir       string  `json:"lastDir"`       // last opened video folder
+	FFmpegPath    string  `json:"ffmpegPath"`    // optional override
+	FFprobePath   string  `json:"ffprobePath"`   // optional override
 }
 
 type SettingsStore struct {
@@ -34,16 +37,38 @@ func NewSettingsStore() *SettingsStore {
 	}
 	storeDir := filepath.Join(dir, "Split")
 	_ = os.MkdirAll(storeDir, 0o755)
+	return NewSettingsStoreAt(filepath.Join(storeDir, "settings.json"))
+}
+
+// NewSettingsStoreAt creates a SettingsStore backed by a specific JSON path.
+func NewSettingsStoreAt(path string) *SettingsStore {
 	s := &SettingsStore{
-		path: filepath.Join(storeDir, "settings.json"),
+		path: path,
 		data: Settings{
-			Theme:       "dark",
-			ExportMode:  "join",
-			SkipDropped: true,
+			Theme:         "dark",
+			ExportMode:    "join",
+			SkipDropped:   true,
+			ShowAudio:     true,
+			ShowVisual:    true,
+			TimelineScale: 1.0,
 		},
 	}
 	s.load()
 	return s
+}
+
+// ClampTimelineScale constrains the persisted timeline vertical scale factor.
+func ClampTimelineScale(v float64) float64 {
+	if v <= 0 {
+		return 1.0
+	}
+	if v < 0.55 {
+		return 0.55
+	}
+	if v > 3.2 {
+		return 3.2
+	}
+	return v
 }
 
 func (s *SettingsStore) load() {
@@ -53,7 +78,8 @@ func (s *SettingsStore) load() {
 	if err != nil {
 		return
 	}
-	var loaded Settings
+	// Pre-populate defaults so legacy settings files without new keys keep them enabled.
+	loaded := s.data
 	if err := json.Unmarshal(raw, &loaded); err != nil {
 		return
 	}
@@ -64,6 +90,9 @@ func (s *SettingsStore) load() {
 		s.data.ExportMode = loaded.ExportMode
 	}
 	s.data.SkipDropped = loaded.SkipDropped
+	s.data.ShowAudio = loaded.ShowAudio
+	s.data.ShowVisual = loaded.ShowVisual
+	s.data.TimelineScale = ClampTimelineScale(loaded.TimelineScale)
 	s.data.LastDir = loaded.LastDir
 	s.data.FFmpegPath = loaded.FFmpegPath
 	s.data.FFprobePath = loaded.FFprobePath

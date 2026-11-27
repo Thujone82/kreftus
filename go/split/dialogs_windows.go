@@ -102,6 +102,44 @@ func OpenVideoDialog(owner uintptr, initialDir string) (string, bool) {
 	return syscall.UTF16ToString(fileBuf), true
 }
 
+// OpenExeDialog displays a native Windows file picker for locating ffmpeg.exe / ffprobe.exe.
+func OpenExeDialog(owner uintptr, titleText, initialDir string) (string, bool) {
+	fileBuf := make([]uint16, 4096)
+	filter := utf16Filter(
+		"Executable Files (*.exe)",
+		"*.exe",
+		"All Files (*.*)",
+		"*.*",
+	)
+	title := utf16Ptr(titleText)
+	var dirPtr *uint16
+	if initialDir != "" {
+		dirPtr = utf16Ptr(initialDir)
+	}
+
+	ofn := openFileNameW{
+		lStructSize:     uint32(unsafe.Sizeof(openFileNameW{})),
+		hwndOwner:       owner,
+		lpstrFilter:     &filter[0],
+		nFilterIndex:    1,
+		lpstrFile:       &fileBuf[0],
+		nMaxFile:        uint32(len(fileBuf)),
+		lpstrInitialDir: dirPtr,
+		lpstrTitle:      title,
+		flags:           ofnExplorer | ofnFileMustExist | ofnPathMustExist | ofnNoChangeDir,
+	}
+
+	ret, _, _ := procGetOpenFileNameW.Call(uintptr(unsafe.Pointer(&ofn)))
+	runtime.KeepAlive(filter)
+	runtime.KeepAlive(title)
+	runtime.KeepAlive(dirPtr)
+	runtime.KeepAlive(&fileBuf[0])
+	if ret == 0 {
+		return "", false
+	}
+	return syscall.UTF16ToString(fileBuf), true
+}
+
 // SaveVideoDialog displays the native Windows Save As dialog pre-filled with directory & suggested name.
 func SaveVideoDialog(owner uintptr, titleText, initialDir, defaultName, ext string, promptOverwrite bool) (string, bool) {
 	fileBuf := make([]uint16, 4096)

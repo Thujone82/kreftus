@@ -6,21 +6,34 @@ Fast, lightweight lossless keyframe video splitter, trimmer, and joiner for Wind
 
 - **No Console Window on Launch**: Built with `-H=windowsgui` for silent desktop launch; automatically attaches to the parent console when invoked with CLI flags.
 - **Drag & Drop or Browse**: Drop any video file anywhere onto the window (or onto `split.exe`), or use the native Windows file picker (`Ctrl+O`).
-- **Audio Sound-Level Histogram**: Displays peak & RMS sound levels directly above the timeline segments so speech pauses and silent gaps are easy to spot.
+- **Audio Sound-Level & Voice/Noise Histogram**: Multithreaded PTS-locked audio analysis displays peak & RMS sound levels colored by Talking (amber-gold), Noise/Transients (pink), and ambient audio (cyan) directly above the timeline segments (toggleable & persisted).
+- **Visual Frame-Delta & Scene-Cut Lane**: Multithreaded downscaled visual analysis displays frame-to-frame motion delta and color-histogram scene-cut spikes alongside the audio histogram (toggleable & persisted).
+- **Resizable Split View**: Drag the grabber bar between the video player and transport/timeline dock to dynamically resize histogram & timeline height (double-click to reset).
+- **Non-Blocking Progress & Load Cancel**: Live progress bars for initial video indexing (`Esc` to cancel) and background audio/visual analysis while video playback remains unlocked.
 - **Zoom & Pan Timeline**: Zoom in with the mouse wheel, `+`/`-` keys, or zoom slider (with an interactive overview minimap below) for fine marker placement.
-- **Keyframe-Snapped Markers**: Cut points automatically snap to the nearest video keyframe for zero-reencode lossless stream copy (`ffmpeg -c copy`).
+- **Keyframe-Snapped Markers & Live Keyframe Scrubbing**: Cut points automatically snap to the nearest video keyframe for zero-reencode lossless stream copy (`ffmpeg -c copy`), and scrubbing the timeline or dragging cut markers previews the nearest keyframe smoothly without black screen flashes.
 - **Keep / Drop Segment Toggling**: Click any timeline segment or pill to toggle **Keep** / **Drop**, drag cut markers along keyframes, and preview with **Skip Dropped** enabled.
 - **Join & Split Export Modes**:
   - **Join (`_edit`)**: Combines all kept segments into a single output file.
   - **Split (`_01`, `_02`, ...)**: Exports each kept segment into its own numbered file.
 - **Light & Dark Theme**: Instant theme toggle with synchronized Windows titlebar styling.
-- **Transparent Remux Playback**: Native HTTP 206 streaming for MP4/WebM/MOV, plus automatic live fragmented-MP4 remux fallback for MKV/AVI/AC3 containers.
+- **Transparent Remux Playback & Variable Speed**: Native HTTP 206 streaming for MP4/WebM/MOV, automatic live fragmented-MP4 remux fallback for MKV/AVI/AC3 containers, and playback speeds from `0.1×` to `10×`.
 - **Full CLI Parity**: Replaces `splitvid.ps1` (`-2..-10`, `-half`, `-thirds`, `-quarters`, `-trim`, `-crop`) and adds `-keep`, `-cuts`, `-drop`, `-join`, `-split`, and `-info`.
 
-## Requirements
+## Prerequisites
 
-- Windows 10 or Windows 11 (Microsoft Edge WebView2 Runtime)
-- `ffmpeg` and `ffprobe` on `PATH` (`winget install Gyan.FFmpeg`)
+### Runtime (Windows Executable)
+- **Windows 10 or Windows 11**
+- **Microsoft Edge WebView2 Runtime** (pre-installed on Windows 11 / modern Windows 10; if missing, install via `winget install Microsoft.EdgeWebView2Runtime`)
+- **FFmpeg & FFprobe** (`ffmpeg.exe` and `ffprobe.exe`) available via any of:
+  - `PATH` (recommended: `winget install Gyan.FFmpeg`, `scoop install ffmpeg`, or `choco install ffmpeg`)
+  - Placed in the same folder alongside `split.exe`
+  - Selected directly via the in-app **Locate `ffmpeg.exe`…** button if missing
+
+### Building from Source
+- **Go 1.24+**
+- **PowerShell 7 (`pwsh`)** (for `build.ps1`)
+- Optional: **MinGW `windres`** (embeds `split.ico` resource) and **UPX** (when passing `-upx`)
 
 ## CLI Usage
 
@@ -55,6 +68,7 @@ Fast, lightweight lossless keyframe video splitter, trimmer, and joiner for Wind
 - `←` / `→`: Seek `-5s` / `+5s`
 - `Ctrl+O`: Open video file
 - `Ctrl+E`: Export kept segments
+- `Esc`: Cancel active video load
 
 ## Build
 

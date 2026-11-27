@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -14,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // KeyframeRecord captures a video keyframe timestamp alongside cumulative packet bytes.
@@ -80,18 +83,34 @@ func FindMediaTools(customFFmpeg, customFFprobe string) ToolStatus {
 }
 
 func resolveToolBinary(customPath, name string) string {
+	exeName := name
+	if runtime.GOOS == "windows" {
+		exeName += ".exe"
+	}
 	if customPath != "" {
-		if info, err := os.Stat(customPath); err == nil && !info.IsDir() {
-			return customPath
+		if info, err := os.Stat(customPath); err == nil {
+			if !info.IsDir() {
+				return customPath
+			}
+			cand := filepath.Join(customPath, exeName)
+			if ci, err := os.Stat(cand); err == nil && !ci.IsDir() {
+				return cand
+			}
+		}
+	}
+	if exePath, err := os.Executable(); err == nil {
+		sibling := filepath.Join(filepath.Dir(exePath), exeName)
+		if info, err := os.Stat(sibling); err == nil && !info.IsDir() {
+			return sibling
 		}
 	}
 	if p, err := exec.LookPath(name); err == nil {
 		return p
 	}
 	if runtime.GOOS == "windows" {
-		exeName := name + ".exe"
+		localApp := os.Getenv("LOCALAPPDATA")
 		candidates := []string{
-			filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links", exeName),
+			filepath.Join(localApp, "Microsoft", "WinGet", "Links", exeName),
 			filepath.Join(os.Getenv("USERPROFILE"), "scoop", "shims", exeName),
 			filepath.Join(`C:\ProgramData\chocolatey\bin`, exeName),
 			filepath.Join(`C:\ffmpeg\bin`, exeName),
@@ -103,6 +122,17 @@ func resolveToolBinary(customPath, name string) string {
 			}
 			if info, err := os.Stat(c); err == nil && !info.IsDir() {
 				return c
+			}
+		}
+		// Walk WinGet Packages directory one level for freshly installed Gyan.FFmpeg before PATH refresh
+		if localApp != "" {
+			pkgPattern := filepath.Join(localApp, "Microsoft", "WinGet", "Packages", "*FFmpeg*", "*", "bin", exeName)
+			if matches, err := filepath.Glob(pkgPattern); err == nil {
+				for _, m := range matches {
+					if info, err := os.Stat(m); err == nil && !info.IsDir() {
+						return m
+					}
+				}
 			}
 		}
 	}
@@ -148,8 +178,16 @@ type ffprobeJSON struct {
 	} `json:"streams"`
 }
 
+// LoadProgressFunc reports 0..100 completion, indexed keyframes so far, latest keyframe timestamp, and phase label during media probing.
+type LoadProgressFunc func(pct float64, keyframesFound int, latestKFSec float64, phase string)
+
 // ProbeMedia inspects stream metadata and scans packet keyframes via ffprobe.
 func ProbeMedia(ctx context.Context, ffprobePath, filePath string) (*MediaInfo, error) {
+	return ProbeMediaWithProgress(ctx, ffprobePath, filePath, nil)
+}
+
+// ProbeMediaWithProgress is like ProbeMedia but reports streaming progress updates.
+func ProbeMediaWithProgress(ctx context.Context, ffprobePath, filePath string, onProgress LoadProgressFunc) (*MediaInfo, error) {
 	if ffprobePath == "" {
 		return nil, fmt.Errorf("ffprobe is required on PATH")
 	}
@@ -163,6 +201,10 @@ func ProbeMedia(ctx context.Context, ffprobePath, filePath string) (*MediaInfo, 
 	}
 	if stat.IsDir() {
 		return nil, fmt.Errorf("%q is a directory, not a video file", filePath)
+	}
+
+	if onProgress != nil {
+		onProgress(5, 0, 0, "Reading stream headers…")
 	}
 
 	// Step 1: JSON metadata probe
@@ -193,18 +235,26 @@ func ProbeMedia(ctx context.Context, ffprobePath, filePath string) (*MediaInfo, 
 	}
 
 	var hasVideo bool
+	videoStreamIdx := -1
 	var vDur float64
+	var vStart float64
+	hasVStart := false
 	for _, st := range parsed.Streams {
 		switch st.CodecType {
 		case "video":
 			if !hasVideo {
 				hasVideo = true
+				videoStreamIdx = st.Index
 				info.VideoCodec = st.CodecName
 				info.Width = st.Width
 				info.Height = st.Height
 				info.FPS = parseRateRatio(st.RFrameRate)
 				if d, ok := parseProbeFloat(st.Duration); ok && d > 0 {
 					vDur = d
+				}
+				if s, ok := parseProbeFloat(st.StartTime); ok {
+					vStart = s
+					hasVStart = true
 				}
 			}
 		case "audio":
@@ -226,10 +276,16 @@ func ProbeMedia(ctx context.Context, ffprobePath, filePath string) (*MediaInfo, 
 	}
 	if st, ok := parseProbeFloat(parsed.Format.StartTime); ok {
 		info.StartTimeSec = st
+	} else if hasVStart {
+		info.StartTimeSec = vStart
+	}
+
+	if onProgress != nil {
+		onProgress(12, 0, 0, "Indexing keyframes…")
 	}
 
 	// Step 2: Fast zero-decode packet scan for keyframes + cumulative packet byte sizes
-	records, cumBytes, err := scanPacketKeyframes(ctx, ffprobePath, absPath, info.StartTimeSec)
+	records, cumBytes, err := scanPacketKeyframes(ctx, ffprobePath, absPath, videoStreamIdx, info.StartTimeSec, stat.Size(), info.DurationSec, info.FPS, onProgress)
 	if err != nil {
 		return nil, err
 	}
@@ -282,13 +338,20 @@ func ProbeMedia(ctx context.Context, ffprobePath, filePath string) (*MediaInfo, 
 	if info.TotalBytes <= 0 {
 		info.TotalBytes = info.FileSize
 	}
+	if onProgress != nil {
+		lastKF := 0.0
+		if len(info.Keyframes) > 0 {
+			lastKF = info.Keyframes[len(info.Keyframes)-1]
+		}
+		onProgress(100, len(info.Keyframes), lastKF, "Ready")
+	}
 	return info, nil
 }
 
-func scanPacketKeyframes(ctx context.Context, ffprobePath, absPath string, startTimeSec float64) ([]KeyframeRecord, int64, error) {
+func scanPacketKeyframes(ctx context.Context, ffprobePath, absPath string, videoStreamIdx int, startTimeSec float64, fileSize int64, durationSec, fps float64, onProgress LoadProgressFunc) ([]KeyframeRecord, int64, error) {
 	cmd := exec.CommandContext(ctx, ffprobePath,
 		"-v", "error",
-		"-show_entries", "packet=codec_type,pts_time,dts_time,size,flags",
+		"-show_entries", "packet=codec_type,stream_index,pts_time,dts_time,size,flags",
 		"-of", "csv=p=0",
 		absPath,
 	)
@@ -305,12 +368,39 @@ func scanPacketKeyframes(ctx context.Context, ffprobePath, absPath string, start
 		return nil, 0, err
 	}
 
-	scanner := bufio.NewScanner(stdout)
+	records, cumBytes, scanErr := extractKeyframeRecordsFromCSV(stdout, videoStreamIdx, startTimeSec, durationSec, fps, fileSize, onProgress)
+	waitErr := cmd.Wait()
+	if scanErr != nil {
+		return nil, 0, scanErr
+	}
+	if waitErr != nil {
+		return nil, 0, fmt.Errorf("ffprobe packet scan failed: %s", strings.TrimSpace(stderrBuf.String()))
+	}
+	return records, cumBytes, nil
+}
+
+func extractKeyframeRecordsFromCSV(r io.Reader, videoStreamIdx int, startTimeSec, durationSec, fps float64, fileSize int64, onProgress LoadProgressFunc) ([]KeyframeRecord, int64, error) {
+	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
 	var records []KeyframeRecord
 	var cumBytes int64
-	lastRelSec := -1.0
+	lastKFSec := 0.0
+	tsOffset := -startTimeSec
+	hasPrev := false
+	prevRawTS := 0.0
+	maxRelSec := 0.0
+	frameStep := 1.0 / 30.0
+	if fps > 0 {
+		frameStep = 1.0 / fps
+	}
+
+	var pendingWrap bool
+	var pendingWrapRawTS float64
+	var pendingWrapIsKF bool
+	var pendingWrapBytes int64
+
+	lastEmit := time.Now()
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -318,41 +408,113 @@ func scanPacketKeyframes(ctx context.Context, ffprobePath, absPath string, start
 			continue
 		}
 		cols := strings.Split(line, ",")
-		if len(cols) < 5 {
+		if len(cols) < 6 {
 			continue
 		}
-		// Columns in FFmpeg AVPacket field order:
-		// cols[0]=codec_type, cols[1]=pts_time, cols[2]=dts_time, cols[3]=size, cols[4]=flags
-		pktSize, err := strconv.ParseInt(strings.TrimSpace(cols[3]), 10, 64)
+		// Columns in FFmpeg AVPacket CSV field order:
+		// cols[0]=codec_type, cols[1]=stream_index, cols[2]=pts_time, cols[3]=dts_time, cols[4]=size, cols[5]=flags
+		pktSize, err := strconv.ParseInt(strings.TrimSpace(cols[4]), 10, 64)
 		if err != nil {
 			continue
 		}
-		if cols[0] == "video" && strings.HasPrefix(cols[4], "K") {
-			ts, ok := parseProbeFloat(cols[1])
+		cumBytes += pktSize
+
+		if cols[0] == "video" {
+			if videoStreamIdx >= 0 {
+				if idx, err := strconv.Atoi(strings.TrimSpace(cols[1])); err == nil && idx != videoStreamIdx {
+					continue
+				}
+			}
+			isKF := strings.HasPrefix(strings.TrimSpace(cols[5]), "K")
+			ts, ok := parseProbeFloat(cols[2])
 			if !ok {
-				ts, ok = parseProbeFloat(cols[2])
+				ts, ok = parseProbeFloat(cols[3])
 			}
 			if ok {
-				relSec := math.Max(0.0, ts-startTimeSec)
-				if len(records) == 0 || relSec > lastRelSec+0.0001 {
+				candRel := ts + tsOffset
+				if !pendingWrap && durationSec > 0 && candRel > durationSec*1.05+15.0 {
+					// Ignore isolated corrupt forward PTS spikes so maxRelSec stays accurate.
+					continue
+				}
+				if hasPrev && (prevRawTS-ts) > 30.0 {
+					if !pendingWrap {
+						pendingWrap = true
+						pendingWrapRawTS = ts
+						pendingWrapIsKF = isKF
+						pendingWrapBytes = cumBytes - pktSize
+						continue
+					}
+					if math.Abs(ts-pendingWrapRawTS) < 30.0 {
+						tsOffset = (maxRelSec + frameStep) - pendingWrapRawTS
+						if pendingWrapIsKF {
+							records = append(records, KeyframeRecord{
+								RelSec:   maxRelSec + frameStep,
+								CumBytes: pendingWrapBytes,
+							})
+							lastKFSec = maxRelSec + frameStep
+						}
+						pendingWrap = false
+						candRel = ts + tsOffset
+					} else {
+						pendingWrapRawTS = ts
+						pendingWrapIsKF = isKF
+						pendingWrapBytes = cumBytes - pktSize
+						continue
+					}
+				} else if pendingWrap {
+					if math.Abs(ts-pendingWrapRawTS) < 30.0 && math.Abs(ts-prevRawTS) >= 30.0 {
+						tsOffset = (maxRelSec + frameStep) - pendingWrapRawTS
+						if pendingWrapIsKF {
+							records = append(records, KeyframeRecord{
+								RelSec:   maxRelSec + frameStep,
+								CumBytes: pendingWrapBytes,
+							})
+							lastKFSec = maxRelSec + frameStep
+						}
+						candRel = ts + tsOffset
+					}
+					pendingWrap = false
+				}
+
+				if durationSec > 0 && candRel > durationSec*1.05+15.0 {
+					continue
+				}
+				relSec := math.Max(0.0, candRel)
+				hasPrev = true
+				prevRawTS = ts
+				if relSec > maxRelSec {
+					maxRelSec = relSec
+				}
+				if isKF {
 					records = append(records, KeyframeRecord{
 						RelSec:   relSec,
 						CumBytes: cumBytes,
 					})
-					lastRelSec = relSec
+					lastKFSec = relSec
 				}
 			}
 		}
-		cumBytes += pktSize
+
+		if onProgress != nil && time.Since(lastEmit) >= 60*time.Millisecond {
+			ratio := 0.0
+			if fileSize > 0 {
+				ratio = float64(cumBytes) / float64(fileSize)
+			} else if durationSec > 0 && maxRelSec > 0 {
+				ratio = maxRelSec / durationSec
+			}
+			if ratio < 0 {
+				ratio = 0
+			} else if ratio > 1 {
+				ratio = 1
+			}
+			pct := 12.0 + ratio*86.0
+			onProgress(pct, len(records), lastKFSec, fmt.Sprintf("Indexing keyframes… %d found", len(records)))
+			lastEmit = time.Now()
+		}
 	}
 
-	scanErr := scanner.Err()
-	waitErr := cmd.Wait()
-	if scanErr != nil {
-		return nil, 0, scanErr
-	}
-	if waitErr != nil {
-		return nil, 0, fmt.Errorf("ffprobe packet scan failed: %s", strings.TrimSpace(stderrBuf.String()))
+	if err := scanner.Err(); err != nil {
+		return nil, 0, err
 	}
 	return records, cumBytes, nil
 }
@@ -467,4 +629,62 @@ func parseRateRatio(r string) float64 {
 		return 0
 	}
 	return num / den
+}
+
+// ExtractProbeBackdropDataURI decodes a compact keyframe JPEG thumbnail as a base64 data URI
+// for displaying a blurred live backdrop during initial indexing without slowing down ffprobe.
+func ExtractProbeBackdropDataURI(ctx context.Context, ffmpegPath, filePath string, kfSec float64) (string, error) {
+	if ffmpegPath == "" || filePath == "" {
+		return "", fmt.Errorf("ffmpeg or filePath unavailable")
+	}
+
+	extract := func(fastKF bool) ([]byte, error) {
+		args := []string{
+			"-hide_banner", "-loglevel", "error",
+			"-threads", "2",
+			"-err_detect", "ignore_err",
+		}
+		if fastKF {
+			args = append(args, "-noaccurate_seek")
+			if kfSec > 0.001 {
+				args = append(args, "-ss", strconv.FormatFloat(kfSec+0.005, 'f', 6, 64))
+			}
+			args = append(args, "-skip_frame", "nokey")
+		} else if kfSec > 0.001 {
+			args = append(args, "-ss", strconv.FormatFloat(kfSec, 'f', 6, 64))
+		}
+		args = append(args,
+			"-i", filePath,
+			"-an",
+			"-frames:v", "1",
+			"-vf", "scale='min(360,iw)':-2:flags=fast_bilinear",
+			"-f", "image2",
+			"-c:v", "mjpeg",
+			"-q:v", "7",
+			"pipe:1",
+		)
+
+		cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+		hideSubprocessWindow(cmd)
+		var stdout bytes.Buffer
+		cmd.Stdout = &stdout
+		err := cmd.Run()
+		data := stdout.Bytes()
+		if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
+			if err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("empty or invalid backdrop jpeg frame")
+		}
+		return data, nil
+	}
+
+	data, err := extract(true)
+	if err != nil && ctx.Err() == nil {
+		data, err = extract(false)
+	}
+	if err != nil {
+		return "", err
+	}
+	return "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(data), nil
 }

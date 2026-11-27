@@ -11,10 +11,25 @@
     fileBadge: $("fileBadge"),
     fileName: $("fileName"),
     fileMeta: $("fileMeta"),
+    btnCloseFile: $("btnCloseFile"),
     toolHealth: $("toolHealth"),
+    prereqCard: $("prereqCard"),
+    prereqFFmpeg: $("prereqFFmpeg"),
+    prereqFFprobe: $("prereqFFprobe"),
+    btnCopyWinget: $("btnCopyWinget"),
+    btnLocateFFmpeg: $("btnLocateFFmpeg"),
+    btnRecheckTools: $("btnRecheckTools"),
     loadingOverlay: $("loadingOverlay"),
+    loadBgA: $("loadBgA"),
+    loadBgB: $("loadBgB"),
+    loadingTitle: $("loadingTitle"),
+    loadPctText: $("loadPctText"),
+    loadProgressBar: $("loadProgressBar"),
     loadingText: $("loadingText"),
+    btnCancelLoad: $("btnCancelLoad"),
     video: $("videoEl"),
+    scrubCanvas: $("scrubCanvas"),
+    hudOverlay: $("hudOverlay"),
     hudTime: $("hudTime"),
     hudDuration: $("hudDuration"),
     kfBadge: $("kfBadge"),
@@ -39,9 +54,12 @@
     btnSkipDropped: $("btnSkipDropped"),
     selSpeed: $("selSpeed"),
     btnMute: $("btnMute"),
-    iconVolOn: $("iconVolOn"),
-    iconVolOff: $("iconVolOff"),
+    volWaveLow: $("volWaveLow"),
+    volWaveHigh: $("volWaveHigh"),
+    volMuteCross: $("volMuteCross"),
     rngVolume: $("rngVolume"),
+    btnToggleAudio: $("btnToggleAudio"),
+    btnToggleVisual: $("btnToggleVisual"),
     btnZoomOut: $("btnZoomOut"),
     rngZoom: $("rngZoom"),
     lblZoom: $("lblZoom"),
@@ -51,6 +69,8 @@
     btnDropAll: $("btnDropAll"),
     btnInvert: $("btnInvert"),
     btnClearCuts: $("btnClearCuts"),
+    verticalSplitter: $("verticalSplitter"),
+    editorShelf: $("editorShelf"),
     timelineWrap: $("timelineWrap"),
     timelineCanvas: $("timelineCanvas"),
     overviewWrap: $("overviewWrap"),
@@ -79,9 +99,23 @@
   let useRemux = false;
   let remuxTranscode = false;
   let remuxOffset = 0;
+  let remuxSubOffset = 0;
+  let remuxPinnedSec = null;
+  let remuxSeq = 0;
   let ghostSnapSec = null;
-  let dragMarker = null; // { idx, previewSec }
+  let dragMarker = null; // { idx, previewSec, playheadBefore }
   let scrubbingRuler = false;
+  let scrubPreviewSec = null;
+  let scrubInFlight = false;
+  let pendingScrubReq = null;
+  let displayedScrubKey = "";
+  let nativeScrubSeeking = false;
+  let settleHideTimer = null;
+  let seekVersion = 0;
+  let timelineScale = 1.0;
+  let activeLoadBgSlot = 0;
+  let lastBackdropSeq = 0;
+  let splitterDragging = false;
   let toastTimer = null;
   let dragCounter = 0;
 
@@ -89,9 +123,20 @@
   let zoom = 1;
   let viewStart = 0;
 
-  // Decoded audio histogram buffers
+  // Decoded audio & visual histogram buffers
   let wavePeaks = null;
   let waveRMS = null;
+  let waveActivity = null; // 0=quiet/ambient, 1=talking/speech, 2=noise/transient
+  let visualDeltas = null;
+  let visualScenes = null;
+
+  // Smooth 60fps progress animation state
+  let loadTargetPct = 0;
+  let loadDisplayPct = 0;
+  let audioTargetPct = 0;
+  let audioDisplayPct = 0;
+  let visualTargetPct = 0;
+  let visualDisplayPct = 0;
 
   // Cached DOM nodes for zero-thrashing zoom/pan updates
   let segDomItems = [];    // { el, start, end }
@@ -134,10 +179,55 @@
   }
 
   function getCurrentTime() {
+    if (scrubPreviewSec !== null) {
+      return Math.max(0, Math.min(getTotalDuration(), scrubPreviewSec));
+    }
+    if (dragMarker && typeof dragMarker.playheadBefore === "number") {
+      return dragMarker.playheadBefore;
+    }
     if (useRemux) {
+      if (remuxPinnedSec !== null) {
+        return Math.max(0, Math.min(getTotalDuration(), remuxPinnedSec));
+      }
       return Math.min(getTotalDuration(), remuxOffset + (el.video.currentTime || 0));
     }
     return el.video.currentTime || 0;
+  }
+
+  function getBaseScalableHeight() {
+    const showAudio = !state || state.showAudio !== false;
+    const showVisual = !state || state.showVisual !== false;
+    return (showAudio ? 52 : 0) + (showVisual ? 52 : 0) + 62;
+  }
+
+  function getMaxAllowedTimelineScale() {
+    const winH = window.innerHeight || 720;
+    const availForTimeline = Math.max(120, winH - 130 - 216);
+    const scalable = getBaseScalableHeight();
+    if (scalable <= 0) return 3.2;
+    return Math.max(0.55, Math.min(3.2, (availForTimeline - 26) / scalable));
+  }
+
+  function getTimelineLayout() {
+    const showAudio = !state || state.showAudio !== false;
+    const showVisual = !state || state.showVisual !== false;
+    const scale = Math.max(0.55, Math.min(getMaxAllowedTimelineScale(), timelineScale || 1.0));
+    const rulerH = 26;
+    const audioH = showAudio ? Math.max(28, Math.round(52 * scale)) : 0;
+    const visualH = showVisual ? Math.max(28, Math.round(52 * scale)) : 0;
+    const segH = Math.max(40, Math.round(62 * scale));
+    const audioBottom = rulerH + audioH;
+    const scrubBottom = audioBottom + visualH;
+    const totalH = scrubBottom + segH;
+    return { rulerH, audioH, visualH, segH, audioBottom, scrubBottom, totalH };
+  }
+
+  function applyTimelineLayout() {
+    const lay = getTimelineLayout();
+    el.timelineWrap.style.height = `${lay.totalH}px`;
+    el.rulerHit.style.height = `${lay.scrubBottom}px`;
+    el.segmentsHit.style.top = `${lay.scrubBottom}px`;
+    el.timelineWrap.style.setProperty("--seg-top", `${lay.scrubBottom + 4}px`);
   }
 
   function getMaxZoom() {
@@ -186,29 +276,264 @@
     drawOverview();
   }
 
-  function seekTo(sec) {
+  function clearScrubQueue() {
+    pendingScrubReq = null;
+    scrubInFlight = false;
+    nativeScrubSeeking = false;
+  }
+
+  function hideScrubCanvas() {
+    clearTimeout(settleHideTimer);
+    settleHideTimer = null;
+    if (el.scrubCanvas) {
+      el.scrubCanvas.classList.add("hidden");
+    }
+    displayedScrubKey = "";
+  }
+
+  function paintToScrubCanvas(drawable, srcW, srcH) {
+    const wrap = el.video && el.video.parentElement;
+    if (!wrap || !el.scrubCanvas || !srcW || !srcH) return false;
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+    if (w <= 0 || h <= 0) return false;
+
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.round(w * dpr);
+    const ch = Math.round(h * dpr);
+    if (el.scrubCanvas.width !== cw || el.scrubCanvas.height !== ch) {
+      el.scrubCanvas.width = cw;
+      el.scrubCanvas.height = ch;
+    }
+
+    const ctx = el.scrubCanvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, w, h);
+
+    const scale = Math.min(w / srcW, h / srcH);
+    const dw = srcW * scale;
+    const dh = srcH * scale;
+    const dx = (w - dw) * 0.5;
+    const dy = (h - dh) * 0.5;
+    ctx.drawImage(drawable, dx, dy, dw, dh);
+    el.scrubCanvas.classList.remove("hidden");
+    return true;
+  }
+
+  function freezeCurrentFrameToCanvas() {
+    if (!el.scrubCanvas) return false;
+    if (!el.scrubCanvas.classList.contains("hidden")) {
+      return true;
+    }
+    if (el.video.readyState >= 2 && el.video.videoWidth > 0 && el.video.videoHeight > 0) {
+      return paintToScrubCanvas(el.video, el.video.videoWidth, el.video.videoHeight);
+    }
+    return false;
+  }
+
+  function repaintScrubCanvasIfVisible() {
+    if (!el.scrubCanvas || el.scrubCanvas.classList.contains("hidden")) return;
+    if (el.video.readyState >= 2 && el.video.videoWidth > 0) {
+      paintToScrubCanvas(el.video, el.video.videoWidth, el.video.videoHeight);
+    }
+  }
+
+  function requestScrubFrame(sec, exact = false) {
+    if (!state || !state.media) return;
+    const seq = state.loadSeq;
+    const dur = getTotalDuration();
+    const clamped = Math.max(0, Math.min(dur > 0 ? dur : sec, sec));
+    const key = `${seq}:${exact ? "E" : "K"}:${Math.round(clamped * 1000)}`;
+    if (key === displayedScrubKey && el.scrubCanvas && !el.scrubCanvas.classList.contains("hidden")) {
+      return;
+    }
+    pendingScrubReq = { sec: clamped, exact, key, seq };
+    pumpScrubQueue();
+  }
+
+  function fetchServerScrubFrame(req) {
+    if (!state || !state.scrubUrl || state.loadSeq !== req.seq) {
+      scrubInFlight = false;
+      pumpScrubQueue();
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      if (state && state.loadSeq === req.seq && img.naturalWidth > 0) {
+        if (paintToScrubCanvas(img, img.naturalWidth, img.naturalHeight)) {
+          displayedScrubKey = req.key;
+        }
+      }
+      scrubInFlight = false;
+      pumpScrubQueue();
+    };
+    img.onerror = () => {
+      scrubInFlight = false;
+      pumpScrubQueue();
+    };
+    img.src = `${state.scrubUrl}&t=${req.sec.toFixed(6)}${req.exact ? "&exact=1" : ""}`;
+  }
+
+  function pumpScrubQueue() {
+    if (scrubInFlight || !pendingScrubReq || !state || !state.media) return;
+    const req = pendingScrubReq;
+    pendingScrubReq = null;
+
+    if (!useRemux && !req.exact && el.video.readyState >= 1) {
+      scrubInFlight = true;
+      nativeScrubSeeking = true;
+      let finished = false;
+      let timer = null;
+
+      const finish = (paint) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        el.video.removeEventListener("seeked", onSeeked);
+        nativeScrubSeeking = false;
+        if (paint && state && state.loadSeq === req.seq && el.video.readyState >= 2 && el.video.videoWidth > 0) {
+          if (paintToScrubCanvas(el.video, el.video.videoWidth, el.video.videoHeight)) {
+            displayedScrubKey = req.key;
+          }
+          scrubInFlight = false;
+          pumpScrubQueue();
+          return;
+        }
+        // Fallback to server-side FFmpeg keyframe extraction if browser seek stalled
+        if (state && state.loadSeq === req.seq && state.scrubUrl) {
+          fetchServerScrubFrame(req);
+          return;
+        }
+        scrubInFlight = false;
+        pumpScrubQueue();
+      };
+
+      const onSeeked = () => finish(true);
+      el.video.addEventListener("seeked", onSeeked, { once: true });
+      const seekTimeoutMs = (state.waveformLoading || state.visualLoading) ? 900 : 380;
+      timer = setTimeout(() => finish(false), seekTimeoutMs);
+
+      try {
+        el.video.currentTime = req.sec;
+        if (!el.video.seeking && Math.abs((el.video.currentTime || 0) - req.sec) <= 0.015) {
+          finish(true);
+        }
+      } catch {
+        finish(false);
+      }
+      return;
+    }
+
+    scrubInFlight = true;
+    fetchServerScrubFrame(req);
+  }
+
+  function prevOrAtKeyframe(sec) {
+    const kfs = state && state.media ? state.media.keyframes : null;
+    if (!kfs || kfs.length === 0) return sec;
+    const idx = lowerBoundKF(kfs, sec + 0.005);
+    if (idx <= 0) return kfs[0];
+    return kfs[idx - 1];
+  }
+
+  function seekTo(sec, opts = {}) {
     const dur = getTotalDuration();
     if (dur <= 0) return;
     const clamped = Math.max(0, Math.min(dur, sec));
+    const targetPlay = opts.autoPlay !== undefined ? opts.autoPlay : !el.video.paused;
+
     if (useRemux) {
-      const wasPlaying = !el.video.paused;
-      startRemuxAt(clamped, wasPlaying);
+      startRemuxAt(clamped, targetPlay);
     } else {
+      remuxPinnedSec = null;
+      const mySeek = ++seekVersion;
+      clearTimeout(settleHideTimer);
+      settleHideTimer = null;
+
+      const cur = el.video.currentTime || 0;
+      const canvasVisible = el.scrubCanvas && !el.scrubCanvas.classList.contains("hidden");
+      if (canvasVisible || Math.abs(clamped - cur) > 0.20) {
+        freezeCurrentFrameToCanvas();
+      }
+
+      const finishNativeSeek = () => {
+        if (mySeek !== seekVersion) return;
+        el.video.removeEventListener("seeked", finishNativeSeek);
+        clearTimeout(settleHideTimer);
+        settleHideTimer = null;
+        if (!scrubbingRuler && !dragMarker && el.video.readyState >= 2 && el.video.videoWidth > 0) {
+          hideScrubCanvas();
+        }
+        if (targetPlay && el.video.paused) {
+          el.video.play().catch(() => {});
+        }
+        updateHUD();
+        drawTimeline();
+        drawOverview();
+      };
+
+      el.video.addEventListener("seeked", finishNativeSeek, { once: true });
+      settleHideTimer = setTimeout(() => {
+        if (mySeek === seekVersion && !scrubbingRuler && !dragMarker && el.video.readyState >= 2) {
+          finishNativeSeek();
+        }
+      }, 450);
+
       el.video.currentTime = clamped;
+      if (!el.video.seeking && Math.abs((el.video.currentTime || 0) - clamped) <= 0.02) {
+        finishNativeSeek();
+      }
     }
     updateHUD();
     drawTimeline();
     drawOverview();
   }
 
+  function applyPlaybackRate() {
+    const rate = Math.max(0.1, Math.min(10, parseFloat(el.selSpeed.value) || 1));
+    if ("preservesPitch" in el.video) {
+      el.video.preservesPitch = rate >= 0.5 && rate <= 2.5;
+    }
+    try {
+      el.video.playbackRate = rate;
+    } catch {}
+  }
+
   function startRemuxAt(sec, autoPlay) {
     if (!state || !state.remuxUrl) return;
+    const dur = getTotalDuration();
+    const clamped = Math.max(0, Math.min(dur > 0 ? dur : sec, sec));
+    freezeCurrentFrameToCanvas();
     useRemux = true;
-    remuxOffset = Math.max(0, sec);
+    const kfAligned = !remuxTranscode;
+    const startBase = kfAligned ? prevOrAtKeyframe(clamped) : clamped;
+    remuxOffset = Math.max(0, startBase);
+    remuxSubOffset = Math.max(0, clamped - remuxOffset);
+    remuxPinnedSec = autoPlay ? null : clamped;
     el.remuxBadge.classList.remove("hidden");
-    const tc = remuxTranscode ? "&transcode=1" : "";
-    el.video.src = `${state.remuxUrl}&start=${remuxOffset.toFixed(3)}${tc}`;
-    el.video.playbackRate = parseFloat(el.selSpeed.value) || 1;
+
+    const myReq = ++remuxSeq;
+    const tc = remuxTranscode ? "&transcode=1" : "&kf=1";
+    el.video.src = `${state.remuxUrl}&start=${remuxOffset.toFixed(6)}${tc}`;
+    applyPlaybackRate();
+
+    if (!autoPlay) {
+      requestScrubFrame(clamped, !kfAligned || remuxSubOffset > 0.04);
+    }
+
+    el.video.addEventListener("loadeddata", () => {
+      if (myReq !== remuxSeq) return;
+      if (remuxSubOffset > 0.03) {
+        try {
+          el.video.currentTime = remuxSubOffset;
+        } catch {}
+      }
+      if (autoPlay) {
+        el.video.play().catch(() => {});
+      }
+    }, { once: true });
+
     if (autoPlay) {
       el.video.play().catch(() => {});
     }
@@ -272,10 +597,22 @@
     if (!wf || !wf.ready || !wf.hasAudio || !wf.peaksB64) {
       wavePeaks = null;
       waveRMS = null;
+      waveActivity = null;
       return;
     }
     wavePeaks = decodeBase64Bytes(wf.peaksB64);
     waveRMS = decodeBase64Bytes(wf.rmsB64);
+    waveActivity = decodeBase64Bytes(wf.activityB64);
+  }
+
+  function ingestVisual(vd) {
+    if (!vd || !vd.ready || !vd.deltaB64) {
+      visualDeltas = null;
+      visualScenes = null;
+      return;
+    }
+    visualDeltas = decodeBase64Bytes(vd.deltaB64);
+    visualScenes = decodeBase64Bytes(vd.sceneB64);
   }
 
   function applyTheme(theme) {
@@ -287,22 +624,81 @@
     drawOverview();
   }
 
+  function renderLoadOverlay() {
+    const loading = !!(state && state.loading);
+    el.loadingOverlay.classList.toggle("hidden", !loading);
+    if (loading) {
+      el.loadingTitle.textContent = `Loading ${state.loadingFile || "video"}…`;
+      el.loadingText.textContent = state.loadingPhase || "Reading stream headers…";
+      const pct = Math.max(0, Math.min(100, Math.round(loadDisplayPct)));
+      el.loadPctText.textContent = `${pct}%`;
+      el.loadProgressBar.style.width = `${pct}%`;
+    }
+  }
+
+  function clearLoadBackdrop() {
+    [el.loadBgA, el.loadBgB].forEach((img) => {
+      if (!img) return;
+      img.onload = null;
+      img.classList.remove("visible");
+      img.removeAttribute("src");
+    });
+    activeLoadBgSlot = 0;
+  }
+
+  function releaseVideoElement() {
+    remuxSeq++;
+    seekVersion++;
+    useRemux = false;
+    remuxTranscode = false;
+    remuxOffset = 0;
+    remuxSubOffset = 0;
+    remuxPinnedSec = null;
+    lastLoadedSeq = 0;
+    el.remuxBadge.classList.add("hidden");
+    el.btnPlayPause.classList.remove("is-playing");
+    el.iconPlay.classList.remove("hidden");
+    el.iconPause.classList.add("hidden");
+    try {
+      el.video.pause();
+    } catch {}
+    if (el.video.getAttribute("src") || el.video.currentSrc) {
+      el.video.removeAttribute("src");
+      el.video.load();
+    }
+  }
+
   function renderState(nextState) {
     state = nextState;
     if (!state) return;
 
     applyTheme(state.theme);
+    if (!splitterDragging && typeof state.timelineScale === "number" && state.timelineScale > 0) {
+      timelineScale = state.timelineScale;
+    }
 
     el.btnModeJoin.classList.toggle("active", state.mode === "join");
     el.btnModeSplit.classList.toggle("active", state.mode === "split");
     el.btnSkipDropped.classList.toggle("active", !!state.skipDropped);
+    el.btnToggleAudio.classList.toggle("active", state.showAudio !== false);
+    el.btnToggleVisual.classList.toggle("active", state.showVisual !== false);
 
-    if (state.tools && state.tools.ready) {
+    // FFmpeg / FFprobe prerequisite status
+    const toolsReady = !!(state.tools && state.tools.ready);
+    if (toolsReady) {
       el.toolHealth.textContent = `FFmpeg ${state.tools.ffmpegVersion || "ready"} • Lossless stream copy`;
       el.toolHealth.className = "tool-health ok";
+      el.prereqCard.classList.add("hidden");
     } else if (state.tools) {
       el.toolHealth.textContent = state.tools.error || "FFmpeg not found on PATH";
       el.toolHealth.className = "tool-health err";
+      el.prereqCard.classList.remove("hidden");
+      const hasFF = !!state.tools.ffmpegPath;
+      const hasFP = !!state.tools.ffprobePath;
+      el.prereqFFmpeg.textContent = `${hasFF ? "✔" : "✖"} ffmpeg`;
+      el.prereqFFmpeg.classList.toggle("ok", hasFF);
+      el.prereqFFprobe.textContent = `${hasFP ? "✔" : "✖"} ffprobe`;
+      el.prereqFFprobe.classList.toggle("ok", hasFP);
     }
 
     if (state.loadError) {
@@ -312,10 +708,43 @@
     const hasMedia = !!(state.media && state.media.durationSec > 0);
     el.emptyView.classList.toggle("hidden", hasMedia || state.loading);
     el.editorView.classList.toggle("hidden", !hasMedia && !state.loading);
-    el.loadingOverlay.classList.toggle("hidden", !state.loading);
-    if (state.loading) {
-      el.loadingText.textContent = `Scanning keyframes in ${state.loadingFile || "video"}...`;
+    if (el.hudOverlay) {
+      el.hudOverlay.classList.toggle("hidden", !hasMedia);
     }
+    if (el.editorShelf) {
+      if (!hasMedia) {
+        el.editorShelf.classList.add("collapsed");
+        el.editorShelf.classList.remove("shelf-open");
+      } else if (el.editorShelf.classList.contains("collapsed")) {
+        const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduced) {
+          el.editorShelf.classList.remove("collapsed");
+          el.editorShelf.classList.add("shelf-open");
+        } else {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (state && state.media && state.media.durationSec > 0 && el.editorShelf) {
+                el.editorShelf.classList.remove("collapsed");
+              }
+            });
+          });
+        }
+      }
+    }
+
+    if (state.loading) {
+      loadTargetPct = Math.max(loadTargetPct, state.loadingPct || 2);
+      if (loadDisplayPct === 0) loadDisplayPct = loadTargetPct;
+      if (state.loadSeq !== lastBackdropSeq) {
+        lastBackdropSeq = state.loadSeq;
+        clearLoadBackdrop();
+      }
+    } else {
+      loadTargetPct = 0;
+      loadDisplayPct = 0;
+      clearLoadBackdrop();
+    }
+    renderLoadOverlay();
 
     if (hasMedia) {
       el.fileBadge.classList.remove("hidden");
@@ -329,25 +758,56 @@
         useRemux = false;
         remuxTranscode = false;
         remuxOffset = 0;
+        remuxSubOffset = 0;
+        remuxPinnedSec = null;
+        remuxSeq++;
+        seekVersion++;
+        scrubbingRuler = false;
+        scrubPreviewSec = null;
+        dragMarker = null;
+        ghostSnapSec = null;
+        clearScrubQueue();
+        hideScrubCanvas();
         zoom = 1;
         viewStart = 0;
         wavePeaks = null;
         waveRMS = null;
+        waveActivity = null;
+        visualDeltas = null;
+        visualScenes = null;
+        audioTargetPct = state.waveformLoading ? 3 : 0;
+        audioDisplayPct = audioTargetPct;
+        visualTargetPct = state.visualLoading ? 3 : 0;
+        visualDisplayPct = visualTargetPct;
         el.remuxBadge.classList.add("hidden");
+        el.btnPlayPause.classList.remove("is-playing");
         el.video.src = state.videoUrl;
-        el.video.playbackRate = parseFloat(el.selSpeed.value) || 1;
+        applyPlaybackRate();
       }
 
       if (state.waveform) {
         ingestWaveform(state.waveform);
       }
+      if (state.visual) {
+        ingestVisual(state.visual);
+      }
       updateZoomUI();
     } else {
       el.fileBadge.classList.add("hidden");
+      scrubPreviewSec = null;
+      dragMarker = null;
+      ghostSnapSec = null;
+      releaseVideoElement();
+      clearScrubQueue();
+      hideScrubCanvas();
       wavePeaks = null;
       waveRMS = null;
+      waveActivity = null;
+      visualDeltas = null;
+      visualScenes = null;
     }
 
+    applyTimelineLayout();
     renderSegments();
     updateExportButton();
     updateHUD();
@@ -507,14 +967,21 @@
     const markers = state.markers || [];
     const minBound = markerIdx > 0 ? markers[markerIdx - 1] + 0.002 : 0.02;
     const maxBound = markerIdx + 1 < markers.length ? markers[markerIdx + 1] - 0.002 : total - 0.02;
+    const playheadBefore = getCurrentTime();
 
-    dragMarker = { idx: markerIdx, previewSec: markers[markerIdx] };
+    if (!el.video.paused) {
+      el.video.pause();
+    }
+    freezeCurrentFrameToCanvas();
+    dragMarker = { idx: markerIdx, previewSec: markers[markerIdx], playheadBefore };
+    requestScrubFrame(markers[markerIdx], false);
 
     const onMove = (ev) => {
       const raw = clientXToTime(ev.clientX);
       const snapped = nearestKeyframe(raw, minBound, maxBound);
       dragMarker.previewSec = snapped;
       ghostSnapSec = snapped;
+      requestScrubFrame(snapped, false);
       syncTimelineDOMPositions();
       showHoverTime(ev.clientX, `KF ${fmtTime(snapped)}`);
       drawTimeline();
@@ -527,10 +994,11 @@
       const targetSec = dragMarker.previewSec;
       dragMarker = null;
       ghostSnapSec = null;
+      clearScrubQueue();
       el.hoverTooltip.classList.add("hidden");
       const res = await window.api.moveMarker(markerIdx, targetSec);
       renderState(res.snapshot);
-      if (res.changed) seekTo(res.snappedSec);
+      seekTo(res.changed ? res.snappedSec : targetSec, { autoPlay: false });
     };
 
     window.addEventListener("mousemove", onMove);
@@ -556,14 +1024,62 @@
     return true;
   }
 
+  function drawLaneProgressBar(ctx, w, laneTop, laneH, label, pct, c1, c2, isLight) {
+    const padX = 14;
+    const barW = Math.min(340, Math.max(120, w - padX * 2));
+    const barH = 7;
+    const barX = padX;
+    const barY = laneTop + Math.round(laneH * 0.56);
+    const clampedPct = Math.max(2, Math.min(100, pct));
+
+    ctx.fillStyle = isLight ? "#475569" : "#94a3b8";
+    ctx.font = "600 11px 'Segoe UI', sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${label}  ${Math.round(clampedPct)}%`, barX, laneTop + Math.round(laneH * 0.30));
+
+    // Track
+    ctx.fillStyle = isLight ? "rgba(15, 23, 42, 0.12)" : "rgba(255, 255, 255, 0.08)";
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, 4);
+    ctx.fill();
+
+    // Gradient Fill
+    const fillW = Math.max(8, (clampedPct / 100) * barW);
+    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, fillW, barH, 4);
+    ctx.fill();
+
+    // Animated shimmer sweep
+    const phase = ((performance.now() * 0.0012) % 1.4) - 0.2;
+    const shimX = barX + phase * fillW;
+    if (fillW > 24 && shimX >= barX - 24 && shimX <= barX + fillW) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, fillW, barH, 4);
+      ctx.clip();
+      const sGrad = ctx.createLinearGradient(shimX - 24, 0, shimX + 24, 0);
+      sGrad.addColorStop(0, "rgba(255,255,255,0)");
+      sGrad.addColorStop(0.5, "rgba(255,255,255,0.45)");
+      sGrad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = sGrad;
+      ctx.fillRect(shimX - 24, barY, 48, barH);
+      ctx.restore();
+    }
+  }
+
   function drawTimeline() {
     const canvas = el.timelineCanvas;
     const wrap = el.timelineWrap;
     if (!canvas || !wrap) return;
 
+    const lay = getTimelineLayout();
     const dpr = window.devicePixelRatio || 1;
     const w = wrap.clientWidth;
-    const h = wrap.clientHeight;
+    const h = wrap.clientHeight || lay.totalH;
     if (w <= 0 || h <= 0) return;
 
     if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -576,25 +1092,34 @@
     ctx.clearRect(0, 0, w, h);
 
     const isLight = document.documentElement.getAttribute("data-theme") === "light";
-    const rulerH = 26;
-    const audioH = 58;
-    const audioBottom = rulerH + audioH; // 84
-    const segH = h - audioBottom;        // 64
+    const { rulerH, audioH, visualH, segH, audioBottom, scrubBottom } = lay;
 
     // Zone 1: Ruler background
     ctx.fillStyle = isLight ? "#e2e8f0" : "#151c29";
     ctx.fillRect(0, 0, w, rulerH);
 
     // Zone 2: Audio Histogram lane background
-    ctx.fillStyle = isLight ? "#eef2f6" : "#0e141f";
-    ctx.fillRect(0, rulerH, w, audioH);
+    if (audioH > 0) {
+      ctx.fillStyle = isLight ? "#eef2f6" : "#0e141f";
+      ctx.fillRect(0, rulerH, w, audioH);
+    }
+
+    // Zone 3: Visual Delta lane background
+    if (visualH > 0) {
+      ctx.fillStyle = isLight ? "#e8edf5" : "#101624";
+      ctx.fillRect(0, audioBottom, w, visualH);
+    }
 
     ctx.strokeStyle = isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.08)";
     ctx.beginPath();
     ctx.moveTo(0, rulerH);
     ctx.lineTo(w, rulerH);
-    ctx.moveTo(0, audioBottom);
-    ctx.lineTo(w, audioBottom);
+    if (audioH > 0 && visualH > 0) {
+      ctx.moveTo(0, audioBottom);
+      ctx.lineTo(w, audioBottom);
+    }
+    ctx.moveTo(0, scrubBottom);
+    ctx.lineTo(w, scrubBottom);
     ctx.stroke();
 
     const total = getTotalDuration();
@@ -635,15 +1160,29 @@
       }
     }
 
-    // Zone 2: Audio Sound-Level Histogram
-    if (wavePeaks && wavePeaks.length > 0) {
-      const bins = wavePeaks.length;
+    const segs = state.segments || [];
+
+    const forEachBarSlot = (bins, cb) => {
+      const pxPerBin = (w * (total / span)) / bins;
+      if (pxPerBin > 3.2) {
+        const bStart = Math.max(0, Math.floor((viewStart / total) * bins));
+        const bEnd = Math.min(bins - 1, Math.ceil((viewEnd / total) * bins));
+        for (let b = bStart; b <= bEnd; b++) {
+          const t0 = (b / bins) * total;
+          const t1 = ((b + 1) / bins) * total;
+          const x0 = timeToX(t0);
+          const x1 = timeToX(t1);
+          if (x1 <= 0 || x0 >= w) continue;
+          const rawW = x1 - x0;
+          const gap = Math.min(2, Math.max(1, rawW * 0.14));
+          const drawX = Math.max(0, x0);
+          const drawW = Math.max(2, Math.min(w - drawX, rawW - gap));
+          cb(drawX, drawW, b, b, 0.5 * (t0 + t1));
+        }
+        return;
+      }
       const colStep = 3;
       const barW = 2;
-      const maxBarH = audioH - 10;
-      const segs = state.segments || [];
-      let segCursor = 0;
-
       for (let x = 0; x < w; x += colStep) {
         const t0 = viewStart + (x / w) * span;
         const t1 = viewStart + ((x + colStep) / w) * span;
@@ -652,59 +1191,173 @@
         if (b0 < 0) b0 = 0;
         if (b1 >= bins) b1 = bins - 1;
         if (b1 < b0) b1 = b0;
-
-        let peakMax = 0;
-        let rmsSum = 0;
-        for (let b = b0; b <= b1; b++) {
-          if (wavePeaks[b] > peakMax) peakMax = wavePeaks[b];
-          if (waveRMS) rmsSum += waveRMS[b];
-        }
-        const rmsAvg = waveRMS ? rmsSum / (b1 - b0 + 1) : 0;
-
-        const tMid = 0.5 * (t0 + t1);
-        while (segCursor < segs.length && segs[segCursor].end < tMid) {
-          segCursor++;
-        }
-        const kept = segCursor < segs.length ? segs[segCursor].keep : isTimeKept(tMid);
-
-        if (peakMax <= 1) {
-          ctx.fillStyle = kept
-            ? (isLight ? "rgba(2, 132, 199, 0.16)" : "rgba(56, 189, 248, 0.14)")
-            : (isLight ? "rgba(220, 38, 38, 0.10)" : "rgba(239, 68, 68, 0.10)");
-          ctx.fillRect(x, audioBottom - 2, barW, 2);
-          continue;
-        }
-
-        const pH = Math.max(2, (peakMax / 255) * maxBarH);
-        const rH = Math.max(1, (rmsAvg / 255) * maxBarH);
-
-        ctx.fillStyle = kept
-          ? (isLight ? "rgba(14, 165, 233, 0.42)" : "rgba(56, 189, 248, 0.36)")
-          : (isLight ? "rgba(220, 38, 38, 0.24)" : "rgba(248, 113, 113, 0.26)");
-        ctx.fillRect(x, audioBottom - pH, barW, pH);
-
-        if (rH > 1) {
-          ctx.fillStyle = kept
-            ? (isLight ? "#0284c7" : "#22d3ee")
-            : (isLight ? "rgba(185, 28, 28, 0.48)" : "rgba(248, 113, 113, 0.48)");
-          ctx.fillRect(x, audioBottom - rH, barW, rH);
-        }
+        cb(x, barW, b0, b1, 0.5 * (t0 + t1));
       }
+    };
 
-      ctx.fillStyle = isLight ? "rgba(15,23,42,0.45)" : "rgba(148,163,184,0.6)";
-      ctx.font = "700 9.5px 'Segoe UI', sans-serif";
-      ctx.fillText("SOUND", 7, rulerH + 10);
-    } else {
-      ctx.fillStyle = isLight ? "#64748b" : "#64748b";
-      ctx.font = "600 11px 'Segoe UI', sans-serif";
-      const msg = state.waveformLoading
-        ? "Analyzing audio sound levels…"
-        : (state.media.hasAudio ? "SOUND" : "No audio track");
-      ctx.fillText(msg, 10, rulerH + audioH / 2);
+    // Audio Sound-Level + Talking/Noise Histogram
+    if (audioH > 0) {
+      if (wavePeaks && wavePeaks.length > 0) {
+        const bins = wavePeaks.length;
+        const maxBarH = audioH - 12;
+        let segCursor = 0;
+
+        forEachBarSlot(bins, (x, barW, b0, b1, tMid) => {
+          let peakMax = 0;
+          let rmsSum = 0;
+          let hasTalking = false;
+          let hasNoise = false;
+          for (let b = b0; b <= b1; b++) {
+            if (wavePeaks[b] > peakMax) peakMax = wavePeaks[b];
+            if (waveRMS) rmsSum += waveRMS[b];
+            if (waveActivity) {
+              if (waveActivity[b] === 1) hasTalking = true;
+              else if (waveActivity[b] === 2) hasNoise = true;
+            }
+          }
+          const rmsAvg = waveRMS ? rmsSum / (b1 - b0 + 1) : 0;
+          const act = hasTalking ? 1 : (hasNoise ? 2 : 0);
+
+          while (segCursor < segs.length && segs[segCursor].end < tMid) {
+            segCursor++;
+          }
+          const kept = segCursor < segs.length ? segs[segCursor].keep : isTimeKept(tMid);
+
+          if (peakMax <= 1) {
+            ctx.fillStyle = kept
+              ? (isLight ? "rgba(2, 132, 199, 0.16)" : "rgba(56, 189, 248, 0.14)")
+              : (isLight ? "rgba(220, 38, 38, 0.10)" : "rgba(239, 68, 68, 0.10)");
+            ctx.fillRect(x, audioBottom - 2, barW, 2);
+            return;
+          }
+
+          const pH = Math.max(2, (peakMax / 255) * maxBarH);
+          const rH = Math.max(1, (rmsAvg / 255) * maxBarH);
+
+          let peakCol;
+          let rmsCol;
+          if (!kept) {
+            peakCol = isLight ? "rgba(220, 38, 38, 0.22)" : "rgba(248, 113, 113, 0.24)";
+            rmsCol = isLight ? "rgba(185, 28, 28, 0.45)" : "rgba(248, 113, 113, 0.45)";
+          } else if (act === 1) {
+            // Talking / Speech: Amber-Gold
+            peakCol = isLight ? "rgba(217, 119, 6, 0.44)" : "rgba(245, 158, 11, 0.45)";
+            rmsCol = isLight ? "#d97706" : "#fbbf24";
+          } else if (act === 2) {
+            // Noise / Transient: Rose-Magenta
+            peakCol = isLight ? "rgba(219, 39, 119, 0.40)" : "rgba(236, 72, 153, 0.42)";
+            rmsCol = isLight ? "#db2777" : "#f472b6";
+          } else {
+            // Ambient / Baseline: Cyan
+            peakCol = isLight ? "rgba(14, 165, 233, 0.36)" : "rgba(56, 189, 248, 0.34)";
+            rmsCol = isLight ? "#0284c7" : "#22d3ee";
+          }
+
+          ctx.fillStyle = peakCol;
+          ctx.fillRect(x, audioBottom - pH, barW, pH);
+          if (rH > 1) {
+            ctx.fillStyle = rmsCol;
+            ctx.fillRect(x, audioBottom - rH, barW, rH);
+          }
+        });
+
+        // Micro-legend in top-left of SOUND lane
+        ctx.font = "700 9.5px 'Segoe UI', sans-serif";
+        ctx.textBaseline = "middle";
+        const ly = rulerH + 9;
+        ctx.fillStyle = isLight ? "rgba(15,23,42,0.52)" : "rgba(148,163,184,0.68)";
+        ctx.fillText("SOUND", 7, ly);
+        if (waveActivity) {
+          ctx.fillStyle = isLight ? "#d97706" : "#fbbf24";
+          ctx.beginPath();
+          ctx.arc(54, ly, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = isLight ? "rgba(15,23,42,0.58)" : "rgba(226,232,240,0.72)";
+          ctx.font = "600 9.5px 'Segoe UI', sans-serif";
+          ctx.fillText("Talking", 60, ly);
+
+          ctx.fillStyle = isLight ? "#db2777" : "#f472b6";
+          ctx.beginPath();
+          ctx.arc(104, ly, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = isLight ? "rgba(15,23,42,0.58)" : "rgba(226,232,240,0.72)";
+          ctx.fillText("Noise", 110, ly);
+        }
+      } else if (state.waveformLoading) {
+        drawLaneProgressBar(ctx, w, rulerH, audioH, "Analyzing audio & voice…", audioDisplayPct, "#06b6d4", "#22d3ee", isLight);
+      } else {
+        ctx.fillStyle = "#64748b";
+        ctx.font = "600 11px 'Segoe UI', sans-serif";
+        ctx.fillText(state.media.hasAudio ? "SOUND" : "No audio track", 10, rulerH + audioH / 2);
+      }
     }
 
-    // Zone 3: Segments
-    for (const seg of state.segments || []) {
+    // Visual Frame-Delta & Scene-Cut Histogram
+    if (visualH > 0) {
+      if (visualDeltas && visualDeltas.length > 0) {
+        const bins = visualDeltas.length;
+        const maxBarH = visualH - 12;
+        let segCursor = 0;
+
+        forEachBarSlot(bins, (x, barW, b0, b1, tMid) => {
+          let deltaMax = 0;
+          let sceneMax = 0;
+          for (let b = b0; b <= b1; b++) {
+            if (visualDeltas[b] > deltaMax) deltaMax = visualDeltas[b];
+            if (visualScenes && visualScenes[b] > sceneMax) sceneMax = visualScenes[b];
+          }
+
+          while (segCursor < segs.length && segs[segCursor].end < tMid) {
+            segCursor++;
+          }
+          const kept = segCursor < segs.length ? segs[segCursor].keep : isTimeKept(tMid);
+
+          if (deltaMax <= 1 && sceneMax <= 1) {
+            ctx.fillStyle = kept
+              ? (isLight ? "rgba(109, 40, 217, 0.16)" : "rgba(139, 92, 246, 0.16)")
+              : (isLight ? "rgba(220, 38, 38, 0.10)" : "rgba(239, 68, 68, 0.10)");
+            ctx.fillRect(x, scrubBottom - 2, barW, 2);
+            return;
+          }
+
+          const dH = Math.max(2, (deltaMax / 255) * maxBarH);
+          const isSceneCut = sceneMax >= 155;
+
+          if (isSceneCut) {
+            const sH = Math.max(dH, (sceneMax / 255) * maxBarH);
+            ctx.fillStyle = kept
+              ? (isLight ? "#d97706" : "#f59e0b")
+              : "rgba(245, 158, 11, 0.45)";
+            ctx.fillRect(x, scrubBottom - sH, barW, sH);
+          } else {
+            ctx.fillStyle = kept
+              ? (isLight ? "rgba(109, 40, 217, 0.45)" : "rgba(139, 92, 246, 0.50)")
+              : (isLight ? "rgba(220, 38, 38, 0.22)" : "rgba(248, 113, 113, 0.24)");
+            ctx.fillRect(x, scrubBottom - dH, barW, dH);
+
+            if (dH > 4) {
+              ctx.fillStyle = kept
+                ? (isLight ? "#7c3aed" : "#a78bfa")
+                : (isLight ? "rgba(185, 28, 28, 0.42)" : "rgba(248, 113, 113, 0.42)");
+              ctx.fillRect(x, scrubBottom - dH, barW, Math.max(2, dH * 0.35));
+            }
+          }
+        });
+
+        ctx.fillStyle = isLight ? "rgba(15,23,42,0.48)" : "rgba(148,163,184,0.68)";
+        ctx.font = "700 9.5px 'Segoe UI', sans-serif";
+        ctx.fillText("VISUAL Δ", 7, audioBottom + 9);
+      } else if (state.visualLoading) {
+        drawLaneProgressBar(ctx, w, audioBottom, visualH, "Analyzing visual frame deltas…", visualDisplayPct, "#8b5cf6", "#f59e0b", isLight);
+      } else {
+        ctx.fillStyle = "#64748b";
+        ctx.font = "600 11px 'Segoe UI', sans-serif";
+        ctx.fillText("VISUAL Δ", 10, audioBottom + visualH / 2);
+      }
+    }
+
+    // Segments lane
+    for (const seg of segs) {
       if (seg.end <= viewStart || seg.start >= viewEnd) continue;
       const x1 = Math.max(0, timeToX(seg.start));
       const x2 = Math.min(w, timeToX(seg.end));
@@ -712,14 +1365,14 @@
 
       if (seg.keep) {
         ctx.fillStyle = isLight ? "rgba(16, 185, 129, 0.24)" : "rgba(16, 185, 129, 0.28)";
-        ctx.fillRect(x1, audioBottom, sw, segH);
+        ctx.fillRect(x1, scrubBottom, sw, segH);
         ctx.fillStyle = "#10b981";
-        ctx.fillRect(x1, audioBottom, sw, 3);
+        ctx.fillRect(x1, scrubBottom, sw, 3);
       } else {
         ctx.fillStyle = isLight ? "rgba(220, 38, 38, 0.12)" : "rgba(239, 68, 68, 0.14)";
-        ctx.fillRect(x1, audioBottom, sw, segH);
+        ctx.fillRect(x1, scrubBottom, sw, segH);
         ctx.fillStyle = "rgba(239, 68, 68, 0.55)";
-        ctx.fillRect(x1, audioBottom, sw, 2);
+        ctx.fillRect(x1, scrubBottom, sw, 2);
       }
 
       if (sw > 58) {
@@ -727,10 +1380,10 @@
           ? (isLight ? "#065f46" : "#a7f3d0")
           : (isLight ? "#991b1b" : "#fca5a5");
         ctx.font = "700 11px 'Segoe UI', sans-serif";
-        ctx.fillText(`#${seg.index} ${seg.keep ? "KEEP" : "DROP"}`, x1 + 8, audioBottom + segH / 2 - 6);
+        ctx.fillText(`#${seg.index} ${seg.keep ? "KEEP" : "DROP"}`, x1 + 8, scrubBottom + segH / 2 - 6);
         if (sw > 92) {
           ctx.font = "500 10.5px 'Cascadia Mono', monospace";
-          ctx.fillText(fmtTime(seg.duration), x1 + 8, audioBottom + segH / 2 + 10);
+          ctx.fillText(fmtTime(seg.duration), x1 + 8, scrubBottom + segH / 2 + 10);
         }
       }
     }
@@ -765,7 +1418,7 @@
       }
     }
 
-    // Cut lines across BOTH Sound Histogram and Segments
+    // Cut lines across all active lanes
     (state.markers || []).forEach((mSec, idx) => {
       const sec = dragMarker && dragMarker.idx === idx ? dragMarker.previewSec : mSec;
       if (sec < viewStart || sec > viewEnd) return;
@@ -835,30 +1488,26 @@
     if (!state || !state.media || total <= 0) return;
     const isLight = document.documentElement.getAttribute("data-theme") === "light";
 
-    // Full-duration Keep/Drop bars
     for (const seg of state.segments || []) {
       const x1 = (seg.start / total) * w;
       const x2 = (seg.end / total) * w;
       ctx.fillStyle = seg.keep
-        ? (isLight ? "rgba(16, 185, 129, 0.35)" : "rgba(16, 185, 129, 0.35)")
+        ? "rgba(16, 185, 129, 0.35)"
         : (isLight ? "rgba(220, 38, 38, 0.18)" : "rgba(239, 68, 68, 0.22)");
       ctx.fillRect(x1, 0, Math.max(1, x2 - x1), h);
     }
 
-    // Cut markers
     ctx.fillStyle = "#f59e0b";
     for (const mSec of state.markers || []) {
       const mx = (mSec / total) * w;
       ctx.fillRect(mx - 1, 0, 2, h);
     }
 
-    // Playhead
     const cur = getCurrentTime();
     const px = (cur / total) * w;
     ctx.fillStyle = isLight ? "#0f172a" : "#ffffff";
     ctx.fillRect(px - 0.75, 0, 1.5, h);
 
-    // Viewport window box
     const span = getViewSpan();
     const vx1 = (viewStart / total) * w;
     const vw = Math.max(10, (span / total) * w);
@@ -893,10 +1542,21 @@
   }
 
   function animLoop() {
+    if (state && state.loading) {
+      loadDisplayPct += (loadTargetPct - loadDisplayPct) * 0.22;
+      renderLoadOverlay();
+    }
+
     if (state && state.media) {
       enforceSkipDropped();
 
-      // Auto-scroll zoomed viewport during playback
+      if (state.waveformLoading) {
+        audioDisplayPct += (Math.max(audioTargetPct, 4) - audioDisplayPct) * 0.20;
+      }
+      if (state.visualLoading) {
+        visualDisplayPct += (Math.max(visualTargetPct, 4) - visualDisplayPct) * 0.20;
+      }
+
       if (!el.video.paused && !scrubbingRuler && !dragMarker && zoom > 1.001) {
         const cur = getCurrentTime();
         const span = getViewSpan();
@@ -914,9 +1574,67 @@
     requestAnimationFrame(animLoop);
   }
 
+  function pulseButton(btn) {
+    if (!btn || btn.disabled) return;
+    btn.classList.remove("is-pulsing");
+    void btn.offsetWidth;
+    btn.classList.add("is-pulsing");
+  }
+
+  document.addEventListener("pointermove", (e) => {
+    const target = e.target && e.target.closest ? e.target.closest(".btn, .btn-lane, .btn-mini, .mode-btn") : null;
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    target.style.setProperty("--mx", `${(e.clientX - rect.left).toFixed(1)}px`);
+    target.style.setProperty("--my", `${(e.clientY - rect.top).toFixed(1)}px`);
+  }, { passive: true });
+
+  document.addEventListener("click", (e) => {
+    const target = e.target && e.target.closest ? e.target.closest(".btn, .btn-lane, .btn-mini, .mode-btn") : null;
+    if (target) {
+      pulseButton(target);
+    }
+  });
+
+  document.addEventListener("animationend", (e) => {
+    if (e.animationName === "btnPulseRing" && e.target) {
+      e.target.classList.remove("is-pulsing");
+    }
+  });
+
   // --- Wire Controls ---
   el.btnOpen.addEventListener("click", () => window.api.openFileDialog());
   el.btnEmptyBrowse.addEventListener("click", () => window.api.openFileDialog());
+
+  el.btnCancelLoad.addEventListener("click", async () => {
+    const snap = await window.api.cancelLoad();
+    renderState(snap);
+    showToast("Video load cancelled");
+  });
+
+  if (el.btnCloseFile) {
+    el.btnCloseFile.addEventListener("click", async () => {
+      releaseVideoElement();
+      scrubPreviewSec = null;
+      dragMarker = null;
+      ghostSnapSec = null;
+      clearScrubQueue();
+      hideScrubCanvas();
+      const snap = await window.api.closeFile();
+      renderState(snap);
+    });
+  }
+
+  el.btnCopyWinget.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText("winget install Gyan.FFmpeg");
+      showToast("Copied: winget install Gyan.FFmpeg");
+    } catch {
+      showToast("Run in PowerShell: winget install Gyan.FFmpeg");
+    }
+  });
+  el.btnLocateFFmpeg.addEventListener("click", async () => renderState(await window.api.locateFFmpeg()));
+  el.btnRecheckTools.addEventListener("click", async () => renderState(await window.api.recheckTools()));
 
   el.btnModeJoin.addEventListener("click", async () => renderState(await window.api.setMode("join")));
   el.btnModeSplit.addEventListener("click", async () => renderState(await window.api.setMode("split")));
@@ -925,6 +1643,24 @@
     const cur = document.documentElement.getAttribute("data-theme") || "dark";
     const next = cur === "dark" ? "light" : "dark";
     renderState(await window.api.setTheme(next));
+  });
+
+  el.btnToggleAudio.addEventListener("click", async () => {
+    const next = !(state && state.showAudio !== false);
+    if (next) {
+      audioTargetPct = 3;
+      audioDisplayPct = 3;
+    }
+    renderState(await window.api.setShowAudio(next));
+  });
+
+  el.btnToggleVisual.addEventListener("click", async () => {
+    const next = !(state && state.showVisual !== false);
+    if (next) {
+      visualTargetPct = 3;
+      visualDisplayPct = 3;
+    }
+    renderState(await window.api.setShowVisual(next));
   });
 
   el.btnPlayPause.addEventListener("click", () => {
@@ -938,22 +1674,36 @@
   });
 
   el.video.addEventListener("play", () => {
+    remuxPinnedSec = null;
+    el.btnPlayPause.classList.add("is-playing");
     el.iconPlay.classList.add("hidden");
     el.iconPause.classList.remove("hidden");
   });
+  el.video.addEventListener("playing", () => {
+    remuxPinnedSec = null;
+    if (!scrubbingRuler && !dragMarker && el.video.readyState >= 2) {
+      hideScrubCanvas();
+    }
+  });
   el.video.addEventListener("pause", () => {
+    el.btnPlayPause.classList.remove("is-playing");
     el.iconPlay.classList.remove("hidden");
     el.iconPause.classList.add("hidden");
   });
 
   el.video.addEventListener("error", () => {
     if (!state || !state.media) return;
+    const mediaErr = el.video.error;
+    if (!mediaErr || mediaErr.code === 1) {
+      // MEDIA_ERR_ABORTED during rapid scrubbing or source reload is not a codec failure.
+      return;
+    }
     if (!useRemux) {
       remuxTranscode = false;
-      startRemuxAt(0, false);
+      startRemuxAt(getCurrentTime(), !el.video.paused);
     } else if (!remuxTranscode) {
       remuxTranscode = true;
-      startRemuxAt(remuxOffset, false);
+      startRemuxAt(remuxOffset, !el.video.paused);
     } else {
       showToast("Could not decode video stream for preview (export still works)", true);
     }
@@ -1008,23 +1758,53 @@
     renderState(await window.api.setSkipDropped(next));
   });
 
-  el.selSpeed.addEventListener("change", () => {
-    el.video.playbackRate = parseFloat(el.selSpeed.value) || 1;
+  el.video.addEventListener("loadedmetadata", () => {
+    applyPlaybackRate();
   });
+
+  el.selSpeed.addEventListener("change", () => {
+    applyPlaybackRate();
+  });
+
+  function syncVolumeUI() {
+    const eff = el.video.muted ? 0 : el.video.volume;
+    const muted = eff <= 0.001;
+    el.btnMute.classList.toggle("is-muted", muted);
+    if (el.volMuteCross) {
+      el.volMuteCross.classList.toggle("hidden", !muted);
+    }
+    if (el.volWaveLow) {
+      el.volWaveLow.classList.toggle("off", muted);
+      el.volWaveLow.style.opacity = muted ? "0" : String(Math.min(1, 0.42 + eff * 0.85).toFixed(2));
+    }
+    if (el.volWaveHigh) {
+      const showHigh = eff >= 0.48;
+      el.volWaveHigh.classList.toggle("off", !showHigh);
+      el.volWaveHigh.style.opacity = showHigh ? String(Math.min(1, 0.35 + (eff - 0.45) * 1.2).toFixed(2)) : "0";
+    }
+    el.btnMute.title = muted ? "Muted (click to unmute)" : `Volume ${Math.round(eff * 100)}% (click to mute)`;
+  }
 
   el.btnMute.addEventListener("click", () => {
     el.video.muted = !el.video.muted;
-    el.iconVolOn.classList.toggle("hidden", el.video.muted);
-    el.iconVolOff.classList.toggle("hidden", !el.video.muted);
+    if (!el.video.muted && el.video.volume <= 0.001) {
+      el.video.volume = 0.5;
+      el.rngVolume.value = "0.5";
+    }
+    syncVolumeUI();
   });
 
   el.rngVolume.addEventListener("input", () => {
-    el.video.volume = parseFloat(el.rngVolume.value);
+    const nextVol = parseFloat(el.rngVolume.value);
+    el.video.volume = Number.isFinite(nextVol) ? nextVol : 1;
     if (el.video.volume > 0 && el.video.muted) {
       el.video.muted = false;
-      el.iconVolOn.classList.remove("hidden");
-      el.iconVolOff.classList.add("hidden");
     }
+    syncVolumeUI();
+  });
+
+  el.video.addEventListener("volumechange", () => {
+    syncVolumeUI();
   });
 
   el.btnKeepAll.addEventListener("click", async () => renderState(await window.api.setAllSegments(true)));
@@ -1115,7 +1895,7 @@
     window.addEventListener("mouseup", onUp);
   });
 
-  // Ruler & Audio Histogram scrubbing (Shift+Click places cut)
+  // Ruler & Histogram scrubbing (Shift+Click places cut)
   el.rulerHit.addEventListener("mousedown", (e) => {
     if (e.button !== 0 || !state || !state.media) return;
     const t = clientXToTime(e.clientX);
@@ -1123,20 +1903,50 @@
       placeCutAt(t);
       return;
     }
+
+    const wasPlaying = !el.video.paused;
+    if (wasPlaying) {
+      el.video.pause();
+    }
     scrubbingRuler = true;
-    seekTo(t);
+    scrubPreviewSec = t;
+    freezeCurrentFrameToCanvas();
+
+    const previewKF = (sec, clientX) => {
+      const kf = nearestKeyframe(sec);
+      ghostSnapSec = kf;
+      requestScrubFrame(kf, false);
+      const label = Math.abs(sec - kf) <= 0.025 ? `KF ${fmtTime(kf)}` : `${fmtTime(sec)} · KF ${fmtTime(kf)}`;
+      showHoverTime(clientX, label);
+    };
+
+    previewKF(t, e.clientX);
+    updateHUD();
+    drawTimeline();
+    drawOverview();
+
     const onMove = (ev) => {
       if (!scrubbingRuler) return;
       const nt = clientXToTime(ev.clientX);
-      seekTo(nt);
-      showHoverTime(ev.clientX, fmtTime(nt));
+      scrubPreviewSec = nt;
+      previewKF(nt, ev.clientX);
+      updateHUD();
+      drawTimeline();
+      drawOverview();
     };
+
     const onUp = () => {
+      const finalSec = scrubPreviewSec !== null ? scrubPreviewSec : t;
       scrubbingRuler = false;
+      scrubPreviewSec = null;
+      ghostSnapSec = null;
+      clearScrubQueue();
       el.hoverTooltip.classList.add("hidden");
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      seekTo(finalSec, { autoPlay: wasPlaying });
     };
+
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   });
@@ -1176,7 +1986,14 @@
   });
 
   // Keyboard shortcuts
-  window.addEventListener("keydown", (e) => {
+  window.addEventListener("keydown", async (e) => {
+    if (e.key === "Escape" && state && state.loading) {
+      e.preventDefault();
+      const snap = await window.api.cancelLoad();
+      renderState(snap);
+      showToast("Video load cancelled");
+      return;
+    }
     if (e.ctrlKey && e.key.toLowerCase() === "o") {
       e.preventDefault();
       window.api.openFileDialog();
@@ -1196,6 +2013,7 @@
       el.btnPlayPause.click();
     } else if (e.key.toLowerCase() === "c" || e.key.toLowerCase() === "m") {
       e.preventDefault();
+      pulseButton(el.btnAddCut);
       placeCutAt(getCurrentTime());
     } else if (e.key === "[") {
       e.preventDefault();
@@ -1266,11 +2084,77 @@
     el.globalDropOverlay.classList.add("hidden");
     const files = e.dataTransfer && e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
     if (files.length > 0 && window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessageWithAdditionalObjects === "function") {
+      releaseVideoElement();
+      clearScrubQueue();
+      hideScrubCanvas();
       window.chrome.webview.postMessageWithAdditionalObjects("__file_drop__", files);
     }
   });
 
+  if (el.editorShelf) {
+    el.editorShelf.addEventListener("transitionend", (e) => {
+      if (e.target !== el.editorShelf || e.propertyName !== "grid-template-rows") return;
+      if (!el.editorShelf.classList.contains("collapsed")) {
+        el.editorShelf.classList.add("shelf-open");
+        applyTimelineLayout();
+        syncTimelineDOMPositions();
+        repaintScrubCanvasIfVisible();
+        drawTimeline();
+        drawOverview();
+      }
+    });
+  }
+
+  if (el.verticalSplitter) {
+    el.verticalSplitter.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      splitterDragging = true;
+      el.verticalSplitter.classList.add("dragging");
+      const startY = e.clientY;
+      const startTimelineH = el.timelineWrap.getBoundingClientRect().height || getTimelineLayout().totalH;
+      const scalable = getBaseScalableHeight();
+
+      const onMove = (ev) => {
+        const delta = startY - ev.clientY;
+        const targetTotal = startTimelineH + delta;
+        const maxScale = getMaxAllowedTimelineScale();
+        const rawScale = scalable > 0 ? (targetTotal - 26) / scalable : 1.0;
+        timelineScale = Math.max(0.55, Math.min(maxScale, rawScale));
+        applyTimelineLayout();
+        syncTimelineDOMPositions();
+        drawTimeline();
+      };
+
+      const onUp = async () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        splitterDragging = false;
+        el.verticalSplitter.classList.remove("dragging");
+        if (window.api && window.api.setTimelineScale) {
+          await window.api.setTimelineScale(timelineScale);
+        }
+      };
+
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    });
+
+    el.verticalSplitter.addEventListener("dblclick", async () => {
+      timelineScale = 1.0;
+      applyTimelineLayout();
+      syncTimelineDOMPositions();
+      drawTimeline();
+      if (window.api && window.api.setTimelineScale) {
+        await window.api.setTimelineScale(1.0);
+      }
+    });
+  }
+
   window.addEventListener("resize", () => {
+    applyTimelineLayout();
+    syncTimelineDOMPositions();
+    repaintScrubCanvasIfVisible();
     drawTimeline();
     drawOverview();
   });
@@ -1278,11 +2162,62 @@
   // Backend push hooks
   window.__onSplitState = (snap) => renderState(snap);
 
+  window.__onLoadProgress = (p) => {
+    if (!state || !state.loading || !p) return;
+    loadTargetPct = Math.max(loadTargetPct, p.pct || 0);
+    if (p.phase) {
+      state.loadingPhase = p.phase;
+    }
+    renderLoadOverlay();
+  };
+
+  window.__onLoadBackdrop = (p) => {
+    if (!state || !state.loading || !p || !p.dataUri) return;
+    if (p.seq && state.loadSeq && p.seq !== state.loadSeq) return;
+    const imgA = el.loadBgA;
+    const imgB = el.loadBgB;
+    if (!imgA || !imgB) return;
+
+    const useB = activeLoadBgSlot === 0;
+    activeLoadBgSlot = useB ? 1 : 0;
+    const nextImg = useB ? imgB : imgA;
+    const prevImg = useB ? imgA : imgB;
+    const expectedSeq = state.loadSeq;
+
+    nextImg.onload = () => {
+      if (!state || !state.loading || state.loadSeq !== expectedSeq) return;
+      nextImg.classList.add("visible");
+      prevImg.classList.remove("visible");
+    };
+    nextImg.src = p.dataUri;
+  };
+
+  window.__onAnalysisProgress = (p) => {
+    if (!state || !p || p.seq !== state.loadSeq) return;
+    if (p.kind === "audio") {
+      audioTargetPct = Math.max(audioTargetPct, p.pct || 0);
+    } else if (p.kind === "visual") {
+      visualTargetPct = Math.max(visualTargetPct, p.pct || 0);
+    }
+  };
+
   window.__onSplitWaveform = (payload) => {
     if (!state || !payload || payload.seq !== state.loadSeq) return;
     state.waveformLoading = false;
+    audioTargetPct = 100;
+    audioDisplayPct = 100;
     state.waveform = payload.waveform;
     ingestWaveform(payload.waveform);
+    drawTimeline();
+  };
+
+  window.__onSplitVisual = (payload) => {
+    if (!state || !payload || payload.seq !== state.loadSeq) return;
+    state.visualLoading = false;
+    visualTargetPct = 100;
+    visualDisplayPct = 100;
+    state.visual = payload.visual;
+    ingestVisual(payload.visual);
     drawTimeline();
   };
 
@@ -1332,6 +2267,7 @@
   }
 
   window.addEventListener("DOMContentLoaded", async () => {
+    syncVolumeUI();
     if (window.api && window.api.getState) {
       renderState(await window.api.getState());
     }
