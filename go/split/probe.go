@@ -77,7 +77,14 @@ func FindMediaTools(customFFmpeg, customFFprobe string) ToolStatus {
 		if fp == "" {
 			missing = append(missing, "ffprobe")
 		}
-		status.Error = fmt.Sprintf("missing %s on PATH (install on Windows via: winget install Gyan.FFmpeg)", strings.Join(missing, " and "))
+		hint := "install via your package manager, e.g.: sudo apt install ffmpeg"
+		switch runtime.GOOS {
+		case "windows":
+			hint = "install on Windows via: winget install Gyan.FFmpeg"
+		case "darwin":
+			hint = "install on macOS via: brew install ffmpeg"
+		}
+		status.Error = fmt.Sprintf("missing %s on PATH (%s)", strings.Join(missing, " and "), hint)
 	}
 	return status
 }
@@ -107,7 +114,8 @@ func resolveToolBinary(customPath, name string) string {
 	if p, err := exec.LookPath(name); err == nil {
 		return p
 	}
-	if runtime.GOOS == "windows" {
+	switch runtime.GOOS {
+	case "windows":
 		localApp := os.Getenv("LOCALAPPDATA")
 		candidates := []string{
 			filepath.Join(localApp, "Microsoft", "WinGet", "Links", exeName),
@@ -133,6 +141,35 @@ func resolveToolBinary(customPath, name string) string {
 						return m
 					}
 				}
+			}
+		}
+	case "darwin":
+		candidates := []string{
+			filepath.Join("/opt/homebrew/bin", exeName),
+			filepath.Join("/usr/local/bin", exeName),
+			filepath.Join("/opt/local/bin", exeName),
+		}
+		if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" {
+			candidates = append(candidates, filepath.Join(homeDir, "bin", exeName))
+		}
+		for _, c := range candidates {
+			if info, err := os.Stat(c); err == nil && !info.IsDir() {
+				return c
+			}
+		}
+	case "linux":
+		candidates := []string{
+			filepath.Join("/usr/local/bin", exeName),
+			filepath.Join("/usr/bin", exeName),
+			filepath.Join("/snap/bin", exeName),
+			filepath.Join("/var/lib/flatpak/exports/bin", exeName),
+		}
+		if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" {
+			candidates = append(candidates, filepath.Join(homeDir, ".local", "bin", exeName))
+		}
+		for _, c := range candidates {
+			if info, err := os.Stat(c); err == nil && !info.IsDir() {
+				return c
 			}
 		}
 	}

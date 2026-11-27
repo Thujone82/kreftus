@@ -1,6 +1,42 @@
 (() => {
   "use strict";
 
+  // Polyfill window.api via token-guarded loopback HTTP POST /rpc when not using WebView2 Chromium.Init.
+  if (!window.api) {
+    const RPC = window._rpc = (window._rpc || { nextSeq: 1 });
+    const methods = [
+      "getState", "openFileDialog", "loadFile", "cancelLoad", "closeFile",
+      "recheckTools", "locateFFmpeg",
+      "addMarker", "moveMarker", "removeMarker", "clearMarkers",
+      "toggleSegment", "setAllSegments", "invertSegments",
+      "setMode", "setTheme", "setSkipDropped", "setShowAudio", "setShowVisual", "setTimelineScale",
+      "refreshAnalysis", "exportVideo", "cancelExport", "revealInExplorer"
+    ];
+    window.api = {};
+    for (const name of methods) {
+      window.api[name] = async function() {
+        const seq = RPC.nextSeq++;
+        const resp = await fetch("rpc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: seq,
+            method: name,
+            params: Array.prototype.slice.call(arguments)
+          })
+        });
+        if (!resp.ok) {
+          throw new Error((await resp.text()) || `RPC HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        if (data && data.error) {
+          throw new Error(data.error);
+        }
+        return data ? data.result : null;
+      };
+    }
+  }
+
   const $ = (id) => document.getElementById(id);
 
   const el = {
@@ -16,6 +52,7 @@
     prereqCard: $("prereqCard"),
     prereqFFmpeg: $("prereqFFmpeg"),
     prereqFFprobe: $("prereqFFprobe"),
+    prereqCmdText: $("prereqCmdText"),
     btnCopyWinget: $("btnCopyWinget"),
     btnLocateFFmpeg: $("btnLocateFFmpeg"),
     btnRecheckTools: $("btnRecheckTools"),
@@ -686,6 +723,17 @@
     el.btnToggleAudio.classList.toggle("active", state.showAudio !== false);
     el.btnToggleVisual.classList.toggle("active", state.showVisual !== false);
 
+    // Platform-tailored UI strings
+    const plat = state.platform || "windows";
+    const installCmd = plat === "darwin"
+      ? "brew install ffmpeg"
+      : (plat === "linux" ? "sudo apt install ffmpeg" : "winget install Gyan.FFmpeg");
+    if (el.prereqCmdText) el.prereqCmdText.textContent = installCmd;
+    if (el.btnLocateFFmpeg) el.btnLocateFFmpeg.textContent = plat === "windows" ? "Locate ffmpeg.exe…" : "Locate ffmpeg…";
+    if (el.btnRevealFolder) {
+      el.btnRevealFolder.textContent = plat === "darwin" ? "Reveal in Finder" : (plat === "linux" ? "Show in Files" : "Show in Explorer");
+    }
+
     // FFmpeg / FFprobe prerequisite status
     const toolsReady = !!(state.tools && state.tools.ready);
     if (toolsReady) {
@@ -736,6 +784,9 @@
     }
 
     if (state.loading) {
+      dragCounter = 0;
+      el.dropCard.classList.remove("drag-over");
+      el.globalDropOverlay.classList.add("hidden");
       loadTargetPct = Math.max(loadTargetPct, state.loadingPct || 2);
       if (loadDisplayPct === 0) loadDisplayPct = loadTargetPct;
       if (state.loadSeq !== lastBackdropSeq) {
@@ -1814,11 +1865,12 @@
   }
 
   el.btnCopyWinget.addEventListener("click", async () => {
+    const cmd = el.prereqCmdText && el.prereqCmdText.textContent ? el.prereqCmdText.textContent : "winget install Gyan.FFmpeg";
     try {
-      await navigator.clipboard.writeText("winget install Gyan.FFmpeg");
-      showToast("Copied: winget install Gyan.FFmpeg");
+      await navigator.clipboard.writeText(cmd);
+      showToast(`Copied: ${cmd}`);
     } catch {
-      showToast("Run in PowerShell: winget install Gyan.FFmpeg");
+      showToast(`Run in terminal: ${cmd}`);
     }
   });
   el.btnLocateFFmpeg.addEventListener("click", async () => renderState(await window.api.locateFFmpeg()));
@@ -1893,7 +1945,8 @@
       remuxTranscode = true;
       startRemuxAt(remuxOffset, !el.video.paused);
     } else {
-      showToast("Could not decode video stream for preview (export still works)", true);
+      const hint = state && state.platform === "linux" ? " — install gstreamer1.0-libav for Linux preview" : "";
+      showToast(`Could not decode video stream for preview${hint} (lossless export still works)`, true);
     }
   });
 
@@ -2237,12 +2290,12 @@
       showToast("Video load cancelled");
       return;
     }
-    if (e.ctrlKey && e.key.toLowerCase() === "o") {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
       e.preventDefault();
       window.api.openFileDialog();
       return;
     }
-    if (e.ctrlKey && e.key.toLowerCase() === "e") {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "e") {
       e.preventDefault();
       if (!el.btnExport.disabled) el.btnExport.click();
       return;

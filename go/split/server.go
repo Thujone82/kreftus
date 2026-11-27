@@ -42,6 +42,7 @@ type mediaServer struct {
 	videoPath    string
 	videoCodec   string
 	ffmpegPath   string
+	rpcHandler   func([]byte) ([]byte, error)
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
 
@@ -104,6 +105,7 @@ func startMediaServer(ffmpegPath string) (*mediaServer, error) {
 	mux.HandleFunc(prefix+"/", ms.handleAsset)
 	mux.HandleFunc(prefix+"/app.css", ms.handleAsset)
 	mux.HandleFunc(prefix+"/app.js", ms.handleAsset)
+	mux.HandleFunc(prefix+"/rpc", ms.handleRPC)
 	mux.HandleFunc(prefix+"/video", ms.handleVideo)
 	mux.HandleFunc(prefix+"/remux", ms.handleRemux)
 	mux.HandleFunc(prefix+"/scrub", ms.handleScrub)
@@ -163,8 +165,42 @@ func (ms *mediaServer) SetFFmpegPath(p string) {
 	ms.mu.Unlock()
 }
 
+func (ms *mediaServer) SetRPCHandler(fn func([]byte) ([]byte, error)) {
+	ms.mu.Lock()
+	ms.rpcHandler = fn
+	ms.mu.Unlock()
+}
+
 func (ms *mediaServer) IndexURL() string {
 	return ms.baseURL + "/"
+}
+
+func (ms *mediaServer) handleRPC(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ms.mu.RLock()
+	fn := ms.rpcHandler
+	ms.mu.RUnlock()
+	if fn == nil {
+		http.Error(w, "rpc handler not ready", http.StatusServiceUnavailable)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	respBytes, err := fn(body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(respBytes)
 }
 
 func (ms *mediaServer) handleAsset(w http.ResponseWriter, r *http.Request) {

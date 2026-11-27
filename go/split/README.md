@@ -1,11 +1,11 @@
 # Split
 
-Fast, lightweight lossless keyframe video splitter, trimmer, and joiner for Windows (GUI + CLI) written in Go.
+Fast, lightweight lossless keyframe video splitter, trimmer, and joiner for Windows, Linux, and macOS (GUI + CLI) written in Go (`CGO_ENABLED=0`).
 
 ## Features
 
-- **No Console Window on Launch**: Built with `-H=windowsgui` for silent desktop launch; automatically attaches to the parent console when invoked with CLI flags.
-- **Drag & Drop or Browse**: Drop any video file anywhere onto the window (or onto `split.exe`), or use the native Windows file picker (`Ctrl+O`).
+- **Per-OS Native Efficiency**: Uses Go build tags so each OS binary links only its own native GUI host — Edge WebView2 on Windows (`-H=windowsgui` + parent console attach for CLI), GTK3 + WebKit2GTK on Linux via `purego`, and Cocoa + `WKWebView` on macOS via `purego`.
+- **Drag & Drop or Browse**: Drop any video file anywhere onto the window, or use the native file picker (`Ctrl+O` / `Cmd+O`).
 - **Audio Sound-Level & Voice/Noise Histogram**: Multithreaded PTS-locked audio analysis displays peak & RMS sound levels colored by Talking (amber-gold), Noise/Transients (pink), and ambient audio (cyan) directly above the timeline segments (toggleable & persisted).
 - **Visual Frame-Delta & Scene-Cut Lane**: Multithreaded downscaled visual analysis displays frame-to-frame motion delta and color-histogram scene-cut spikes alongside the audio histogram (toggleable & persisted).
 - **Resizable Split View**: Drag the grabber bar between the video player and transport/timeline dock to dynamically resize histogram & timeline height (double-click to reset).
@@ -22,18 +22,22 @@ Fast, lightweight lossless keyframe video splitter, trimmer, and joiner for Wind
 
 ## Prerequisites
 
-### Runtime (Windows Executable)
-- **Windows 10 or Windows 11**
-- **Microsoft Edge WebView2 Runtime** (pre-installed on Windows 11 / modern Windows 10; if missing, install via `winget install Microsoft.EdgeWebView2Runtime`)
-- **FFmpeg & FFprobe** (`ffmpeg.exe` and `ffprobe.exe`) available via any of:
-  - `PATH` (recommended: `winget install Gyan.FFmpeg`, `scoop install ffmpeg`, or `choco install ffmpeg`)
-  - Placed in the same folder alongside `split.exe`
-  - Selected directly via the in-app **Locate `ffmpeg.exe`…** button if missing
+### Windows Executable (`bin/win/x86/split.exe`, `bin/win/x64/split.exe`)
+- **Windows 10 or Windows 11** + **Microsoft Edge WebView2 Runtime** (pre-installed on Windows 11 / modern Windows 10)
+- **FFmpeg & FFprobe**: `winget install Gyan.FFmpeg` (or `scoop install ffmpeg`, or sibling beside `split.exe`)
+
+### Linux Executable (`bin/linux/x64/split`, `bin/linux/arm64/split`)
+- **GTK3 & WebKit2GTK** (`libgtk-3-0`, `libwebkit2gtk-4.1-0`) + **GStreamer** codecs for `<video>` preview (`gstreamer1.0-libav`)
+- **FFmpeg & FFprobe**: `sudo apt install ffmpeg libwebkit2gtk-4.1-0 gstreamer1.0-libav` (or distro equivalent)
+
+### macOS Executable (`bin/mac/arm64/split`, `bin/mac/x64/split`)
+- Built-in **WebKit** (`WKWebView`) & **Cocoa** (no extra WebView runtime required; run `chmod +x split` and `xattr -d com.apple.quarantine split` if downloaded)
+- **FFmpeg & FFprobe**: `brew install ffmpeg`
 
 ### Building from Source
-- **Go 1.24+**
+- **Go 1.24+** (pure-Go cross-compilation with `CGO_ENABLED=0`; no C compiler or target SDK needed)
 - **PowerShell 7 (`pwsh`)** (for `build.ps1`)
-- Optional: **MinGW `windres`** (embeds `split.ico` resource) and **UPX** (when passing `-upx`)
+- Optional: **MinGW `windres`** (embeds `split.ico` resource on Windows) and **UPX** (when passing `-upx`)
 
 ## CLI Usage
 
@@ -66,8 +70,8 @@ Fast, lightweight lossless keyframe video splitter, trimmer, and joiner for Wind
 - `,` / `.`: Step back / forward 1 frame
 - `+` / `-` / `0`: Zoom timeline in / out / fit (or mouse wheel)
 - `←` / `→`: Seek `-5s` / `+5s`
-- `Ctrl+O`: Open video file
-- `Ctrl+E`: Export kept segments
+- `Ctrl+O` / `Cmd+O`: Open video file
+- `Ctrl+E` / `Cmd+E`: Export kept segments
 - `Esc`: Cancel active video load
 
 ## Build
@@ -76,4 +80,4 @@ Fast, lightweight lossless keyframe video splitter, trimmer, and joiner for Wind
 .\build.ps1
 ```
 
-Outputs `./bin/win/x86/split.exe` and `./bin/win/x64/split.exe` (pass `-upx` to compress with UPX).
+Cross-compiles `./bin/win/x86/split.exe`, `./bin/win/x64/split.exe`, `./bin/linux/x64/split`, `./bin/linux/arm64/split`, `./bin/mac/arm64/split`, and `./bin/mac/x64/split` (pass `-upx` to compress Windows and Linux binaries with UPX).

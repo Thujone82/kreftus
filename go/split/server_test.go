@@ -161,3 +161,44 @@ func TestActiveVideoAllowsRenameAndDeleteOnUnload(t *testing.T) {
 		t.Fatalf("expected unloaded video to be deletable immediately, got %v", err)
 	}
 }
+
+func TestServerRPCEndpoint(t *testing.T) {
+	srv, err := startMediaServer("")
+	if err != nil {
+		t.Fatalf("startMediaServer err: %v", err)
+	}
+	defer srv.Close()
+
+	srv.SetRPCHandler(func(raw []byte) ([]byte, error) {
+		return append([]byte(`{"echo":`), append(raw, '}')...), nil
+	})
+
+	getResp, err := http.Get(srv.baseURL + "/rpc")
+	if err != nil {
+		t.Fatalf("GET /rpc err: %v", err)
+	}
+	_ = getResp.Body.Close()
+	if getResp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET /rpc status = %d, want 405", getResp.StatusCode)
+	}
+
+	postResp, err := http.Post(srv.baseURL+"/rpc", "application/json", bytes.NewReader([]byte(`{"id":7}`)))
+	if err != nil {
+		t.Fatalf("POST /rpc err: %v", err)
+	}
+	defer postResp.Body.Close()
+	if postResp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /rpc status = %d, want 200", postResp.StatusCode)
+	}
+	if ct := postResp.Header.Get("Content-Type"); ct != "application/json; charset=utf-8" {
+		t.Fatalf("POST /rpc Content-Type = %q", ct)
+	}
+	got, err := io.ReadAll(postResp.Body)
+	if err != nil {
+		t.Fatalf("read POST /rpc body: %v", err)
+	}
+	want := `{"echo":{"id":7}}`
+	if string(got) != want {
+		t.Fatalf("POST /rpc body = %q, want %q", string(got), want)
+	}
+}
