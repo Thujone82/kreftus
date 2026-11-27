@@ -45,11 +45,12 @@ type UISnapshot struct {
 	RemuxURL        string             `json:"remuxUrl"`
 	ScrubURL        string             `json:"scrubUrl"`
 	Media           *MediaInfo         `json:"media"`
-	Waveform        *AudioWaveform     `json:"waveform,omitempty"`
-	WaveformLoading bool               `json:"waveformLoading"`
-	Visual          *VisualDelta       `json:"visual,omitempty"`
-	VisualLoading   bool               `json:"visualLoading"`
-	Markers         []float64          `json:"markers"`
+	Waveform         *AudioWaveform     `json:"waveform,omitempty"`
+	WaveformLoading  bool               `json:"waveformLoading"`
+	Visual           *VisualDelta       `json:"visual,omitempty"`
+	VisualLoading    bool               `json:"visualLoading"`
+	KeyframesLoading bool               `json:"keyframesLoading"`
+	Markers          []float64          `json:"markers"`
 	Segments        []Segment          `json:"segments"`
 	OutputPreview   []string           `json:"outputPreview"`
 	Exporting       bool               `json:"exporting"`
@@ -74,23 +75,30 @@ type splitApp struct {
 	dispMu    sync.Mutex
 	dispatchQ []func()
 
-	mu              sync.Mutex
-	tools           ToolStatus
-	proj            *ProjectState
-	waveform        *AudioWaveform
-	waveformLoading bool
-	visual          *VisualDelta
-	visualLoading   bool
-	loading         bool
-	loadingFile     string
-	loadingPct      float64
-	loadingPhase    string
-	loadError       string
-	loadSeq         int64
-	probeCancel     context.CancelFunc
-	loadCtx         context.Context
-	loadCancel      context.CancelFunc
-	exporting       bool
+	mu               sync.Mutex
+	tools            ToolStatus
+	proj             *ProjectState
+	waveform         *AudioWaveform
+	waveformLoading  bool
+	visual           *VisualDelta
+	visualLoading    bool
+	keyframesLoading bool
+	loading          bool
+	loadingFile      string
+	loadingPct       float64
+	loadingPhase     string
+	loadError        string
+	loadSeq          int64
+	probeCancel      context.CancelFunc
+	loadCtx          context.Context
+	loadCancel       context.CancelFunc
+	audioCancel      context.CancelFunc
+	audioRunID       int64
+	visualCancel     context.CancelFunc
+	visualRunID      int64
+	keyframesCancel  context.CancelFunc
+	keyframesRunID   int64
+	exporting        bool
 	exportProg      *ExportProgress
 	exportCancel    context.CancelFunc
 	lastExport      *ExportResult
@@ -607,12 +615,31 @@ func (a *splitApp) applyThemeNative(theme string) {
 	}
 }
 
+func (a *splitApp) cancelAnalysisWorkersLocked() {
+	if a.keyframesCancel != nil {
+		a.keyframesCancel()
+		a.keyframesCancel = nil
+	}
+	if a.audioCancel != nil {
+		a.audioCancel()
+		a.audioCancel = nil
+	}
+	if a.visualCancel != nil {
+		a.visualCancel()
+		a.visualCancel = nil
+	}
+	a.keyframesLoading = false
+	a.waveformLoading = false
+	a.visualLoading = false
+}
+
 func (a *splitApp) cancelLoadAndExport() {
 	a.mu.Lock()
 	if a.probeCancel != nil {
 		a.probeCancel()
 		a.probeCancel = nil
 	}
+	a.cancelAnalysisWorkersLocked()
 	if a.loadCancel != nil {
 		a.loadCancel()
 		a.loadCancel = nil
@@ -630,27 +657,28 @@ func (a *splitApp) snapshot() UISnapshot {
 	defer a.mu.Unlock()
 
 	snap := UISnapshot{
-		Theme:           cfg.Theme,
-		Mode:            cfg.ExportMode,
-		SkipDropped:     cfg.SkipDropped,
-		ShowAudio:       cfg.ShowAudio,
-		ShowVisual:      cfg.ShowVisual,
-		TimelineScale:   cfg.TimelineScale,
-		Tools:           a.tools,
-		Loading:         a.loading,
-		LoadingFile:     a.loadingFile,
-		LoadingPct:      a.loadingPct,
-		LoadingPhase:    a.loadingPhase,
-		LoadError:       a.loadError,
-		LoadSeq:         a.loadSeq,
-		Waveform:        a.waveform,
-		WaveformLoading: a.waveformLoading,
-		Visual:          a.visual,
-		VisualLoading:   a.visualLoading,
-		Exporting:       a.exporting,
-		ExportProgress:  a.exportProg,
-		LastExport:      a.lastExport,
-		LastExportSec:   a.lastExportSec,
+		Theme:            cfg.Theme,
+		Mode:             cfg.ExportMode,
+		SkipDropped:      cfg.SkipDropped,
+		ShowAudio:        cfg.ShowAudio,
+		ShowVisual:       cfg.ShowVisual,
+		TimelineScale:    cfg.TimelineScale,
+		Tools:            a.tools,
+		Loading:          a.loading,
+		LoadingFile:      a.loadingFile,
+		LoadingPct:       a.loadingPct,
+		LoadingPhase:     a.loadingPhase,
+		LoadError:        a.loadError,
+		LoadSeq:          a.loadSeq,
+		Waveform:         a.waveform,
+		WaveformLoading:  a.waveformLoading,
+		Visual:           a.visual,
+		VisualLoading:    a.visualLoading,
+		KeyframesLoading: a.keyframesLoading,
+		Exporting:        a.exporting,
+		ExportProgress:   a.exportProg,
+		LastExport:       a.lastExport,
+		LastExportSec:    a.lastExportSec,
 	}
 
 	if a.proj != nil && a.proj.Media != nil {
@@ -685,15 +713,14 @@ func (a *splitApp) unloadMediaAndUnlock() {
 		a.probeCancel()
 		a.probeCancel = nil
 	}
+	a.cancelAnalysisWorkersLocked()
 	if a.loadCancel != nil {
 		a.loadCancel()
 		a.loadCancel = nil
 	}
 	a.proj = nil
 	a.waveform = nil
-	a.waveformLoading = false
 	a.visual = nil
-	a.visualLoading = false
 	a.lastExport = nil
 	a.lastExportSec = 0
 	a.loadSeq++
@@ -720,6 +747,7 @@ func (a *splitApp) loadFileAsync(rawPath string) {
 	if a.probeCancel != nil {
 		a.probeCancel()
 	}
+	a.cancelAnalysisWorkersLocked()
 	if a.loadCancel != nil {
 		a.loadCancel()
 		a.loadCancel = nil
@@ -728,9 +756,7 @@ func (a *splitApp) loadFileAsync(rawPath string) {
 	a.probeCancel = probeCancel
 	a.proj = nil
 	a.waveform = nil
-	a.waveformLoading = false
 	a.visual = nil
-	a.visualLoading = false
 	a.loadSeq++
 	probeSeq := a.loadSeq
 	a.loading = true
@@ -846,6 +872,7 @@ func (a *splitApp) loadFileAsync(rawPath string) {
 		a.srv.SetActiveVideo(absPath, media.VideoCodec)
 
 		a.mu.Lock()
+		a.cancelAnalysisWorkersLocked()
 		if a.loadCancel != nil {
 			a.loadCancel()
 		}
@@ -854,31 +881,24 @@ func (a *splitApp) loadFileAsync(rawPath string) {
 		a.loadCancel = loadCancel
 		a.probeCancel = nil
 		a.loadSeq++
-		seq := a.loadSeq
 		a.loading = false
 		a.loadingPct = 100
 		a.loadingPhase = ""
 		a.loadError = ""
 		a.proj = NewProject(absPath, media, cfg.ExportMode)
+		a.waveform = nil
+		a.visual = nil
+
+		var startAudio func()
 		if !media.HasAudio {
 			a.waveform = &AudioWaveform{Ready: true, HasAudio: false}
-			a.waveformLoading = false
 		} else if cfg.ShowAudio {
-			a.waveform = nil
-			a.waveformLoading = true
-		} else {
-			a.waveform = nil
-			a.waveformLoading = false
+			startAudio = a.prepareAudioJobLocked()
 		}
+		var startVisual func()
 		if cfg.ShowVisual {
-			a.visual = nil
-			a.visualLoading = true
-		} else {
-			a.visual = nil
-			a.visualLoading = false
+			startVisual = a.prepareVisualJobLocked()
 		}
-		runAudio := cfg.ShowAudio && media.HasAudio
-		runVisual := cfg.ShowVisual
 		a.mu.Unlock()
 
 		a.dispatchUI(func() {
@@ -888,22 +908,91 @@ func (a *splitApp) loadFileAsync(rawPath string) {
 		})
 		a.pushState()
 
-		if runAudio {
-			go a.startAudioAnalysis(loadCtx, seq, tools, absPath, media)
+		if startAudio != nil {
+			go startAudio()
 		}
-		if runVisual {
-			go a.startVisualAnalysis(loadCtx, seq, tools, media)
+		if startVisual != nil {
+			go startVisual()
 		}
 	}()
 }
 
-func (a *splitApp) startAudioAnalysis(ctx context.Context, seq int64, tools ToolStatus, absPath string, media *MediaInfo) {
+// prepareAudioJobLocked cancels any prior audio analysis worker and prepares a fresh job. Caller holds a.mu.
+func (a *splitApp) prepareAudioJobLocked() func() {
+	if a.proj == nil || a.proj.Media == nil || !a.proj.Media.HasAudio || !a.tools.Ready || a.loadCtx == nil {
+		return nil
+	}
+	if a.audioCancel != nil {
+		a.audioCancel()
+	}
+	ctx, cancel := context.WithCancel(a.loadCtx)
+	a.audioCancel = cancel
+	a.audioRunID++
+	runID := a.audioRunID
+	seq := a.loadSeq
+	tools := a.tools
+	absPath := a.proj.FilePath
+	media := a.proj.Media
+	a.waveform = nil
+	a.waveformLoading = true
+	return func() {
+		defer cancel()
+		a.startAudioAnalysis(ctx, seq, runID, tools, absPath, media)
+	}
+}
+
+// prepareVisualJobLocked cancels any prior visual delta worker and prepares a fresh job. Caller holds a.mu.
+func (a *splitApp) prepareVisualJobLocked() func() {
+	if a.proj == nil || a.proj.Media == nil || !a.tools.Ready || a.loadCtx == nil {
+		return nil
+	}
+	if a.visualCancel != nil {
+		a.visualCancel()
+	}
+	ctx, cancel := context.WithCancel(a.loadCtx)
+	a.visualCancel = cancel
+	a.visualRunID++
+	runID := a.visualRunID
+	seq := a.loadSeq
+	tools := a.tools
+	media := a.proj.Media
+	a.visual = nil
+	a.visualLoading = true
+	return func() {
+		defer cancel()
+		a.startVisualAnalysis(ctx, seq, runID, tools, media)
+	}
+}
+
+// prepareKeyframesJobLocked cancels any prior keyframe refresh worker and prepares a non-destructive re-probe. Caller holds a.mu.
+func (a *splitApp) prepareKeyframesJobLocked() func() {
+	if a.proj == nil || a.proj.Media == nil || !a.tools.Ready || a.loadCtx == nil {
+		return nil
+	}
+	if a.keyframesCancel != nil {
+		a.keyframesCancel()
+	}
+	ctx, cancel := context.WithCancel(a.loadCtx)
+	a.keyframesCancel = cancel
+	a.keyframesRunID++
+	runID := a.keyframesRunID
+	seq := a.loadSeq
+	tools := a.tools
+	absPath := a.proj.FilePath
+	a.keyframesLoading = true
+	return func() {
+		defer cancel()
+		a.startKeyframesRefresh(ctx, seq, runID, tools, absPath)
+	}
+}
+
+func (a *splitApp) startAudioAnalysis(ctx context.Context, seq, runID int64, tools ToolStatus, absPath string, media *MediaInfo) {
 	wf, wfErr := ExtractAudioWaveformWithProgress(ctx, tools.FFmpegPath, absPath, media.DurationSec, media.HasAudio, func(pct float64) {
 		if ctx.Err() != nil {
 			return
 		}
 		a.mu.Lock()
-		ok := a.loadSeq == seq && a.waveformLoading
+		ok := a.loadSeq == seq && a.audioRunID == runID && a.waveformLoading
 		a.mu.Unlock()
 		if ok {
 			a.pushAnalysisProgress(seq, "audio", pct)
@@ -916,24 +1005,24 @@ func (a *splitApp) startAudioAnalysis(ctx context.Context, seq int64, tools Tool
 		wf = &AudioWaveform{Ready: true, HasAudio: false}
 	}
 	a.mu.Lock()
-	stillSame := a.loadSeq == seq
-	if stillSame {
+	stillCurrent := a.loadSeq == seq && a.audioRunID == runID
+	if stillCurrent {
 		a.waveform = wf
 		a.waveformLoading = false
 	}
 	a.mu.Unlock()
-	if stillSame {
+	if stillCurrent {
 		a.pushWaveform(seq, wf)
 	}
 }
 
-func (a *splitApp) startVisualAnalysis(ctx context.Context, seq int64, tools ToolStatus, media *MediaInfo) {
+func (a *splitApp) startVisualAnalysis(ctx context.Context, seq, runID int64, tools ToolStatus, media *MediaInfo) {
 	vd, vdErr := ExtractVisualDeltaWithProgress(ctx, tools.FFmpegPath, media, func(pct float64) {
 		if ctx.Err() != nil {
 			return
 		}
 		a.mu.Lock()
-		ok := a.loadSeq == seq && a.visualLoading
+		ok := a.loadSeq == seq && a.visualRunID == runID && a.visualLoading
 		a.mu.Unlock()
 		if ok {
 			a.pushAnalysisProgress(seq, "visual", pct)
@@ -946,14 +1035,50 @@ func (a *splitApp) startVisualAnalysis(ctx context.Context, seq int64, tools Too
 		vd = &VisualDelta{Ready: true}
 	}
 	a.mu.Lock()
-	stillSame := a.loadSeq == seq
-	if stillSame {
+	stillCurrent := a.loadSeq == seq && a.visualRunID == runID
+	if stillCurrent {
 		a.visual = vd
 		a.visualLoading = false
 	}
 	a.mu.Unlock()
-	if stillSame {
+	if stillCurrent {
 		a.pushVisual(seq, vd)
+	}
+}
+
+func (a *splitApp) startKeyframesRefresh(ctx context.Context, seq, runID int64, tools ToolStatus, absPath string) {
+	media, err := ProbeMediaWithProgress(ctx, tools.FFprobePath, absPath, func(pct float64, kfs int, latestKFSec float64, phase string) {
+		if ctx.Err() != nil {
+			return
+		}
+		a.mu.Lock()
+		ok := a.loadSeq == seq && a.keyframesRunID == runID && a.keyframesLoading
+		a.mu.Unlock()
+		if ok {
+			a.pushAnalysisProgress(seq, "keyframes", pct)
+		}
+	})
+	if ctx.Err() != nil {
+		return
+	}
+	a.mu.Lock()
+	stillCurrent := a.loadSeq == seq && a.keyframesRunID == runID
+	if stillCurrent {
+		a.keyframesLoading = false
+		if err == nil && media != nil && a.proj != nil {
+			a.proj.UpdateMediaPreservingCuts(media)
+		} else if err != nil {
+			a.loadError = err.Error()
+		}
+	}
+	a.mu.Unlock()
+	if stillCurrent {
+		a.pushState()
+		if err != nil {
+			a.mu.Lock()
+			a.loadError = ""
+			a.mu.Unlock()
+		}
 	}
 }
 
@@ -1153,18 +1278,13 @@ func (a *splitApp) registerBindings() {
 		a.settings.Update(func(s *Settings) { s.ShowAudio = enabled })
 		if enabled {
 			a.mu.Lock()
-			needAudio := a.proj != nil && a.proj.Media != nil && a.proj.Media.HasAudio && a.waveform == nil && !a.waveformLoading && a.tools.Ready && a.loadCtx != nil
-			if needAudio {
-				a.waveformLoading = true
-				ctx := a.loadCtx
-				seq := a.loadSeq
-				tools := a.tools
-				absPath := a.proj.FilePath
-				media := a.proj.Media
-				a.mu.Unlock()
-				go a.startAudioAnalysis(ctx, seq, tools, absPath, media)
-			} else {
-				a.mu.Unlock()
+			var startAudio func()
+			if a.proj != nil && a.proj.Media != nil && a.proj.Media.HasAudio && a.waveform == nil && !a.waveformLoading {
+				startAudio = a.prepareAudioJobLocked()
+			}
+			a.mu.Unlock()
+			if startAudio != nil {
+				go startAudio()
 			}
 		}
 		return a.snapshot(), nil
@@ -1173,18 +1293,58 @@ func (a *splitApp) registerBindings() {
 		a.settings.Update(func(s *Settings) { s.ShowVisual = enabled })
 		if enabled {
 			a.mu.Lock()
-			needVisual := a.proj != nil && a.proj.Media != nil && a.visual == nil && !a.visualLoading && a.tools.Ready && a.loadCtx != nil
-			if needVisual {
-				a.visualLoading = true
-				ctx := a.loadCtx
-				seq := a.loadSeq
-				tools := a.tools
-				media := a.proj.Media
-				a.mu.Unlock()
-				go a.startVisualAnalysis(ctx, seq, tools, media)
-			} else {
-				a.mu.Unlock()
+			var startVisual func()
+			if a.proj != nil && a.proj.Media != nil && a.visual == nil && !a.visualLoading {
+				startVisual = a.prepareVisualJobLocked()
 			}
+			a.mu.Unlock()
+			if startVisual != nil {
+				go startVisual()
+			}
+		}
+		return a.snapshot(), nil
+	})
+	a.bind("refreshAnalysis", func(target string) (UISnapshot, error) {
+		cfg := a.settings.Get()
+		if !a.tools.Ready {
+			tools := FindMediaTools(cfg.FFmpegPath, cfg.FFprobePath)
+			a.mu.Lock()
+			a.tools = tools
+			a.mu.Unlock()
+		}
+
+		wantKF := target == "keyframes" || target == "all"
+		wantAudio := target == "audio" || target == "all"
+		wantVisual := target == "visual" || target == "all"
+
+		if wantAudio && !cfg.ShowAudio {
+			a.settings.Update(func(s *Settings) { s.ShowAudio = true })
+		}
+		if wantVisual && !cfg.ShowVisual {
+			a.settings.Update(func(s *Settings) { s.ShowVisual = true })
+		}
+
+		a.mu.Lock()
+		var jobs []func()
+		if wantKF {
+			if j := a.prepareKeyframesJobLocked(); j != nil {
+				jobs = append(jobs, j)
+			}
+		}
+		if wantAudio {
+			if j := a.prepareAudioJobLocked(); j != nil {
+				jobs = append(jobs, j)
+			}
+		}
+		if wantVisual {
+			if j := a.prepareVisualJobLocked(); j != nil {
+				jobs = append(jobs, j)
+			}
+		}
+		a.mu.Unlock()
+
+		for _, j := range jobs {
+			go j()
 		}
 		return a.snapshot(), nil
 	})
@@ -1226,7 +1386,7 @@ func (a *splitApp) registerBindings() {
 				"addMarker", "moveMarker", "removeMarker", "clearMarkers",
 				"toggleSegment", "setAllSegments", "invertSegments",
 				"setMode", "setTheme", "setSkipDropped", "setShowAudio", "setShowVisual", "setTimelineScale",
-				"exportVideo", "cancelExport", "revealInExplorer"
+				"refreshAnalysis", "exportVideo", "cancelExport", "revealInExplorer"
 			];
 			window.api = {};
 			for (const name of methods) {

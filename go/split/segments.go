@@ -204,6 +204,46 @@ func (p *ProjectState) ClearMarkers() {
 	p.KeepFlags = []bool{true}
 }
 
+// UpdateMediaPreservingCuts replaces the probed MediaInfo (e.g. after a keyframe refresh)
+// while preserving existing interior cut markers and segment Keep/Drop selections.
+func (p *ProjectState) UpdateMediaPreservingCuts(newMedia *MediaInfo) {
+	if p == nil || newMedia == nil {
+		return
+	}
+	p.Media = newMedia
+	if len(p.Markers) == 0 {
+		if len(p.KeepFlags) == 0 {
+			p.KeepFlags = []bool{true}
+		} else {
+			p.KeepFlags = []bool{p.KeepFlags[0]}
+		}
+		return
+	}
+
+	oldKeep := p.KeepFlags
+	getKeep := func(i int) bool {
+		if i >= 0 && i < len(oldKeep) {
+			return oldKeep[i]
+		}
+		return true
+	}
+
+	var keptMarkers []float64
+	newKeep := []bool{getKeep(0)}
+	for i, m := range p.Markers {
+		kf, _, ok := SnapToKeyframe(newMedia.Keyframes, m, newMedia.DurationSec)
+		if !ok || (len(keptMarkers) > 0 && math.Abs(kf-keptMarkers[len(keptMarkers)-1]) <= markerDedupEps) {
+			// Merge dropped/duplicate boundary into the preceding segment.
+			newKeep[len(newKeep)-1] = newKeep[len(newKeep)-1] || getKeep(i+1)
+			continue
+		}
+		keptMarkers = append(keptMarkers, kf)
+		newKeep = append(newKeep, getKeep(i+1))
+	}
+	p.Markers = keptMarkers
+	p.KeepFlags = newKeep
+}
+
 // ToggleSegment flips Keep/Drop for 0-based segment index segIdx.
 func (p *ProjectState) ToggleSegment(segIdx int) bool {
 	if p == nil || segIdx < 0 || segIdx >= len(p.KeepFlags) {

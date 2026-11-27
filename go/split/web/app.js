@@ -81,6 +81,7 @@
     hoverTooltip: $("hoverTooltip"),
     segmentPills: $("segmentPills"),
     outputSummary: $("outputSummary"),
+    ctxMenu: $("ctxMenu"),
     toast: $("toast"),
     exportModal: $("exportModal"),
     modalTitle: $("modalTitle"),
@@ -137,6 +138,8 @@
   let audioDisplayPct = 0;
   let visualTargetPct = 0;
   let visualDisplayPct = 0;
+  let keyframesTargetPct = 0;
+  let keyframesDisplayPct = 0;
 
   // Cached DOM nodes for zero-thrashing zoom/pan updates
   let segDomItems = [];    // { el, start, end }
@@ -779,6 +782,8 @@
         audioDisplayPct = audioTargetPct;
         visualTargetPct = state.visualLoading ? 3 : 0;
         visualDisplayPct = visualTargetPct;
+        keyframesTargetPct = state.keyframesLoading ? 3 : 0;
+        keyframesDisplayPct = keyframesTargetPct;
         el.remuxBadge.classList.add("hidden");
         el.btnPlayPause.classList.remove("is-playing");
         el.video.src = state.videoUrl;
@@ -791,9 +796,14 @@
       if (state.visual) {
         ingestVisual(state.visual);
       }
+      if (!state.keyframesLoading) {
+        keyframesTargetPct = 0;
+        keyframesDisplayPct = 0;
+      }
       updateZoomUI();
     } else {
       el.fileBadge.classList.add("hidden");
+      closeCtxMenu();
       scrubPreviewSec = null;
       dragMarker = null;
       ghostSnapSec = null;
@@ -805,6 +815,8 @@
       waveActivity = null;
       visualDeltas = null;
       visualScenes = null;
+      keyframesTargetPct = 0;
+      keyframesDisplayPct = 0;
     }
 
     applyTimelineLayout();
@@ -866,12 +878,14 @@
   function renderSegments() {
     el.segmentsHit.innerHTML = "";
     el.markerLayer.innerHTML = "";
+    const prevPillScroll = el.segmentPills ? el.segmentPills.scrollLeft : 0;
     el.segmentPills.innerHTML = "";
     segDomItems = [];
     markerDomItems = [];
 
     if (!state || !state.media || !state.segments) {
       el.outputSummary.textContent = "";
+      el.outputSummary.title = "";
       return;
     }
 
@@ -902,6 +916,9 @@
       });
       el.segmentPills.appendChild(pill);
     });
+    if (prevPillScroll > 0 && el.segmentPills) {
+      el.segmentPills.scrollLeft = prevPillScroll;
+    }
 
     (state.markers || []).forEach((mSec, idx) => {
       const handle = document.createElement("div");
@@ -927,6 +944,7 @@
 
       handle.addEventListener("contextmenu", async (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const snap = await window.api.removeMarker(idx);
         renderState(snap);
       });
@@ -945,14 +963,21 @@
 
     const kept = state.segments.filter((s) => s.keep);
     const keptDur = kept.reduce((acc, s) => acc + s.duration, 0);
+    const rawPct = Math.max(0, Math.min(100, (keptDur / total) * 100));
+    const pctStr = keptDur > 0 && rawPct < 0.1
+      ? "<0.1%"
+      : `${rawPct.toFixed(1).replace(/\.0$/, "")}%`;
     const previewNames = state.outputPreview || [];
     if (kept.length === 0) {
-      el.outputSummary.textContent = "0 segments kept — click a segment to keep it";
+      el.outputSummary.textContent = "0% (00:00.00) kept — click a segment to keep it";
+      el.outputSummary.title = el.outputSummary.textContent;
     } else if (state.mode === "join") {
-      el.outputSummary.textContent = `Keeping ${kept.length}/${state.segments.length} (${fmtTime(keptDur)}) → ${previewNames[0] || "output_edit"}`;
+      el.outputSummary.textContent = `Keeping ${pctStr} (${fmtTime(keptDur)}) → ${previewNames[0] || "output_edit"}`;
+      el.outputSummary.title = `${el.outputSummary.textContent} (${kept.length}/${state.segments.length} segments)`;
     } else {
       const listStr = previewNames.length <= 3 ? previewNames.join(", ") : `${previewNames[0]} … ${previewNames[previewNames.length - 1]}`;
-      el.outputSummary.textContent = `Keeping ${kept.length}/${state.segments.length} (${fmtTime(keptDur)}) → ${listStr}`;
+      el.outputSummary.textContent = `Keeping ${pctStr} (${fmtTime(keptDur)}) → ${listStr}`;
+      el.outputSummary.title = `${el.outputSummary.textContent} (${kept.length}/${state.segments.length} segments)`;
     }
   }
 
@@ -1418,6 +1443,18 @@
       }
     }
 
+    if (state.keyframesLoading) {
+      const pct = Math.max(2, Math.min(100, keyframesDisplayPct || 4));
+      ctx.fillStyle = isLight ? "rgba(15, 23, 42, 0.14)" : "rgba(7, 10, 16, 0.58)";
+      ctx.fillRect(0, h - 7, w, 7);
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillRect(0, h - 3, (pct / 100) * w, 3);
+      ctx.font = "700 9.5px 'Segoe UI', sans-serif";
+      ctx.textBaseline = "bottom";
+      ctx.fillStyle = isLight ? "#0284c7" : "#7dd3fc";
+      ctx.fillText(`Refreshing keyframes… ${Math.round(pct)}%`, 8, h - 7);
+    }
+
     // Cut lines across all active lanes
     (state.markers || []).forEach((mSec, idx) => {
       const sec = dragMarker && dragMarker.idx === idx ? dragMarker.previewSec : mSec;
@@ -1556,6 +1593,9 @@
       if (state.visualLoading) {
         visualDisplayPct += (Math.max(visualTargetPct, 4) - visualDisplayPct) * 0.20;
       }
+      if (state.keyframesLoading) {
+        keyframesDisplayPct += (Math.max(keyframesTargetPct, 4) - keyframesDisplayPct) * 0.20;
+      }
 
       if (!el.video.paused && !scrubbingRuler && !dragMarker && zoom > 1.001) {
         const cur = getCurrentTime();
@@ -1601,6 +1641,154 @@
       e.target.classList.remove("is-pulsing");
     }
   });
+
+  function closeCtxMenu() {
+    if (el.ctxMenu) {
+      el.ctxMenu.classList.add("hidden");
+      el.ctxMenu.innerHTML = "";
+    }
+  }
+
+  async function triggerAnalysisRefresh(target) {
+    closeCtxMenu();
+    if (!state || !state.media || !window.api || !window.api.refreshAnalysis) return;
+
+    if (target === "keyframes" || target === "all") {
+      keyframesTargetPct = 3;
+      keyframesDisplayPct = 3;
+    }
+    if ((target === "audio" || target === "all") && state.media.hasAudio) {
+      wavePeaks = null;
+      waveRMS = null;
+      waveActivity = null;
+      audioTargetPct = 3;
+      audioDisplayPct = 3;
+    }
+    if (target === "visual" || target === "all") {
+      visualDeltas = null;
+      visualScenes = null;
+      visualTargetPct = 3;
+      visualDisplayPct = 3;
+    }
+
+    const labels = {
+      keyframes: "Refreshing keyframe index…",
+      audio: "Refreshing audio histogram…",
+      visual: "Refreshing visual delta histogram…",
+      all: "Refreshing keyframes, audio & visual analysis…",
+    };
+    showToast(labels[target] || "Refreshing analysis…");
+    const snap = await window.api.refreshAnalysis(target);
+    renderState(snap);
+  }
+
+  function makeCtxIconSVG(kind) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "14");
+    svg.setAttribute("height", "14");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    if (kind === "all") {
+      svg.innerHTML = `<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>`;
+    } else if (kind === "audio") {
+      svg.innerHTML = `<line x1="4" y1="10" x2="4" y2="14"></line><line x1="8" y1="6" x2="8" y2="18"></line><line x1="12" y1="3" x2="12" y2="21"></line><line x1="16" y1="7" x2="16" y2="17"></line><line x1="20" y1="10" x2="20" y2="14"></line>`;
+    } else if (kind === "visual") {
+      svg.innerHTML = `<polyline points="2 16 7 11 11 14 16 6 22 12"></polyline>`;
+    } else {
+      svg.innerHTML = `<polygon points="12 3 21 12 12 21 3 12"></polygon>`;
+    }
+    return svg;
+  }
+
+  function openRefreshContextMenu(clientX, clientY, zone) {
+    if (!state || !state.media || !el.ctxMenu) return;
+
+    const menu = el.ctxMenu;
+    menu.innerHTML = "";
+
+    const headerLabels = {
+      keyframes: "Keyframe Index",
+      audio: "Audio Histogram",
+      visual: "Visual Δ Histogram",
+    };
+    const hdr = document.createElement("div");
+    hdr.className = "ctx-header";
+    hdr.textContent = headerLabels[zone] || "Timeline Analysis";
+    menu.appendChild(hdr);
+
+    const kfsCount = (state.media.keyframes || []).length;
+    const hasAudio = !!state.media.hasAudio;
+    const items = [
+      {
+        kind: "keyframes",
+        label: state.keyframesLoading ? "Restart Keyframe Refresh" : "Refresh Keyframes",
+        badge: state.keyframesLoading ? "Running" : `${kfsCount} KFs`,
+        disabled: false,
+      },
+      {
+        kind: "audio",
+        label: state.waveformLoading ? "Restart Audio Histogram" : "Refresh Audio Histogram",
+        badge: !hasAudio ? "No Audio" : (state.waveformLoading ? "Running" : "Recalculate"),
+        disabled: !hasAudio,
+      },
+      {
+        kind: "visual",
+        label: state.visualLoading ? "Restart Visual Δ Histogram" : "Refresh Visual Δ Histogram",
+        badge: state.visualLoading ? "Running" : "Recalculate",
+        disabled: false,
+      },
+      { sep: true },
+      {
+        kind: "all",
+        label: "Refresh All Analysis",
+        badge: "KF + Audio + Visual",
+        disabled: false,
+      },
+    ];
+
+    for (const item of items) {
+      if (item.sep) {
+        const sep = document.createElement("div");
+        sep.className = "ctx-sep";
+        menu.appendChild(sep);
+        continue;
+      }
+      const btn = document.createElement("button");
+      btn.className = `ctx-item${item.kind === zone ? " is-primary" : ""}`;
+      btn.setAttribute("role", "menuitem");
+      btn.disabled = !!item.disabled;
+
+      const left = document.createElement("span");
+      left.className = "ctx-item-left";
+      left.appendChild(makeCtxIconSVG(item.kind));
+      const lbl = document.createElement("span");
+      lbl.textContent = item.label;
+      left.appendChild(lbl);
+
+      const badge = document.createElement("span");
+      badge.className = "ctx-item-badge";
+      badge.textContent = item.badge;
+
+      btn.appendChild(left);
+      btn.appendChild(badge);
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        triggerAnalysisRefresh(item.kind);
+      });
+      menu.appendChild(btn);
+    }
+
+    menu.classList.remove("hidden");
+    const rect = menu.getBoundingClientRect();
+    const maxX = Math.max(8, window.innerWidth - rect.width - 8);
+    const maxY = Math.max(8, window.innerHeight - rect.height - 8);
+    menu.style.left = `${Math.max(8, Math.min(maxX, clientX))}px`;
+    menu.style.top = `${Math.max(8, Math.min(maxY, clientY))}px`;
+  }
 
   // --- Wire Controls ---
   el.btnOpen.addEventListener("click", () => window.api.openFileDialog());
@@ -1951,6 +2139,16 @@
     window.addEventListener("mouseup", onUp);
   });
 
+  if (el.segmentPills) {
+    el.segmentPills.addEventListener("wheel", (e) => {
+      if (el.segmentPills.scrollWidth <= el.segmentPills.clientWidth) return;
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        el.segmentPills.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+  }
+
   // Export Modal & Actions
   function openExportModalProgress() {
     el.modalTitle.textContent = state && state.mode === "split" ? "Exporting Split Clips" : "Exporting Joined Video";
@@ -1985,8 +2183,53 @@
     }
   });
 
+  // Right-click refresh context menu for Keyframes, Audio & Visual histograms
+  el.timelineWrap.addEventListener("contextmenu", (e) => {
+    if (!state || !state.media) return;
+    e.preventDefault();
+    const rect = el.timelineWrap.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const lay = getTimelineLayout();
+    let zone = "keyframes";
+    if (lay.audioH > 0 && y >= lay.rulerH && y < lay.audioBottom) {
+      zone = "audio";
+    } else if (lay.visualH > 0 && y >= lay.audioBottom && y < lay.scrubBottom) {
+      zone = "visual";
+    }
+    openRefreshContextMenu(e.clientX, e.clientY, zone);
+  });
+
+  [
+    [el.overviewWrap, "keyframes"],
+    [el.fileBadge, "keyframes"],
+    [el.kfBadge, "keyframes"],
+    [el.btnToggleAudio, "audio"],
+    [el.btnToggleVisual, "visual"],
+  ].forEach(([node, zone]) => {
+    if (!node) return;
+    node.addEventListener("contextmenu", (e) => {
+      if (!state || !state.media) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openRefreshContextMenu(e.clientX, e.clientY, zone);
+    });
+  });
+
+  document.addEventListener("mousedown", (e) => {
+    if (el.ctxMenu && !el.ctxMenu.classList.contains("hidden") && !el.ctxMenu.contains(e.target)) {
+      closeCtxMenu();
+    }
+  });
+  window.addEventListener("wheel", () => closeCtxMenu(), { passive: true });
+  window.addEventListener("blur", () => closeCtxMenu());
+
   // Keyboard shortcuts
   window.addEventListener("keydown", async (e) => {
+    if (e.key === "Escape" && el.ctxMenu && !el.ctxMenu.classList.contains("hidden")) {
+      e.preventDefault();
+      closeCtxMenu();
+      return;
+    }
     if (e.key === "Escape" && state && state.loading) {
       e.preventDefault();
       const snap = await window.api.cancelLoad();
@@ -2152,6 +2395,7 @@
   }
 
   window.addEventListener("resize", () => {
+    closeCtxMenu();
     applyTimelineLayout();
     syncTimelineDOMPositions();
     repaintScrubCanvasIfVisible();
@@ -2198,6 +2442,8 @@
       audioTargetPct = Math.max(audioTargetPct, p.pct || 0);
     } else if (p.kind === "visual") {
       visualTargetPct = Math.max(visualTargetPct, p.pct || 0);
+    } else if (p.kind === "keyframes") {
+      keyframesTargetPct = Math.max(keyframesTargetPct, p.pct || 0);
     }
   };
 

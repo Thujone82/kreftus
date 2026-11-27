@@ -56,6 +56,37 @@ func TestSnapAndMarkers(t *testing.T) {
 	}
 }
 
+func TestUpdateMediaPreservingCuts(t *testing.T) {
+	media1 := &MediaInfo{
+		FilePath:    `C:\videos\demo.mp4`,
+		DurationSec: 12.0,
+		Keyframes:   []float64{0.0, 2.0, 4.0, 6.0, 8.0, 10.0},
+	}
+	proj := NewProject(media1.FilePath, media1, "split")
+	proj.AddMarkerAt(4.0)
+	proj.AddMarkerAt(8.0)
+	proj.ToggleSegment(1) // Drop 4..8s, Keep 0..4s & 8..12s
+
+	// Simulate keyframe refresh returning a denser set of keyframes (including 4.0 and 8.0)
+	media2 := &MediaInfo{
+		FilePath:    media1.FilePath,
+		DurationSec: 12.0,
+		Keyframes:   []float64{0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0},
+	}
+	proj.UpdateMediaPreservingCuts(media2)
+
+	if len(proj.Media.Keyframes) != 12 {
+		t.Fatalf("expected updated keyframes len 12, got %d", len(proj.Media.Keyframes))
+	}
+	if len(proj.Markers) != 2 || math.Abs(proj.Markers[0]-4.0) > 1e-6 || math.Abs(proj.Markers[1]-8.0) > 1e-6 {
+		t.Fatalf("expected markers [4.0, 8.0] preserved, got %v", proj.Markers)
+	}
+	segs := proj.Segments()
+	if len(segs) != 3 || !segs[0].Keep || segs[1].Keep || !segs[2].Keep {
+		t.Fatalf("expected [Keep, Drop, Keep] preserved, got %+v", segs)
+	}
+}
+
 func TestOutputNaming(t *testing.T) {
 	src := filepath.Join(`C:\clips`, `holiday.mp4`)
 	if got := SuggestedJoinPath(src); got != filepath.Join(`C:\clips`, `holiday_edit.mp4`) {
