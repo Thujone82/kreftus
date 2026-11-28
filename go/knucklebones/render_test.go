@@ -375,3 +375,46 @@ func TestExeOptionsCompletenessChallengeAccessAndPreviewPlace(t *testing.T) {
 		t.Fatalf("expected Quick Place to place on 1st press (moves %d -> %d)", before, g.ctl.state().Match.Moves)
 	}
 }
+
+func TestScoreboardSeparatorWrapNoTruncation(t *testing.T) {
+	// 1. joinOrWrapLines keeps separator when parts fit, omits it when wrapping.
+	if got := joinOrWrapLines([]string{"Alpha", "Beta"}, " · ", 20); len(got) != 1 || got[0] != "Alpha · Beta" {
+		t.Fatalf("expected single joined line, got %q", got)
+	}
+	if got := joinOrWrapLines([]string{"Challenge Rank #29 overall (+21 in 2:10.1)", "Beat #10 for Top 10"}, " · ", 60); len(got) != 2 ||
+		got[0] != "Challenge Rank #29 overall (+21 in 2:10.1)" ||
+		got[1] != "Beat #10 for Top 10" {
+		t.Fatalf("expected wrapped lines without separator, got %q", got)
+	}
+
+	// 2. Render ChallengeRank = 29 in an 80x28 terminal and confirm no ellipsis truncation.
+	g := newTestGame(t, 80, 28)
+	g.openSettings(modeLocal)
+	g.startFromSettings()
+	s := g.ctl.state()
+	s.Challenge = true
+	s.Names = [2]string{"Shrumy", "Thujone"}
+	s.Phase = phaseGameOver
+	s.Round = 3
+	s.Series = 1
+	s.Wins = [2]int{1, 2}
+	s.ChallengeRank = 29
+	s.ChallengeDelta = 21
+	s.ChallengeElapsedMs = 130100
+	s.History = []historyEntry{
+		{Round: 1, Scores: [2]int{49, 40}, Winner: 0},
+		{Round: 2, Scores: [2]int{41, 44}, Winner: 1},
+		{Round: 3, Scores: [2]int{35, 62}, Winner: 1},
+	}
+	g.render()
+	txt := screenText(g)
+	if !strings.Contains(txt, "Challenge Rank #29 overall (+21 in 2:10.1)") {
+		t.Fatalf("missing wrapped overall rank line:\n%s", txt)
+	}
+	if !strings.Contains(txt, "Beat #10 for Top 10") {
+		t.Fatalf("missing wrapped Beat #10 line:\n%s", txt)
+	}
+	if strings.Contains(txt, "T…") || strings.Contains(txt, "T...") {
+		t.Fatalf("unexpected truncation on Challenge result banner:\n%s", txt)
+	}
+}
