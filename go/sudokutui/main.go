@@ -67,6 +67,10 @@ type game struct {
 	shiftHold     bool      // momentary pencil while Shift is down; not saved
 	lastShiftHeld time.Time // last time Shift was actually down (NumLock fakes a Shift-up)
 	ctrlHold      bool      // hold Ctrl to highlight only the digit under the cursor
+	lastCtrlHeld  time.Time // last time Ctrl was seen (expires non-pollable ModCtrl holds)
+	focus         bool      // F: toggle persistent digit focus
+	pinMode       bool      // P: when true, Focus locks onto a digit instead of following cursor
+	pinnedDigit   byte      // locked digit '1'-'9' while focus && pinMode (0 if none yet)
 
 	events    chan tcell.Event
 	saveFlush chan struct{}
@@ -431,6 +435,10 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 		case '\t':
 			g.pencil = !g.pencil
 			g.persistPlay()
+		case 'f', 'F':
+			g.toggleFocus()
+		case 'p', 'P':
+			g.togglePinMode()
 		case 'a', 'A', 'h', 'H':
 			g.movePlay(-1, 0)
 		case 'd', 'D', 'l', 'L':
@@ -466,6 +474,7 @@ func (g *game) applyDigit(d byte) {
 			g.rotateAccent(-8)
 			g.startFlash(false)
 		}
+		g.syncFocusPin()
 		if g.board.isComplete() {
 			g.finishSuccess()
 		} else {
@@ -504,20 +513,19 @@ func (g *game) noteShift(e *tcell.EventKey) {
 	}
 	// NumLock+Shift synthesizes a Shift-up around the keypad event, so
 	// neither GetAsyncKeyState nor ModShift is set. Keep pencil for nav keys.
-	if _, isPad := numpadShiftDigit(e.Key()); isPad || e.Key() == tcell.KeyInsert {
-		if g.shiftHold || g.shiftRecentlyHeld() {
-			g.shiftHold = true
-			return
+	if shiftPollable() {
+		if _, isPad := numpadShiftDigit(e.Key()); isPad || e.Key() == tcell.KeyInsert {
+			if g.shiftHold || g.shiftRecentlyHeld() {
+				g.shiftHold = true
+				return
+			}
 		}
 	}
 	g.shiftHold = false
 }
 
 func (g *game) refreshShiftHold() bool {
-	if !shiftPollable() {
-		return false
-	}
-	if shiftHeld() {
+	if shiftPollable() && shiftHeld() {
 		changed := !g.shiftHold
 		g.markShiftHeld()
 		return changed
@@ -532,33 +540,99 @@ func (g *game) refreshShiftHold() bool {
 	return false
 }
 
+func (g *game) markCtrlHeld() {
+	g.ctrlHold = true
+	g.lastCtrlHeld = time.Now()
+}
+
+func (g *game) ctrlRecentlyHeld() bool {
+	return !g.lastCtrlHeld.IsZero() && time.Since(g.lastCtrlHeld) < shiftReleaseGrace
+}
+
 func (g *game) noteCtrl(e *tcell.EventKey) {
 	if ctrlHeld() || e.Modifiers()&tcell.ModCtrl != 0 {
-		g.ctrlHold = true
+		g.markCtrlHeld()
+		g.syncFocusPin()
 		return
 	}
 	g.ctrlHold = false
 }
 
 func (g *game) refreshCtrlHold() bool {
-	if !shiftPollable() {
+	if shiftPollable() {
+		if ctrlHeld() {
+			changed := !g.ctrlHold
+			g.markCtrlHeld()
+			if g.syncFocusPin() {
+				changed = true
+			}
+			return changed
+		}
+		if g.ctrlHold {
+			g.ctrlHold = false
+			return true
+		}
 		return false
 	}
-	held := ctrlHeld()
-	if held == g.ctrlHold {
-		return false
+	if g.ctrlHold && !g.ctrlRecentlyHeld() {
+		g.ctrlHold = false
+		return true
 	}
-	g.ctrlHold = held
-	return true
+	return false
 }
 
-// focusDigit is the grid digit under the cursor while Ctrl is held.
-// Empty cells (including pencil-only) yield 0 so Ctrl has no effect.
+func (g *game) toggleFocus() {
+	g.focus = !g.focus
+	g.pinnedDigit = 0
+	if g.focus {
+		g.syncFocusPin()
+	}
+}
+
+func (g *game) togglePinMode() {
+	g.pinMode = !g.pinMode
+	g.pinnedDigit = 0
+	if g.pinMode {
+		g.syncFocusPin()
+	}
+}
+
+// syncFocusPin locks the digit under the cursor when Focus + Pin are active
+// and either no digit is locked yet or Ctrl is held over a placed digit.
+func (g *game) syncFocusPin() bool {
+	if !g.focus || !g.pinMode {
+		return false
+	}
+	d := g.board.digitAt(g.board.cursor)
+	if d == 0 {
+		return false
+	}
+	if g.pinnedDigit == 0 || g.ctrlHold {
+		if g.pinnedDigit != d {
+			g.pinnedDigit = d
+			return true
+		}
+	}
+	return false
+}
+
+// focusDigit is the focused grid digit (1–9) while Focus or Ctrl is active.
+// In Pin mode with Focus on, the locked digit persists across cursor moves;
+// otherwise Focus/Ctrl follows the digit under the cursor (0 on empty cells).
 func (g *game) focusDigit() byte {
-	if !g.ctrlHold || g.view != viewPlay {
+	if g.view != viewPlay {
 		return 0
 	}
-	return g.board.digitAt(g.board.cursor)
+	if g.focus {
+		if g.pinMode {
+			return g.pinnedDigit
+		}
+		return g.board.digitAt(g.board.cursor)
+	}
+	if g.ctrlHold {
+		return g.board.digitAt(g.board.cursor)
+	}
+	return 0
 }
 
 func digitFromRune(r rune) (byte, bool) {
@@ -627,6 +701,7 @@ var shiftedDigit = map[rune]byte{
 
 func (g *game) movePlay(dx, dy int) {
 	g.board.move(dx, dy)
+	g.syncFocusPin()
 	g.rotateAccent(g.accentStep())
 }
 
@@ -714,6 +789,8 @@ func (g *game) acceptConfirm() bool {
 
 func (g *game) returnToMenu() {
 	g.stopClock()
+	g.shiftHold = false
+	g.ctrlHold = false
 	if g.shouldPersistContinue() {
 		g.persistPlayNow()
 	}
@@ -854,6 +931,10 @@ func (g *game) startNewGame() {
 	g.puzzle = p
 	g.board = newBoard(p.Givens, p.Solution, p.Givens)
 	g.pencil = false
+	g.shiftHold = false
+	g.ctrlHold = false
+	g.focus = false
+	g.pinnedDigit = 0
 	g.replayEvents = nil
 	g.replayStart = replayStart{}
 	g.replayGivens = p.Givens
@@ -886,6 +967,10 @@ func (g *game) resumeContinue() {
 	g.board.loadPencils(c.PencilTop, c.PencilBot, c.PencilSlot)
 	g.board.stripImpossiblePencils()
 	g.pencil = c.Pencil
+	g.shiftHold = false
+	g.ctrlHold = false
+	g.focus = false
+	g.pinnedDigit = 0
 	g.replayEvents = decodeReplay(c.Events)
 	g.replayGivens = c.Givens
 	g.replaySolution = p.Solution

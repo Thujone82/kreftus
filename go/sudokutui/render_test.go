@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/mattn/go-runewidth"
 )
 
 func TestSolvedBodyPerfectReplacesErrors(t *testing.T) {
@@ -396,5 +397,130 @@ func TestNoteCtrlTracksModifier(t *testing.T) {
 	g.noteCtrl(tcell.NewEventKey(tcell.KeyUp, 0, 0))
 	if g.ctrlHold {
 		t.Fatal("release should clear ctrlHold when Ctrl is not held")
+	}
+}
+
+func TestFocusToggleFollowsCursorByDefault(t *testing.T) {
+	givens, sol := classicSolved()
+	g := &game{
+		view:  viewPlay,
+		board: newBoard(givens, sol, givens),
+	}
+	g.board.cursor = 0 // given '5'
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRune, 'f', 0))
+	if !g.focus || g.focusDigit() != '5' {
+		t.Fatalf("F should toggle Focus on '5', got focus=%v digit=%q", g.focus, g.focusDigit())
+	}
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRight, 0, 0)) // cursor 1 = given '3'
+	if g.focusDigit() != '3' {
+		t.Fatalf("default Focus should follow cursor to '3', got %q", g.focusDigit())
+	}
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRight, 0, 0)) // cursor 2 = empty
+	if g.focusDigit() != 0 {
+		t.Fatalf("default Focus on empty cell should be 0, got %q", g.focusDigit())
+	}
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRune, 'F', 0))
+	if g.focus || g.focusDigit() != 0 {
+		t.Fatalf("F again should toggle Focus off, got focus=%v digit=%q", g.focus, g.focusDigit())
+	}
+}
+
+func TestPinModeLocksFocusAndCtrlUpdatesPin(t *testing.T) {
+	if ctrlHeld() {
+		t.Skip("Ctrl is physically down")
+	}
+	givens, sol := classicSolved()
+	g := &game{
+		view:  viewPlay,
+		board: newBoard(givens, sol, givens),
+	}
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRune, 'p', 0))
+	if !g.pinMode {
+		t.Fatal("P should enable pinMode")
+	}
+	g.board.cursor = 0 // given '5'
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRune, 'f', 0))
+	if !g.focus || g.focusDigit() != '5' {
+		t.Fatalf("F in Pin mode should lock '5', got focus=%v digit=%q", g.focus, g.focusDigit())
+	}
+
+	// Moving onto empty cell or another digit keeps '5' pinned.
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRight, 0, 0)) // cursor 1 = '3'
+	if g.focusDigit() != '5' {
+		t.Fatalf("moving to '3' should keep '5' pinned, got %q", g.focusDigit())
+	}
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRight, 0, 0)) // cursor 2 = empty
+	if g.focusDigit() != '5' {
+		t.Fatalf("moving to empty cell should keep '5' pinned, got %q", g.focusDigit())
+	}
+
+	// Ctrl over an empty cell leaves '5' pinned.
+	g.handlePlay(tcell.NewEventKey(tcell.KeyCenter, 0, tcell.ModCtrl))
+	if g.focusDigit() != '5' {
+		t.Fatalf("Ctrl over empty cell should keep '5' pinned, got %q", g.focusDigit())
+	}
+
+	// Ctrl over a new placed digit ('3' at cursor 1) re-pins to '3' and stays after Ctrl release.
+	g.handlePlay(tcell.NewEventKey(tcell.KeyLeft, 0, tcell.ModCtrl))
+	if g.focusDigit() != '3' {
+		t.Fatalf("Ctrl over '3' while Focus+Pin active should pin '3', got %q", g.focusDigit())
+	}
+	g.noteCtrl(tcell.NewEventKey(tcell.KeyUp, 0, 0))
+	if g.focusDigit() != '3' {
+		t.Fatalf("releasing Ctrl should keep '3' pinned, got %q", g.focusDigit())
+	}
+
+	// Toggling P off while Focus is on reverts to follow-the-cursor.
+	g.board.cursor = 2 // empty
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRune, 'p', 0))
+	if g.pinMode || !g.focus || g.focusDigit() != 0 {
+		t.Fatalf("toggling Pin off should keep Focus and follow cursor: pin=%v focus=%v digit=%q", g.pinMode, g.focus, g.focusDigit())
+	}
+
+	// Toggling P back on while Focus is on locks the digit under the cursor ('5' at cursor 0).
+	g.board.cursor = 0
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRune, 'p', 0))
+	if !g.pinMode || g.focusDigit() != '5' {
+		t.Fatalf("toggling Pin on while Focus active should lock '5', got pin=%v digit=%q", g.pinMode, g.focusDigit())
+	}
+
+	// Toggling F off clears the pinned digit.
+	g.handlePlay(tcell.NewEventKey(tcell.KeyRune, 'f', 0))
+	if g.focus || g.pinnedDigit != 0 || g.focusDigit() != 0 {
+		t.Fatalf("toggling Focus off should clear pinnedDigit, got focus=%v pinned=%q", g.focus, g.pinnedDigit)
+	}
+}
+
+func TestPlayHintFits80ColsAndHUDLabels(t *testing.T) {
+	for _, pencil := range []bool{false, true} {
+		for _, focus := range []bool{false, true} {
+			for _, pin := range []bool{false, true} {
+				g := &game{pencil: pencil, focus: focus, pinMode: pin}
+				hint := g.playHint()
+				if w := runewidth.StringWidth(stripVS(hint)); w > preferredCols {
+					t.Fatalf("hint width %d > %d for pencil=%v focus=%v pin=%v: %q", w, preferredCols, pencil, focus, pin, hint)
+				}
+			}
+		}
+	}
+
+	givens, sol := classicSolved()
+	g := &game{view: viewPlay, board: newBoard(givens, sol, givens)}
+	g.board.cursor = 0 // '5'
+	if got := g.focusHUDLabel(); got != "" {
+		t.Fatalf("idle HUD label=%q want empty", got)
+	}
+	g.pinMode = true
+	if got := g.focusHUDLabel(); got != "  Pin" {
+		t.Fatalf("pin-ready HUD label=%q", got)
+	}
+	g.focus = true
+	g.pinnedDigit = '5'
+	if got := g.focusHUDLabel(); got != "  Pin 5" {
+		t.Fatalf("pinned HUD label=%q", got)
+	}
+	g.pinMode = false
+	if got := g.focusHUDLabel(); got != "  Focus 5" {
+		t.Fatalf("focus HUD label=%q", got)
 	}
 }

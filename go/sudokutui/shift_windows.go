@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -49,6 +50,7 @@ type winmsg struct {
 }
 
 var (
+	remoteSession      = isSSHSession()
 	keyboardLLCallback uintptr
 	hookHandle         uintptr
 	hookThreadID       uint32
@@ -57,14 +59,24 @@ var (
 	lastExtended       bool
 )
 
-func shiftPollable() bool { return true }
+func isSSHSession() bool {
+	return os.Getenv("SSH_CONNECTION") != "" || os.Getenv("SSH_CLIENT") != "" || os.Getenv("SSH_TTY") != ""
+}
+
+func shiftPollable() bool { return !remoteSession }
 
 func shiftHeld() bool {
+	if remoteSession {
+		return false
+	}
 	r, _, _ := procGetAsyncKeyState.Call(vkShift)
 	return r&0x8000 != 0
 }
 
 func ctrlHeld() bool {
+	if remoteSession {
+		return false
+	}
 	r, _, _ := procGetAsyncKeyState.Call(vkControl)
 	return r&0x8000 != 0
 }
@@ -82,6 +94,9 @@ func lowLevelKeyboardProc(nCode int, wParam, lParam uintptr) uintptr {
 }
 
 func startShiftWatch() {
+	if remoteSession {
+		return
+	}
 	keyboardLLCallback = syscall.NewCallback(lowLevelKeyboardProc)
 	go func() {
 		mod, _, _ := procGetModuleHandleW.Call(0)
@@ -116,6 +131,9 @@ func stopShiftWatch() {
 // keypadOrigin is true when the last physical key was a non-extended keypad
 // key (NumLock+Shift 2/4/6/8). Dedicated arrows are extended and return false.
 func keypadOrigin() bool {
+	if remoteSession {
+		return false
+	}
 	originMu.Lock()
 	defer originMu.Unlock()
 	if !originKnown {

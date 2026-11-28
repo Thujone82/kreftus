@@ -187,12 +187,48 @@ func (g *game) drawPlay() {
 	}
 	hintY := h - 1
 	if hintY > activeY {
-		hint := "1-9 Enter · 0 Clear · Tab/Shift ✏️ · Ctrl Focus · Space Pause · Esc Menu"
-		if g.pencilActive() {
-			hint = "1-9 Mark · 0 Clear · Tab ✒️ · Ctrl Focus · Space Pause · Esc Menu"
-		}
-		drawCentered(g.screen, w/2, hintY, hint, styleDim)
+		drawCentered(g.screen, w/2, hintY, g.playHint(), styleDim)
 	}
+}
+
+func (g *game) playHint() string {
+	enter := "1-9 Enter"
+	tab := "Tab/Shift ✏️"
+	if g.pencilActive() {
+		enter = "1-9 Mark"
+		tab = "Tab ✒️"
+	}
+	focus := "F/Ctrl Focus"
+	if g.focus {
+		focus = "F Unfocus"
+	}
+	pin := "P Pin"
+	if g.pinMode {
+		pin = "P Unpin"
+	}
+	return enter + " · 0 Clear · " + tab + " · " + focus + " · " + pin + " · Space Pause · Esc"
+}
+
+func (g *game) focusHUDLabel() string {
+	d := g.focusDigit()
+	if g.focus && g.pinMode {
+		if d != 0 {
+			return "  Pin " + string(d)
+		}
+		return "  Focus Pin"
+	}
+	if g.focus || g.ctrlHold {
+		if d != 0 {
+			return "  Focus " + string(d)
+		}
+		if g.focus {
+			return "  Focus"
+		}
+	}
+	if g.pinMode {
+		return "  Pin"
+	}
+	return ""
 }
 
 func (g *game) drawHUD() {
@@ -200,7 +236,7 @@ func (g *game) drawHUD() {
 	if w < 1 {
 		return
 	}
-	left := " SUDOKU  " + difficultyLabel[g.difficulty] + "  " + g.modeGlyph()
+	left := " SUDOKU  " + difficultyLabel[g.difficulty] + "  " + g.modeGlyph() + g.focusHUDLabel()
 	clock := formatDuration(g.currentElapsed())
 	fillStyle := g.hudStyle()
 	for x := 0; x < w; x++ {
