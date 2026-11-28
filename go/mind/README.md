@@ -1,31 +1,54 @@
-# mind
+﻿# mind
 
-Terminal-based **Mastermind** code-breaking game written in Go. Guess the secret 4-peg code in 12 turns. Pegs are shown as colored **⬤**; feedback uses green ⬤ (right color, right slot) and yellow ⬤ (right color, wrong slot).
+Terminal-based **Mastermind** code-breaking game written in Go with a full-screen true-color TUI, 6 selectable themes, UTF-8 box drawing, animated feedback & win celebrations, persistent stats, and synthesized PCM sound effects.
 
 ## Requirements
 
-- Go 1.21 or later (see `go.mod`).
+- Go 1.24 or later (see `go.mod`).
+- A UTF-8 terminal with 24-bit (true-color) ANSI support (Windows Terminal, modern `conhost`, macOS Terminal/iTerm2, or Linux terminals). On Windows, `mind` automatically enables UTF-8 (CP 65001) and Virtual Terminal processing.
 
 ## Game rules
 
 - **Secret**: The program picks a random code of 4 pegs, or you can set it with `-set` (e.g. `mind -set r22m`) for another player to guess. Each peg is one of 6 colors: **R**ed, **G**reen, **B**lue, **C**yan, **M**agenta, **Y**ellow (order RGBCMY). Colors may repeat.
 - **Turns**: You have up to **12** turns to guess the code.
-- **Feedback** (after each guess, shown as colored pegs):
-  - **Green ⬤**: Correct color in the correct position.
-  - **Yellow ⬤**: Correct color in the wrong position (each peg in the secret is counted at most once).
-- **Win**: Your guess matches the secret exactly (4 green pegs).
-- **Lose**: You run out of turns; the secret is revealed as colored pegs.
+- **Feedback** (revealed peg-by-peg after each guess):
+  - **Exact (`●`)**: Correct color in the correct position.
+  - **Partial (`●` or `○` depending on theme)**: Correct color in the wrong position (each peg in the secret is counted at most once).
+- **Win**: Your guess matches the secret exactly (4 exact pegs).
+- **Lose**: You run out of turns; the secret is revealed at the top of the board.
 
-## Start screen
+## Themes
 
-When you run the game you see:
+Press **`T`** at any time (on the title screen, mid-game, or on the result overlay) to cycle through the 6 built-in themes, or launch with `-theme <id>`. Your selection is saved automatically.
 
-- **MASTERMIND** title (ASCII art)
-- Brief instructions (colors, input format, turn limit)
-- Explanation of feedback (green ⬤ vs yellow ⬤)
-- **Press ENTER to START** — the game begins after you press Enter.
+| ID | Name | Look |
+| --- | --- | --- |
+| `dark` | Dark | Deep charcoal background, double-line box (`╔═╗`), vibrant colored pegs |
+| `light` | Light | Warm paper background, rounded box (`╭─╮`), crisp dark ink text |
+| `neon` | Neon | Midnight synthwave violet, heavy box (`┏━┓`), electric neon pegs |
+| `ocean` | Ocean | Deep sea navy, rounded box (`╭─╮`), coral and aqua accents |
+| `wood` | Wood Board | Classic tabletop mahogany, double-line box (`╔═╗`), white/hollow key pegs |
+| `contrast` | High Contrast | Pure black, heavy box (`┏━┓`), labeled color tiles (` R `) for maximum legibility |
 
-## How to run
+## Controls & keys
+
+- **Pegs**: `R` `G` `B` `C` `M` `Y` (case-insensitive) or number aliases `1` `2` `3` `4` `5` `6` (`1`=Red, `2`=Green, `3`=Blue, `4`=Cyan, `5`=Magenta, `6`=Yellow).
+- **Backspace**: Removes the last entered peg.
+- **Enter**: Starts the game from the title screen, submits a 4-peg guess, or starts a new game from the result overlay.
+- **`T`**: Cycle theme live.
+- **`S`**: Toggle sound effects on/off.
+- **`L`**: Toggle peg labels on/off (` R ` tile mode vs `⬤` dot mode).
+- **`Tab`**: Toggle label style between color letters (`R G B C M Y`) and color numbers (`1`–`6`); in the side panel, the highlighted column switches accordingly. Both label settings are saved.
+- **`N`**: Start a new game after winning or losing.
+- **`Esc`** (or **`Q`** / `Ctrl+C`): Quit and restore the terminal.
+
+## Sound
+
+- **Windows (local)**: Synthesizes 22,050 Hz mono 16-bit PCM WAV cues in memory (peg clicks, deletes, invalid buzz, submit, feedback reveals, win fanfare, lose jingle, theme switch) and plays them asynchronously via `winmm.dll` (`PlaySoundW`).
+- **Linux/macOS & SSH**: Falls back to the terminal bell (`\a`) for major events only (win, lose, invalid submit).
+- Pass `-mute` to silence sound for a single run without changing your saved preference, or press **`S`** to toggle and save it.
+
+## How to run & flags
 
 From the `go/mind` directory:
 
@@ -33,24 +56,21 @@ From the `go/mind` directory:
 go run .
 ```
 
-Or build and run the binary:
+Available flags:
 
-```bash
-go build -o mind .
-./mind        # Linux/macOS
-mind.exe      # Windows
-```
+- `-set <code >` — Set a 4-peg secret for the first game (e.g. `mind -set r22m`).
+- `-theme <id>` — Select and save a starting theme (`dark`, `light`, `neon`, `ocean`, `wood`, `contrast`).
+- `-mute` — Disable sound for this session only (does not overwrite saved settings).
+- `-preview` — Print sample mid-game and won boards for all 6 themes to stdout and exit.
 
-**Set the code for another player:** Use `-set` with a 4-character code (letters R G B C M Y or digits 1–6, case-insensitive). The game will use that code instead of a random one. Example: `mind -set r22m` uses Red, Green, Green, Magenta so a second person can guess it.
+When stdin is not an interactive terminal (e.g. piped input), `mind` automatically falls back to plain line-oriented mode.
 
-## Input format
+## Settings & stats
 
-- Each turn shows **Turn 01/12:** through **Turn 12/12:** (turn number zero-padded for alignment).
-- Type **4 pegs** key-by-key: each key shows a colored **⬤** immediately (no letters echoed).
-- **Keys**: **R** **G** **B** **C** **M** **Y** (case-insensitive) or number aliases **1** **2** **3** **4** **5** **6** (1=Red, 2=Green, 3=Blue, 4=Cyan, 5=Magenta, 6=Yellow).
-- **Backspace**: removes the last peg.
-- **Enter**: submits the guess only after 4 valid pegs have been entered.
-- During gameplay, the **Colors** line shows **R G B C M Y** with each letter in its color.
+Preferences (theme, sound, labels) and lifetime stats (games played, wins, current/best streak, best turns, fastest solve) are stored as UTF-8 BOM JSON in your user config directory:
+
+- Windows: `%AppData%\mind\mind.json`
+- Linux/macOS: `~/.config/mind/mind.json` (or `$XDG_CONFIG_HOME/mind/mind.json`)
 
 ## How to build (cross-compilation)
 
@@ -85,12 +105,24 @@ Optional: compress binaries with [UPX](https://upx.github.io/) by passing `-upx`
 
 ## File layout
 
-| File        | Description                          |
-| ----------- | ------------------------------------ |
-| `main.go`   | Game logic, I/O, scoring, main loop  |
-| `go.mod`    | Go module definition                 |
-| `build.ps1` | Cross-build script (Windows/Linux)   |
-| `README.md` | This documentation                   |
+| File | Description |
+| --- | --- |
+| `main.go` | CLI flags, app lifecycle, title/game/animation loops |
+| `game.go` | Core constants, secret generation, code parsing, scoring, game state |
+| `theme.go` | 6 true-color themes and box-drawing styles |
+| `render.go` | Cell canvas, ANSI true-color serializer, screens, overlays, `-preview` |
+| `input.go` | Raw-mode terminal session, escape-sequence parser, clean restore |
+| `plain.go` | Non-TTY line-oriented fallback |
+| `sound.go` | Sound specs, in-memory WAV synthesizer, mute/SSH routing |
+| `sound_windows.go` | Windows `winmm.dll` async `PlaySoundW` playback |
+| `sound_other.go` | Non-Windows PCM stub (uses terminal bell fallback) |
+| `console_common.go` | SSH session detection |
+| `console_windows.go` | Windows UTF-8 (CP 65001), VT processing, Unicode console font setup |
+| `console_other.go` | Non-Windows console setup no-op |
+| `settings.go` | UTF-8 BOM JSON settings & stats persistence |
+| `*_test.go` | Unit tests for game logic, themes, WAV synth, settings, rendering |
+| `build.ps1` | Cross-build script (Windows/Linux) |
+| `README.md` | This documentation |
 
 ## License
 

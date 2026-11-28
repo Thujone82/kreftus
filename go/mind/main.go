@@ -1,400 +1,410 @@
-package main
+﻿package main
 
 import (
 	"bufio"
 	"flag"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/signal"
-	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/term"
 )
 
-const (
-	codeLength = 4
-	numColors  = 6
-	maxTurns   = 12
-)
-
-// Colors: R=Red, G=Green, B=Blue, C=Cyan, M=Magenta, Y=Yellow (order RGBCMY)
-const colors = "RGBCMY"
-
-const peg = "⬤"
-
-// ANSI color codes
-const (
-	ansiReset   = "\033[0m"
-	ansiRed     = "\033[31m"
-	ansiGreen   = "\033[32m"
-	ansiYellow  = "\033[33m"
-	ansiBlue    = "\033[34m"
-	ansiMagenta = "\033[35m"
-	ansiCyan    = "\033[36m"
-)
-
-var ansiByColor = map[byte]string{
-	'R': ansiRed,
-	'G': ansiGreen,
-	'B': ansiBlue,
-	'C': ansiCyan,
-	'M': ansiMagenta,
-	'Y': ansiYellow,
+type app struct {
+	sess    *termSession
+	cfgPath string
+	st      settings
+	mute    bool
+	snd     *player
 }
 
-// termRestoreOnce and termRestoreFunc allow Ctrl+C and ESC to restore the terminal before exiting.
-var (
-	termRestoreOnce sync.Once
-	termRestoreFunc func()
-)
+func (a *app) currentTheme() theme {
+	return themeByID(a.st.Theme)
+}
+
+func (a *app) syncSound() {
+	a.snd.muted = a.mute || !a.st.Sound
+}
+
+func (a *app) save() {
+	_ = saveSettings(a.cfgPath, a.st)
+}
+
+func (a *app) quit() {
+	if a.sess != nil {
+		a.sess.restore()
+	}
+	os.Exit(0)
+}
+
+func (a *app) draw(build func(theme) *canvas) {
+	th := a.currentTheme()
+	w, h, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || w <= 0 || h <= 0 {
+		w, h = boardW, boardH
+	}
+	if w < boardW || h < boardH {
+		flushCanvas(renderTooSmall(w, h, th), w, h, th.BG)
+		return
+	}
+	flushCanvas(build(th), w, h, th.BG)
+}
+
+func (a *app) handleGlobalKey(ev keyEvent) (handled bool, quit bool) {
+	switch ev.kind {
+	case keyQuit:
+		return true, true
+	case keyTheme:
+		a.st.Theme = nextTheme(a.st.Theme)
+		a.save()
+		a.snd.play(sndTheme)
+		return true, false
+	case keySound:
+		a.mute = false // toggling sound manually overrides initial -mute flag
+		a.st.Sound = !a.st.Sound
+		a.syncSound()
+		a.save()
+		a.snd.play(sndClick)
+		return true, false
+	case keyLabels:
+		a.st.Labels = !a.st.Labels
+		a.save()
+		a.snd.play(sndClick)
+		return true, false
+	case keyLabelMode:
+		a.st.LabelNumbers = !a.st.LabelNumbers
+		a.save()
+		a.snd.play(sndClick)
+		return true, false
+	}
+	return false, false
+}
 
 func main() {
-	// Allow Ctrl+C to exit cleanly (restore terminal if in raw mode)
+	setCode := flag.String("set", "", "4-peg code for another player to guess (e.g. r22m)")
+	themeFlag := flag.String("theme", "", "theme ID (dark, light, neon, ocean, wood, contrast)")
+	muteFlag := flag.Bool("mute", false, "disable sound effects for this run")
+	previewFlag := flag.Bool("preview", false, "print sample boards for all 6 themes and exit")
+	flag.Parse()
+
+	enableUTF8Console()
+
+	if *previewFlag {
+		fmt.Print(renderPreviewString())
+		return
+	}
+
+	if *setCode != "" {
+		if _, err := parseSetCode(*setCode); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		runPlain(bufio.NewReader(os.Stdin), *setCode)
+		return
+	}
+
+	cfgPath := settingsPath()
+	st := loadSettings(cfgPath)
+	if *themeFlag != "" {
+		if !validTheme(*themeFlag) {
+			fmt.Fprintf(os.Stderr, "mind: unknown theme %q (valid: dark, light, neon, ocean, wood, contrast)\n", *themeFlag)
+			os.Exit(1)
+		}
+		st.Theme = *themeFlag
+		_ = saveSettings(cfgPath, st)
+	}
+
+	sess, err := openTermSession()
+	if err != nil {
+		runPlain(bufio.NewReader(os.Stdin), *setCode)
+		return
+	}
+	defer sess.restore()
+
+	a := &app{
+		sess:    sess,
+		cfgPath: cfgPath,
+		st:      st,
+		mute:    *muteFlag,
+		snd:     &player{},
+	}
+	a.syncSound()
+
+	defer func() {
+		if r := recover(); r != nil {
+			sess.restore()
+			panic(r)
+		}
+	}()
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 	go func() {
 		<-sigChan
-		if termRestoreFunc != nil {
-			termRestoreOnce.Do(termRestoreFunc)
-		}
-		os.Exit(0)
+		a.quit()
 	}()
 
-	setCode := flag.String("set", "", "4-peg code for another player to guess (e.g. r22m)")
-	flag.Parse()
+	if !a.runTitleScreen() {
+		return
+	}
 
-	// Set terminal window title (ANSI OSC 0 ; title BEL)
-	fmt.Print("\033]0;Mastermind - Crack the code!\007")
-
-	reader := bufio.NewReader(os.Stdin)
-	showStartScreen(reader)
-
-	var secret []byte
+	firstSecret := []byte(nil)
 	if *setCode != "" {
-		var err error
-		secret, err = parseSetCode(*setCode)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-	} else {
-		secret = generateSecret()
+		firstSecret, _ = parseSetCode(*setCode)
 	}
-	printGameInstructions()
 
-	startTime := time.Now()
-
-	for turn := 1; turn <= maxTurns; turn++ {
-		guess, err := readGuess(reader, turn)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading input:", err)
-			os.Exit(1)
+	for {
+		var secret []byte
+		if firstSecret != nil {
+			secret = firstSecret
+			firstSecret = nil
+		} else {
+			secret = generateSecret()
 		}
-
-		fmt.Println() // newline after "Turn NN/12: ⬤⬤⬤⬤"
-		rightPlace, rightColor := score(secret, guess)
-		fmt.Print("  Feedback: ")
-		printFeedback(rightPlace, rightColor)
-		fmt.Println()
-
-		if rightPlace == codeLength {
-			fmt.Printf("\nYou win! You cracked the code in %s.\n", formatPlaytime(time.Since(startTime)))
-			waitForAnyKey(reader)
-			return
-		}
-
-		if turn == maxTurns {
-			fmt.Print("\nOut of turns. The secret was: ")
-			printColoredPegs(secret)
-			fmt.Printf(" (%s)\n", formatPlaytime(time.Since(startTime)))
-			waitForAnyKey(reader)
+		if !a.runGame(secret) {
 			return
 		}
 	}
 }
 
-// waitForAnyKey waits for a keypress (or Enter if not a TTY) before the program exits after win/lose.
-func waitForAnyKey(reader *bufio.Reader) {
-	fmt.Print("\nPress any key to exit.")
-	fd := int(os.Stdin.Fd())
-	if term.IsTerminal(fd) {
-		oldState, err := term.MakeRaw(fd)
-		if err == nil {
-			defer func() { _ = term.Restore(fd, oldState) }()
-			_, _, _ = reader.ReadRune()
-		} else {
-			_, _ = reader.ReadString('\n')
+func (a *app) runTitleScreen() bool {
+	animTick := 0
+	ticker := time.NewTicker(150 * time.Millisecond)
+	defer ticker.Stop()
+
+	drawTitle := func() {
+		a.draw(func(th theme) *canvas {
+			return renderTitleScreen(a.st, th, animTick)
+		})
+	}
+	drawTitle()
+
+	for {
+		select {
+		case ev, ok := <-a.sess.keys:
+			if !ok {
+				return false
+			}
+			if handled, quit := a.handleGlobalKey(ev); handled {
+				if quit {
+					return false
+				}
+				drawTitle()
+				continue
+			}
+			if ev.kind == keyEnter {
+				a.snd.play(sndStart)
+				return true
+			}
+		case <-ticker.C:
+			animTick++
+			drawTitle()
 		}
+	}
+}
+
+func (a *app) runGame(secret []byte) bool {
+	g := newGameState(secret)
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	drawBoard := func() {
+		now := time.Now()
+		a.draw(func(th theme) *canvas {
+			return renderBoard(g, a.st, th, now)
+		})
+	}
+	drawBoard()
+
+	for !g.over {
+		select {
+		case ev, ok := <-a.sess.keys:
+			if !ok {
+				return false
+			}
+			if handled, quit := a.handleGlobalKey(ev); handled {
+				if quit {
+					return false
+				}
+				drawBoard()
+				continue
+			}
+			switch ev.kind {
+			case keyPeg:
+				if len(g.current) < codeLength {
+					g.current = append(g.current, ev.peg)
+					g.statusMsg = ""
+					a.snd.play(sndClick)
+					drawBoard()
+				}
+			case keyBackspace:
+				if len(g.current) > 0 {
+					g.current = g.current[:len(g.current)-1]
+					g.statusMsg = ""
+					a.snd.play(sndDelete)
+					drawBoard()
+				}
+			case keyEnter:
+				if len(g.current) < codeLength {
+					g.statusMsg = "Need 4 pegs!"
+					g.statusIsErr = true
+					g.statusUntil = time.Now().Add(1 * time.Second)
+					a.snd.play(sndInvalid)
+					drawBoard()
+					continue
+				}
+				guess := append([]byte(nil), g.current...)
+				g.current = g.current[:0]
+				g.statusMsg = ""
+				exact, partial := score(g.secret, guess)
+				g.turns = append(g.turns, turnRecord{Guess: guess, Exact: exact, Partial: partial})
+				a.snd.play(sndSubmit)
+
+				if !a.animateFeedback(g, exact, partial, drawBoard) {
+					return false
+				}
+
+				if exact == codeLength || len(g.turns) == maxTurns {
+					g.over = true
+					g.won = exact == codeLength
+					g.endTime = time.Now()
+				}
+				drawBoard()
+			}
+		case <-ticker.C:
+			drawBoard()
+		}
+	}
+
+	if !a.animateEndGame(g, drawBoard) {
+		return false
+	}
+
+	secs := int(g.elapsed().Round(time.Second) / time.Second)
+	a.st.recordResult(g.won, len(g.turns), secs)
+	a.save()
+
+	g.overlayVisible = true
+	drawBoard()
+
+	for {
+		select {
+		case ev, ok := <-a.sess.keys:
+			if !ok {
+				return false
+			}
+			if handled, quit := a.handleGlobalKey(ev); handled {
+				if quit {
+					return false
+				}
+				drawBoard()
+				continue
+			}
+			if ev.kind == keyNew || ev.kind == keyEnter {
+				a.snd.play(sndStart)
+				return true
+			}
+		case <-ticker.C:
+			drawBoard()
+		}
+	}
+}
+
+// drainOrQuit checks pending keys during animations, returning false if the user quits.
+func (a *app) drainOrQuit() bool {
+	for {
+		select {
+		case ev, ok := <-a.sess.keys:
+			if !ok {
+				return false
+			}
+			if ev.kind == keyQuit {
+				return false
+			}
+		default:
+			return true
+		}
+	}
+}
+
+func (a *app) sleepAnim(d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	for {
+		select {
+		case ev, ok := <-a.sess.keys:
+			if !ok {
+				return false
+			}
+			if ev.kind == keyQuit {
+				return false
+			}
+		case <-timer.C:
+			return true
+		}
+	}
+}
+
+func (a *app) animateFeedback(g *gameState, exact, partial int, drawBoard func()) bool {
+	g.animFeedback = true
+	g.animShown = 0
+	drawBoard()
+
+	total := exact + partial
+	if total == 0 {
+		if !a.sleepAnim(130 * time.Millisecond) {
+			return false
+		}
+		g.animShown = codeLength
+		a.snd.play(sndMiss)
+		drawBoard()
+		g.animFeedback = false
+		return a.drainOrQuit()
+	}
+
+	for i := 1; i <= total; i++ {
+		if !a.sleepAnim(130 * time.Millisecond) {
+			return false
+		}
+		g.animShown = i
+		if i <= exact {
+			a.snd.play(sndExact)
+		} else {
+			a.snd.play(sndPartial)
+		}
+		drawBoard()
+	}
+	g.animFeedback = false
+	return a.drainOrQuit()
+}
+
+func (a *app) animateEndGame(g *gameState, drawBoard func()) bool {
+	for i := 1; i <= codeLength; i++ {
+		if !a.sleepAnim(150 * time.Millisecond) {
+			return false
+		}
+		g.revealedPegs = i
+		a.snd.play(sndReveal)
+		drawBoard()
+	}
+
+	if g.won {
+		a.snd.play(sndWin)
+		for step := 0; step < 8; step++ {
+			g.celebrateStep = step
+			drawBoard()
+			if !a.sleepAnim(150 * time.Millisecond) {
+				return false
+			}
+		}
+		g.celebrateStep = -1
 	} else {
-		_, _ = reader.ReadString('\n')
+		a.snd.play(sndLose)
 	}
-}
-
-func showStartScreen(reader *bufio.Reader) {
-	fmt.Print("\033[H\033[2J") // clear screen and move cursor to home
-	fmt.Println()
-	fmt.Println("  ╔═══════════════════════════════╗")
-	fmt.Println("  ║      M A S T E R M I N D      ║")
-	fmt.Println("  ╚═══════════════════════════════╝")
-	fmt.Println()
-	fmt.Println("  Guess the secret code of 4 pegs.")
-	fmt.Println("  Colors: R=" + ansiRed + "Red" + ansiReset + ", G=" + ansiGreen + "Green" + ansiReset + ", B=" + ansiBlue + "Blue" + ansiReset)
-	fmt.Println("          C=" + ansiCyan + "Cyan" + ansiReset + ", M=" + ansiMagenta + "Magenta" + ansiReset + ", Y=" + ansiYellow + "Yellow" + ansiReset)
-	fmt.Println("  Enter 4 letters (e.g. RGBC). You have 12 turns.")
-	fmt.Println()
-	fmt.Println("  Feedback: " + ansiGreen + peg + ansiReset + " = right color, right slot")
-	fmt.Println("            " + ansiYellow + peg + ansiReset + " = right color, wrong slot")
-	fmt.Println()
-	fmt.Print("        Press " + ansiGreen + "ENTER" + ansiReset + " to START ")
-	_, _ = reader.ReadString('\n')
-	fmt.Println()
-}
-
-func printGameInstructions() {
-	fmt.Println("Enter a 4-peg guess each turn:")
-	fmt.Print("Colors:  ")
-	printColoredColorLetters()
-	fmt.Println()
-	fmt.Print("Numbers: ")
-	printColoredNumbers()
-	fmt.Println()
-	fmt.Println()
-}
-
-// printColoredColorLetters prints "R G B C M Y" with each letter in its color.
-func printColoredColorLetters() {
-	for i := 0; i < len(colors); i++ {
-		if i > 0 {
-			fmt.Print(" ")
-		}
-		c := colors[i]
-		if ac, ok := ansiByColor[c]; ok {
-			fmt.Print(ac + string(c) + ansiReset)
-		}
-	}
-}
-
-// printColoredNumbers prints "1 2 3 4 5 6" with each number in the color that matches R G B C M Y (1=red, 5=magenta, 6=yellow).
-func printColoredNumbers() {
-	for i := 0; i < len(colors); i++ {
-		if i > 0 {
-			fmt.Print(" ")
-		}
-		c := colors[i]
-		ac := ansiByColor[c]
-		fmt.Print(ac + string(rune('1'+i)) + ansiReset)
-	}
-}
-
-func printColoredPegs(code []byte) {
-	fmt.Print(coloredPegsString(code))
-}
-
-// coloredPegsString returns a string of colored pegs for the given code (for redrawing the input line).
-func coloredPegsString(code []byte) string {
-	var b strings.Builder
-	for _, c := range code {
-		if ac, ok := ansiByColor[c]; ok {
-			b.WriteString(ac)
-			b.WriteString(peg)
-			b.WriteString(ansiReset)
-		}
-	}
-	return b.String()
-}
-
-func printFeedback(rightPlace, rightColor int) {
-	for i := 0; i < rightPlace; i++ {
-		fmt.Print(ansiGreen + peg + ansiReset)
-	}
-	for i := 0; i < rightColor; i++ {
-		fmt.Print(ansiYellow + peg + ansiReset)
-	}
-}
-
-func generateSecret() []byte {
-	secret := make([]byte, codeLength)
-	for i := 0; i < codeLength; i++ {
-		secret[i] = colors[rand.Intn(numColors)]
-	}
-	return secret
-}
-
-// formatPlaytime returns a short human-readable duration (e.g. "45s", "1m 23s").
-func formatPlaytime(d time.Duration) string {
-	d = d.Round(time.Second)
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", d/time.Second)
-	}
-	m := d / time.Minute
-	s := (d % time.Minute) / time.Second
-	if s == 0 {
-		return fmt.Sprintf("%dm", m)
-	}
-	return fmt.Sprintf("%dm %ds", m, s)
-}
-
-// parseSetCode parses a 4-character string (R G B C M Y or 1–6, case-insensitive) into the secret code.
-// Used with -set for one person to set the code for another to guess.
-func parseSetCode(s string) ([]byte, error) {
-	s = strings.TrimSpace(s)
-	if len(s) != codeLength {
-		return nil, fmt.Errorf("mind: -set requires exactly %d characters (e.g. -set r22m), got %d", codeLength, len(s))
-	}
-	secret := make([]byte, codeLength)
-	for i, r := range s {
-		c, ok := keyToColor(r)
-		if !ok {
-			return nil, fmt.Errorf("mind: invalid character %q in -set (use R G B C M Y or 1–6)", r)
-		}
-		secret[i] = c
-	}
-	return secret, nil
-}
-
-// keyToColor maps input runes to color bytes: r,g,b,c,m,y (case-insensitive) and 1–6 (1=R, 2=G, 3=B, 4=C, 5=M, 6=Y).
-func keyToColor(r rune) (byte, bool) {
-	switch r {
-	case 'r', 'R':
-		return 'R', true
-	case 'g', 'G':
-		return 'G', true
-	case 'b', 'B':
-		return 'B', true
-	case 'c', 'C':
-		return 'C', true
-	case 'm', 'M':
-		return 'M', true
-	case 'y', 'Y':
-		return 'Y', true
-	case '1':
-		return 'R', true
-	case '2':
-		return 'G', true
-	case '3':
-		return 'B', true
-	case '4':
-		return 'C', true
-	case '5':
-		return 'M', true
-	case '6':
-		return 'Y', true
-	}
-	return 0, false
-}
-
-func readGuess(reader *bufio.Reader, turn int) ([]byte, error) {
-	fd := int(os.Stdin.Fd())
-	if !term.IsTerminal(fd) {
-		return readGuessLine(reader, turn)
-	}
-	oldState, err := term.MakeRaw(fd)
-	if err != nil {
-		return readGuessLine(reader, turn)
-	}
-	termRestoreFunc = func() { _ = term.Restore(fd, oldState) }
-	defer func() { _ = term.Restore(fd, oldState) }()
-
-	turnStr := fmt.Sprintf("%02d", turn)
-	prompt := fmt.Sprintf("Turn %s/%d: ", turnStr, maxTurns)
-
-	redrawLine := func(buf []byte) {
-		fmt.Print("\r\033[K" + prompt + coloredPegsString(buf))
-	}
-
-	buf := make([]byte, 0, codeLength)
-	redrawLine(buf)
-	for {
-		r, _, err := reader.ReadRune()
-		if err != nil {
-			return nil, err
-		}
-		if c, ok := keyToColor(r); ok {
-			if len(buf) < codeLength {
-				buf = append(buf, c)
-				redrawLine(buf)
-			}
-			continue
-		}
-		if r == '\b' || r == 127 { // Backspace — remove one peg, allow backspace down to empty buffer
-			if len(buf) > 0 {
-				buf = buf[:len(buf)-1]
-				redrawLine(buf)
-			}
-			continue
-		}
-		if r == '\n' || r == '\r' {
-			if len(buf) == codeLength {
-				return buf, nil
-			}
-			continue
-		}
-		if r == 27 { // ESC - exit
-			termRestoreOnce.Do(termRestoreFunc)
-			os.Exit(0)
-		}
-	}
-}
-
-// readGuessLine is the fallback when raw mode is not available (e.g. not a TTY).
-func readGuessLine(reader *bufio.Reader, turn int) ([]byte, error) {
-	for {
-		turnStr := fmt.Sprintf("%02d", turn)
-		fmt.Printf("Turn %s/%d: ", turnStr, maxTurns)
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return nil, err
-		}
-		line = strings.TrimSpace(strings.ToUpper(line))
-		// Allow number aliases in line mode
-		var decoded strings.Builder
-		for _, r := range line {
-			if c, ok := keyToColor(r); ok {
-				decoded.WriteByte(c)
-			}
-		}
-		line = decoded.String()
-		if len(line) != codeLength {
-			fmt.Printf("  (enter 4 pegs: R G B C M Y or 1–6)\n")
-			continue
-		}
-		return []byte(line), nil
-	}
-}
-
-// score returns (rightPlace, rightColor): rightPlace = correct color and position, rightColor = correct color wrong position.
-func score(secret, guess []byte) (rightPlace, rightColor int) {
-	usedSecret := make([]bool, codeLength)
-	usedGuess := make([]bool, codeLength)
-
-	for i := 0; i < codeLength; i++ {
-		if secret[i] == guess[i] {
-			rightPlace++
-			usedSecret[i] = true
-			usedGuess[i] = true
-		}
-	}
-
-	secretCount := make(map[byte]int)
-	guessCount := make(map[byte]int)
-	for i := 0; i < codeLength; i++ {
-		if !usedSecret[i] {
-			secretCount[secret[i]]++
-		}
-		if !usedGuess[i] {
-			guessCount[guess[i]]++
-		}
-	}
-	for c, n := range secretCount {
-		g := guessCount[c]
-		if g < n {
-			rightColor += g
-		} else {
-			rightColor += n
-		}
-	}
-	return rightPlace, rightColor
+	return a.drainOrQuit()
 }

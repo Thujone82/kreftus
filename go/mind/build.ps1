@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds the 'Mastermind' Go terminal game for Windows and Linux.
 
