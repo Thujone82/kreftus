@@ -2007,6 +2007,19 @@
     applyPlaybackRate();
   });
 
+  el.selSpeed.addEventListener("wheel", (e) => {
+    if (!e.deltaY) return;
+    e.preventDefault();
+    const step = e.deltaY < 0 ? 1 : -1; // wheel up = increase speed, wheel down = decrease speed
+    const maxIdx = el.selSpeed.options.length - 1;
+    const nextIdx = Math.max(0, Math.min(maxIdx, el.selSpeed.selectedIndex + step));
+    if (nextIdx !== el.selSpeed.selectedIndex) {
+      el.selSpeed.selectedIndex = nextIdx;
+      applyPlaybackRate();
+      pulseButton(el.selSpeed);
+    }
+  }, { passive: false });
+
   function syncVolumeUI() {
     const eff = el.video.muted ? 0 : el.video.volume;
     const muted = eff <= 0.001;
