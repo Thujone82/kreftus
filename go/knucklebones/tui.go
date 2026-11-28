@@ -187,6 +187,8 @@ type tuiSig struct {
 	aimCol        int
 	aimDie        int
 	oppGone       bool
+	celebrating   bool
+	celebTick     int64
 }
 
 func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
@@ -263,6 +265,11 @@ func tuiSnapshot(g *game, now time.Time) (tuiSig, bool) {
 					sig.turnClock = now.UnixMilli() / 350
 				} else if s.Challenge && s.Phase == phasePlay && (s.Match.Moves > 0 || len(s.History) > 0) {
 					sig.turnClock = now.UnixMilli() / 100
+				}
+				if g.isChallengeCelebrating(s, now) {
+					sig.celebrating = true
+					sig.celebTick = now.UnixMilli() / 80
+					anim = true
 				}
 			}
 			if g.rolling() || effectProgress(g.effectAt, now) >= 0 {

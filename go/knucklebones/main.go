@@ -76,19 +76,22 @@ const (
 	rowStart
 	rowTheme
 	rowSound
+	rowQuickPlace
 	rowColorblind
 	rowWinMeter
+	rowPlayerName
 	rowDone
 )
 
 const (
-	setupHost       = "host"
-	setupOnlineHost = "online-host"
-	setupOptions    = "options"
-	choiceMenu      = "menu"
-	rollDuration    = 450 * time.Millisecond
-	aiDelay         = 950 * time.Millisecond
-	maxAddrLen      = 64
+	setupHost              = "host"
+	setupOnlineHost        = "online-host"
+	setupOptions           = "options"
+	choiceMenu             = "menu"
+	rollDuration           = 450 * time.Millisecond
+	aiDelay                = 950 * time.Millisecond
+	challengeCelebDuration = 2800 * time.Millisecond
+	maxAddrLen             = 64
 )
 
 var roundChoices = []int{1, 3, 5, 0}
@@ -242,13 +245,15 @@ type game struct {
 	savePath string
 	rng      *rand.Rand
 
-	view      int
-	menuIndex int
-	setupMode string
-	setIndex  int
-	note      string
-	input     string
-	inputPos  int // caret index in runes for input / Player 2 name / Room code
+	view              int
+	menuIndex         int
+	setupMode         string
+	optionsReturnView int
+	setIndex          int
+	note              string
+	input             string
+	nameDraft         string
+	inputPos          int // caret index in runes for input / Player 2 name / Room code
 
 	hostRoomCode   string // ephemeral host room code, never persisted to disk
 	joinCode       string // ephemeral guest room code, never persisted to disk
@@ -265,11 +270,14 @@ type game struct {
 	netRoomScroll    int
 	watcher          *rWatcher
 	netAddr          string
-	netTLSConfig     *tls.Config
-	netPlainTCP      bool
-	challengeSyncAt  time.Time
-	challengeBaseMs  int64
-	challengeSyncKey string
+	netTLSConfig        *tls.Config
+	netPlainTCP         bool
+	challengeSyncAt     time.Time
+	challengeBaseMs     int64
+	challengeSyncKey    string
+	challengeCelebKey   string
+	challengeCelebAt    time.Time
+	challengeCelebUntil time.Time
 
 	ctl           controller
 	overlay       int
@@ -278,6 +286,7 @@ type game struct {
 	resultIndex   int
 	hideResult    bool
 	cursor        int
+	previewCol    int
 	dieSel        int
 	guideScroll   int
 
@@ -347,9 +356,10 @@ func main() {
 func newGame() *game {
 	path := resolveSavePath()
 	g := &game{
-		savePath: path,
-		save:     loadSave(path),
-		rng:      rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(os.Getpid()))),
+		savePath:   path,
+		save:       loadSave(path),
+		rng:        rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(os.Getpid()))),
+		previewCol: -1,
 	}
 	g.pal = paletteFor(g.save.Theme)
 	return g
@@ -442,10 +452,22 @@ func (g *game) syncView() {
 		if n := len(g.resultChoices(s)); g.resultIndex >= n {
 			g.resultIndex = 0
 		}
+		isTop10Win := s.Challenge && s.Phase == phaseGameOver && s.Forfeit == nil && s.ChallengeRank > 0 && s.ChallengeRank <= 10
+		if isTop10Win {
+			celebKey := fmt.Sprintf("%d:%d:%d", s.Series, s.Round, s.ChallengeRank)
+			if celebKey != g.challengeCelebKey {
+				g.challengeCelebKey = celebKey
+				now := time.Now()
+				g.challengeCelebAt = now
+				g.challengeCelebUntil = now.Add(challengeCelebDuration)
+			}
+		}
 		phaseKey := [2]int{s.Series, s.Round}
 		if phaseKey != g.soundPhaseKey {
 			g.soundPhaseKey = phaseKey
-			if s.Mode != modeLocal {
+			if isTop10Win {
+				g.emitSound(sndCelebrate)
+			} else if s.Mode != modeLocal {
 				w := s.Match.Winner()
 				if s.Forfeit != nil {
 					w = 1 - s.Forfeit.Loser
@@ -460,6 +482,7 @@ func (g *game) syncView() {
 		}
 		return
 	}
+	g.clearChallengeCelebration()
 	if g.replayActive {
 		g.exitReplay()
 	}
@@ -468,6 +491,7 @@ func (g *game) syncView() {
 		g.rollKey = key
 		g.rollAt = time.Now()
 		g.dieSel = 0
+		g.previewCol = -1
 		g.resultIndex = 0
 		g.recordNote = ""
 		g.aimPub = [2]int{-1, -1}
@@ -528,13 +552,37 @@ func (g *game) previewMove(s *session) (Move, bool) {
 	return Move{}, false
 }
 
+func (g *game) isChallengeCelebrating(s *session, now time.Time) bool {
+	return s != nil && s.Challenge && s.Phase == phaseGameOver && s.Forfeit == nil &&
+		s.ChallengeRank > 0 && s.ChallengeRank <= 10 && now.Before(g.challengeCelebUntil)
+}
+
+func (g *game) clearChallengeCelebration() {
+	g.challengeCelebUntil = time.Time{}
+}
+
+func (g *game) dismissChallengeCelebration(now time.Time) bool {
+	if !now.Before(g.challengeCelebUntil) {
+		return false
+	}
+	if now.Sub(g.challengeCelebAt) < 350*time.Millisecond {
+		return true
+	}
+	g.clearChallengeCelebration()
+	g.emitSound(sndClick)
+	return true
+}
+
 func (g *game) beginGame(c controller) {
 	g.stopWatcher()
+	g.clearChallengeCelebration()
+	g.challengeCelebKey = ""
 	g.ctl = c
 	g.overlay = overlayNone
 	g.resultIndex = 0
 	g.lobbyBackFocus = false
 	g.cursor = 1
+	g.previewCol = -1
 	g.dieSel = 0
 	g.rollKey = [2]int{}
 	g.effectKey = [2]int{}
@@ -555,6 +603,8 @@ func (g *game) beginGame(c controller) {
 }
 
 func (g *game) leaveGame() {
+	g.clearChallengeCelebration()
+	g.challengeCelebKey = ""
 	if g.ctl != nil {
 		g.ctl.leave()
 		g.ctl = nil
@@ -747,6 +797,24 @@ func isBack(e *tcell.EventKey) bool {
 	return e.Key() == tcell.KeyBackspace || e.Key() == tcell.KeyBackspace2 || e.Key() == tcell.KeyDelete
 }
 
+// playColDigit maps both top-row and numpad 1..3 keys (with NumLock on or off)
+// to 0-based board column indices.
+func playColDigit(e *tcell.EventKey) (int, bool) {
+	switch e.Key() {
+	case tcell.KeyRune:
+		if e.Rune() >= '1' && e.Rune() <= '3' {
+			return int(e.Rune() - '1'), true
+		}
+	case tcell.KeyEnd, tcell.KeyDownLeft:
+		return 0, true
+	case tcell.KeyDown:
+		return 1, true
+	case tcell.KeyPgDn, tcell.KeyDownRight:
+		return 2, true
+	}
+	return 0, false
+}
+
 func (g *game) handleKey(e *tcell.EventKey) bool {
 	if e.Key() == tcell.KeyCtrlC {
 		return true
@@ -827,7 +895,7 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 			g.inputPos = runeLen(g.input)
 			g.view = viewName
 		case menuOptions:
-			g.openSettings(setupOptions)
+			g.openOptionsFrom(viewMenu)
 		case menuQuit:
 			return true
 		}
@@ -835,9 +903,49 @@ func (g *game) keyMenu(e *tcell.EventKey) bool {
 	return false
 }
 
+func (g *game) openOptionsFrom(returnView int) {
+	g.optionsReturnView = returnView
+	g.nameDraft = g.save.Name
+	g.note = ""
+	g.openSettings(setupOptions)
+}
+
+func (g *game) closeOptions() bool {
+	g.save.Settings.Player2 = cleanName(g.save.Settings.Player2, "Player 2")
+	candidate := cleanName(g.nameDraft, "Lamb")
+	if isBadName(candidate) {
+		g.note = "That name contains disallowed words."
+		for i, r := range g.settingRows() {
+			if r == rowPlayerName {
+				g.setIndex = i
+				g.focusSettingCaret()
+				break
+			}
+		}
+		return false
+	}
+	g.save.Name = candidate
+	g.nameDraft = candidate
+	g.note = ""
+	g.persist()
+	ret := g.optionsReturnView
+	g.optionsReturnView = viewMenu
+	if ret == viewNetwork {
+		if g.netChallenge {
+			g.openOnlineChallenge()
+		} else {
+			g.view = viewNetwork
+		}
+		return true
+	}
+	g.view = viewMenu
+	return true
+}
+
 func (g *game) openSettings(mode string) {
 	g.setupMode = mode
 	if mode == setupOptions {
+		g.nameDraft = g.save.Name
 		g.setIndex = 0
 	} else {
 		g.setIndex = len(g.settingRows()) - 1
@@ -853,7 +961,7 @@ func (g *game) settingRows() []int {
 	case modeLocal:
 		return []int{rowPlayer2, rowRounds, rowDestroy, rowDice, rowEnd, rowStart}
 	case setupOptions:
-		return []int{rowTheme, rowSound, rowColorblind, rowWinMeter, rowDone}
+		return []int{rowTheme, rowSound, rowQuickPlace, rowColorblind, rowWinMeter, rowPlayerName, rowPlayer2, rowDone}
 	case setupOnlineHost:
 		return []int{rowRounds, rowTimer, rowRoomCode, rowDestroy, rowDice, rowEnd, rowStart}
 	}
@@ -906,6 +1014,8 @@ func (g *game) changeSetting(row, step int) {
 		if st.Sound {
 			g.emitSound(sndClick)
 		}
+	case rowQuickPlace:
+		st.PreviewPlace = !st.PreviewPlace
 	case rowColorblind:
 		st.Colorblind = !st.Colorblind
 	case rowWinMeter:
@@ -924,6 +1034,14 @@ func isRoomCodeRune(r rune) bool {
 func (g *game) keySettings(e *tcell.EventKey) {
 	rows := g.settingRows()
 	row := rows[g.setIndex]
+	if row == rowPlayerName {
+		if next, pos, ok := editLine(e, g.nameDraft, g.inputPos, maxNameLen, unicode.IsPrint); ok {
+			g.nameDraft = next
+			g.inputPos = pos
+			g.note = ""
+			return
+		}
+	}
 	if row == rowPlayer2 {
 		if next, pos, ok := editLine(e, g.save.Settings.Player2, g.inputPos, maxNameLen, unicode.IsPrint); ok {
 			g.save.Settings.Player2 = next
@@ -949,6 +1067,10 @@ func (g *game) keySettings(e *tcell.EventKey) {
 	}
 	switch {
 	case e.Key() == tcell.KeyEscape:
+		if g.setupMode == setupOptions {
+			g.closeOptions()
+			return
+		}
 		g.save.Settings.Player2 = cleanName(g.save.Settings.Player2, "Player 2")
 		g.hostRoomCode = cleanRoomCode(g.hostRoomCode)
 		g.persist()
@@ -984,8 +1106,8 @@ func (g *game) keySettings(e *tcell.EventKey) {
 			g.startFromSettings()
 		case rowDone:
 			g.emitSound(sndClick)
-			g.view = viewMenu
-		case rowPlayer2, rowPort, rowRoomCode:
+			g.closeOptions()
+		case rowPlayerName, rowPlayer2, rowPort, rowRoomCode:
 			g.setIndex = (g.setIndex + 1) % len(rows)
 			g.focusSettingCaret()
 		default:
@@ -1021,6 +1143,8 @@ func (g *game) focusSettingCaret() {
 		return
 	}
 	switch rows[g.setIndex] {
+	case rowPlayerName:
+		g.inputPos = runeLen(g.nameDraft)
 	case rowPlayer2:
 		g.inputPos = runeLen(g.save.Settings.Player2)
 	case rowPort:
@@ -1456,6 +1580,8 @@ func (g *game) keyNetwork(e *tcell.EventKey) {
 			g.cycleNetworkFocus(-1)
 		case isDown(e):
 			g.cycleNetworkFocus(1)
+		case isRune(e, 'o') && g.netFocus != netFocusChallengeName:
+			g.openOptionsFrom(viewNetwork)
 		case isRune(e, 'n') && g.netFocus != netFocusChallengeName:
 			g.openChallengeNameEdit()
 		case isRune(e, 'r') && g.netFocus != netFocusChallengeName:
@@ -1466,7 +1592,7 @@ func (g *game) keyNetwork(e *tcell.EventKey) {
 			if editing {
 				g.saveChallengeName()
 			} else if g.netFocus == netFocusChallengeRename {
-				g.openChallengeNameEdit()
+				g.openOptionsFrom(viewNetwork)
 			} else {
 				g.startChallenge()
 			}
@@ -1725,6 +1851,10 @@ func (g *game) keyPlay(e *tcell.EventKey) {
 		}
 		return
 	case e.Key() == tcell.KeyEscape:
+		if g.isChallengeCelebrating(s, time.Now()) {
+			g.dismissChallengeCelebration(time.Now())
+			return
+		}
 		if s.Phase == phaseGameOver || g.ctl.opponentGone() {
 			g.leaveGame()
 		} else {
@@ -1735,6 +1865,12 @@ func (g *game) keyPlay(e *tcell.EventKey) {
 	}
 
 	if s.Phase != phasePlay {
+		if g.isChallengeCelebrating(s, time.Now()) {
+			if isEnter(e) || isRune(e, ' ') {
+				g.dismissChallengeCelebration(time.Now())
+			}
+			return
+		}
 		choices := g.resultChoices(s)
 		switch {
 		case isRune(e, 'v'):
@@ -1763,19 +1899,31 @@ func (g *game) keyPlay(e *tcell.EventKey) {
 	if !g.myTurn(s) || g.rolling() {
 		return
 	}
+	if col, ok := playColDigit(e); ok {
+		if g.save.Settings.PreviewPlace && (g.cursor != col || g.previewCol != col) {
+			g.cursor = col
+			g.previewCol = col
+			g.emitSound(sndClick)
+			return
+		}
+		g.cursor = col
+		g.previewCol = -1
+		g.placeAtCursor(s)
+		return
+	}
 	switch {
 	case isLeft(e):
 		g.cursor = (g.cursor + gridCols - 1) % gridCols
+		g.previewCol = g.cursor
 	case isRight(e):
 		g.cursor = (g.cursor + 1) % gridCols
-	case e.Key() == tcell.KeyTab || isRune(e, 'q', 'e') || isUp(e) || isDown(e):
+		g.previewCol = g.cursor
+	case e.Key() == tcell.KeyTab || isRune(e, 'q', 'e', 's') || isUp(e):
 		if s.Match.Dice[1] != 0 {
 			g.dieSel = 1 - g.dieSel
 		}
-	case e.Key() == tcell.KeyRune && e.Rune() >= '1' && e.Rune() <= '3':
-		g.cursor = int(e.Rune() - '1')
-		g.placeAtCursor(s)
 	case isEnter(e) || isRune(e, ' '):
+		g.previewCol = -1
 		g.placeAtCursor(s)
 	}
 }

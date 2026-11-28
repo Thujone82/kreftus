@@ -201,3 +201,177 @@ func TestLightThemeAndLobby(t *testing.T) {
 	dump(t, g, "join error")
 	g.leaveGame()
 }
+
+func TestNumpadPlacementAndChallengeCelebration(t *testing.T) {
+	// 1. Verify playColDigit maps top-row 1..3 and numpad End/Down/PgDn keys.
+	cases := []struct {
+		ev   *tcell.EventKey
+		want int
+	}{
+		{runeKey('1'), 0},
+		{runeKey('2'), 1},
+		{runeKey('3'), 2},
+		{key(tcell.KeyEnd), 0},
+		{key(tcell.KeyDownLeft), 0},
+		{key(tcell.KeyDown), 1},
+		{key(tcell.KeyPgDn), 2},
+		{key(tcell.KeyDownRight), 2},
+	}
+	for _, tc := range cases {
+		col, ok := playColDigit(tc.ev)
+		if !ok || col != tc.want {
+			t.Fatalf("playColDigit(%v) = (%d, %v), want (%d, true)", tc.ev.Name(), col, ok, tc.want)
+		}
+	}
+
+	// Verify numpad keys actually place dice during local play.
+	g := newTestGame(t, 80, 28)
+	g.openSettings(modeLocal)
+	g.startFromSettings()
+	g.rollAt = time.Now().Add(-time.Second)
+	for _, k := range []tcell.Key{tcell.KeyEnd, tcell.KeyDown, tcell.KeyPgDn} {
+		g.rollAt = time.Now().Add(-time.Second)
+		before := g.ctl.state().Match.Moves
+		g.handleKey(key(k))
+		if got := g.ctl.state().Match.Moves; got != before+1 {
+			t.Fatalf("expected move count %d after key %v, got %d", before+1, k, got)
+		}
+	}
+
+	// 2. Verify Challenge Top 10 celebration triggers, plays sndCelebrate, renders celebration overlay,
+	// and transitions to the full 3-match breakdown table on dismissal.
+	s := g.ctl.state()
+	s.Challenge = true
+	s.Names = [2]string{"Shrumy", "Thujone"}
+	s.Phase = phaseGameOver
+	s.Round = 3
+	s.Series = 1
+	s.ChallengeRank = 4
+	s.ChallengeDelta = 68
+	s.ChallengeElapsedMs = 108900
+	s.Wins = [2]int{1, 2}
+	s.History = []historyEntry{
+		{Round: 1, Scores: [2]int{45, 70}, Winner: 1},
+		{Round: 2, Scores: [2]int{62, 50}, Winner: 0},
+		{Round: 3, Scores: [2]int{30, 85}, Winner: 1},
+	}
+	g.save.Settings.Sound = true
+	g.soundQueue = nil
+	g.afterChange()
+
+	if !g.isChallengeCelebrating(s, time.Now()) {
+		t.Fatal("expected Challenge Top 10 celebration to be active")
+	}
+	sounds := g.drainSounds()
+	foundCeleb := false
+	for _, id := range sounds {
+		if id == sndCelebrate {
+			foundCeleb = true
+		}
+	}
+	if !foundCeleb {
+		t.Fatalf("expected sndCelebrate in sound queue, got %v", sounds)
+	}
+	celebTxt := screenText(g)
+	if !strings.Contains(celebTxt, "TOP 10 LEADERBOARD") || !strings.Contains(celebTxt, "Congratulations, Thujone!") {
+		t.Fatalf("celebration screen missing expected text:\n%s", celebTxt)
+	}
+
+	// Past the 350ms debounce, pressing Enter dismisses the celebration and shows the breakdown table.
+	g.challengeCelebAt = time.Now().Add(-500 * time.Millisecond)
+	g.handleKey(key(tcell.KeyEnter))
+	g.afterChange()
+	if g.isChallengeCelebrating(s, time.Now()) {
+		t.Fatal("expected celebration to be dismissed after Enter")
+	}
+	resTxt := screenText(g)
+	for _, want := range []string{"Challenge Complete", "Top 10 Rank #4", "Match 1", "Match 2", "Match 3", "Combined"} {
+		if !strings.Contains(resTxt, want) {
+			t.Fatalf("challenge result breakdown missing %q:\n%s", want, resTxt)
+		}
+	}
+}
+
+func TestExeOptionsCompletenessChallengeAccessAndPreviewPlace(t *testing.T) {
+	g := newTestGame(t, 80, 28)
+
+	// 1. Complete Options rows in exe match PWA parity set.
+	g.openOptionsFrom(viewMenu)
+	wantRows := []int{rowTheme, rowSound, rowQuickPlace, rowColorblind, rowWinMeter, rowPlayerName, rowPlayer2, rowDone}
+	gotRows := g.settingRows()
+	if len(gotRows) != len(wantRows) {
+		t.Fatalf("setupOptions rows len = %d, want %d (%v)", len(gotRows), len(wantRows), gotRows)
+	}
+	for i := range wantRows {
+		if gotRows[i] != wantRows[i] {
+			t.Fatalf("setupOptions row[%d] = %d, want %d", i, gotRows[i], wantRows[i])
+		}
+	}
+
+	// 2. Challenge lobby offers Options [O] instead of Change Name [N] and returns to Challenge lobby.
+	g.view = viewNetwork
+	g.netChallenge = true
+	g.netOnline = true
+	g.netEditingName = false
+	g.save.Name = "Challenger1"
+	g.netFocus = netFocusChallengeStart
+	g.render()
+	netTxt := screenText(g)
+	if !strings.Contains(netTxt, "Options [O]") {
+		t.Fatalf("expected Options [O] button in Challenge lobby:\n%s", netTxt)
+	}
+	if strings.Contains(netTxt, "Change Name") {
+		t.Fatalf("did not expect Change Name button in Challenge lobby:\n%s", netTxt)
+	}
+
+	g.handleKey(runeKey('o'))
+	if g.view != viewSettings || g.setupMode != setupOptions {
+		t.Fatalf("expected O to open setupOptions, got view=%d mode=%q", g.view, g.setupMode)
+	}
+	// Toggle Placement mode (rowQuickPlace) and edit Your name (rowPlayerName).
+	g.setIndex = 2 // rowQuickPlace
+	g.handleKey(key(tcell.KeyRight))
+	if !g.save.Settings.PreviewPlace {
+		t.Fatal("expected PreviewPlace to toggle on")
+	}
+	g.setIndex = 5 // rowPlayerName
+	g.focusSettingCaret()
+	g.nameDraft = "NewHero"
+	g.setIndex = len(gotRows) - 1 // rowDone
+	g.handleKey(key(tcell.KeyEnter))
+	if g.view != viewNetwork || !g.netChallenge {
+		t.Fatalf("expected Done from Options to return to Challenge lobby, got view=%d netChallenge=%v", g.view, g.netChallenge)
+	}
+	if g.save.Name != "NewHero" {
+		t.Fatalf("expected saved name NewHero, got %q", g.save.Name)
+	}
+
+	// 3. Preview first (2-press) vs Quick place (1-press) behavior.
+	g.openSettings(modeLocal)
+	g.startFromSettings()
+	g.rollAt = time.Now().Add(-time.Second)
+
+	// With PreviewPlace = true, cursor starts at 1; pressing '3' previews column 2 without placing.
+	before := g.ctl.state().Match.Moves
+	g.handleKey(runeKey('3'))
+	if g.ctl.state().Match.Moves != before {
+		t.Fatalf("expected 1st press in PreviewPlace mode not to place die (moves %d -> %d)", before, g.ctl.state().Match.Moves)
+	}
+	if g.cursor != 2 {
+		t.Fatalf("expected cursor to move to 2 on 1st press, got %d", g.cursor)
+	}
+	// Pressing '3' a second time confirms placement.
+	g.handleKey(runeKey('3'))
+	if g.ctl.state().Match.Moves != before+1 {
+		t.Fatalf("expected 2nd press in PreviewPlace mode to place die (moves %d -> %d)", before, g.ctl.state().Match.Moves)
+	}
+
+	// With PreviewPlace = false (1-press Quick Place), pressing '1' places immediately.
+	g.save.Settings.PreviewPlace = false
+	g.rollAt = time.Now().Add(-time.Second)
+	before = g.ctl.state().Match.Moves
+	g.handleKey(runeKey('1'))
+	if g.ctl.state().Match.Moves != before+1 {
+		t.Fatalf("expected Quick Place to place on 1st press (moves %d -> %d)", before, g.ctl.state().Match.Moves)
+	}
+}

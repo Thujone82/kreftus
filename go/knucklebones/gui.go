@@ -461,7 +461,7 @@ func (a *guiApp) frameSignature(now time.Time) (frameSig, bool) {
 		}
 	case viewSettings:
 		rows := g.settingRows()
-		if g.setIndex >= 0 && g.setIndex < len(rows) && (rows[g.setIndex] == rowPlayer2 || rows[g.setIndex] == rowPort || rows[g.setIndex] == rowRoomCode) {
+		if g.setIndex >= 0 && g.setIndex < len(rows) && (rows[g.setIndex] == rowPlayerName || rows[g.setIndex] == rowPlayer2 || rows[g.setIndex] == rowPort || rows[g.setIndex] == rowRoomCode) {
 			sig.clockTick = now.UnixMilli() / 500
 		}
 	case viewLobby:
@@ -577,8 +577,21 @@ func (a *guiApp) keyEvents() []*tcell.EventKey {
 	}
 	if !ctrl {
 		a.chars = ebiten.AppendInputChars(a.chars[:0])
+		var hasDigit [10]bool
 		for _, r := range a.chars {
+			if r >= '0' && r <= '9' {
+				hasDigit[r-'0'] = true
+			}
 			out = append(out, runeEv(r))
+		}
+		numpadKeys := [10]ebiten.Key{
+			ebiten.KeyNumpad0, ebiten.KeyNumpad1, ebiten.KeyNumpad2, ebiten.KeyNumpad3, ebiten.KeyNumpad4,
+			ebiten.KeyNumpad5, ebiten.KeyNumpad6, ebiten.KeyNumpad7, ebiten.KeyNumpad8, ebiten.KeyNumpad9,
+		}
+		for d, nk := range numpadKeys {
+			if !hasDigit[d] && repeating(nk) {
+				out = append(out, runeEv(rune('0'+d)))
+			}
 		}
 	}
 	return out
@@ -638,12 +651,14 @@ func (a *guiApp) mouse() bool {
 				continue
 			}
 			g.setIndex = i
-			if row == rowPlayer2 || row == rowPort || row == rowRoomCode {
+			if row == rowPlayerName || row == rowPlayer2 || row == rowPort || row == rowRoomCode {
 				g.focusSettingCaret()
 				field := settingsTextField(r)
 				if field.has(x, y) {
 					value := g.save.Settings.Player2
 					switch row {
+					case rowPlayerName:
+						value = g.nameDraft
 					case rowPort:
 						value = g.portEditString()
 					case rowRoomCode:
@@ -732,7 +747,7 @@ func (a *guiApp) mouse() bool {
 				case back.has(x, y):
 					return send(keyEv(tcell.KeyEscape))
 				case ren.has(x, y):
-					g.openChallengeNameEdit()
+					g.openOptionsFrom(viewNetwork)
 					return false
 				case start.has(x, y):
 					g.startChallenge()
@@ -853,6 +868,13 @@ func (a *guiApp) mousePlay(x, y float64, moved, click bool, wheel float64, send 
 	if s == nil {
 		return false
 	}
+	if s.Phase != phasePlay && !g.hideResult && !g.replayActive && g.isChallengeCelebrating(s, time.Now()) {
+		if click {
+			g.dismissChallengeCelebration(time.Now())
+			g.afterChange()
+		}
+		return false
+	}
 	switch g.overlay {
 	case overlayResign, overlayLeave:
 		if !click {
@@ -905,6 +927,9 @@ func (a *guiApp) mousePlay(x, y float64, moved, click bool, wheel float64, send 
 			return false
 		}
 		card := resultCard(a.resultLines(s))
+		if s.Challenge {
+			card = challengeResultCard(s)
+		}
 		for i, b := range resultButtons(card, len(g.resultChoices(s))) {
 			if b.has(x, y) {
 				g.resultIndex = i
@@ -929,9 +954,17 @@ func (a *guiApp) mousePlay(x, y float64, moved, click bool, wheel float64, send 
 	if c := columnAt(x, y); c >= 0 {
 		if moved {
 			g.cursor = c
+			g.previewCol = c
 		}
 		if click {
+			if g.save.Settings.PreviewPlace && (g.cursor != c || g.previewCol != c) {
+				g.cursor = c
+				g.previewCol = c
+				g.emitSound(sndClick)
+				return false
+			}
 			g.cursor = c
+			g.previewCol = -1
 			g.placeAtCursor(s)
 			g.afterChange()
 		}

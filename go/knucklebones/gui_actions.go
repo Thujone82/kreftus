@@ -50,7 +50,7 @@ func settingClick(row int) *tcell.EventKey {
 	switch row {
 	case rowStart, rowDone:
 		return keyEv(tcell.KeyEnter)
-	case rowPlayer2, rowPort, rowRoomCode:
+	case rowPlayerName, rowPlayer2, rowPort, rowRoomCode:
 		return nil
 	}
 	return keyEv(tcell.KeyRight)

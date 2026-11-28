@@ -6062,8 +6062,9 @@
         emitSound('click');
         syncAim(s);
         render();
-      } else if (e.key === '1' || e.key === '2' || e.key === '3') {
-        const physicalCol = layP2Input ? (3 - Number(e.key)) : (Number(e.key) - 1);
+      } else if (e.key === '1' || e.key === '2' || e.key === '3' || e.code === 'Numpad1' || e.code === 'Numpad2' || e.code === 'Numpad3') {
+        const digit = (e.code === 'Numpad1' || e.key === '1') ? 1 : (e.code === 'Numpad2' || e.key === '2') ? 2 : 3;
+        const physicalCol = layP2Input ? (3 - digit) : (digit - 1);
         placeAtColumn(physicalCol);
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

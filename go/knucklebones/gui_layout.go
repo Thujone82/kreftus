@@ -273,6 +273,18 @@ func resultCard(lines int) rect {
 	return rect{baseW/2 - 360, guiMidY + 17 - h/2, 720, h}
 }
 
+func challengeCelebCard() rect {
+	return centered(baseW/2, baseH/2-185, 580, 370)
+}
+
+func challengeResultCard(s *session) rect {
+	h := 446.0
+	if s != nil && s.Phase == phaseGameOver && s.Forfeit == nil {
+		h = 510.0
+	}
+	return centered(baseW/2, guiMidY+6-h/2, 680, h)
+}
+
 func resultButtons(card rect, n int) []rect { return rowButtons(n, card.Y+card.H-62, 210, 42, 14) }
 
 func confirmCard(lines int) rect {

@@ -208,14 +208,19 @@ func TestOptionsAndThemesPersistence(t *testing.T) {
 		t.Fatalf("expected setupOptions view, got view=%v mode=%q", g.view, g.setupMode)
 	}
 
-	// Row 0 = Theme (contrast), Row 1 = Sound (On -> Off), Row 2 = Colorblind (Off -> On), Row 3 = WinMeter (Off -> On), Row 4 = Done.
+	// Row 0 = Theme (contrast), Row 1 = Sound (On -> Off), Row 2 = Placement mode (PreviewPlace Off -> On),
+	// Row 3 = Colorblind (Off -> On), Row 4 = WinMeter (Off -> On), Row 5 = Your name, Row 6 = Player 2 name, Row 7 = Done.
 	g.handleKey(key(tcell.KeyDown))
 	g.handleKey(key(tcell.KeyRight)) // Sound -> false
+	g.handleKey(key(tcell.KeyDown))
+	g.handleKey(key(tcell.KeyRight)) // PreviewPlace -> true
 	g.handleKey(key(tcell.KeyDown))
 	g.handleKey(key(tcell.KeyRight)) // Colorblind -> true
 	g.handleKey(key(tcell.KeyDown))
 	g.handleKey(key(tcell.KeyRight)) // WinMeter -> true
-	g.handleKey(key(tcell.KeyDown))
+	g.handleKey(key(tcell.KeyDown))  // Row 5 = Your name
+	g.handleKey(key(tcell.KeyDown))  // Row 6 = Player 2 name
+	g.handleKey(key(tcell.KeyDown))  // Row 7 = Done
 	g.handleKey(key(tcell.KeyEnter)) // Done -> back to menu
 	if g.view != viewMenu {
 		t.Fatalf("expected return to menu on Done, got view=%v", g.view)
@@ -228,8 +233,8 @@ func TestOptionsAndThemesPersistence(t *testing.T) {
 	if reloaded.Settings.Sound {
 		t.Fatalf("expected Sound=false persisted across reload")
 	}
-	if !reloaded.Settings.Colorblind || !reloaded.Settings.WinMeter {
-		t.Fatalf("expected Colorblind=true and WinMeter=true persisted, got %+v", reloaded.Settings)
+	if !reloaded.Settings.PreviewPlace || !reloaded.Settings.Colorblind || !reloaded.Settings.WinMeter {
+		t.Fatalf("expected PreviewPlace=true, Colorblind=true and WinMeter=true persisted, got %+v", reloaded.Settings)
 	}
 
 	// Open Network Play -> Direct Host setup, cycle BindIP, type a secret RoomCode, and verify RoomCode NEVER writes to disk.

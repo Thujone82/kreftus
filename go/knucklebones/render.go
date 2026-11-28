@@ -376,7 +376,7 @@ func (g *game) drawSettings() {
 	drawCentered(g.screen, w/2, 3, setupTitles[g.setupMode], g.st(g.pal.fg).Bold(true))
 	sub := "Game settings"
 	if g.setupMode == setupOptions {
-		sub = "Appearance & audio"
+		sub = "Preferences & appearance"
 	}
 	drawCentered(g.screen, w/2, 4, sub, g.st(g.pal.dim))
 
@@ -413,6 +413,8 @@ func (g *game) drawSettings() {
 			lst = g.st(g.pal.accent)
 			vst = g.st(g.pal.accent).Bold(true)
 			switch row {
+			case rowPlayerName:
+				value = withCaret(g.nameDraft, g.inputPos)
 			case rowPlayer2:
 				value = withCaret(value, g.inputPos)
 			case rowPort:
@@ -661,11 +663,11 @@ func (g *game) drawNetwork() {
 		}
 
 		btnY := by + bh - 2
-		renLbl := "  Change Name [N]  "
+		renLbl := "  Options [O]  "
 		startLbl := "  Start Challenge  "
 		renSt, startSt := idleBtn, idleBtn
 		if g.netFocus == netFocusChallengeRename {
-			renLbl = "▶ Change Name [N] ◀"
+			renLbl = "▶ Options [O] ◀"
 			renSt = accentBtn
 		} else {
 			startLbl = "▶ Start Challenge ◀"
@@ -679,7 +681,7 @@ func (g *game) drawNetwork() {
 		if g.note != "" && by+bh < h-1 {
 			drawCentered(g.screen, w/2, by+bh, truncate(g.note, w-4), g.st(g.pal.lose))
 		}
-		drawCentered(g.screen, w/2, h-1, truncate("Tab/↑↓ focus · Enter start · N name · C 2-Player · R refresh · Esc back", w-2), g.st(g.pal.dim))
+		drawCentered(g.screen, w/2, h-1, truncate("Tab/↑↓ focus · Enter start · O options · C 2-Player · R refresh · Esc back", w-2), g.st(g.pal.dim))
 		return
 	}
 
@@ -1442,6 +1444,15 @@ func (g *game) drawSidePanel(s *session, l playLayout) {
 }
 
 func (g *game) drawResult(s *session, l playLayout) {
+	now := time.Now()
+	if g.isChallengeCelebrating(s, now) {
+		g.drawChallengeCelebration(s, l, now)
+		return
+	}
+	if s.Challenge && g.height >= 20 && g.width >= 52 {
+		g.drawChallengeResult(s, l, now)
+		return
+	}
 	w := g.width
 	bw := 58
 	if bw > w-2 {
@@ -1495,6 +1506,11 @@ func (g *game) drawResult(s *session, l playLayout) {
 		drawCentered(g.screen, w/2, y, ft, g.st(fc))
 	}
 	y += 2
+	g.drawResultButtons(s, y)
+}
+
+func (g *game) drawResultButtons(s *session, y int) {
+	w := g.width
 	choices := g.resultChoices(s)
 	labels := make([]string, len(choices))
 	total := 0
@@ -1510,6 +1526,199 @@ func (g *game) drawResult(s *session, l playLayout) {
 		}
 		x = drawText(g.screen, x, y, lb, st) + 2
 	}
+}
+
+func (g *game) challengeTierColor(rank int) tcell.Color {
+	switch rank {
+	case 1:
+		return tcell.NewRGBColor(250, 204, 21)
+	case 2:
+		return tcell.NewRGBColor(203, 213, 225)
+	case 3:
+		return tcell.NewRGBColor(245, 158, 11)
+	default:
+		return g.pal.win
+	}
+}
+
+func (g *game) drawChallengeCelebration(s *session, l playLayout, now time.Time) {
+	w, h := g.width, g.height
+	sum := g.buildChallengeSummary(s, now)
+	bw := 62
+	if bw > w-2 {
+		bw = w - 2
+	}
+	bh := 15
+	if bh > h-2 {
+		bh = h - 2
+	}
+	bx, by := w/2-bw/2, l.midY-bh/2
+	if by < 1 {
+		by = 1
+	}
+	if by+bh >= h {
+		by = max(0, h-bh-1)
+	}
+	g.drawOverlayBox(bx, by, bw, bh, "TOP 10 LEADERBOARD")
+
+	tierCol := g.challengeTierColor(sum.rank)
+	confettiGlyphs := []rune{'✦', '★', '◆', '●', '▲', '*'}
+	confettiCols := []tcell.Color{
+		tcell.NewRGBColor(250, 204, 21),
+		g.pal.win,
+		g.pal.tripleBg,
+		g.pal.accent,
+		g.pal.lose,
+	}
+	frame := int(now.Sub(g.challengeCelebAt).Milliseconds() / 80)
+	if frame < 0 {
+		frame = 0
+	}
+	for i := 0; i < 10; i++ {
+		rx := bx + 3 + ((i*7 + frame*2) % max(1, bw-6))
+		ry := by + 1
+		if i%2 == 1 {
+			ry = by + bh - 2
+		}
+		ch := confettiGlyphs[(i+frame)%len(confettiGlyphs)]
+		col := confettiCols[(i+frame)%len(confettiCols)]
+		g.screen.SetContent(rx, ry, ch, nil, g.st(col).Bold(true))
+	}
+
+	pill := fmt.Sprintf(" ★ TOP 10 LEADERBOARD · RANK #%d (%s) ★ ", sum.rank, sum.badge)
+	drawCentered(g.screen, w/2, by+2, truncate(pill, bw-4), g.st(tierCol).Bold(true))
+	drawCentered(g.screen, w/2, by+4, truncate(fmt.Sprintf("Congratulations, %s!", sum.myName), bw-4), g.st(g.pal.fg).Bold(true))
+	drawCentered(g.screen, w/2, by+5, truncate(fmt.Sprintf("Your Challenge run placed #%d on the global Top 10!", sum.rank), bw-4), g.st(g.pal.accent))
+
+	recStr := fmt.Sprintf("%dW-%dL", sum.wins, sum.losses)
+	if sum.ties > 0 {
+		recStr += fmt.Sprintf("-%dT", sum.ties)
+	}
+	metrics := fmt.Sprintf("Net Delta: %s   ·   Time: %s   ·   Record: %s",
+		formatSignedDelta(sum.netDelta), sum.elapsed, recStr)
+	drawCentered(g.screen, w/2, by+7, truncate(metrics, bw-4), g.st(g.pal.win).Bold(true))
+
+	ptsLine := fmt.Sprintf("Total Points: %d – %d   ·   Avg %d/m   ·   Best %d",
+		sum.myTotal, sum.aiTotal, sum.avgScore, sum.bestScore)
+	drawCentered(g.screen, w/2, by+9, truncate(ptsLine, bw-4), g.st(g.pal.fg))
+
+	drawCentered(g.screen, w/2, by+bh-3, truncate("Press Enter or Space for full breakdown", bw-4), g.st(g.pal.dim))
+}
+
+func (g *game) drawChallengeResult(s *session, l playLayout, now time.Time) {
+	w, h := g.width, g.height
+	sum := g.buildChallengeSummary(s, now)
+	isFinal := s.Phase == phaseGameOver
+	bw := 64
+	if bw > w-2 {
+		bw = w - 2
+	}
+	hasBanner := isFinal && s.Forfeit == nil
+	bh := 15
+	if hasBanner {
+		bh = 17
+	}
+	if bh > h-2 {
+		bh = h - 2
+	}
+	bx, by := w/2-bw/2, l.midY-bh/2
+	if by < 1 {
+		by = 1
+	}
+	if by+bh >= h {
+		by = max(0, h-bh-1)
+	}
+	title := fmt.Sprintf("Match %d/3 Complete", s.Round)
+	if isFinal {
+		if s.Forfeit != nil {
+			title = "Challenge Forfeited"
+		} else {
+			title = "Challenge Complete"
+		}
+	}
+	g.drawOverlayBox(bx, by, bw, bh, title)
+
+	y := by + 1
+	msg, mc := g.resultText(s)
+	sc := s.Match.Scores()
+	headLine := fmt.Sprintf("%s  (%s %d – %d %s)", msg, s.Names[0], sc[0], sc[1], s.Names[1])
+	drawCentered(g.screen, w/2, y, truncate(headLine, bw-4), g.st(mc).Bold(true))
+	y++
+
+	if hasBanner {
+		switch {
+		case sum.isTop10:
+			tierCol := g.challengeTierColor(sum.rank)
+			b1 := fmt.Sprintf("★ Congratulations, %s! Top 10 Rank #%d (%s) ★", sum.myName, sum.rank, sum.badge)
+			drawCentered(g.screen, w/2, y, truncate(b1, bw-4), g.st(tierCol).Bold(true))
+		case sum.rank > 10:
+			b1 := fmt.Sprintf("Challenge Rank #%d overall (%s in %s) · Beat #10 for Top 10", sum.rank, formatSignedDelta(sum.netDelta), sum.elapsed)
+			drawCentered(g.screen, w/2, y, truncate(b1, bw-4), g.st(g.pal.accent).Bold(true))
+		default:
+			drawCentered(g.screen, w/2, y, truncate("Finished outside Top 10 · Beat #10's net delta to place", bw-4), g.st(g.pal.dim))
+		}
+		y += 2
+	} else {
+		y++
+	}
+
+	deltaLbl := "Running Delta"
+	timeLbl := "Elapsed"
+	if isFinal {
+		deltaLbl = "Net Delta"
+		timeLbl = "Total Time"
+	}
+	bestStr := ""
+	if sum.completedCount > 0 {
+		bestStr = fmt.Sprintf(" (Best %s)", formatSignedDelta(sum.bestDelta))
+	}
+	kpi1 := fmt.Sprintf("%s: %s%s  ·  %s: %s", deltaLbl, formatSignedDelta(sum.netDelta), bestStr, timeLbl, sum.elapsed)
+	deltaCol := g.pal.accent
+	if sum.netDelta > 0 {
+		deltaCol = g.pal.win
+	} else if sum.netDelta < 0 {
+		deltaCol = g.pal.lose
+	}
+	drawCentered(g.screen, w/2, y, truncate(kpi1, bw-4), g.st(deltaCol).Bold(true))
+	y++
+
+	recStr := fmt.Sprintf("%dW-%dL", sum.wins, sum.losses)
+	if sum.ties > 0 {
+		recStr += fmt.Sprintf("-%dT", sum.ties)
+	}
+	kpi2 := fmt.Sprintf("Record: %s  ·  Points: %d–%d (Avg %d/m · Best %d)", recStr, sum.myTotal, sum.aiTotal, sum.avgScore, sum.bestScore)
+	drawCentered(g.screen, w/2, y, truncate(kpi2, bw-4), g.st(g.pal.fg))
+	y += 2
+
+	tblHdr := fmt.Sprintf("%-9s %10s %10s %8s %9s", "Match", truncate(sum.myName, 10), truncate(sum.aiName, 10), "Delta", "Result")
+	tx := w/2 - textWidth(tblHdr)/2
+	drawText(g.screen, tx, y, tblHdr, g.st(g.pal.dim).Bold(true))
+	y++
+	for _, r := range sum.rounds {
+		if r.pending {
+			row := fmt.Sprintf("Match %-3d %10s %10s %8s %9s", r.round, "--", "--", "--", r.label)
+			drawText(g.screen, tx, y, row, g.st(g.pal.dim))
+		} else {
+			rc := g.pal.fg
+			if r.delta > 0 {
+				rc = g.pal.win
+			} else if r.delta < 0 {
+				rc = g.pal.lose
+			}
+			row := fmt.Sprintf("Match %-3d %10d %10d %8s %9s", r.round, r.myScore, r.aiScore, formatSignedDelta(r.delta), r.label)
+			drawText(g.screen, tx, y, row, g.st(rc))
+		}
+		y++
+	}
+	wltShort := fmt.Sprintf("%d-%d-%d", sum.wins, sum.losses, sum.ties)
+	combRow := fmt.Sprintf("%-9s %10d %10d %8s %9s", "Combined", sum.myTotal, sum.aiTotal, formatSignedDelta(sum.netDelta), wltShort)
+	drawText(g.screen, tx, y, combRow, g.st(deltaCol).Bold(true))
+
+	btnY := by + bh - 2
+	if btnY <= y {
+		btnY = y + 1
+	}
+	g.drawResultButtons(s, btnY)
 }
 
 func (g *game) drawConfirm(title, warn, no, yes string) {

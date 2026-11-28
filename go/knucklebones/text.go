@@ -107,9 +107,18 @@ func (g *game) challengeLiveElapsedMs(s *session, now time.Time) int64 {
 	return g.challengeBaseMs + extra
 }
 
+func (g *game) challengeSeat() int {
+	if g.ctl != nil {
+		if seat := g.ctl.seat(); seat >= 0 && seat <= 1 {
+			return seat
+		}
+	}
+	return 1
+}
+
 func (g *game) headerRightLabel(s *session, now time.Time) string {
 	if s.Challenge {
-		seat := g.bottomSeat()
+		seat := g.challengeSeat()
 		return fmt.Sprintf("Match %d/3 · Δ %s · %s",
 			s.Round,
 			formatSignedDelta(s.challengeCombinedDelta(seat)),
@@ -133,7 +142,7 @@ func (g *game) resultStatus(s *session) (string, tcell.Color) {
 		elapsed := formatChallengeTime(g.challengeLiveElapsedMs(s, time.Now()))
 		if s.Phase == phaseGameOver && s.Forfeit == nil {
 			if s.ChallengeRank > 0 && s.ChallengeRank <= 10 {
-				return fmt.Sprintf("Time: %s · 🏆 Top 10 Leaderboard #%d!", elapsed, s.ChallengeRank), g.pal.win
+				return fmt.Sprintf("Time: %s · ★ Top 10 Leaderboard #%d!", elapsed, s.ChallengeRank), g.pal.win
 			}
 			if s.ChallengeRank > 10 {
 				return fmt.Sprintf("Time: %s · Challenge Rank #%d", elapsed, s.ChallengeRank), g.pal.accent
@@ -171,6 +180,134 @@ func (g *game) resignWarning(s *session) string {
 		return s.Names[s.Match.Turn] + " gives the game to " + s.Names[1-s.Match.Turn] + "."
 	}
 	return "Resigning ends the game immediately and counts as a loss."
+}
+
+type challengeRoundSummary struct {
+	round   int
+	pending bool
+	myScore int
+	aiScore int
+	delta   int
+	outcome string
+	label   string
+}
+
+type challengeSummary struct {
+	myName         string
+	aiName         string
+	rounds         [3]challengeRoundSummary
+	completedCount int
+	myTotal        int
+	aiTotal        int
+	wins           int
+	losses         int
+	ties           int
+	avgScore       int
+	bestScore      int
+	bestDelta      int
+	netDelta       int
+	elapsed        string
+	rank           int
+	isTop10        bool
+	badge          string
+}
+
+func (g *game) buildChallengeSummary(s *session, now time.Time) challengeSummary {
+	me := g.challengeSeat()
+	ai := 1 - me
+	out := challengeSummary{
+		myName:   s.Names[me],
+		aiName:   s.Names[ai],
+		netDelta: s.challengeCombinedDelta(me),
+		elapsed:  formatChallengeTime(g.challengeLiveElapsedMs(s, now)),
+		rank:     s.ChallengeRank,
+		isTop10:  s.ChallengeRank >= 1 && s.ChallengeRank <= 10,
+	}
+	if out.myName == "" {
+		out.myName = "You"
+	}
+	if out.aiName == "" {
+		out.aiName = "Shrumy"
+	}
+	hasBestDelta := false
+	for r := 1; r <= 3; r++ {
+		var found *historyEntry
+		for i := range s.History {
+			if s.History[i].Round == r {
+				found = &s.History[i]
+				break
+			}
+		}
+		if found == nil && r-1 < len(s.History) {
+			found = &s.History[r-1]
+		}
+		if found != nil {
+			myScore := found.Scores[me]
+			aiScore := found.Scores[ai]
+			delta := myScore - aiScore
+			outcome := "tie"
+			label := "Tie"
+			if delta > 0 {
+				outcome = "win"
+				label = "Win"
+				out.wins++
+			} else if delta < 0 {
+				outcome = "loss"
+				label = "Loss"
+				out.losses++
+			} else {
+				out.ties++
+			}
+			out.myTotal += myScore
+			out.aiTotal += aiScore
+			out.completedCount++
+			if myScore > out.bestScore {
+				out.bestScore = myScore
+			}
+			if !hasBestDelta || delta > out.bestDelta {
+				hasBestDelta = true
+				out.bestDelta = delta
+			}
+			out.rounds[r-1] = challengeRoundSummary{
+				round:   r,
+				pending: false,
+				myScore: myScore,
+				aiScore: aiScore,
+				delta:   delta,
+				outcome: outcome,
+				label:   label,
+			}
+		} else {
+			label := "Pending"
+			if s.Forfeit != nil {
+				label = "--"
+			} else if s.Phase == phaseRoundOver && r == s.Round+1 {
+				label = "Up next"
+			}
+			out.rounds[r-1] = challengeRoundSummary{
+				round:   r,
+				pending: true,
+				outcome: "pending",
+				label:   label,
+			}
+		}
+	}
+	if out.completedCount > 0 {
+		out.avgScore = (out.myTotal + out.completedCount/2) / out.completedCount
+	}
+	switch {
+	case out.rank == 1:
+		out.badge = "CHAMPION · #1"
+	case out.rank == 2:
+		out.badge = "2ND PLACE · #2"
+	case out.rank == 3:
+		out.badge = "3RD PLACE · #3"
+	case out.isTop10:
+		out.badge = fmt.Sprintf("TOP 10 · #%d", out.rank)
+	case out.rank > 10:
+		out.badge = fmt.Sprintf("RANK #%d", out.rank)
+	}
+	return out
 }
 
 func leaveWarning(s *session) string {

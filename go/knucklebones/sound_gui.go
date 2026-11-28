@@ -33,6 +33,13 @@ func initSounds() {
 			{startMs: 0, freq0: 329.63, freq1: 311.13, durMs: 140, amp: 0.20, wave: waveTriangle},
 			{startMs: 120, freq0: 246.94, freq1: 220.00, durMs: 230, amp: 0.22, wave: waveTriangle},
 		}),
+		sndCelebrate: synthToneSeq([]toneSpec{
+			{startMs: 0, freq0: 523.25, freq1: 523.25, durMs: 110, amp: 0.20, wave: waveTriangle},
+			{startMs: 90, freq0: 659.25, freq1: 659.25, durMs: 110, amp: 0.20, wave: waveTriangle},
+			{startMs: 180, freq0: 783.99, freq1: 783.99, durMs: 120, amp: 0.22, wave: waveTriangle},
+			{startMs: 280, freq0: 1046.50, freq1: 1046.50, durMs: 360, amp: 0.24, wave: waveSine},
+			{startMs: 280, freq0: 783.99, freq1: 783.99, durMs: 340, amp: 0.14, wave: waveTriangle},
+		}),
 	}
 	if ctx := audio.CurrentContext(); ctx != nil {
 		soundCtx = ctx

@@ -43,7 +43,7 @@ func initFonts() {
 }
 
 // Glyphs the Go fonts lack.
-var glyphFix = strings.NewReplacer("⚠", "(offline)", "▏", "|")
+var glyphFix = strings.NewReplacer("⚠", "(offline)", "▏", "|", "🏆", "★", "🥇", "#1", "🥈", "#2", "🥉", "#3", "🎯", "★")
 
 type faceKey struct {
 	sizeBits   uint64
@@ -511,7 +511,7 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 	a.center(dst, setupTitles[g.setupMode], 86, 24, fontBold, a.c(p.fg))
 	subtitle := "Game settings"
 	if g.setupMode == setupOptions {
-		subtitle = "Appearance & audio"
+		subtitle = "Preferences & appearance"
 	}
 	a.center(dst, subtitle, 118, 16, fontRegular, a.c(p.dim))
 	rows := g.settingRows()
@@ -534,12 +534,14 @@ func (a *guiApp) drawSettings(dst *ebiten.Image) {
 		a.text(dst, label, r.X+20, r.cy(), 17, fontRegular, lc, text.AlignStart)
 		left, right := settingsArrows(r)
 		vc := a.c(p.fg)
-		if row == rowPlayer2 || row == rowPort || row == rowRoomCode {
+		if row == rowPlayerName || row == rowPlayer2 || row == rowPort || row == rowRoomCode {
 			field := settingsTextField(r)
 			a.fill(dst, field, a.c(p.emptyBg), 6)
 			if sel {
 				edit := value
 				switch row {
+				case rowPlayerName:
+					edit = g.nameDraft
 				case rowPlayer2:
 					edit = g.save.Settings.Player2
 				case rowPort:
@@ -835,9 +837,9 @@ func (a *guiApp) drawNetwork(dst *ebiten.Image) {
 
 		back, ren, start := netChallengeButtons()
 		a.button(dst, back, "Back", false, p.accent)
-		a.button(dst, ren, "Change Name", g.netFocus == netFocusChallengeRename, p.accent)
+		a.button(dst, ren, "Options", g.netFocus == netFocusChallengeRename, p.accent)
 		a.button(dst, start, "Start Challenge", g.netFocus != netFocusChallengeRename, p.accent)
-		a.footer(dst, "Enter start challenge · N change name · R refresh · Esc back")
+		a.footer(dst, "Enter start challenge · O options · R refresh · Esc back")
 		return
 	}
 
@@ -1374,6 +1376,15 @@ func (a *guiApp) resultLines(s *session) int {
 }
 
 func (a *guiApp) drawResult(dst *ebiten.Image, s *session) {
+	now := time.Now()
+	if a.g.isChallengeCelebrating(s, now) {
+		a.drawChallengeCelebration(dst, s, now)
+		return
+	}
+	if s.Challenge {
+		a.drawChallengeResult(dst, s, now)
+		return
+	}
 	g, p := a.g, a.g.pal
 	msg, mc := g.resultText(s)
 	lines := wrapPx(msg, 22, fontBold, 640)
@@ -1413,6 +1424,246 @@ func (a *guiApp) drawResult(dst *ebiten.Image, s *session) {
 	if ft, fc := g.fairnessText(s); ft != "" {
 		a.center(dst, ft, y, 16, fontBold, a.c(fc))
 	}
+	choices := g.resultChoices(s)
+	for i, b := range resultButtons(c, len(choices)) {
+		a.button(dst, b, choiceLabel(choices[i]), i == g.resultIndex, p.accent)
+	}
+}
+
+func (a *guiApp) drawChallengeCelebration(dst *ebiten.Image, s *session, now time.Time) {
+	g, p := a.g, a.g.pal
+	a.scrim(dst)
+	sum := g.buildChallengeSummary(s, now)
+	tierCol := a.c(g.challengeTierColor(sum.rank))
+
+	confettiCols := []color.RGBA{
+		{250, 204, 21, 235},
+		{52, 211, 153, 235},
+		{96, 165, 250, 235},
+		{251, 113, 133, 235},
+		{245, 158, 11, 235},
+		{192, 132, 252, 235},
+	}
+	el := now.Sub(g.challengeCelebAt).Seconds()
+	if el < 0 {
+		el = 0
+	}
+	for i := 0; i < 24; i++ {
+		px := float64(((i*47 + 19) % 92) + 4) * baseW / 100.0
+		delay := float64((i*7)%12) * 0.08
+		dur := 1.55 + float64((i*5)%9)*0.14
+		t := (el - delay) / dur
+		if t < 0 {
+			continue
+		}
+		if t > 1 {
+			t = math.Mod(t, 1.0)
+		}
+		py := 30 + t*(baseH-80)
+		sway := math.Sin(t*math.Pi*3+float64(i)) * 22
+		cc := confettiCols[i%len(confettiCols)]
+		switch i % 3 {
+		case 0:
+			a.circle(dst, px+sway, py, 5.5, cc)
+		case 1:
+			a.fill(dst, rect{px + sway - 5, py - 5, 10, 10}, cc, 2)
+		default:
+			a.triangle(dst, rect{px + sway - 6, py - 6, 12, 11}, 2, cc)
+		}
+	}
+
+	c := challengeCelebCard()
+	a.fill(dst, c, a.cardBg(), 18)
+	a.stroke(dst, c, tierCol, 18, 2.5)
+
+	pulse := 1.0 + 0.08*math.Sin(el*6.5)
+	a.circle(dst, c.cx(), c.Y+54, 34*pulse, color.NRGBA{tierCol.R, tierCol.G, tierCol.B, 46})
+	a.circle(dst, c.cx(), c.Y+54, 25, color.NRGBA{tierCol.R, tierCol.G, tierCol.B, 225})
+	medalTxt := fmt.Sprintf("#%d", sum.rank)
+	a.text(dst, medalTxt, c.cx(), c.Y+54, 18, fontBold, a.c(p.bg), text.AlignCenter)
+
+	pillW := 270.0
+	pillR := rect{c.cx() - pillW/2, c.Y + 94, pillW, 28}
+	a.fill(dst, pillR, color.NRGBA{tierCol.R, tierCol.G, tierCol.B, 36}, 14)
+	a.stroke(dst, pillR, tierCol, 14, 1.5)
+	a.text(dst, fmt.Sprintf("TOP 10 LEADERBOARD · RANK #%d", sum.rank), pillR.cx(), pillR.cy(), 13, fontBold, tierCol, text.AlignCenter)
+
+	a.center(dst, truncPx(fmt.Sprintf("Congratulations, %s!", sum.myName), 26, fontBold, c.W-40), c.Y+148, 26, fontBold, a.c(p.fg))
+	a.center(dst, fmt.Sprintf("Your Challenge run placed #%d on the global Top 10!", sum.rank), c.Y+180, 16, fontRegular, a.c(p.dim))
+
+	recStr := fmt.Sprintf("%dW–%dL", sum.wins, sum.losses)
+	if sum.ties > 0 {
+		recStr += fmt.Sprintf("–%dT", sum.ties)
+	}
+	metrics := [3]struct{ lbl, val string }{
+		{"NET DELTA", formatSignedDelta(sum.netDelta)},
+		{"TIME", sum.elapsed},
+		{"RECORD", recStr},
+	}
+	mw, mh, gap := 152.0, 68.0, 16.0
+	mx0 := c.cx() - (3*mw+2*gap)/2
+	my := c.Y + 210
+	for i, m := range metrics {
+		mr := rect{mx0 + float64(i)*(mw+gap), my, mw, mh}
+		a.fill(dst, mr, a.c(p.emptyBg), 10)
+		a.stroke(dst, mr, a.c(p.frame), 10, 1.2)
+		a.text(dst, m.lbl, mr.cx(), mr.Y+20, 11.5, fontBold, a.c(p.dim), text.AlignCenter)
+		vc := a.c(p.fg)
+		if i == 0 {
+			vc = tierCol
+		}
+		a.text(dst, m.val, mr.cx(), mr.Y+45, 20, fontBold, vc, text.AlignCenter)
+	}
+
+	a.center(dst, "Click anywhere or press Enter for full breakdown", c.Y+c.H-28, 14, fontRegular, a.c(p.dim))
+}
+
+func (a *guiApp) drawChallengeResult(dst *ebiten.Image, s *session, now time.Time) {
+	g, p := a.g, a.g.pal
+	sum := g.buildChallengeSummary(s, now)
+	isFinal := s.Phase == phaseGameOver
+	c := challengeResultCard(s)
+	title := fmt.Sprintf("Match %d/3 Complete", s.Round)
+	if isFinal {
+		if s.Forfeit != nil {
+			title = "Challenge Forfeited"
+		} else {
+			title = "Challenge Complete"
+		}
+	}
+	a.card(dst, c, title)
+
+	msg, mc := g.resultText(s)
+	a.center(dst, truncPx(msg, 20, fontBold, c.W-48), c.Y+64, 20, fontBold, a.c(mc))
+	sc := s.Match.Scores()
+	a.center(dst, fmt.Sprintf("Match %d score: %s %d – %d %s", s.Round, s.Names[0], sc[0], sc[1], s.Names[1]), c.Y+88, 14.5, fontRegular, a.c(p.dim))
+
+	curY := c.Y + 108
+	if isFinal && s.Forfeit == nil {
+		br := rect{c.X + 24, curY, c.W - 48, 52}
+		if sum.isTop10 {
+			tc := a.c(g.challengeTierColor(sum.rank))
+			a.fill(dst, br, color.NRGBA{tc.R, tc.G, tc.B, 30}, 10)
+			a.stroke(dst, br, tc, 10, 1.8)
+			a.circle(dst, br.X+26, br.cy(), 16, color.NRGBA{tc.R, tc.G, tc.B, 220})
+			a.text(dst, fmt.Sprintf("#%d", sum.rank), br.X+26, br.cy(), 13, fontBold, a.c(p.bg), text.AlignCenter)
+			t1 := fmt.Sprintf("Congratulations, %s! Top 10 Rank #%d!", sum.myName, sum.rank)
+			t2 := fmt.Sprintf("Ranked %s with %s net delta in %s.", sum.badge, formatSignedDelta(sum.netDelta), sum.elapsed)
+			a.text(dst, truncPx(t1, 15, fontBold, br.W-64), br.X+52, br.Y+18, 15, fontBold, tc, text.AlignStart)
+			a.text(dst, truncPx(t2, 13, fontRegular, br.W-64), br.X+52, br.Y+37, 13, fontRegular, a.c(p.fg), text.AlignStart)
+		} else if sum.rank > 10 {
+			ac := a.c(p.accent)
+			a.fill(dst, br, color.NRGBA{ac.R, ac.G, ac.B, 24}, 10)
+			a.stroke(dst, br, ac, 10, 1.5)
+			t1 := fmt.Sprintf("Challenge Rank #%d", sum.rank)
+			t2 := fmt.Sprintf("Finished #%d overall (%s net delta in %s) · Beat Rank #10 to enter Top 10.", sum.rank, formatSignedDelta(sum.netDelta), sum.elapsed)
+			a.text(dst, t1, br.X+16, br.Y+18, 15, fontBold, ac, text.AlignStart)
+			a.text(dst, truncPx(t2, 13, fontRegular, br.W-32), br.X+16, br.Y+37, 13, fontRegular, a.c(p.dim), text.AlignStart)
+		} else {
+			a.fill(dst, br, a.c(p.emptyBg), 10)
+			a.stroke(dst, br, a.c(p.frame), 10, 1.2)
+			a.text(dst, "Finished outside the Top 10 · Beat #10's net delta (or time on ties) to place.", br.cx(), br.cy(), 13.5, fontRegular, a.c(p.dim), text.AlignCenter)
+		}
+		curY += 64
+	}
+
+	deltaCol := a.c(p.accent)
+	if sum.netDelta > 0 {
+		deltaCol = a.c(p.win)
+	} else if sum.netDelta < 0 {
+		deltaCol = a.c(p.lose)
+	}
+	deltaLbl := "RUNNING DELTA"
+	timeLbl := "ELAPSED TIME"
+	timeSub := fmt.Sprintf("Match %d/3", s.Round)
+	if isFinal {
+		deltaLbl = "NET DELTA"
+		timeLbl = "TOTAL TIME"
+		timeSub = "First to last die"
+	}
+	bestSub := "No matches yet"
+	if sum.completedCount > 0 {
+		bestSub = fmt.Sprintf("Best match: %s", formatSignedDelta(sum.bestDelta))
+	}
+	recStr := fmt.Sprintf("%dW – %dL", sum.wins, sum.losses)
+	if sum.ties > 0 {
+		recStr += fmt.Sprintf(" – %dT", sum.ties)
+	}
+	recSub := fmt.Sprintf("%d/3 completed", sum.completedCount)
+	if isFinal && s.Forfeit == nil && sum.rank > 0 {
+		if sum.isTop10 {
+			recSub = fmt.Sprintf("Top 10 · Rank #%d", sum.rank)
+		} else {
+			recSub = fmt.Sprintf("Overall Rank #%d", sum.rank)
+		}
+	}
+	kpis := [4]struct {
+		lbl, val, sub string
+		col           color.RGBA
+	}{
+		{deltaLbl, formatSignedDelta(sum.netDelta), bestSub, deltaCol},
+		{timeLbl, sum.elapsed, timeSub, a.c(p.fg)},
+		{"MATCH RECORD", recStr, recSub, a.c(p.fg)},
+		{"TOTAL POINTS", fmt.Sprintf("%d – %d", sum.myTotal, sum.aiTotal), fmt.Sprintf("Avg %d/m · Best %d", sum.avgScore, sum.bestScore), a.c(p.fg)},
+	}
+	kw, kh, kgap := 150.0, 68.0, 10.6
+	kx0 := c.X + 24
+	for i, k := range kpis {
+		kr := rect{kx0 + float64(i)*(kw+kgap), curY, kw, kh}
+		a.fill(dst, kr, a.c(p.emptyBg), 8)
+		a.stroke(dst, kr, a.c(p.frame), 8, 1)
+		a.text(dst, k.lbl, kr.X+10, kr.Y+15, 10.5, fontBold, a.c(p.dim), text.AlignStart)
+		a.text(dst, truncPx(k.val, 17, fontBold, kw-20), kr.X+10, kr.Y+36, 17, fontBold, k.col, text.AlignStart)
+		a.text(dst, truncPx(k.sub, 11.5, fontRegular, kw-20), kr.X+10, kr.Y+55, 11.5, fontRegular, a.c(p.dim), text.AlignStart)
+	}
+	curY += kh + 12
+
+	tr := rect{c.X + 24, curY, c.W - 48, 152}
+	a.fill(dst, tr, a.c(p.emptyBg), 10)
+	a.stroke(dst, tr, a.c(p.frame), 10, 1.2)
+
+	colMatch := tr.X + 16
+	colMy := tr.X + 250
+	colAI := tr.X + 365
+	colDelta := tr.X + 475
+	colRes := tr.X + tr.W - 16
+	hy := tr.Y + 20
+	a.text(dst, "Match", colMatch, hy, 12.5, fontBold, a.c(p.dim), text.AlignStart)
+	a.text(dst, truncPx(sum.myName, 12.5, fontBold, 105), colMy, hy, 12.5, fontBold, a.c(p.dim), text.AlignEnd)
+	a.text(dst, truncPx(sum.aiName, 12.5, fontBold, 105), colAI, hy, 12.5, fontBold, a.c(p.dim), text.AlignEnd)
+	a.text(dst, "Delta", colDelta, hy, 12.5, fontBold, a.c(p.dim), text.AlignEnd)
+	a.text(dst, "Result", colRes, hy, 12.5, fontBold, a.c(p.dim), text.AlignEnd)
+
+	for i, r := range sum.rounds {
+		ry := tr.Y + 46 + float64(i)*26
+		a.text(dst, fmt.Sprintf("Match %d", r.round), colMatch, ry, 13.5, fontRegular, a.c(p.fg), text.AlignStart)
+		if r.pending {
+			a.text(dst, "—", colMy, ry, 13.5, fontRegular, a.c(p.dim), text.AlignEnd)
+			a.text(dst, "—", colAI, ry, 13.5, fontRegular, a.c(p.dim), text.AlignEnd)
+			a.text(dst, "—", colDelta, ry, 13.5, fontRegular, a.c(p.dim), text.AlignEnd)
+			a.text(dst, r.label, colRes, ry, 12.5, fontBold, a.c(p.dim), text.AlignEnd)
+		} else {
+			dc := a.c(p.accent)
+			if r.delta > 0 {
+				dc = a.c(p.win)
+			} else if r.delta < 0 {
+				dc = a.c(p.lose)
+			}
+			a.text(dst, fmt.Sprint(r.myScore), colMy, ry, 13.5, fontRegular, a.c(p.fg), text.AlignEnd)
+			a.text(dst, fmt.Sprint(r.aiScore), colAI, ry, 13.5, fontRegular, a.c(p.fg), text.AlignEnd)
+			a.text(dst, formatSignedDelta(r.delta), colDelta, ry, 13.5, fontBold, dc, text.AlignEnd)
+			a.text(dst, r.label, colRes, ry, 12.5, fontBold, dc, text.AlignEnd)
+		}
+	}
+
+	fy := tr.Y + 128
+	wltShort := fmt.Sprintf("%d-%d-%d", sum.wins, sum.losses, sum.ties)
+	a.text(dst, "Combined", colMatch, fy, 13.5, fontBold, a.c(p.fg), text.AlignStart)
+	a.text(dst, fmt.Sprint(sum.myTotal), colMy, fy, 13.5, fontBold, a.c(p.fg), text.AlignEnd)
+	a.text(dst, fmt.Sprint(sum.aiTotal), colAI, fy, 13.5, fontBold, a.c(p.fg), text.AlignEnd)
+	a.text(dst, formatSignedDelta(sum.netDelta), colDelta, fy, 13.5, fontBold, deltaCol, text.AlignEnd)
+	a.text(dst, wltShort, colRes, fy, 13.5, fontBold, a.c(p.fg), text.AlignEnd)
+
 	choices := g.resultChoices(s)
 	for i, b := range resultButtons(c, len(choices)) {
 		a.button(dst, b, choiceLabel(choices[i]), i == g.resultIndex, p.accent)

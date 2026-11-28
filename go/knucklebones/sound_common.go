@@ -16,11 +16,12 @@ const (
 	sndTurn
 	sndWin
 	sndLose
+	sndCelebrate
 )
 
 func (id soundID) tuiAudible() bool {
 	switch id {
-	case sndDestroy, sndWin, sndLose:
+	case sndDestroy, sndWin, sndLose, sndCelebrate:
 		return true
 	}
 	return false

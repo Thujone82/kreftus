@@ -74,6 +74,8 @@ func (g *game) settingText(row int) (string, string) {
 	switch row {
 	case rowDifficulty:
 		return "AI difficulty", difficultyLabel[st.Difficulty] + " · " + aiName[st.Difficulty]
+	case rowPlayerName:
+		return "Your name", g.nameDraft
 	case rowPlayer2:
 		return "Player 2 name", st.Player2
 	case rowRounds:
@@ -111,6 +113,11 @@ func (g *game) settingText(row int) (string, string) {
 		return "Theme", themeLabel(g.save.Theme)
 	case rowSound:
 		return "Sound effects", onOff(st.Sound)
+	case rowQuickPlace:
+		if st.PreviewPlace {
+			return "Placement mode", "Preview first (2-press)"
+		}
+		return "Placement mode", "Quick place (1-press)"
 	case rowColorblind:
 		return "Colorblind marks", onOff(st.Colorblind)
 	case rowWinMeter:

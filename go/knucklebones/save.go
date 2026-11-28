@@ -60,10 +60,11 @@ type settings struct {
 	Port        int    `json:"port"`
 	BindIP      string `json:"bindIP,omitempty"`
 	JoinAddr    string `json:"joinAddr"`
-	Player2     string `json:"player2"`
-	Sound       bool   `json:"sound"`
-	Colorblind  bool   `json:"colorblind,omitempty"`
-	WinMeter    bool   `json:"winMeter,omitempty"`
+	Player2      string `json:"player2"`
+	Sound        bool   `json:"sound"`
+	PreviewPlace bool   `json:"previewPlace,omitempty"`
+	Colorblind   bool   `json:"colorblind,omitempty"`
+	WinMeter     bool   `json:"winMeter,omitempty"`
 }
 
 type saveData struct {
